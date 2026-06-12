@@ -1,0 +1,11 @@
+{
+  "collapseFilter": {},
+  "collapse": true,
+  "repelStrength": 20,
+  "linkLength": 50,
+  "linkStrength": 1,
+  "scale": 1,
+  "close": true,
+  "arrows": false,
+  "orphans": true
+}
