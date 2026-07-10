@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-11
 **当前阶段**：阶段 0（规格提取与验证基建）进行中
-**当前状态**：阶段 0 任务 1（LPC 规格提取管线）方法论与计划已就绪，待启动 9 层并行提取。方法论见 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md)，实施计划见 [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)。核心发现：go/move/combat 三条路径不足以覆盖核心可玩循环，需 9 层（A 驱动桥梁 / B 对象基础 / C 命令系统 / D 世界构建 / E 战斗 / F 死亡轮回 / G NPC AI / H 核心守护进程 / I 角色登录）覆盖完整闭环，约 4500-5000 行 LPC。阶段 0 任务 2（driver 可运行）已完成（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)）。118 tests 全绿，ruff 全过。
+**当前状态**：阶段 0 任务 1（LPC 规格提取管线）**9 层全部提取完成**。3 个 Wave 串行启动、Wave 内 agent 并行提取，产出 160 FunctionSpec / 631 SideEffect / 52 RandomSpec / 151 跨层引用，覆盖 A-I 九层约 7000 行 LPC。层 E 战斗系统为核心产出：do_attack 七步 49 个副作用严格交织（state_mutation 与 message_output 不可分离）+ 31 处 random 概率模型 + 三层资源不变量（0<=qi<=eff_qi<=max_qi）。599 tests 全绿（+481），ruff 全过。方法论见 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md)，实施计划见 [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)。任务 1 验收标准（08 §四）全部满足。下一步：任务 3（单元规约 hypothesis 属性测试）衔接，或并行启动任务 7/9。
 
 ## Done
 
@@ -123,25 +123,41 @@
   - 避免穷尽细节：不碰 kungfu/(798) + d/(6414)，condition 只提取框架，阴间流程后置，不做 LPC 解析器自动化
   - 为新 session 准备好可直接执行的 9 层并行提取计划
 
+- [x] **阶段 0 任务 1：LPC 规格提取管线 9 层全部完成**（[ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md) / [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)）：
+  - 基础类型 [base.py](engine/src/xkx/spec/base.py)：FunctionSpec 六要素（签名/前置/后置/不变量/副作用/随机性）+ LayerSpec 集合
+  - 3 个 Wave 串行启动、Wave 内 agent 并行提取（Wave 1: A+B+C+D / Wave 2: E+F+G / Wave 3: H+I），9 个 spec 文件 + 9 个 test 文件
+  - **总计 160 FunctionSpec / 631 SideEffect / 52 RandomSpec / 151 跨层引用**，覆盖约 7000 行 LPC
+  - 层 A 驱动桥梁（25 函数）：master.c 驱动回调 + simul_efun 核心路径（connect/epilog/valid_* / destruct/getoid/living）
+  - 层 B 对象基础（24 函数）：F_DBASE 路径访问语义 + temp 变体差异 + F_NAME short() 状态修饰 + F_MOVE 负重级联
+  - 层 C 命令系统（10 函数）：command_hook 四分支（direction_shortcut->normal->emote->channel）+ 18 条方向别名 + find_command 逆序搜索
+  - 层 D 世界构建（9 函数）：valid_leave 基类契约 + 8 种 override 模式分类（516 文件实证扫描）+ go main() 14 个交织副作用
+  - 层 E 战斗系统（26 函数，核心）：**do_attack 七步 49 个副作用严格交织**（state_mutation 与 message_output 不可分离）+ **31 处 random 概率模型**（闪避 dp/(ap+dp)、招架 pp/(ap+pp)、伤害随机化等）+ 三层资源不变量（0<=qi<=eff_qi<=max_qi）+ skill_power 公式
+  - 层 F 死亡轮回（10 函数）：die vs unconcious 触发区别（eff_qi<0 直接死 vs qi<0 先昏迷，昏迷中再受创升级死亡）+ death_penalty 完全确定性 + make_corpse 物品转移
+  - 层 G NPC AI（12 函数）：heart_beat 七步管线 + auto_fight 三触发优先级（hatred>vendetta>aggressive，call_out 延迟给受害者溜走机会）+ chat 随机对话
+  - 层 H 核心守护进程（26 函数）：LOGIN_D 13 阶段状态机（logon->get_id->get_passwd->make_body->enter_world）+ SECURITY_D valid_cmd fail-closed（每条命令都过）+ NATURE_D 时间系统（真实 1 秒=游戏 1 分钟）+ 10 级 wiz_level
+  - 层 I 角色与登录（18 函数）：visible() 三级判定（wiz_level > invisibility > 鬼魂）+ user.c save 三步交织（autoload->::save->clean_up）+ PronounContext viewer 不变量 + JSON 存档崩溃安全要求
+  - 任务 1 验收标准（08 §四）全部满足：9 层规格产出 / 属性测试骨架 / go+move+combat 覆盖 / 29 处 random 提取 / 三层资源不变量 / do_attack 七步交织顺序 / ruff+pytest 全过
+  - **599 tests 全绿（+481），ruff 全过**
+  - agent teams 并行提取高效：Wave 内 4/3/2 agent 并行，9 层总提取时间约 25 分钟
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
 - **`drop` 命令未实现**：`commands.py` 有 take/give 无 drop。阶段 0 物品系统规格提取时补全
 - **xlama2 交互闭环未完成**（S4e GAP）：ask_tea 的 set_flag 茶 + accept_object 酥油的 clear_flag + 物品生成需 ask->action 机制 / clear_flag action / 物品系统（阶段 0）
 - **门状态机运行时未实装**（S3 GAP）：do_knock / call_out 定时关 / 跨房间 exits 同步（阶段 0）
+- **LPC 规格提取跳过部分**：本次 9 层覆盖核心循环约 7000 行，跳过 condition 具体类型 / 第二梯队守护进程 / 后置系统 / kungfu+d/ 内容。补充计划见 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md)（3 类分阶段补充，"实现到时才补"原则，不提前批量提取）
 
 ## In Progress
 
-**阶段 0 任务 1：LPC 规格提取管线** -- 方法论与计划已就绪，待新 session 启动 9 层并行提取。
+**阶段 0 任务 1：LPC 规格提取管线** -- **9 层全部完成**，任务 1 主体工作结束。
 
-- 当前子任务：计划完成，待启动 Wave 1（层 A+B+C+D 并行）
-- 卡在哪：无（方法论 ADR-0010 + 实施计划 08 已就绪，可直接执行）
-- 下一步具体动作：
-  1. 读 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md) + [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md) 确认方法论与 9 层范围
-  2. 创建 `engine/src/xkx/spec/base.py`（FunctionSpec/SideEffect/RandomSpec 基础类型）
-  3. 启动 Wave 1：4 个 agent 并行提取层 A（驱动桥梁）+ B（对象基础）+ C（命令系统）+ D（世界构建）
-  4. Wave 1 完成后启动 Wave 2（层 E+F+G），再 Wave 3（层 H+I）
-  5. 每层产出 `spec/layer_*.py` + `tests/test_spec_*.py`
+- 当前状态：160 FunctionSpec 已产出，验收标准全部满足
+- 下一步可选方向（需用户决策优先级）：
+  1. **任务 3（单元规约）衔接**：基于 9 层规格生成 hypothesis 属性测试（下游，消费任务 1 产出）
+  2. **golden trace 定点辅助**：运行旧 driver（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)）录制 valid_leave 命中行为 + do_attack 副作用时序基线（dissent 4 验证）
+  3. **并行启动独立任务**：任务 7（灵魂系统盘点）+ 任务 9（30 文件校准）+ 任务 6（抽样校准）
+  4. **任务 8 衔接**：层 H 已产出，可启动 32 守护进程职责重新设计
 
 ## Blocked
 
@@ -149,21 +165,22 @@
 
 ## Next Up
 
-**阶段 0 任务 1 的 9 层提取**（[08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)）：
+**阶段 0 任务 1 已完成**，9 层规格全部产出（160 FunctionSpec）。下一步任务优先级：
 
-- Wave 1（并行）：A 驱动桥梁 + B 对象基础 + C 命令系统 + D 世界构建
-- Wave 2（并行）：E 战斗系统 + F 死亡轮回 + G NPC AI
-- Wave 3（并行）：H 核心守护进程 + I 角色登录
+**依赖任务 1 产出的任务（现在可启动）**：
+- 任务 3：单元级行为规约 -- 基于 9 层规格生成 hypothesis 属性测试（下游，自然衔接）
+- 任务 4：性能 micro-benchmark -- 层 E 已完成，可启动 do_attack μs 基准；1000+100 负载需阶段 1 框架
+- 任务 8：32 守护进程职责重新设计 -- 层 H 已完成，可衔接
+
+**golden trace 定点辅助**（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md) 衔接）：
+- 运行旧 driver 录制 valid_leave 命中行为（dissent 4 基线测试）
+- 录制 do_attack 七步副作用交织时序基线
+- 规格 notes 中已标注需 trace 确认处（如 reset 触发时机、creator_file fallthrough）
 
 **可并行的独立任务**（不依赖规格提取，可随时启动）：
 - 任务 7：灵魂系统盘点（阴间/武林大会/vote/法院/intermud）
 - 任务 9：30 文件表达力校准（层3 占比 <15%）
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个）
-
-**依赖任务 1 产出的任务**：
-- 任务 3：单元级行为规约（每层规格产出后衔接 hypothesis 测试）
-- 任务 4：性能 micro-benchmark（层 E 完成后可启动 do_attack μs 基准；1000+100 负载需阶段 1 框架）
-- 任务 8：32 守护进程职责重新设计（层 H 完成后衔接）
 
 **阶段 0 其他任务**：
 - 任务 5：引擎工具链 PRD（最小三件：entity inspector / tick profiler / combat replay viewer）
