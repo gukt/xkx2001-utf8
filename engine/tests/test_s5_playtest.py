@@ -13,7 +13,7 @@ from pathlib import Path
 
 from xkx.cli import load_game, parse_and_run
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
+from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import (
     Game,
@@ -53,8 +53,10 @@ def _game(
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
-    ir = compile_scene(rooms, npcs, quests)
+    item_defs = load_items(SCENE_DIR / "items.yaml")
+    ir = compile_scene(rooms, npcs, quests, item_defs)
     world, room_idx, quest_idx = build_world(ir)
+    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     game = Game(
         world,
@@ -63,6 +65,7 @@ def _game(
         quests=quest_idx,
         seed_base=seed_base,
         spawn_room=spawn_room,
+        item_registry=item_registry,
     )
     return game, pid
 
@@ -85,15 +88,23 @@ def _spawn_weak_npc(game: Game, room_id: str, name: str = "木桩", max_qi: int 
 
 
 def test_take_picks_up_room_item() -> None:
-    """dshanlu 有 suyou_guan，take 后移入玩家物品栏 + 房间移除。"""
+    """dshanlu 有 suyou_guan，take 后移入玩家物品栏 + 房间移除 + 显示中文名。"""
     game, pid = _game(start_room="xueshan/dshanlu")
     msgs = take(game, pid, "suyou_guan")
-    assert any("捡起" in m for m in msgs)
+    assert any("捡起" in m and "酥油罐" in m for m in msgs)
     assert "suyou_guan" in game.world.get(pid, Inventory).items
     room_eid = game.room_entities["xueshan/dshanlu"]
     from xkx.runtime.components import RoomComp
 
     assert "suyou_guan" not in game.world.get(room_eid, RoomComp).items
+
+
+def test_take_by_chinese_name() -> None:
+    """S5a：支持按中文名拾取（对齐 LPC present）。"""
+    game, pid = _game(start_room="xueshan/dshanlu")
+    msgs = take(game, pid, "酥油罐")
+    assert any("捡起" in m and "酥油罐" in m for m in msgs)
+    assert "suyou_guan" in game.world.get(pid, Inventory).items
 
 
 def test_take_missing_item() -> None:
@@ -114,11 +125,11 @@ def test_look_shows_room_info() -> None:
 
 
 def test_look_shows_floor_items() -> None:
-    """dshanlu 有 suyou_guan，look 显示地上物品。"""
+    """dshanlu 有 suyou_guan，look 显示「酥油罐(suyou_guan)」。"""
     game, pid = _game(start_room="xueshan/dshanlu")
     msgs = look(game, pid)
     text = "\n".join(msgs)
-    assert "suyou_guan" in text
+    assert "酥油罐(suyou_guan)" in text
 
 
 def test_inventory_empty() -> None:
@@ -129,10 +140,10 @@ def test_inventory_empty() -> None:
 
 
 def test_inventory_shows_items() -> None:
-    """有物品时 inventory 列出。"""
+    """有物品时 inventory 列出（中文名(id) 格式）。"""
     game, pid = _game(items={"suyou_guan"})
     msgs = inventory(game, pid)
-    assert any("suyou_guan" in m for m in msgs)
+    assert any("酥油罐(suyou_guan)" in m for m in msgs)
 
 
 def test_hp_shows_vitals() -> None:

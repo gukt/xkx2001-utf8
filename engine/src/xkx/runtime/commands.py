@@ -40,6 +40,7 @@ class Game:
         quests: dict[str, dict] | None = None,
         seed_base: int = 0,
         spawn_room: str = "",
+        item_registry: dict[str, str] | None = None,
     ) -> None:
         self.world = world
         self.room_entities = room_entities
@@ -47,6 +48,7 @@ class Game:
         self.quests = quests or {}
         self.seed_base = seed_base
         self.spawn_room = spawn_room
+        self.item_registry = item_registry or {}
         self._combat_count = 0
 
     def next_seed(self) -> int:
@@ -252,10 +254,11 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     return [behavior.inquiry[topic]]
 
 
-def give(game: Game, actor_id: int, target_name: str, item_id: str) -> list[str]:
+def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[str]:
     """给物品命令（S4 ADR-0006 + ADR-0007）。
 
-    对齐 LPC ``accept_object(who, ob)``。命中规则按 action 返回
+    对齐 LPC ``accept_object(who, ob)``。``item_query`` 支持按 id 或中文名查找
+    （对齐 LPC ``present``）。命中规则按 action 返回
     （set_flag=接受+设标记 / deny=拒绝 / allow=接受）；无匹配默认接受。
     接受时物品从 actor 物品栏移除（LPC 物品被 NPC 拿走）；set_flag 时设标记。
     若物品交付同时匹配 in_progress 任务的 give_item objective，则完成任务并发放 reward。
@@ -265,8 +268,10 @@ def give(game: Game, actor_id: int, target_name: str, item_id: str) -> list[str]
     if not pos:
         return ["你没有位置。"]
     inv = world.get(actor_id, Inventory)
-    if not inv or item_id not in inv.items:
-        return [f"你没有「{item_id}」。"]
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
         return [f"这里没有「{target_name}」。"]
@@ -283,7 +288,10 @@ def give(game: Game, actor_id: int, target_name: str, item_id: str) -> list[str]
         return [result.message] if result.message else [f"{target_name}不肯接受。"]
     # 接受：物品移出 actor 物品栏
     inv.items.discard(item_id)
-    msgs: list[str] = [result.message] if result.message else [f"你把{item_id}给了{target_name}。"]
+    item_name = _item_name(game, item_id)
+    msgs: list[str] = (
+        [result.message] if result.message else [f"你把{item_name}给了{target_name}。"]
+    )
     # set_flag 副作用
     if result.set_flag:
         marks = world.get(actor_id, Marks)
@@ -348,22 +356,43 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
     return lines
 
 
-def take(game: Game, actor_id: int, item_id: str) -> list[str]:
-    """拾取命令（S5a）：从房间地面拿物品到玩家物品栏。"""
+def _item_name(game: Game, item_id: str) -> str:
+    """S5a：通过 item_registry 查物品中文名（无注册则回退 id）。"""
+    return game.item_registry.get(item_id, item_id)
+
+
+def _resolve_item_id(game: Game, item_query: str, available: set[str]) -> str | None:
+    """S5a：按 id 或中文名在可用物品集中解析出 item_id。"""
+    if item_query in available:
+        return item_query
+    for iid in available:
+        if _item_name(game, iid) == item_query:
+            return iid
+    return None
+
+
+def take(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """拾取命令（S5a）：从房间地面拿物品到玩家物品栏。
+
+    支持按 id 或中文名查找（对齐 LPC ``present(arg, env)``）。
+    """
     world = game.world
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
     room = world.get(game.room_entities[pos.room_id], RoomComp)
-    if not room or item_id not in room.items:
-        return [f"这里没有「{item_id}」。"]
+    if not room:
+        return [f"这里没有「{item_query}」。"]
+    item_id = _resolve_item_id(game, item_query, room.items)
+    if item_id is None:
+        return [f"这里没有「{item_query}」。"]
     room.items.discard(item_id)
     inv = world.get(actor_id, Inventory)
     if inv is None:
         inv = Inventory()
         world.add(actor_id, inv)
     inv.items.add(item_id)
-    return [f"你捡起了{item_id}。"]
+    return [f"你捡起了{_item_name(game, item_id)}。"]
 
 
 def look(game: Game, actor_id: int) -> list[str]:
@@ -381,8 +410,8 @@ def look(game: Game, actor_id: int) -> list[str]:
         if ident and not ident.is_player:
             id_str = ident.aliases[0] if ident.aliases else ident.prototype_id
             lines.append(f"  {ident.name}({id_str})")
-    for item in sorted(room.items):
-        lines.append(f"  {item}")
+    for item_id in sorted(room.items):
+        lines.append(f"  {_item_name(game, item_id)}({item_id})")
     if room.exits:
         dirs = sorted(room.exits.keys())
         if len(dirs) == 1:
@@ -393,13 +422,13 @@ def look(game: Game, actor_id: int) -> list[str]:
 
 
 def inventory(game: Game, actor_id: int) -> list[str]:
-    """物品栏命令（S5a）：显示玩家持有的物品。"""
+    """物品栏命令（S5a）：显示玩家持有的物品（中文名(id) 格式）。"""
     world = game.world
     inv = world.get(actor_id, Inventory)
     items = inv.items if inv else set()
     if not items:
         return ["你身上没有任何物品。"]
-    return ["你身上有：" + "、".join(sorted(items)) + "。"]
+    return [f"  {_item_name(game, iid)}({iid})" for iid in sorted(items)]
 
 
 def hp(game: Game, actor_id: int) -> list[str]:

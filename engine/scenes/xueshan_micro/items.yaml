@@ -1,0 +1,4 @@
+# S5a：物品定义（对照 LPC d/xueshan/obj/*.c set_name）
+- id: suyou_guan
+  name: 酥油罐
+  aliases: [suyou, guan, bottle]

@@ -105,6 +105,17 @@ class QuestDef(BaseModel):
     reward: QuestReward = Field(default_factory=QuestReward)
 
 
+class ItemDef(BaseModel):
+    """物品定义（S5a）：映射 LPC ``inherit ITEM`` + ``set_name``。
+
+    对照 d/xueshan/obj/suyouguan.c ``set_name("酥油罐", ({"suyou guan",...}))``。
+    """
+
+    id: str
+    name: str
+    aliases: list[str] = Field(default_factory=list)
+
+
 def load_rooms(path: Path | str) -> list[RoomDef]:
     """从 YAML 加载房间列表（顶层为房间 dict 的 list）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -121,3 +132,9 @@ def load_quests(path: Path | str) -> list[QuestDef]:
     """从 YAML 加载任务列表（S4 ADR-0007）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return [QuestDef(**q) for q in (data or [])]
+
+
+def load_items(path: Path | str) -> list[ItemDef]:
+    """从 YAML 加载物品列表（S5a）。"""
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return [ItemDef(**i) for i in (data or [])]

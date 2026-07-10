@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
+from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import (
     Game,
@@ -66,10 +66,19 @@ def load_game() -> tuple[Game, int]:
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
-    ir = compile_scene(rooms, npcs, quests)
+    items = load_items(SCENE_DIR / "items.yaml")
+    ir = compile_scene(rooms, npcs, quests, items)
     world, room_idx, quest_idx = build_world(ir)
+    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
     pid = spawn_player(world, "行者", START_ROOM)
-    game = Game(world, room_idx, rules, quests=quest_idx, spawn_room=START_ROOM)
+    game = Game(
+        world,
+        room_idx,
+        rules,
+        quests=quest_idx,
+        spawn_room=START_ROOM,
+        item_registry=item_registry,
+    )
     return game, pid
 
 
