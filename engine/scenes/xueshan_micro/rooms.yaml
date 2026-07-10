@@ -1,9 +1,12 @@
 # v1 专家修订（2026-07-10）：基于 d/xueshan/dshanlu.c + shanmen.c + guangchang.c
+# S5a：dshanlu 放 suyou_guan（玩家拾取后 give 葛伦布完成任务闭环）
 - id: xueshan/dshanlu
   short: 大雪山山路
-  long: 一条陡峭的青石板山路蜿蜒向上，寒风凛冽，远处隐约可见大轮寺的山门。
+  long: 一条陡峭的青石板山路蜿蜒向上，寒风凛冽，远处隐约可见大轮寺的山门。路边散落着一罐酥油。
   exits:
     westup: xueshan/shanmen
+  items:
+    - suyou_guan
   outdoors: true
 - id: xueshan/shanmen
   short: 山门

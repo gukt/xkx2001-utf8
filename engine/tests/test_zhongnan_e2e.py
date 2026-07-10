@@ -78,11 +78,12 @@ def test_go_north_allowed_incense() -> None:
 
 
 def test_kill_combat_runs() -> None:
-    """kill 皮清玄触发 resolve_attack 一回合，qi 只减不增。"""
+    """kill 皮清玄触发 resolve_attack 多回合，qi 只减不增（NPC 可能倒下 qi=0）。"""
     game, pid = _game(seed_base=42)
-    before = game.world.get(_pi_eid(game), Vitals).qi
+    pi_eid = _pi_eid(game)
+    before = game.world.get(pi_eid, Vitals).qi
     msgs = kill(game, pid, "皮清玄")
-    after = game.world.get(_pi_eid(game), Vitals).qi
+    after = game.world.get(pi_eid, Vitals).qi
     assert len(msgs) >= 2
     assert after <= before
 

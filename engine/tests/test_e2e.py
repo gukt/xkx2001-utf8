@@ -56,12 +56,13 @@ def test_go_no_exit() -> None:
 
 def test_kill_combat_runs() -> None:
     game, pid = _game(seed_base=42)
-    before = game.world.get(_bing_eid(game), Vitals).qi
+    bing_eid = _bing_eid(game)
+    before = game.world.get(bing_eid, Vitals).qi
     msgs = kill(game, pid, "官兵")
-    after = game.world.get(_bing_eid(game), Vitals).qi
+    after = game.world.get(bing_eid, Vitals).qi
     # 战斗消息非空（招式描述 + 结果 + 伤害汇总）
     assert len(msgs) >= 2
-    # qi 只会减少或不变（dodge/parry 时不变，HIT 时减）
+    # qi 只会减少或不变（dodge/parry 时不变，HIT 时减；多回合战斗 NPC 可能倒下 qi=0）
     assert after <= before
 
 

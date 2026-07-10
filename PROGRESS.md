@@ -3,9 +3,9 @@
 > 本文件是跨 session 的"活的状态"--每个 session 第一件事读它，知道做到哪、下一步做啥、什么卡住。
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
-**最后更新**：2026-07-10
+**最后更新**：2026-07-11
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S4f Agent schema 映射文档完成，S4 全部实施子任务完成（99 tests）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5 玩家试玩待推进。
+**当前状态**：S5a 技术准备完成（115 tests）：最小可玩 CLI REPL + 补试玩缺口（物品获取/多回合战斗/死亡复活）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5b 玩家试玩待推进。
 
 ## Done
 
@@ -87,9 +87,18 @@
   - 完整示例：gelun1 LPC -> DSL 推断全过程（weapon 类别 / attack_skill map_skill 推断 / inquiry 函数式转静态）
   - **S4 全部实施子任务完成（S4a-S4f）**
 
+- [x] **S5a 试玩技术准备完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S5 / kill criteria 3 前置）：
+  - 最小可玩 CLI REPL（[cli.py](engine/src/xkx/cli.py)）：input loop 解析 go/kill/ask/give/quest/look/take/inventory/help/quit，加载 xueshan_micro 场景
+  - 补试玩缺口 1 玩家物品获取：RoomDef/RoomComp 加 `items` 字段（房间地面物品）+ `take` 命令拾取 + `look` 显示房间/NPC/物品/出口 + `inventory` 查物品栏；dshanlu 放 suyou_guan
+  - 补试玩缺口 2 多回合战斗：`kill` 从 S1 单回合改为多回合循环（最多 30 回合，每回合 player 攻 + npc 反击，至一方倒下或回合上限）
+  - 补试玩缺口 3 死亡/复活：NPC 死亡移除 Position（从房间消失）+ 击杀者 +50 exp；玩家死亡传送回 `Game.spawn_room` + 恢复 qi/jingli
+  - 完整试玩路径打通：look -> go eastdown -> take suyou_guan -> go westup -> ask 还愿 -> give 葛伦布 -> quest 完成 -> go north 放行 -> 探索 8 房间
+  - 4 个 e2e 测试适配多回合 kill（kill 前保存 NPC eid，NPC 倒下后 Position 移除不影响 Vitals 查询）
+  - **115 tests 全绿（+16），ruff 全过**
+
 ## In Progress
 
-（无 -- S4 全部实施子任务完成 S4a-S4f，阶段 -1 两个技术 kill criteria 通过，S5 待启动）
+（无 -- S5a 技术准备完成，S5b 玩家试玩待启动）
 
 ## Blocked
 
@@ -97,9 +106,10 @@
 
 ## Next Up
 
-**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--8 房间扩展路径 + 物品交互 + 任务闭环已打通，试玩路径可行。
-- S5a 技术准备：最小可玩 CLI REPL（input loop 解析 go/kill/ask/give/quest）+ 补试玩缺口（玩家物品获取、多回合战斗、死亡/复活）
-- S5b 找 3-5 名玩家试玩 + 收集"好玩"反馈
+**S5b：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--CLI REPL + 物品交互 + 多回合战斗 + 任务闭环已打通，试玩路径可行。
+- 运行 CLI：`cd engine && .venv/bin/python -m xkx.cli`
+- 收集反馈：试玩者是否觉得好玩？哪些环节枯燥/困惑？是否愿意继续玩？
+- kill criteria 3 判定：3-5 名目标玩家"觉得好玩"评分 ≥ 可继续投入阈值
 
 **后置项**（S4+/阶段 0）：
 - 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步）

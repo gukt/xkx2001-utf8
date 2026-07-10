@@ -55,9 +55,10 @@ def test_go_blocked_by_student() -> None:
 def test_kill_student_runs() -> None:
     game, pid = _game(seed_base=42)
     go(game, pid, "east")  # 进藏书阁
-    before = game.world.get(_student_eid(game), Vitals).qi
+    student_eid = _student_eid(game)
+    before = game.world.get(student_eid, Vitals).qi
     msgs = kill(game, pid, "监生")
-    after = game.world.get(_student_eid(game), Vitals).qi
+    after = game.world.get(student_eid, Vitals).qi
     assert len(msgs) >= 2
     assert after <= before
 

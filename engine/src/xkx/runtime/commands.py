@@ -39,12 +39,14 @@ class Game:
         rules: list[EventRule],
         quests: dict[str, dict] | None = None,
         seed_base: int = 0,
+        spawn_room: str = "",
     ) -> None:
         self.world = world
         self.room_entities = room_entities
         self.rules = rules
         self.quests = quests or {}
         self.seed_base = seed_base
+        self.spawn_room = spawn_room
         self._combat_count = 0
 
     def next_seed(self) -> int:
@@ -141,8 +143,12 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     return [f"你向{direction}走去。"]
 
 
-def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
-    """战斗命令：找目标 -> resolve_attack -> apply effects。"""
+def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
+    """战斗命令（S5a 多回合）：循环 resolve_attack 直到一方死亡或回合上限。
+
+    每回合 player 攻 npc + npc 反击（若 NPC 存活）。NPC 死亡从房间移除 + 玩家加经验；
+    玩家死亡传送回 spawn_room + 恢复 qi/jingli。
+    """
     world = game.world
     pos = world.get(actor_id, Position)
     if not pos:
@@ -150,14 +156,60 @@ def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
         return [f"这里没有「{target_name}」。"]
-    ctx = CombatContext(
-        attacker=to_snapshot(world, actor_id),
-        victim=to_snapshot(world, target_eid),
-        seed=game.next_seed(),
-    )
-    result = resolve_attack(ctx)
-    apply_effects(world, result.effects)
-    return [*result.messages, f"（本回合伤害：{result.damage}）"]
+    messages: list[str] = [f"你向{target_name}发起了攻击！"]
+    for _ in range(max_rounds):
+        ctx = CombatContext(
+            attacker=to_snapshot(world, actor_id),
+            victim=to_snapshot(world, target_eid),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _is_dead(world, target_eid):
+            messages.append(f"{target_name}倒下了。")
+            _handle_npc_death(world, target_eid, actor_id)
+            break
+        ctx = CombatContext(
+            attacker=to_snapshot(world, target_eid),
+            victim=to_snapshot(world, actor_id),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _is_dead(world, actor_id):
+            messages.append("你受到致命一击，倒下了。")
+            _handle_player_death(world, game, actor_id)
+            messages.append("你在起点醒来，感觉恢复了一些。")
+            break
+    else:
+        messages.append(f"战斗持续了{max_rounds}回合，双方暂时停手。")
+    return messages
+
+
+def _is_dead(world: World, eid: int) -> bool:
+    vitals = world.get(eid, Vitals)
+    return vitals is not None and vitals.qi <= 0
+
+
+def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
+    """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验。"""
+    world.remove(npc_eid, Position)
+    vitals = world.get(killer_id, Vitals)
+    if vitals:
+        vitals.combat_exp += 50
+
+
+def _handle_player_death(world: World, game: Game, player_id: int) -> None:
+    """玩家死亡：传送回 spawn_room + 恢复 qi/jingli。"""
+    pos = world.get(player_id, Position)
+    if pos and game.spawn_room:
+        pos.room_id = game.spawn_room
+    vitals = world.get(player_id, Vitals)
+    if vitals:
+        vitals.qi = vitals.max_qi
+        vitals.jingli = vitals.max_jingli
 
 
 def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
@@ -292,3 +344,55 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
         status = statuses.get(qid, "not_started")
         lines.append(f"「{q['name']}」[{status}]：{q.get('description', '')}")
     return lines
+
+
+def take(game: Game, actor_id: int, item_id: str) -> list[str]:
+    """拾取命令（S5a）：从房间地面拿物品到玩家物品栏。"""
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    if not room or item_id not in room.items:
+        return [f"这里没有「{item_id}」。"]
+    room.items.discard(item_id)
+    inv = world.get(actor_id, Inventory)
+    if inv is None:
+        inv = Inventory()
+        world.add(actor_id, inv)
+    inv.items.add(item_id)
+    return [f"你捡起了{item_id}。"]
+
+
+def look(game: Game, actor_id: int) -> list[str]:
+    """查看命令（S5a）：显示房间描述 + NPC + 物品 + 出口。"""
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    if not room:
+        return ["这里什么也没有。"]
+    lines = [f"【{room.short}】", room.long, ""]
+    npc_names = []
+    for eid in world.entities_in_room(pos.room_id):
+        ident = world.get(eid, Identity)
+        if ident and not ident.is_player:
+            npc_names.append(ident.name)
+    if npc_names:
+        lines.append("这里有：" + "、".join(npc_names) + "。")
+    if room.items:
+        lines.append("地上放着：" + "、".join(sorted(room.items)) + "。")
+    if room.exits:
+        lines.append("出口：" + "、".join(sorted(room.exits.keys())) + "。")
+    return lines
+
+
+def inventory(game: Game, actor_id: int) -> list[str]:
+    """物品栏命令（S5a）：显示玩家持有的物品。"""
+    world = game.world
+    inv = world.get(actor_id, Inventory)
+    items = inv.items if inv else set()
+    if not items:
+        return ["你身上没有任何物品。"]
+    return ["你身上有：" + "、".join(sorted(items)) + "。"]

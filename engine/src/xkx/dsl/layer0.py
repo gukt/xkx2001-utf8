@@ -24,6 +24,7 @@ class RoomDef(BaseModel):
     long: str
     exits: dict[str, str] = Field(default_factory=dict)  # 方向 -> 目标房间 id
     objects: dict[str, int] = Field(default_factory=dict)  # npc_id -> 数量
+    items: list[str] = Field(default_factory=list)  # S5a：房间地面物品 id（玩家可 take）
     outdoors: bool = False
     no_fight: bool = False
 

@@ -123,5 +123,6 @@ class RoomComp:
     long: str
     exits: dict[str, str] = field(default_factory=dict)
     objects: dict[str, int] = field(default_factory=dict)
+    items: set[str] = field(default_factory=set)  # S5a：房间地面物品（take 命令拾取）
     outdoors: bool = False
     no_fight: bool = False
