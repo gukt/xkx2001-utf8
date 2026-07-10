@@ -19,4 +19,41 @@
   long: 大轮寺前的大广场，进香朝圣的信徒络绎不绝，北面通往寺院深处。
   exits:
     south: xueshan/shanmen
+    north: xueshan/frontyard
   outdoors: true
+# S4 扩展（5-10 房间全量验证）：从 guangchang 往北深入寺院，对照 LPC frontyard/yanwu/zoulang/jingang/chufang
+- id: xueshan/frontyard
+  short: 前院
+  long: 前院面阔七间，正中供奉着松赞干布像。这里是观看大活佛主持法会和观看法舞之地。前院四周立有大型明柱一百四十根，上面尽是彩绘佛传故事图。北面是演武场，南方是大广场。
+  exits:
+    south: xueshan/guangchang
+    north: xueshan/yanwu
+  outdoors: true
+- id: xueshan/yanwu
+  short: 演武场
+  long: 这里是僧人们练武的地方。场中有几个喇嘛在练武。北面是一条走廊通向金刚院，南方是前院。
+  exits:
+    south: xueshan/frontyard
+    north: xueshan/zoulang
+  outdoors: true
+- id: xueshan/zoulang
+  short: 走廊
+  long: 你走在一条走廊上，从东边飘来一股酥油的香味，北边是一座楼阁，南边是演武场。
+  exits:
+    south: xueshan/yanwu
+    north: xueshan/jingang
+    east: xueshan/chufang
+  outdoors: true
+- id: xueshan/jingang
+  short: 金刚院
+  long: 这里是习武的葛伦布们常来的地方，护寺的萨木活佛就在这里授艺。前方壁上有一钜形框，内刻梵文：十大自在相，壁上还点缀得有山水、楼台壁画。南面是走廊。
+  exits:
+    south: xueshan/zoulang
+  outdoors: true
+- id: xueshan/chufang
+  short: 厨房
+  long: 这里是供应全寺膳食的所在，几个油光满面的喇嘛正在忙碌，旁边有几个附近请来帮手的居民。西边是走廊。
+  exits:
+    west: xueshan/zoulang
+  objects:
+    xueshan/npc/xlama2: 1

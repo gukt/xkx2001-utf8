@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S4d SchemaValidator 四道校验完成（92 tests），阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过。S4 剩余子任务（Agent 映射文档 / 扩展到 5-10 房间全量验证）待推进。
+**当前状态**：S4e 扩展到 8 房间全量验证完成（99 tests），阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S4 剩余子任务（Agent 映射文档）待推进。
 
 ## Done
 
@@ -73,6 +73,14 @@
   - [measure_revision.py](engine/tools/measure_revision.py) L2 后集成四道校验输出 warnings；xueshan_micro 四道校验问题为 (无)
   - **92 tests 全绿（+9），ruff 全过**
 
+- [x] **S4e 扩展到 8 房间全量验证完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S4 / kill criteria 1 全量）：
+  - xueshan_micro 从 3 房间扩到 8 房间（+ frontyard/yanwu/zoulang/jingang/chufang，对照 LPC 同名 .c），guangchang 加 north exit 接入扩展路径
+  - 第二 NPC 小喇嘛 xlama2（chufang，对照 d/xueshan/npc/xlama2.c）：inquiry 酥油茶静态回复
+  - GAP（后置）：xlama2 ask_tea 的 set_flag 茶 + accept_object 酥油的 clear_flag + 物品生成需 ask->action 机制 / clear_flag action / 物品系统（S4+/阶段 0）
+  - **阶段 -1 kill criteria 1 全量验证通过**（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL，无逃生舱）
+  - measure_revision L1-L4 + 四道校验全绿，结构错误 0；修订比例 75% 系规模扩展（3->8 房间）非 Agent 质量信号
+  - **99 tests 全绿（+7），ruff 全过**
+
 ## In Progress
 
 （无 -- S4c 已完成，S4 剩余子任务待启动）
@@ -86,10 +94,10 @@
 **S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
 
 - Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
-- 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL（阶段 -1 kill criteria 1 全量验证）
 - 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）
+- ask->action 机制 / clear_flag action / 物品生成（xlama2 酥油茶交互闭环，S4e GAP，S4+/阶段 0）
 
-**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--方向绑定 + 物品交互 + 任务闭环已打通，试玩路径可行。
+**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--8 房间扩展路径 + 物品交互 + 任务闭环已打通，试玩路径可行。
 
 S2/S3/S4a/S4b/S4c 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) 表在 S4+ 或阶段 0 补全。
 

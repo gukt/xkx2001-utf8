@@ -193,3 +193,75 @@ def test_quest_complete_closes_loop() -> None:
     msgs = go(game, pid, "north")
     assert game.world.get(pid, Position).room_id == "xueshan/guangchang"
     assert any("走去" in m for m in msgs)
+
+
+# --- S4 扩展：5-10 房间全量验证（frontyard/yanwu/zoulang/jingang/chufang）---
+
+
+def _walk_to_chufang(game: Game, pid: int) -> None:
+    """从 shanmen 走到 chufang（雪山派放行 north，对照扩展路径）。"""
+    go(game, pid, "north")  # shanmen -> guangchang
+    go(game, pid, "north")  # guangchang -> frontyard
+    go(game, pid, "north")  # frontyard -> yanwu
+    go(game, pid, "north")  # yanwu -> zoulang
+    go(game, pid, "east")  # zoulang -> chufang
+
+
+def test_go_north_from_guangchang_to_frontyard() -> None:
+    """guangchang north -> frontyard（扩展路径入口，对照 LPC frontyard.c）。"""
+    game, pid = _game(family="雪山派")
+    go(game, pid, "north")  # shanmen -> guangchang
+    msgs = go(game, pid, "north")  # guangchang -> frontyard
+    assert game.world.get(pid, Position).room_id == "xueshan/frontyard"
+    assert any("走去" in m for m in msgs)
+
+
+def test_walk_to_chufang() -> None:
+    """完整路径 shanmen -> guangchang -> frontyard -> yanwu -> zoulang -> chufang。"""
+    game, pid = _game(family="雪山派")
+    _walk_to_chufang(game, pid)
+    assert game.world.get(pid, Position).room_id == "xueshan/chufang"
+
+
+def test_go_to_jingang() -> None:
+    """zoulang north -> jingang（金刚院，对照 LPC jingang.c）。"""
+    game, pid = _game(family="雪山派")
+    for _ in range(4):
+        go(game, pid, "north")  # -> guangchang/frontyard/yanwu/zoulang
+    msgs = go(game, pid, "north")  # zoulang -> jingang
+    assert game.world.get(pid, Position).room_id == "xueshan/jingang"
+    assert any("走去" in m for m in msgs)
+
+
+def test_go_no_exit_from_jingang_north() -> None:
+    """jingang 只有 south exit，north 无出口。"""
+    game, pid = _game(family="雪山派")
+    for _ in range(5):
+        go(game, pid, "north")  # -> ... -> jingang
+    msgs = go(game, pid, "north")
+    assert game.world.get(pid, Position).room_id == "xueshan/jingang"
+    assert any("没有" in m for m in msgs)
+
+
+def test_ask_xlama2_inquiry() -> None:
+    """chufang ask 小喇嘛 about 酥油茶 -> inquiry 静态回复（第二 NPC 对话，对照 LPC xlama2.c）。"""
+    game, pid = _game(family="雪山派")
+    _walk_to_chufang(game, pid)
+    msgs = ask(game, pid, "小喇嘛", "酥油茶")
+    assert any("酥油" in m and "贵" in m for m in msgs)
+
+
+def test_ask_xlama2_unknown_topic() -> None:
+    """ask 小喇嘛未知话题 -> 摇头。"""
+    game, pid = _game(family="雪山派")
+    _walk_to_chufang(game, pid)
+    msgs = ask(game, pid, "小喇嘛", "天气")
+    assert any("摇了摇头" in m for m in msgs)
+
+
+def test_kill_xlama2_combat_runs() -> None:
+    """kill 小喇嘛触发 resolve_attack（第二 NPC 战斗，peaceful 仍可被攻击）。"""
+    game, pid = _game(family="雪山派", seed_base=42)
+    _walk_to_chufang(game, pid)
+    msgs = kill(game, pid, "小喇嘛")
+    assert len(msgs) >= 2

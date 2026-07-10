@@ -37,3 +37,29 @@
     还愿: 葛伦布说道：你拿什麽孝敬佛爷呀？
     烧香: 葛伦布说道：你拿什麽孝敬佛爷呀？
     供佛: 葛伦布说道：你拿什麽孝敬佛爷呀？
+# S4 扩展：第二 NPC 小喇嘛，基于 d/xueshan/npc/xlama2.c
+# 对照 LPC：inquiry 酥油茶 -> ask_tea() 的 say 静态回复部分。
+# GAP（后置）：LPC ask_tea 还 set_temp("marks/茶",1)，需 ask->action 机制（现 inquiry 纯静态）；
+#   LPC accept_object(酥油) -> delete marks/茶 + 生成 buttertea，需 clear_flag action + 物品生成（S4+/阶段0）
+- id: xueshan/npc/xlama2
+  name: 小喇嘛
+  aliases: ["xiao lama", "xiao", "lama"]
+  gender: 男性
+  age: 20
+  attitude: peaceful
+  str_: 22
+  dex_: 21
+  int_: 20
+  con_: 22
+  max_qi: 300
+  max_jing: 300
+  max_jingli: 100
+  max_neili: 100
+  combat_exp: 1000
+  skills:
+    force: 20
+    dodge: 25
+    parry: 20
+    strike: 20
+  inquiry:
+    酥油茶: 小喇嘛一脸不耐烦：酥油那麽贵，想喝茶那能说有就有，等着！
