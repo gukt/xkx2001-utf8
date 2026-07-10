@@ -30,6 +30,7 @@ class Attributes:
     con_: int = 20
     age: int = 20
     gender: str = "男性"
+    family: str = ""  # S4 ADR-0005：LPC family/family_name（门派判断）
 
 
 @dataclass
@@ -77,11 +78,32 @@ class CombatState:
 
 @dataclass
 class NpcBehavior:
-    """NPC 行为（LPC chat_msg_combat / attitude）。S1 最小。"""
+    """NPC 行为（LPC chat_msg_combat / attitude / inquiry）。"""
 
     attitude: str = "friendly"  # friendly | heroism | aggressive
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = field(default_factory=list)
+    inquiry: dict[str, str] = field(default_factory=dict)  # S4 ADR-0006：LPC set("inquiry")
+
+
+@dataclass
+class Inventory:
+    """物品栏（S4 ADR-0005：LPC ``present(obj, me)`` -> ``has_item`` 谓词）。
+
+    S4 最小：物品 id 集合（无堆叠/装备/容器，后续切片扩）。
+    """
+
+    items: set[str] = field(default_factory=set)
+
+
+@dataclass
+class Marks:
+    """临时标记（LPC ``set_temp("marks/X", 1)``）。
+
+    S4 ADR-0006：``set_flag`` 副作用存储，``has_flag`` 谓词读取。
+    """
+
+    flags: set[str] = field(default_factory=set)
 
 
 @dataclass

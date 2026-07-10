@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S3 Agent 生成 + 修订量度量完成（52 tests），语义修订 24.5% < 30% 降级线，准备 S4 全量场景 + 扩 schema。
+**当前状态**：S4b accept_object 事件 + inquiry 对话完成（75 tests），物品交互闭环验证通过（give -> set_flag -> go 放行）。S4 剩余子任务（任务 schema / SchemaValidator / Agent 映射文档 / 扩展到 5-10 房间）待推进。
 
 ## Done
 
@@ -40,9 +40,28 @@
   - 诚实声明：阶段 -1 copilot（Agent = 本 session LLM，范式污染偏差，M2 独立 LLM + Langfuse 真验证）
   - **52 tests 全绿，ruff 全过**
 
+- [x] **S4a 层1 谓词扩充（方向绑定 + 组合 + family/has_item）完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S4 / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md)）：
+  - EventRule 加 `dir` 方向绑定（空=全方向向后兼容；对齐 LPC `valid_leave(me,dir)` 的 `if(dir=="north")`）
+  - Predicate 支持 `all`/`any`/`not` 递归组合（任意布尔条件）
+  - 新增 `family_eq`（LPC family/family_name）+ `has_item`（LPC present）谓词；EvalContext 加 actor_family/actor_items
+  - allow-wins 不单独引入（`not + deny-wins` 等价）
+  - xueshan + zhongnan 完整 valid_leave 逻辑（对照 LPC shanmen.c/gate.c），**无逃生舱**（KPI 达标）
+  - 解决方向绑定缺口（守卫规则不再锁死场景，S5 试玩路径打通）
+  - 兑现 ADR-0004 表达力缺口台账 5/7 类（方向绑定/family/has_item/AND-OR/allow-wins）
+  - **64 tests 全绿（+12），ruff 全过**
+
+- [x] **S4b accept_object 事件 + inquiry 对话 + set_flag 副作用完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S4 / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md)）：
+  - accept_object 事件（layer1）：EventRule 加 npc_id/item_id 绑定 + `set_flag` action；首匹配求值（对照 LPC `accept_object(who, ob)`）
+  - inquiry 对话（layer0）：`NpcDef.inquiry`（topic -> reply 静态字符串）；`ask` 命令（对照 LPC `set("inquiry")`）
+  - Marks 组件：存储玩家临时标记（LPC `set_temp("marks/X")`）；补全 S4a 遗漏（`go` 传 `actor_flags`，has_flag 谓词在 e2e 生效）
+  - `give` 命令：give <npc> <item> -> accept_object 规则 -> set_flag/deny + 物品移出
+  - xueshan gelun1 完整交互闭环：ask 对话 + give 酥油罐 -> set marks/酥 -> 物品消耗后 go north 仍放行（has_flag 替代 has_item）
+  - 兑现 ADR-0004 缺口台账 accept_object 项（剩余 1 类：门状态机）
+  - **75 tests 全绿（+11），ruff 全过**
+
 ## In Progress
 
-（无 -- S3 已完成，S4 待启动）
+（无 -- S4b 已完成，S4 剩余子任务待启动）
 
 ## Blocked
 
@@ -50,16 +69,17 @@
 
 ## Next Up
 
-**S4：全量场景 + 扩 schema 评估**（阶段 -1 kill criteria 1/4 收尾）：
+**S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
 
-- 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL
-- 层1 谓词扩充评估（走 [05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) dissent 3 护栏 + ADR）：**方向绑定（最紧迫，否则守卫型 valid_leave 锁死场景，S5 无法试玩）** / family / has_item / AND-OR / allow-wins
-- 事件扩充：accept_object（物品交互闭环）
-- 任务 / 对话 schema
-- SchemaValidator 四道校验加强（捕获 neili/max_neili 类静默偏差）
+- 任务 schema（1 任务全 DSL，需状态机/目标/奖励；accept_object 已铺路）
+- SchemaValidator 四道校验加强（引用完整性 / Capability / Resource / Dependency + `extra` 字段警告，捕获 neili/max_neili 类静默偏差）
 - Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
+- 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL（阶段 -1 kill criteria 1 全量验证）
+- 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）
 
-S2/S3 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) 表在 S4+ 或阶段 0 补全。阶段 -1 剩余子任务（S5 玩家试玩）见 [06](docs/xkx-arch/06-阶段-1-实施计划.md)。
+**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--方向绑定 + 物品交互闭环已打通，试玩路径可行。
+
+S2/S3/S4a/S4b 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) 表在 S4+ 或阶段 0 补全。
 
 ## 阶段 -1 的 kill criteria（开工必读）
 
@@ -74,4 +94,4 @@ S2/S3 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping
 - session 结束前：更新本文件的 Done / In Progress / Blocked / Next Up + 最后更新日期。
 - 长任务跨 session：在 In Progress 写清"当前子任务 + 卡在哪 + 下一步具体动作"。
 - 实施中发现架构假设需偏离 00-04 基线：在 [docs/adr/](docs/adr/) 写一条 ADR（编号递增），关联 [05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) 的对应 dissent。
-- 跑测试：`pytest /home/gukt/github/xkx2001-utf8/engine`；lint：`ruff check /home/gukt/github/xkx2001-utf8/engine/src /home/gukt/github/xkx2001-utf8/engine/tests`。
+- 跑测试：`cd engine && .venv/bin/python -m pytest`（venv 在 `engine/.venv`；系统 Python 受 PEP 668 限制需 venv）；lint：`cd engine && .venv/bin/ruff check src tests`。

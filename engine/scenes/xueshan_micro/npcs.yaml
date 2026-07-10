@@ -1,6 +1,7 @@
 # v1 专家修订（2026-07-10）：基于 d/xueshan/npc/gelun1.c
 # v0->v1 修订：neili->max_neili / attack_skill staff->jingang-chu（map_skill 推断）/
 #   补 max_jingli / 补四维 str_dex_int_con / weapon fachu->staff（类别统一）
+# S4 ADR-0006：补 inquiry（ask about 还愿/烧香/供佛 -> do_huanyuan 回复）
 - id: xueshan/npc/gelun1
   name: 葛伦布
   aliases: ["ge lunbu", "ge", "lunbu"]
@@ -32,3 +33,7 @@
   chat_chance_combat: 5
   chat_msg_combat:
     - 葛伦布喝道：你准备用什麽供奉我们佛爷呀？
+  inquiry:
+    还愿: 葛伦布说道：你拿什麽孝敬佛爷呀？
+    烧香: 葛伦布说道：你拿什麽孝敬佛爷呀？
+    供佛: 葛伦布说道：你拿什麽孝敬佛爷呀？

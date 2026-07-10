@@ -1,8 +1,8 @@
-"""端到端：zhongnan_micro 场景 -> go(守门 deny / 放行 allow) -> kill -> 确定性重放。
+"""端到端：zhongnan_micro 场景 -> go(方向绑定守门 deny/放行) -> kill -> 确定性重放。
 
-验证 S3 Agent 生成场景 v1 端到端可跑（基于 d/zhongnan/gate.c valid_leave 守门拦截）。
-LPC 完整逻辑（门派/物品/OR/allow-wins/门状态机）受层1 谓词集限制用 present_npc 近似，
-缺口见 ADR-0004。
+S4 ADR-0005：方向绑定 + 组合谓词完整表达 d/zhongnan/gate.c valid_leave：
+  dir==north + NOT(全真教 OR 持香) -> deny。
+方向绑定前守门规则锁死所有出口（ADR-0004 缺口），S4 后 north 受守门、southdown 放行。
 """
 
 from __future__ import annotations
@@ -19,13 +19,18 @@ from xkx.runtime.world import build_world, spawn_player
 SCENE_DIR = Path(__file__).resolve().parent.parent / "scenes" / "zhongnan_micro"
 
 
-def _game(seed_base: int = 0, start_room: str = "zhongnan/gate") -> tuple[Game, int]:
+def _game(
+    seed_base: int = 0,
+    start_room: str = "zhongnan/gate",
+    family: str = "",
+    items: set[str] | None = None,
+) -> tuple[Game, int]:
     rooms = load_rooms(SCENE_DIR / "rooms.yaml")
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
     ir = compile_scene(rooms, npcs)
     world, room_idx = build_world(ir)
-    pid = spawn_player(world, "玩家", start_room)
+    pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     return Game(world, room_idx, rules, seed_base=seed_base), pid
 
 
@@ -38,22 +43,37 @@ def _pi_eid(game: Game) -> int:
 
 
 def test_go_north_denied_by_guard() -> None:
-    """皮清玄在场 -> north 被 deny（present_npc 近似 LPC 守门拦截）。"""
+    """无门派无香 -> north 被 deny（皮清玄守门）。"""
     game, pid = _game()
     msgs = go(game, pid, "north")
     assert game.world.get(pid, Position).room_id == "zhongnan/gate"
     assert any("请回" in m for m in msgs)
 
 
-def test_go_northup_allowed() -> None:
-    """dajiaochang 无守门拦截规则 -> 放行进大门。
+def test_go_southdown_allowed() -> None:
+    """southdown 方向不受 north 守门规则拦截（方向绑定，S4 ADR-0005）。
 
-    gate 的守门规则 present_npc 对所有方向生效（layer1 EventRule 无方向绑定，
-    见 ADR-0004 方向绑定缺口），故 allow 路径从无守卫的 dajiaochang 起点测。
+    方向绑定前守门规则全方向锁死，玩家无法从 gate 离开（ADR-0004 缺口）。
     """
-    game, pid = _game(start_room="zhongnan/dajiaochang")
-    msgs = go(game, pid, "northup")
-    assert game.world.get(pid, Position).room_id == "zhongnan/gate"
+    game, pid = _game()
+    msgs = go(game, pid, "southdown")
+    assert game.world.get(pid, Position).room_id == "zhongnan/dajiaochang"
+    assert any("走去" in m for m in msgs)
+
+
+def test_go_north_allowed_quanzhen() -> None:
+    """全真教玩家 -> north 放行（family_eq 谓词，LPC 道兄放行）。"""
+    game, pid = _game(family="全真教")
+    msgs = go(game, pid, "north")
+    assert game.world.get(pid, Position).room_id == "zhongnan/gate1"
+    assert any("走去" in m for m in msgs)
+
+
+def test_go_north_allowed_incense() -> None:
+    """持香 -> north 放行（has_item 谓词，LPC 进香放行）。"""
+    game, pid = _game(items={"incense"})
+    msgs = go(game, pid, "north")
+    assert game.world.get(pid, Position).room_id == "zhongnan/gate1"
     assert any("走去" in m for m in msgs)
 
 

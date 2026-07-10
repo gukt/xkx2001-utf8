@@ -66,6 +66,9 @@ class NpcDef(BaseModel):
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = Field(default_factory=list)
 
+    # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串
+    inquiry: dict[str, str] = Field(default_factory=dict)
+
 
 def load_rooms(path: Path | str) -> list[RoomDef]:
     """从 YAML 加载房间列表（顶层为房间 dict 的 list）。"""

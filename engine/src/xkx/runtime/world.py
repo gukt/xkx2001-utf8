@@ -20,6 +20,8 @@ from xkx.runtime.components import (
     Attributes,
     CombatState,
     Identity,
+    Inventory,
+    Marks,
     NpcBehavior,
     Position,
     RoomComp,
@@ -116,17 +118,29 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             attitude=n.get("attitude", "friendly"),
             chat_chance_combat=n.get("chat_chance_combat", 0),
             chat_msg_combat=n.get("chat_msg_combat", []),
+            inquiry=n.get("inquiry", {}),
         ),
     )
     return eid
 
 
-def spawn_player(world: World, name: str, room_id: str) -> int:
-    """创建玩家实体（S1 默认属性）。"""
+def spawn_player(
+    world: World,
+    name: str,
+    room_id: str,
+    *,
+    family: str = "",
+    items: set[str] | None = None,
+) -> int:
+    """创建玩家实体（S1 默认属性）。
+
+    S4 ADR-0005：``family`` + ``items`` 供 ``family_eq`` / ``has_item`` 谓词求值。
+    S4 ADR-0006：``Marks`` 组件供 ``set_flag`` 副作用 / ``has_flag`` 谓词。
+    """
     eid = world.new_entity()
     world.add(eid, Identity(name=name, is_player=True, prototype_id="player"))
     world.add(eid, Position(room_id=room_id))
-    world.add(eid, Attributes(str_=20, dex_=20, int_=20, con_=20, age=22))
+    world.add(eid, Attributes(str_=20, dex_=20, int_=20, con_=20, age=22, family=family))
     world.add(
         eid,
         Vitals(
@@ -142,6 +156,8 @@ def spawn_player(world: World, name: str, room_id: str) -> int:
     )
     world.add(eid, Skills(levels={"unarmed": 30, "dodge": 20}))
     world.add(eid, CombatState())
+    world.add(eid, Inventory(items=items or set()))
+    world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
     return eid
 
 
