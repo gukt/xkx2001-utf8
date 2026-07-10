@@ -20,6 +20,7 @@ from xkx.runtime.commands import (
     ask,
     give,
     go,
+    hp,
     inventory,
     kill,
     look,
@@ -132,6 +133,25 @@ def test_inventory_shows_items() -> None:
     game, pid = _game(items={"suyou_guan"})
     msgs = inventory(game, pid)
     assert any("suyou_guan" in m for m in msgs)
+
+
+def test_hp_shows_vitals() -> None:
+    """hp 显示玩家气/精力/经验。"""
+    game, pid = _game()
+    msgs = hp(game, pid)
+    text = "\n".join(msgs)
+    assert "气" in text
+    assert "200" in text  # max_qi
+    assert "经验" in text
+
+
+def test_go_auto_look() -> None:
+    """go 移动成功后自动 look 新房间（消息含目标房间描述）。"""
+    game, pid = _game()
+    msgs = go(game, pid, "eastdown")
+    text = "\n".join(msgs)
+    assert "走去" in text
+    assert "山路" in text  # dshanlu 房间描述
 
 
 # --- 多回合战斗 + 死亡处理（S5a 战斗/死亡缺口）---

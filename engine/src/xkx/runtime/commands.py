@@ -140,7 +140,9 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     if not allow:
         return [msg] if msg else ["你无法离开这里。"]
     pos.room_id = target
-    return [f"你向{direction}走去。"]
+    msgs = [f"你向{direction}走去。"]
+    msgs.extend(look(game, actor_id))
+    return msgs
 
 
 def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
@@ -396,3 +398,15 @@ def inventory(game: Game, actor_id: int) -> list[str]:
     if not items:
         return ["你身上没有任何物品。"]
     return ["你身上有：" + "、".join(sorted(items)) + "。"]
+
+
+def hp(game: Game, actor_id: int) -> list[str]:
+    """状态命令（S5a）：显示玩家气/精力/经验。"""
+    world = game.world
+    vitals = world.get(actor_id, Vitals)
+    if not vitals:
+        return ["你没有状态。"]
+    return [
+        f"气：{vitals.qi}/{vitals.max_qi}  精力：{vitals.jingli}/{vitals.max_jingli}"
+        f"  经验：{vitals.combat_exp}"
+    ]

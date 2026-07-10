@@ -18,6 +18,7 @@ from xkx.runtime.commands import (
     ask,
     give,
     go,
+    hp,
     inventory,
     kill,
     look,
@@ -31,7 +32,7 @@ START_ROOM = "xueshan/shanmen"
 
 HELP_TEXT = """\
 可用命令：
-  go <方向>               向指定方向移动（如 go north）
+  go <方向>               向指定方向移动（如 go north），移动后自动查看房间
   look                    查看当前房间（简写 l）
   take <物品>             拾取地上的物品
   kill <NPC>              攻击 NPC（多回合战斗，至一方倒下）
@@ -39,6 +40,7 @@ HELP_TEXT = """\
   give <NPC> <物品>       把物品给 NPC
   quest                   查看任务列表
   inventory               查看物品栏（简写 i）
+  hp                      查看自己的气/精力/经验（简写 score）
   help                    显示本帮助（简写 h）
   quit                    退出游戏
 """
@@ -79,6 +81,9 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         return True
     if cmd in ("inventory", "i"):
         _print(inventory(game, pid))
+        return True
+    if cmd in ("hp", "score"):
+        _print(hp(game, pid))
         return True
     if cmd == "go":
         if not args:
