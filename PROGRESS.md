@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-11
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S5a 技术准备完成（115 tests）：最小可玩 CLI REPL + 补试玩缺口（物品获取/多回合战斗/死亡复活）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5b 玩家试玩待推进。
+**当前状态**：S5a 试玩技术准备完成（118 tests）：最小可玩 CLI REPL + 补试玩缺口（物品获取/多回合战斗/死亡复活）+ LPC 保真打磨（look 格式/get/方向简写/战斗节奏/昏迷文本/物品中文名）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5b 玩家试玩待推进。
 
 ## Done
 
@@ -88,13 +88,20 @@
   - **S4 全部实施子任务完成（S4a-S4f）**
 
 - [x] **S5a 试玩技术准备完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S5 / kill criteria 3 前置）：
-  - 最小可玩 CLI REPL（[cli.py](engine/src/xkx/cli.py)）：input loop 解析 go/kill/ask/give/quest/look/take/inventory/help/quit，加载 xueshan_micro 场景
-  - 补试玩缺口 1 玩家物品获取：RoomDef/RoomComp 加 `items` 字段（房间地面物品）+ `take` 命令拾取 + `look` 显示房间/NPC/物品/出口 + `inventory` 查物品栏；dshanlu 放 suyou_guan
-  - 补试玩缺口 2 多回合战斗：`kill` 从 S1 单回合改为多回合循环（最多 30 回合，每回合 player 攻 + npc 反击，至一方倒下或回合上限）
-  - 补试玩缺口 3 死亡/复活：NPC 死亡移除 Position（从房间消失）+ 击杀者 +50 exp；玩家死亡传送回 `Game.spawn_room` + 恢复 qi/jingli
-  - 完整试玩路径打通：look -> go eastdown -> take suyou_guan -> go westup -> ask 还愿 -> give 葛伦布 -> quest 完成 -> go north 放行 -> 探索 8 房间
+  - 最小可玩 CLI REPL（[cli.py](engine/src/xkx/cli.py)）：input loop 解析 go/get/kill/ask/give/quest/look/inventory/hp/help/quit + 方向简写（n/s/e/w/ed/wu 等），加载 xueshan_micro 场景
+  - 补试玩缺口 1 玩家物品获取：RoomDef/RoomComp 加 `items` 字段（房间地面物品）+ `get`/`take` 命令拾取 + `look` 显示房间/NPC/物品/出口 + `inventory` 查物品栏；dshanlu 放 suyou_guan
+  - 补试玩缺口 2 多回合战斗：`kill` 从 S1 单回合改为多回合循环（最多 30 回合，每回合 player 攻 + npc 反击，至一方倒下或回合上限）；CLI 逐条打印 + 0.25s 停顿模拟 LPC heart_beat 节奏
+  - 补试玩缺口 3 死亡/复活：NPC 死亡移除 Position（从房间消失）+ 击杀者 +50 exp；玩家死亡传送回 `Game.spawn_room` + 恢复 qi/jingli；昏迷文本用 LPC 原文（"眼前一黑..." / "有了知觉..."，对照 feature/damage.c:125,146）
+  - LPC 保真打磨（对照 LPC 源码）：
+    - look 改 LPC 格式：NPC 每行 `名字(id)` 如 `葛伦布(ge lunbu)`（feature/name.c short）；出口 `这里明显的出口是 A、B 和 C。`（cmds/std/look.c 末两个用"和"连接）
+    - `get` 命令为主（cmds/std/get.c），`take` 保留别名
+    - 方向简写：直接输入 n/s/e/w 等即移动（LPC room init 为每个 exit 注册 add_action），对齐 go.c default_dirs
+    - ItemDef 层0 定义（id + name + aliases）+ Game.item_registry；look/inventory 显示 `酥油罐(suyou_guan)` 中文名(id) 格式（对照 d/xueshan/obj/suyouguan.c set_name）
+    - take/give 支持按 id 或中文名查找（对齐 LPC present）
+  - 完整试玩路径打通：look -> go eastdown -> get 酥油罐 -> go westup -> ask 还愿 -> give 葛伦布 酥油罐 -> quest 完成 -> go north 放行 -> 探索 8 房间 -> kill 小喇嘛/葛伦布
   - 4 个 e2e 测试适配多回合 kill（kill 前保存 NPC eid，NPC 倒下后 Position 移除不影响 Vitals 查询）
-  - **115 tests 全绿（+16），ruff 全过**
+  - **118 tests 全绿（+19），ruff 全过**
+  - 分支 `feat/s5-playtest` 已 push，4 个提交：4ec0b2d2 / 6bc75498 / d808b8d9 / a3dbaf42
 
 ## In Progress
 
