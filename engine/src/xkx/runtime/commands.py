@@ -169,7 +169,7 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         apply_effects(world, result.effects)
         messages.extend(result.messages)
         if _is_dead(world, target_eid):
-            messages.append(f"{target_name}倒下了。")
+            messages.append(f"{target_name}倒在地上，死了。")
             _handle_npc_death(world, target_eid, actor_id)
             break
         ctx = CombatContext(
@@ -181,9 +181,9 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         apply_effects(world, result.effects)
         messages.extend(result.messages)
         if _is_dead(world, actor_id):
-            messages.append("你受到致命一击，倒下了。")
+            messages.append("你的眼前一黑，接著什么也不知道了....")
             _handle_player_death(world, game, actor_id)
-            messages.append("你在起点醒来，感觉恢复了一些。")
+            messages.append("慢慢地你终于又有了知觉....")
             break
     else:
         messages.append(f"战斗持续了{max_rounds}回合，双方暂时停手。")
@@ -367,7 +367,7 @@ def take(game: Game, actor_id: int, item_id: str) -> list[str]:
 
 
 def look(game: Game, actor_id: int) -> list[str]:
-    """查看命令（S5a）：显示房间描述 + NPC + 物品 + 出口。"""
+    """查看命令（S5a）：LPC 风格显示房间描述 + NPC(每行) + 物品 + 出口。"""
     world = game.world
     pos = world.get(actor_id, Position)
     if not pos:
@@ -375,18 +375,20 @@ def look(game: Game, actor_id: int) -> list[str]:
     room = world.get(game.room_entities[pos.room_id], RoomComp)
     if not room:
         return ["这里什么也没有。"]
-    lines = [f"【{room.short}】", room.long, ""]
-    npc_names = []
+    lines = [f"【{room.short}】", room.long]
     for eid in world.entities_in_room(pos.room_id):
         ident = world.get(eid, Identity)
         if ident and not ident.is_player:
-            npc_names.append(ident.name)
-    if npc_names:
-        lines.append("这里有：" + "、".join(npc_names) + "。")
-    if room.items:
-        lines.append("地上放着：" + "、".join(sorted(room.items)) + "。")
+            id_str = ident.aliases[0] if ident.aliases else ident.prototype_id
+            lines.append(f"  {ident.name}({id_str})")
+    for item in sorted(room.items):
+        lines.append(f"  {item}")
     if room.exits:
-        lines.append("出口：" + "、".join(sorted(room.exits.keys())) + "。")
+        dirs = sorted(room.exits.keys())
+        if len(dirs) == 1:
+            lines.append(f"    这里唯一的出口是 {dirs[0]}。")
+        else:
+            lines.append(f"    这里明显的出口是 {'、'.join(dirs[:-1])} 和 {dirs[-1]}。")
     return lines
 
 

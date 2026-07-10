@@ -1,13 +1,15 @@
 """最小可玩 CLI REPL（S5a）：交互式命令行前端。
 
 加载 xueshan_micro 场景，解析玩家输入 -> 调用命令函数 -> 打印消息。
-支持命令：go/kill/ask/give/quest/look/take/inventory/help/quit。
+支持命令：go/get/kill/ask/give/quest/look/inventory/hp/help/quit + 方向简写。
 
 运行：``python -m xkx.cli``（需在 engine/ 目录下，venv 激活）。
 """
 
 from __future__ import annotations
 
+import sys
+import time
 from pathlib import Path
 
 from xkx.dsl.ir import compile_scene
@@ -30,11 +32,23 @@ from xkx.runtime.world import build_world, spawn_player
 SCENE_DIR = Path(__file__).resolve().parent.parent.parent / "scenes" / "xueshan_micro"
 START_ROOM = "xueshan/shanmen"
 
+# 方向简写映射（对齐 LPC go.c default_dirs + 常见缩写）
+DIR_ALIASES = {
+    "n": "north", "s": "south", "e": "east", "w": "west",
+    "ne": "northeast", "nw": "northwest", "se": "southeast", "sw": "southwest",
+    "u": "up", "d": "down",
+    "nu": "northup", "su": "southup", "eu": "eastup", "wu": "westup",
+    "nd": "northdown", "sd": "southdown", "ed": "eastdown", "wd": "westdown",
+}
+ALL_DIRS = set(DIR_ALIASES.keys()) | set(DIR_ALIASES.values())
+
 HELP_TEXT = """\
 可用命令：
   go <方向>               向指定方向移动（如 go north），移动后自动查看房间
+  <方向>                  直接输入方向即可移动，支持简写：n s e w ne nw se sw
+                          u d nu su eu wu nd sd ed wd（如 n = go north）
   look                    查看当前房间（简写 l）
-  take <物品>             拾取地上的物品
+  get <物品>              捡起地上的物品（也支持 take）
   kill <NPC>              攻击 NPC（多回合战斗，至一方倒下）
   ask <NPC> about <话题>  向 NPC 打听/对话
   give <NPC> <物品>       把物品给 NPC
@@ -64,6 +78,14 @@ def _print(messages: list[str]) -> None:
         print(m)
 
 
+def _print_combat(messages: list[str]) -> None:
+    """战斗消息逐条打印，每条间短暂停顿（模拟 LPC heart_beat 节奏）。"""
+    for m in messages:
+        print(m)
+        sys.stdout.flush()
+        time.sleep(0.25)
+
+
 def parse_and_run(game: Game, pid: int, line: str) -> bool:
     """解析并执行一行输入，返回 False 表示退出。"""
     parts = line.strip().split()
@@ -71,6 +93,10 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         return True
     cmd, args = parts[0], parts[1:]
 
+    # 方向简写：直接输入方向即移动（LPC 习惯）
+    if cmd in ALL_DIRS:
+        _print(go(game, pid, DIR_ALIASES.get(cmd, cmd)))
+        return True
     if cmd in ("quit", "exit"):
         return False
     if cmd in ("help", "h", "?"):
@@ -87,13 +113,13 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         return True
     if cmd == "go":
         if not args:
-            print("要去哪？如：go north")
+            print("要去哪？如：go north 或直接 n")
             return True
         _print(go(game, pid, args[0]))
         return True
-    if cmd == "take":
+    if cmd in ("get", "take"):
         if not args:
-            print("要拿什么？如：take suyou_guan")
+            print("要捡起什么？如：get suyou_guan")
             return True
         _print(take(game, pid, args[0]))
         return True
@@ -101,7 +127,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         if not args:
             print("要攻击谁？如：kill 葛伦布")
             return True
-        _print(kill(game, pid, " ".join(args)))
+        _print_combat(kill(game, pid, " ".join(args)))
         return True
     if cmd == "ask":
         if "about" in args:

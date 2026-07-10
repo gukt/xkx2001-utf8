@@ -104,12 +104,12 @@ def test_take_missing_item() -> None:
 
 
 def test_look_shows_room_info() -> None:
-    """look 显示房间名/描述/NPC/出口。"""
+    """look 显示房间名/描述/NPC(id)/出口（LPC 风格）。"""
     game, pid = _game()
     msgs = look(game, pid)
     text = "\n".join(msgs)
     assert "山门" in text
-    assert "葛伦布" in text
+    assert "葛伦布(ge lunbu)" in text  # NPC 名字(id) 格式
     assert "出口" in text
 
 
@@ -163,7 +163,7 @@ def test_kill_multi_round_npc_death() -> None:
     weak = _spawn_weak_npc(game, "xueshan/shanmen", "木桩", max_qi=1)
     before_exp = game.world.get(pid, Vitals).combat_exp
     msgs = kill(game, pid, "木桩")
-    assert any("倒下" in m for m in msgs)
+    assert any("死了" in m for m in msgs)
     assert game.world.get(weak, Position) is None
     # _handle_npc_death +50；resolve_attack 战斗中也可能给玩家 +exp，故用 >=
     assert game.world.get(pid, Vitals).combat_exp >= before_exp + 50
@@ -174,7 +174,8 @@ def test_kill_player_death_respawn() -> None:
     game, pid = _game(spawn_room="xueshan/shanmen")
     game.world.get(pid, Vitals).qi = 1
     msgs = kill(game, pid, "葛伦布")
-    assert any("倒下" in m for m in msgs)
+    assert any("眼前一黑" in m for m in msgs)
+    assert any("有了知觉" in m for m in msgs)
     assert game.world.get(pid, Position).room_id == "xueshan/shanmen"
     vitals = game.world.get(pid, Vitals)
     assert vitals.qi == vitals.max_qi
