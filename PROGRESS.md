@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S4e 扩展到 8 房间全量验证完成（99 tests），阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S4 剩余子任务（Agent 映射文档）待推进。
+**当前状态**：S4f Agent schema 映射文档完成，S4 全部实施子任务完成（99 tests）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5 玩家试玩待推进。
 
 ## Done
 
@@ -81,6 +81,12 @@
   - measure_revision L1-L4 + 四道校验全绿，结构错误 0；修订比例 75% 系规模扩展（3->8 房间）非 Agent 质量信号
   - **99 tests 全绿（+7），ruff 全过**
 
+- [x] **S4f Agent schema 映射文档完成**（[07](docs/xkx-arch/07-agent-schema-mapping.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) §后续 4）：
+  - [07-agent-schema-mapping.md](docs/xkx-arch/07-agent-schema-mapping.md)：LPC -> schema 字段映射表（NpcDef/RoomDef/EventRule/QuestDef）+ map_skill 推断三规则 + 三类偏差陷阱（neili/max_neili、attack_skill 武器类别、weapon 物品 id）
+  - 目标：M2 独立 LLM 按此文档生成初稿，预期降修订量 < 20%（ADR-0004 copilot 24.5% -> < 20%）
+  - 完整示例：gelun1 LPC -> DSL 推断全过程（weapon 类别 / attack_skill map_skill 推断 / inquiry 函数式转静态）
+  - **S4 全部实施子任务完成（S4a-S4f）**
+
 ## In Progress
 
 （无 -- S4c 已完成，S4 剩余子任务待启动）
@@ -93,7 +99,6 @@
 
 **S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
 
-- Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
 - 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）
 - ask->action 机制 / clear_flag action / 物品生成（xlama2 酥油茶交互闭环，S4e GAP，S4+/阶段 0）
 
