@@ -14,10 +14,8 @@ TYPE_REGULAR = 0
 TYPE_RIPOSTE = 1
 TYPE_QUICK = 2
 
-# 武器类型（S1 最小集；不硬编码武侠语义，后续题材包扩展）
+# 默认徒手武器/技能名（题材无关；具体武器名由题材数据声明，内核不解释，见 ADR-0003）
 WEAPON_UNARMED = "unarmed"
-WEAPON_SWORD = "sword"
-WEAPON_BLADE = "blade"
 
 
 class CombatantSnapshot(BaseModel):
@@ -32,7 +30,7 @@ class CombatantSnapshot(BaseModel):
     int_: int = 10
     con_: int = 10
 
-    # 三层资源：气/精/精力/内力（LPC qi/jing/jingli/neili）
+    # 资源池：气/精/精力（LPC qi/jing/jingli；neili 内力不进核心签名，见 ADR-0003）
     qi: int = 100
     max_qi: int = 100
     eff_qi: int = 100
@@ -40,8 +38,6 @@ class CombatantSnapshot(BaseModel):
     max_jing: int = 100
     jingli: int = 100
     max_jingli: int = 100
-    neili: int = 0
-    max_neili: int = 0
 
     # 经验/潜能
     combat_exp: int = 0
@@ -58,8 +54,12 @@ class CombatantSnapshot(BaseModel):
     apply_damage: int = 0
     apply_armor: int = 0
 
-    # 武器类型（None = 空手）
+    # 武器类型（None = 空手）；题材无关，内核不解释具体武器名
     weapon: str | None = None
+    # 本回合招式所用技能 id（题材数据声明；S2 前由 weapon 推断，见 ADR-0003）
+    attack_skill: str = WEAPON_UNARMED
+    # 武器显示名（$w 占位符替换值；题材数据声明）
+    weapon_label: str = "拳头"
 
     # 招式描述（S1 简化：从快照取，未来从 SkillData 取）
     # 占位符：$N=施动者名 $n=目标名 $w=武器 $l=攻击部位

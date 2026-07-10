@@ -1,0 +1,12 @@
+- id: academy/courtyard
+  short: 书院前院
+  long: 古柏森森，砚池水冷，远处讲堂传来诵读之声。
+  exits:
+    east: academy/library
+- id: academy/library
+  short: 藏书阁
+  long: 经史子集堆叠满架，空气中飘着陈年纸墨的气息。
+  exits:
+    west: academy/courtyard
+  objects:
+    academy/npc/student: 1

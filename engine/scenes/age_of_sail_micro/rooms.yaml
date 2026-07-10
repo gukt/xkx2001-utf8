@@ -1,0 +1,12 @@
+- id: port/dock
+  short: 港口栈桥
+  long: 咸腥海风扑面，栈桥尽头泊着一艘三桅帆船，甲板上有人影巡望。
+  exits:
+    north: ship/deck
+  objects:
+    sail/npc/pirate: 1
+- id: ship/deck
+  short: 海盗船甲板
+  long: 脚下是摇晃的木板，缆绳与火药桶堆在角落，火药味刺鼻。
+  exits:
+    south: port/dock

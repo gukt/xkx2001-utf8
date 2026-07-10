@@ -1,0 +1,8 @@
+- id: library_guard_gate
+  event: valid_leave
+  condition:
+    kind: present_npc
+    npc_id: academy/npc/student
+  action: deny
+  priority: 0
+  message: 监生横过戒尺：阁内典籍岂容擅带出！

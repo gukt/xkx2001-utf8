@@ -29,6 +29,8 @@ def _ir() -> dict:
             combat_exp=10000,
             skills={"unarmed": 40, "blade": 40},
             weapon="blade",
+            attack_skill="blade",
+            weapon_label="刀",
         )
     ]
     return compile_scene(rooms, npcs)
@@ -58,6 +60,8 @@ def test_to_snapshot() -> None:
     assert snap.name == "官兵"
     assert snap.str_ == 24
     assert snap.weapon == "blade"
+    assert snap.attack_skill == "blade"
+    assert snap.weapon_label == "刀"
     assert snap.skills["blade"] == 40
 
 

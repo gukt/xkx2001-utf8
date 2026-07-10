@@ -58,6 +58,9 @@ class NpcDef(BaseModel):
     apply_damage: int = 0
     apply_armor: int = 0
     weapon: str | None = None
+    # 本回合招式技能 id + 武器显示名（题材数据声明，内核不解释，见 ADR-0003）
+    attack_skill: str = "unarmed"
+    weapon_label: str = "拳头"
 
     # 战斗喊话（LPC chat_msg_combat）
     chat_chance_combat: int = 0

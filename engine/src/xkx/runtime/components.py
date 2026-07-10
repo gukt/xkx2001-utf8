@@ -68,6 +68,9 @@ class CombatState:
     action_parry: int = 30
     action_damage: int = 20
     action_damage_type: str = "击伤"
+    # 本回合招式技能 id + 武器显示名（题材数据声明，内核不解释，见 ADR-0003）
+    attack_skill: str = "unarmed"
+    weapon_label: str = "拳头"
     hit_ob_bonus: int = 0
     hit_by_override: int | None = None
 

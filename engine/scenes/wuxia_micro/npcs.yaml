@@ -20,6 +20,8 @@
   apply_attack: 40
   apply_damage: 20
   weapon: blade
+  attack_skill: blade
+  weapon_label: 刀
   chat_chance_combat: 10
   chat_msg_combat:
     - 官兵喝道：大胆刁民，竟敢造反不成？

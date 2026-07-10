@@ -1,0 +1,26 @@
+- id: academy/npc/student
+  name: 顽劣监生
+  aliases: [student, "jian sheng", 监生]
+  gender: 男性
+  age: 19
+  attitude: heroism
+  str_: 14
+  dex_: 16
+  int_: 22
+  con_: 13
+  max_qi: 200
+  max_jing: 150
+  max_jingli: 160
+  combat_exp: 3000
+  skills:
+    ruler: 35
+    dodge: 20
+    parry: 20
+  apply_attack: 20
+  apply_damage: 10
+  weapon: ruler
+  attack_skill: ruler
+  weapon_label: 戒尺
+  chat_chance_combat: 6
+  chat_msg_combat:
+    - 监生嚷道：夫子不在，正好教训你这外乡人！

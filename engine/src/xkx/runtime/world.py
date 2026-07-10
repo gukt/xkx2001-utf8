@@ -103,7 +103,13 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             weapon=n.get("weapon"),
         ),
     )
-    world.add(eid, CombatState())
+    world.add(
+        eid,
+        CombatState(
+            attack_skill=n.get("attack_skill", "unarmed"),
+            weapon_label=n.get("weapon_label", "拳头"),
+        ),
+    )
     world.add(
         eid,
         NpcBehavior(
@@ -161,8 +167,6 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         max_jing=vitals.max_jing,
         jingli=vitals.jingli,
         max_jingli=vitals.max_jingli,
-        neili=vitals.neili,
-        max_neili=vitals.max_neili,
         combat_exp=vitals.combat_exp,
         potential=vitals.potential,
         skills=skills.levels,
@@ -172,6 +176,8 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         apply_damage=skills.apply_damage,
         apply_armor=skills.apply_armor,
         weapon=skills.weapon,
+        attack_skill=combat.attack_skill,
+        weapon_label=combat.weapon_label,
         action_message=combat.action_message,
         action_force=combat.action_force,
         action_dodge=combat.action_dodge,

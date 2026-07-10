@@ -1,0 +1,26 @@
+- id: sail/npc/pirate
+  name: 海盗
+  aliases: [pirate, "hai dao"]
+  gender: 男性
+  age: 32
+  attitude: aggressive
+  str_: 22
+  dex_: 18
+  int_: 11
+  con_: 18
+  max_qi: 350
+  max_jing: 250
+  max_jingli: 180
+  combat_exp: 8000
+  skills:
+    firearm: 40
+    dodge: 25
+    parry: 15
+  apply_attack: 35
+  apply_damage: 25
+  weapon: firearm
+  attack_skill: firearm
+  weapon_label: 火枪
+  chat_chance_combat: 8
+  chat_msg_combat:
+    - 海盗狞笑：拿命来换这船货！

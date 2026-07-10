@@ -8,14 +8,14 @@ S1 简化（见 ADR-0002）：
 - dodge/parry/hit 三分支；riposte 仅标记不递归（后置）；
 - hit_ob/hit_by 仅 int 加成/覆盖，mapping 分支后置；
 - skill_power 用简化公式（真实 DamageFormula 三段式管线后置）；
-- 武器类型最小集（unarmed/sword/blade），不硬编码武侠语义。
+- 武器到技能/标签的映射由题材数据声明（attack_skill/weapon_label），
+  内核不解释武器名（见 ADR-0003）。
 """
 
 from __future__ import annotations
 
 from xkx.combat.context import (
     TYPE_QUICK,
-    WEAPON_UNARMED,
     CombatantSnapshot,
     CombatContext,
 )
@@ -38,13 +38,6 @@ from xkx.combat.rng import DeterministicRNG
 ATTACK = "attack"
 DEFENSE = "defense"
 
-_WEAPON_LABEL: dict[str | None, str] = {
-    None: "拳头",
-    WEAPON_UNARMED: "拳头",
-    "sword": "剑",
-    "blade": "刀",
-}
-
 
 def skill_power(c: CombatantSnapshot, skill_id: str, mode: str) -> int:
     """简化 skill_power（LPC ``level³/3`` + 属性 + apply）。
@@ -59,13 +52,6 @@ def skill_power(c: CombatantSnapshot, skill_id: str, mode: str) -> int:
     return base + c.apply_dodge + c.dex_ * 2
 
 
-def _select_attack_skill(attacker: CombatantSnapshot) -> str:
-    """(0) 选技能：根据武器类型。S1 最小映射。"""
-    if attacker.weapon in ("sword", "blade"):
-        return attacker.weapon
-    return WEAPON_UNARMED
-
-
 def _render(
     template: str,
     attacker: CombatantSnapshot,
@@ -75,12 +61,12 @@ def _render(
     """最小占位符替换（$N/$n/$w/$l）。
 
     完整代词求值（10 变量 + viewer 三元组）见子系统 9/13，S1 不做。
+    $w 取 attacker.weapon_label（题材数据声明，见 ADR-0003）。
     """
-    weapon_label = _WEAPON_LABEL.get(attacker.weapon, "拳头")
     return (
         template.replace("$N", attacker.name)
         .replace("$n", victim.name)
-        .replace("$w", weapon_label)
+        .replace("$w", attacker.weapon_label)
         .replace("$l", limb)
     )
 
@@ -92,8 +78,8 @@ def resolve_attack(ctx: CombatContext) -> CombatRoundResult:
     victim = ctx.victim
     result = CombatRoundResult(result_code=RESULT_HIT)
 
-    # (0) 选技能
-    attack_skill = _select_attack_skill(attacker)
+    # (0) 取本回合招式技能（题材数据声明，见 ADR-0003）
+    attack_skill = attacker.attack_skill
 
     # (1) 取 action + 拼招式描述
     limb = rng.choice(ctx.limbs) or "身体"
