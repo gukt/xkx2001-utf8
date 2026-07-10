@@ -89,7 +89,7 @@
 
 ## In Progress
 
-（无 -- S4c 已完成，S4 剩余子任务待启动）
+（无 -- S4 全部实施子任务完成 S4a-S4f，阶段 -1 两个技术 kill criteria 通过，S5 待启动）
 
 ## Blocked
 
@@ -97,14 +97,15 @@
 
 ## Next Up
 
-**S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
-
-- 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）
-- ask->action 机制 / clear_flag action / 物品生成（xlama2 酥油茶交互闭环，S4e GAP，S4+/阶段 0）
-
 **S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--8 房间扩展路径 + 物品交互 + 任务闭环已打通，试玩路径可行。
+- S5a 技术准备：最小可玩 CLI REPL（input loop 解析 go/kill/ask/give/quest）+ 补试玩缺口（玩家物品获取、多回合战斗、死亡/复活）
+- S5b 找 3-5 名玩家试玩 + 收集"好玩"反馈
 
-S2/S3/S4a/S4b/S4c 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) 表在 S4+ 或阶段 0 补全。
+**后置项**（S4+/阶段 0）：
+- 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步）
+- ask->action 机制 / clear_flag action / 物品生成（xlama2 酥油茶交互闭环，S4e GAP）
+
+S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励、ask->action/clear_flag/物品生成）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) / [ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 表在 S4+ 或阶段 0 补全。
 
 ## 阶段 -1 的 kill criteria（开工必读）
 
