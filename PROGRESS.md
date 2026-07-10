@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S4c 最小任务系统完成（83 tests），阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过。S4 剩余子任务（SchemaValidator / Agent 映射文档 / 扩展到 5-10 房间）待推进。
+**当前状态**：S4d SchemaValidator 四道校验完成（92 tests），阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过。S4 剩余子任务（Agent 映射文档 / 扩展到 5-10 房间全量验证）待推进。
 
 ## Done
 
@@ -67,6 +67,12 @@
   - **阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过**
   - **83 tests 全绿（+8），ruff 全过**
 
+- [x] **S4d SchemaValidator 四道校验完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S4 / [ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md)）：
+  - `SceneValidator` 四道校验（[validator.py](engine/src/xkx/dsl/validator.py)）：SchemaValidator（pydantic strict + 未知字段警告，捕获 `neili`/`max_neili` 类静默偏差）/ CapabilityAuditor（`attack_skill` 须在 `skills` 中）/ ResourceBudgetChecker（`max_qi` 等非负）/ DependencyResolver（room/npc/quest/rule 引用完整性）
+  - 阶段 -1 最小实现，作为 warning/测试门禁不阻塞编译（完整 jsonschema/CPK/fuel/networkx 后置 M2/阶段 0）
+  - [measure_revision.py](engine/tools/measure_revision.py) L2 后集成四道校验输出 warnings；xueshan_micro 四道校验问题为 (无)
+  - **92 tests 全绿（+9），ruff 全过**
+
 ## In Progress
 
 （无 -- S4c 已完成，S4 剩余子任务待启动）
@@ -79,7 +85,6 @@
 
 **S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
 
-- SchemaValidator 四道校验加强（引用完整性 / Capability / Resource / Dependency + `extra` 字段警告，捕获 neili/max_neili 类静默偏差）
 - Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
 - 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL（阶段 -1 kill criteria 1 全量验证）
 - 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）

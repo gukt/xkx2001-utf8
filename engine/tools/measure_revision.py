@@ -1,10 +1,13 @@
-"""S3 修订量度量：校验 DSL 场景四级可跑通性 + 度量 v0->v1 修订比例。
+"""S3/S4 修订量度量：校验 DSL 场景四道可跑通性 + 度量 v0->v1 修订比例。
 
-四级校验（逐级递进，任一级失败即停并记录）：
-  L1 schema load  : pydantic 校验 rooms/npcs/rules YAML
-  L2 IR 编译       : compile_scene
-  L3 运行时加载    : build_world
-  L4 端到端        : go(各方向不抛异常) + kill(resolve_attack) + 确定性重放
+四级可跑通性校验（逐级递进，任一级失败即停并记录）：
+  L1 schema load       : pydantic 校验 rooms/npcs/quests/rules YAML
+  L2 IR 编译 + 四道校验 : compile_scene + SchemaValidator 四道校验（阶段 -1 最小实现）
+  L3 运行时加载         : build_world
+  L4 端到端            : go(各方向不抛异常) + kill(resolve_attack) + 确定性重放
+
+四道校验（S4 ADR-0008）：schema 结构/未知字段 + capability + resource + dependency。
+阶段 -1 作为 warning 输出，不阻塞 L3/L4。
 
 修订比例：v0 -> v1 的行级 diff（变化行 / v1 非空行），按文件分别统计后汇总。
 缺口台账：收集 v0 中 `# GAP:` 注释（Agent 标注的"想表达但 DSL 不支持"项）。
@@ -31,14 +34,15 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from xkx.dsl.ir import compile_scene  # noqa: E402
-from xkx.dsl.layer0 import load_npcs, load_rooms  # noqa: E402
+from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms  # noqa: E402
 from xkx.dsl.layer1 import load_rules  # noqa: E402
+from xkx.dsl.validator import validate  # noqa: E402
 from xkx.runtime.commands import Game, go, kill  # noqa: E402
 from xkx.runtime.components import Identity, Position, RoomComp  # noqa: E402
 from xkx.runtime.world import build_world, spawn_player  # noqa: E402
 
 GAP_PREFIX = "# GAP:"
-SCENE_FILES = ("rooms.yaml", "npcs.yaml", "rules.yaml")
+SCENE_FILES = ("rooms.yaml", "npcs.yaml", "rules.yaml", "quests.yaml")
 
 
 @dataclass
@@ -71,6 +75,7 @@ class SceneReport:
     checks: list[CheckResult] = field(default_factory=list)
     file_diffs: list[FileDiff] = field(default_factory=list)
     gaps: list[str] = field(default_factory=list)
+    validation_issues: list[str] = field(default_factory=list)  # S4 ADR-0008
 
     @property
     def passed(self) -> bool:
@@ -118,47 +123,59 @@ def _first_npc_name(game: Game, room_id: str) -> str | None:
     return None
 
 
-def _build_game(scene_dir: Path, seed_base: int = 0) -> tuple[Game, int, str]:
-    """加载场景并构建 game，返回 (game, 玩家 eid, 起点房间 id)。"""
+def _build_game(scene_dir: Path, seed_base: int = 0) -> tuple[Game, int, str, dict[str, dict]]:
+    """加载场景并构建 game，返回 (game, 玩家 eid, 起点房间 id, quest_idx)。"""
     rooms = load_rooms(scene_dir / "rooms.yaml")
     npcs = load_npcs(scene_dir / "npcs.yaml")
+    quests = load_quests(scene_dir / "quests.yaml") if (scene_dir / "quests.yaml").exists() else []
     rules = load_rules(scene_dir / "rules.yaml")
-    ir = compile_scene(rooms, npcs)
-    world, room_idx, _ = build_world(ir)
+    ir = compile_scene(rooms, npcs, quests)
+    world, room_idx, quest_idx = build_world(ir)
     start = _first_npc_room(rooms, npcs)
     pid = spawn_player(world, "玩家", start)
-    return Game(world, room_idx, rules, seed_base=seed_base), pid, start
+    return (
+        Game(world, room_idx, rules, quests=quest_idx, seed_base=seed_base),
+        pid,
+        start,
+        quest_idx,
+    )
 
 
-def check_scene(scene_dir: Path) -> tuple[list[CheckResult], bool]:
-    """四级校验。返回 (结果列表, 是否全过)。"""
+def check_scene(scene_dir: Path) -> tuple[list[CheckResult], list[str], bool]:
+    """四道可跑通性校验 + 四道校验 warnings。返回 (结果列表, 校验问题, 是否全过)。"""
     results: list[CheckResult] = []
+    validation_issues: list[str] = []
 
     # L1 schema load
     try:
         rooms = load_rooms(scene_dir / "rooms.yaml")
         npcs = load_npcs(scene_dir / "npcs.yaml")
-        load_rules(scene_dir / "rules.yaml")
+        quests = (
+            load_quests(scene_dir / "quests.yaml") if (scene_dir / "quests.yaml").exists() else []
+        )
+        rules = load_rules(scene_dir / "rules.yaml")
         results.append(CheckResult("L1 schema load", True))
     except Exception as e:  # noqa: BLE001
         results.append(CheckResult("L1 schema load", False, f"{type(e).__name__}: {e}"))
-        return results, False
+        return results, validation_issues, False
 
-    # L2 IR 编译
+    # L2 IR 编译 + 四道校验（阶段 -1 不阻塞）
     try:
-        compile_scene(rooms, npcs)
-        results.append(CheckResult("L2 IR compile", True))
+        ir = compile_scene(rooms, npcs, quests)
+        ir["rules"] = [r.model_dump() for r in rules]
+        validation_issues = validate(ir)
+        results.append(CheckResult("L2 IR compile + 4-check", True))
     except Exception as e:  # noqa: BLE001
-        results.append(CheckResult("L2 IR compile", False, f"{type(e).__name__}: {e}"))
-        return results, False
+        results.append(CheckResult("L2 IR compile + 4-check", False, f"{type(e).__name__}: {e}"))
+        return results, validation_issues, False
 
     # L3 运行时加载
     try:
-        game, pid, start = _build_game(scene_dir)
+        game, pid, start, _ = _build_game(scene_dir)
         results.append(CheckResult("L3 build_world", True))
     except Exception as e:  # noqa: BLE001
         results.append(CheckResult("L3 build_world", False, f"{type(e).__name__}: {e}"))
-        return results, False
+        return results, validation_issues, False
 
     # L4 端到端：go + kill + 确定性重放
     try:
@@ -176,8 +193,8 @@ def check_scene(scene_dir: Path) -> tuple[list[CheckResult], bool]:
             raise RuntimeError("起点房间无 NPC，无法校验 kill")
         kill(game, pid, target)
         # 确定性重放：两个干净 game 各自第一次 kill，messages 须一致
-        ga, pa, _ = _build_game(scene_dir, seed_base=0)
-        gb, pb, _ = _build_game(scene_dir, seed_base=0)
+        ga, pa, _, _ = _build_game(scene_dir, seed_base=0)
+        gb, pb, _, _ = _build_game(scene_dir, seed_base=0)
         msgs_a = kill(ga, pa, target)
         msgs_b = kill(gb, pb, target)
         if msgs_a != msgs_b:
@@ -185,9 +202,9 @@ def check_scene(scene_dir: Path) -> tuple[list[CheckResult], bool]:
         results.append(CheckResult("L4 e2e (go+kill+replay)", True))
     except Exception as e:  # noqa: BLE001
         results.append(CheckResult("L4 e2e (go+kill+replay)", False, f"{type(e).__name__}: {e}"))
-        return results, False
+        return results, validation_issues, False
 
-    return results, True
+    return results, validation_issues, True
 
 
 def _count_nonblank(lines: list[str]) -> int:
@@ -212,7 +229,7 @@ def measure_revision(v0_dir: Path, v1_dir: Path) -> tuple[list[FileDiff], list[s
         for ln in v0_lines:
             stripped = ln.strip()
             if stripped.startswith(GAP_PREFIX):
-                gaps.append(f"{name}: {stripped[len(GAP_PREFIX):].strip()}")
+                gaps.append(f"{name}: {stripped[len(GAP_PREFIX) :].strip()}")
         # 行级 diff（unified_diff，统计 +/- 行，排除 +++/--- 头）
         diff = list(difflib.unified_diff(v0_lines, v1_lines, lineterm=""))
         changed = sum(
@@ -268,14 +285,21 @@ def format_report(report: SceneReport) -> str:
             lines.append(f"    - {g}")
     else:
         lines.append("  表达力缺口台账: (无)")
+    if report.validation_issues:
+        lines.append(f"  四道校验问题 ({len(report.validation_issues)}):")
+        for issue in report.validation_issues:
+            lines.append(f"    - {issue}")
+    else:
+        lines.append("  四道校验问题: (无)")
     return "\n".join(lines)
 
 
 def run(scene_dir: Path, v0_dir: Path | None = None) -> SceneReport:
     """跑一个场景的完整度量。v0_dir 默认 scene_dir/_draft_v0。"""
     report = SceneReport(scene=scene_dir.name)
-    checks, _ = check_scene(scene_dir)
+    checks, validation_issues, _ = check_scene(scene_dir)
     report.checks = checks
+    report.validation_issues = validation_issues
     if v0_dir is None:
         v0_dir = scene_dir / "_draft_v0"
     if v0_dir.exists():
