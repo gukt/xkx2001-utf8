@@ -1,0 +1,22 @@
+# v1 专家修订（2026-07-10）：基于 d/xueshan/dshanlu.c + shanmen.c + guangchang.c
+- id: xueshan/dshanlu
+  short: 大雪山山路
+  long: 一条陡峭的青石板山路蜿蜒向上，寒风凛冽，远处隐约可见大轮寺的山门。
+  exits:
+    westup: xueshan/shanmen
+  outdoors: true
+- id: xueshan/shanmen
+  short: 山门
+  long: 这里是大轮寺的山门，门前是络绎不绝的进香朝圣的信徒。山门前站了几个手持法器的葛伦布在维持秩序，东方是一条青石板铺成的山路。
+  exits:
+    eastdown: xueshan/dshanlu
+    north: xueshan/guangchang
+  objects:
+    xueshan/npc/gelun1: 2
+  outdoors: true
+- id: xueshan/guangchang
+  short: 大广场
+  long: 大轮寺前的大广场，进香朝圣的信徒络绎不绝，北面通往寺院深处。
+  exits:
+    south: xueshan/shanmen
+  outdoors: true

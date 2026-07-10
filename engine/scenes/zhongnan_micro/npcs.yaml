@@ -1,0 +1,33 @@
+# v1 专家修订（2026-07-10）：基于 kungfu/class/quanzhen/pi.c
+# v0->v1 修订：neili->max_neili / attack_skill sword->quanzhen-jian（map_skill 推断）/
+#   weapon changjian->sword（类别统一）
+- id: kungfu/class/quanzhen/pi
+  name: 皮清玄
+  aliases: ["pi qingxuan", "pi"]
+  gender: 男性
+  age: 36
+  attitude: heroic
+  str_: 20
+  dex_: 20
+  int_: 28
+  con_: 28
+  max_qi: 1000
+  max_jing: 1000
+  max_jingli: 1000
+  max_neili: 2000
+  combat_exp: 40000
+  skills:
+    force: 40
+    dodge: 40
+    cuff: 40
+    strike: 40
+    parry: 40
+    sword: 40
+    quanzhen-jian: 40
+    xiantian-gong: 40
+    jinyangong: 40
+    chunyang-quan: 40
+    sanhua-juding: 40
+  weapon: sword
+  attack_skill: quanzhen-jian
+  weapon_label: 长剑

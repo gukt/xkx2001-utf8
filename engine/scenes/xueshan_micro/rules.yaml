@@ -1,0 +1,12 @@
+# v1 专家修订（2026-07-10）：基于 d/xueshan/shanmen.c valid_leave（north 方向）
+# 近似：present_npc（葛伦布在场）-> deny。LPC 完整逻辑（门派判断/物品供奉/谓词 AND
+# 组合/allow-wins 语义）受现有层1 谓词集限制无法表达，缺口见 ADR-0004 表达力缺口
+# 台账（S4 统一评估扩谓词）。
+- id: xueshan_shanmen_guard
+  event: valid_leave
+  condition:
+    kind: present_npc
+    npc_id: xueshan/npc/gelun1
+  action: deny
+  priority: 0
+  message: 葛伦布挡住你说：你准备用什麽供奉我们佛爷呀？

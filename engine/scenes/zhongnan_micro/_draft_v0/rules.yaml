@@ -1,0 +1,16 @@
+# Agent v0 初稿（2026-07-10）：基于 d/zhongnan/gate.c valid_leave（north 方向）
+# LPC 逻辑：全真教 -> allow / 持 incense -> allow / 否则 -> deny
+# GAP: 门派判断（family_name 全真教）无 family 谓词
+# GAP: 物品持有（present incense）无 has_item 谓词
+# GAP: 谓词无法 OR 组合（全真教 OR 持香 放行）
+# GAP: deny-wins 模型无法表达"满足任一放行条件则 allow"（allow-wins 语义）
+# GAP: 门状态机（do_knock / call_out close_door 10s / 跨房间 exits 同步）完全无法表达
+# 近似：present_npc（皮清玄在场）-> deny，抓住"守门拦截"核心
+- id: zhongnan_gate_guard
+  event: valid_leave
+  condition:
+    kind: present_npc
+    npc_id: kungfu/class/quanzhen/pi
+  action: deny
+  priority: 0
+  message: 中年道士说道：如果不是进香，请回吧。

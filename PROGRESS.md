@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S1 第一垂直切片完成，端到端链路打通（30 tests），准备 S2 非武侠验证。
+**当前状态**：S3 Agent 生成 + 修订量度量完成（52 tests），语义修订 24.5% < 30% 降级线，准备 S4 全量场景 + 扩 schema。
 
 ## Done
 
@@ -25,9 +25,24 @@
 
 - [x] 04 补后置能力条目：输入侧 AI 意图识别 + 语音（自然语言/语音 -> 标准 Command 前置层），记入 [04](docs/xkx-arch/04-迁移路径与避坑清单.md) §三后置阶段表 + §六不做清单；触发条件 = 外部玩家测试阶段（与迁 PG 同分界），边界 = 管线第 0 段前置、翻译后 Command 进 input log 保 Q3 确定性重放（类比 Agent NPC "LLM 在边界"）。
 
+- [x] **S2 非武侠微场景验证 CombatKernel 主题无关性完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S2 / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md)）：
+  - S1 留口审查发现 3 个武侠硬编码点：武器->技能映射（`_select_attack_skill`）、武器->标签映射（`_WEAPON_LABEL`）、neili 进核心签名
+  - 最小重构：attack_skill/weapon_label 外提到题材数据声明，resolve_attack 删 `_select_attack_skill`/`_WEAPON_LABEL`，neili 移出 CombatantSnapshot（Vitals 保留）
+  - 非武侠微场景：大航海（火枪 firearm，attr_lt）+ 书院（戒尺 ruler，present_npc），端到端 go+kill+确定性重放
+  - 主题无关性硬门禁自动化（test_theme_neutrality.py）：非武侠 snapshot 走声明映射 + resolve_attack 源码无 sword/blade 字面量 + neili 不在核心签名
+  - **44 tests 全绿，ruff 全过**
+
+- [x] **S3 Agent 生成 DSL 初稿 + 修订量度量完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S3 / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md)）：
+  - copilot 近似：Agent（LLM）从 LPC 规格生成 xueshan + zhongnan 两场景 v0 初稿 -> 专家修订 v1
+  - 度量脚本 [tools/measure_revision.py](engine/tools/measure_revision.py)：四级校验（schema/IR/build_world/e2e）+ 双比例 diff（含注释 vs 语义）+ GAP 台账
+  - 度量结果：结构错误 0（schema 弱校验信号，非 Agent 产出好）、语义修订 24.5%（< 30% 降级线）、Agent 典型偏差 3 类（neili/max_neili 混淆、map_skill 推断、武器 id vs 类别）
+  - 表达力缺口台账 7 类：family/has_item 谓词、AND-OR 组合、allow-wins、**方向绑定（e2e 发现，EventRule 无 dir 字段锁死场景，S4 最紧迫）**、accept_object 事件、门状态机
+  - 诚实声明：阶段 -1 copilot（Agent = 本 session LLM，范式污染偏差，M2 独立 LLM + Langfuse 真验证）
+  - **52 tests 全绿，ruff 全过**
+
 ## In Progress
 
-（无 -- S1 已完成，S2 待启动）
+（无 -- S3 已完成，S4 待启动）
 
 ## Blocked
 
@@ -35,13 +50,16 @@
 
 ## Next Up
 
-**S2：非武侠微场景验证 CombatKernel 主题无关性**（阶段 -1 硬门禁）：
+**S4：全量场景 + 扩 schema 评估**（阶段 -1 kill criteria 1/4 收尾）：
 
-- 用非武侠微场景（如科幻/学院题材的最小战斗）跑在 S1 的 resolve_attack 上
-- 验证核心引擎未硬编码武侠语义（武器类型枚举、无"经脉/内力"硬编码）
-- 不通过则暂停，先做内核主题无关性重构（04 kill criteria 2）
+- 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL
+- 层1 谓词扩充评估（走 [05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) dissent 3 护栏 + ADR）：**方向绑定（最紧迫，否则守卫型 valid_leave 锁死场景，S5 无法试玩）** / family / has_item / AND-OR / allow-wins
+- 事件扩充：accept_object（物品交互闭环）
+- 任务 / 对话 schema
+- SchemaValidator 四道校验加强（捕获 neili/max_neili 类静默偏差）
+- Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
 
-S1 的简化项（hit_ob/hit_by mapping、riposte 递归、完整 skill_power、武器类型集）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) 表在后续切片/阶段 0 补全。阶段 -1 剩余子任务（S3 Agent 生成 / S4 全量场景 / S5 玩家试玩）见 [06](docs/xkx-arch/06-阶段-1-实施计划.md)。
+S2/S3 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) 表在 S4+ 或阶段 0 补全。阶段 -1 剩余子任务（S5 玩家试玩）见 [06](docs/xkx-arch/06-阶段-1-实施计划.md)。
 
 ## 阶段 -1 的 kill criteria（开工必读）
 

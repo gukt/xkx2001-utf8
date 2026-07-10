@@ -1,0 +1,12 @@
+# v1 专家修订（2026-07-10）：基于 d/zhongnan/gate.c valid_leave（north 方向）
+# 近似：present_npc（皮清玄在场）-> deny。LPC 完整逻辑（门派判断/物品持有/谓词 OR
+# 组合/allow-wins 语义/门状态机）受现有层1 谓词集限制无法表达，缺口见 ADR-0004
+# 表达力缺口台账（S4 统一评估扩谓词）。
+- id: zhongnan_gate_guard
+  event: valid_leave
+  condition:
+    kind: present_npc
+    npc_id: kungfu/class/quanzhen/pi
+  action: deny
+  priority: 0
+  message: 中年道士说道：如果不是进香，请回吧。
