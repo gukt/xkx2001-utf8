@@ -1,0 +1,203 @@
+"""加载场景 IR -> 构建 ECS 实体 + 战斗桥接。
+
+把层0 IR（room/npc）转为 ECS 实体 + 组件。提供实体 <-> CombatantSnapshot
+转换（战斗时快照边界）与 Effect apply（按账本顺序写回组件）。
+"""
+
+from __future__ import annotations
+
+from xkx.combat.context import CombatantSnapshot
+from xkx.combat.result import (
+    KIND_DAMAGE,
+    KIND_EXP,
+    KIND_JINGLI,
+    KIND_POTENTIAL,
+    KIND_SKILL_IMPROVE,
+    KIND_WOUND,
+    Effect,
+)
+from xkx.runtime.components import (
+    Attributes,
+    CombatState,
+    Identity,
+    NpcBehavior,
+    Position,
+    RoomComp,
+    Skills,
+    Vitals,
+)
+from xkx.runtime.ecs import World
+
+
+def build_world(ir: dict) -> tuple[World, dict[str, int]]:
+    """从 IR 构建世界。返回 (world, room_id -> entity_id)。"""
+    world = World()
+    npc_defs = {n["id"]: n for n in ir["npcs"]}
+    room_entities: dict[str, int] = {}
+
+    for r in ir["rooms"]:
+        eid = world.new_entity()
+        world.add(
+            eid,
+            RoomComp(
+                room_id=r["id"],
+                short=r["short"],
+                long=r["long"],
+                exits=r.get("exits", {}),
+                objects=r.get("objects", {}),
+                outdoors=r.get("outdoors", False),
+                no_fight=r.get("no_fight", False),
+            ),
+        )
+        room_entities[r["id"]] = eid
+
+    for r in ir["rooms"]:
+        for npc_id, count in r.get("objects", {}).items():
+            ndef = npc_defs.get(npc_id)
+            if not ndef:
+                continue
+            for _ in range(count):
+                _spawn_npc(world, ndef, r["id"])
+
+    return world, room_entities
+
+
+def _spawn_npc(world: World, n: dict, room_id: str) -> int:
+    eid = world.new_entity()
+    world.add(eid, Identity(name=n["name"], aliases=n.get("aliases", []), prototype_id=n["id"]))
+    world.add(eid, Position(room_id=room_id))
+    world.add(
+        eid,
+        Attributes(
+            str_=n.get("str_", 20),
+            dex_=n.get("dex_", 20),
+            int_=n.get("int_", 20),
+            con_=n.get("con_", 20),
+            age=n.get("age", 20),
+            gender=n.get("gender", "男性"),
+        ),
+    )
+    world.add(
+        eid,
+        Vitals(
+            qi=n.get("max_qi", 100),
+            max_qi=n.get("max_qi", 100),
+            eff_qi=n.get("max_qi", 100),
+            jing=n.get("max_jing", 100),
+            max_jing=n.get("max_jing", 100),
+            jingli=n.get("max_jingli", 100),
+            max_jingli=n.get("max_jingli", 100),
+            max_neili=n.get("max_neili", 0),
+            combat_exp=n.get("combat_exp", 0),
+        ),
+    )
+    world.add(
+        eid,
+        Skills(
+            levels=n.get("skills", {}),
+            apply_attack=n.get("apply_attack", 0),
+            apply_dodge=n.get("apply_dodge", 0),
+            apply_parry=n.get("apply_parry", 0),
+            apply_damage=n.get("apply_damage", 0),
+            apply_armor=n.get("apply_armor", 0),
+            weapon=n.get("weapon"),
+        ),
+    )
+    world.add(eid, CombatState())
+    world.add(
+        eid,
+        NpcBehavior(
+            attitude=n.get("attitude", "friendly"),
+            chat_chance_combat=n.get("chat_chance_combat", 0),
+            chat_msg_combat=n.get("chat_msg_combat", []),
+        ),
+    )
+    return eid
+
+
+def spawn_player(world: World, name: str, room_id: str) -> int:
+    """创建玩家实体（S1 默认属性）。"""
+    eid = world.new_entity()
+    world.add(eid, Identity(name=name, is_player=True, prototype_id="player"))
+    world.add(eid, Position(room_id=room_id))
+    world.add(eid, Attributes(str_=20, dex_=20, int_=20, con_=20, age=22))
+    world.add(
+        eid,
+        Vitals(
+            qi=200,
+            max_qi=200,
+            eff_qi=200,
+            jing=150,
+            max_jing=150,
+            jingli=200,
+            max_jingli=200,
+            combat_exp=500,
+        ),
+    )
+    world.add(eid, Skills(levels={"unarmed": 30, "dodge": 20}))
+    world.add(eid, CombatState())
+    return eid
+
+
+def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
+    """实体 -> CombatantSnapshot（战斗开始边界快照）。"""
+    ident = world.get(eid, Identity)
+    attrs = world.get(eid, Attributes)
+    vitals = world.get(eid, Vitals)
+    skills = world.get(eid, Skills)
+    combat = world.get(eid, CombatState)
+    assert ident and attrs and vitals and skills and combat
+    return CombatantSnapshot(
+        entity_id=eid,
+        name=ident.name,
+        str_=attrs.str_,
+        dex_=attrs.dex_,
+        int_=attrs.int_,
+        con_=attrs.con_,
+        qi=vitals.qi,
+        max_qi=vitals.max_qi,
+        eff_qi=vitals.eff_qi,
+        jing=vitals.jing,
+        max_jing=vitals.max_jing,
+        jingli=vitals.jingli,
+        max_jingli=vitals.max_jingli,
+        neili=vitals.neili,
+        max_neili=vitals.max_neili,
+        combat_exp=vitals.combat_exp,
+        potential=vitals.potential,
+        skills=skills.levels,
+        apply_attack=skills.apply_attack,
+        apply_dodge=skills.apply_dodge,
+        apply_parry=skills.apply_parry,
+        apply_damage=skills.apply_damage,
+        apply_armor=skills.apply_armor,
+        weapon=skills.weapon,
+        action_message=combat.action_message,
+        action_force=combat.action_force,
+        action_dodge=combat.action_dodge,
+        action_parry=combat.action_parry,
+        action_damage=combat.action_damage,
+        action_damage_type=combat.action_damage_type,
+        hit_ob_bonus=combat.hit_ob_bonus,
+        hit_by_override=combat.hit_by_override,
+    )
+
+
+def apply_effects(world: World, effects: list[Effect]) -> None:
+    """按账本顺序把 Effect apply 到组件（交织顺序，不批量）。"""
+    for e in effects:
+        vitals = world.get(e.target_id, Vitals)
+        if e.kind == KIND_DAMAGE and vitals:
+            vitals.qi = max(0, vitals.qi - e.amount)
+        elif e.kind == KIND_WOUND and vitals:
+            vitals.eff_qi = max(0, vitals.eff_qi - e.amount)
+        elif e.kind == KIND_EXP and vitals:
+            vitals.combat_exp += e.amount
+        elif e.kind == KIND_POTENTIAL and vitals:
+            vitals.potential += e.amount
+        elif e.kind == KIND_JINGLI and vitals:
+            vitals.jingli = max(0, min(vitals.max_jingli, vitals.jingli + e.amount))
+        elif e.kind == KIND_SKILL_IMPROVE:
+            skills = world.get(e.target_id, Skills)
+            if skills and e.detail:
+                skills.levels[e.detail] = skills.levels.get(e.detail, 0) + 1

@@ -1,0 +1,54 @@
+{
+  "converged_position": "决策：否决独立自定义规则引擎（6/6 共识，源码验证支撑）。但这不等于\"不做 condition-action 统一处理\"——Q2 的核心诉求（统一 condition-action）部分成立，只是载体不是独立引擎，而是层1 IR + 薄求值器 + System 三分。\n\n关键设计：\n1. 规则表示层 = DSL 层1（condition->action 编译为 JSON IR），唯一规则表示层，只覆盖事件触发器（init/valid_leave/accept_object/add_action/chat_msg）。UGC 触发器只能声明式层1，从题材包注册表查询受限谓词/动词，不能注册新词。\n2. 求值器 = 层1 的薄求值子模块（命名 RuleEvaluator 或 dispatch table，非独立\"引擎\"组件）：事件触发即时求值（非前向链），dirty-flag 缓存，主题注册动词派发。这是专家5 与专家2 描述的同一物，收敛为\"层1 的求值子模块，不命名为引擎、不建框架\"。\n3. 调度语义四分（专家5 核心，源码验证）：事件触发器=层1 求值；call_out=进程内 ActionScheduler（timer wheel，call_out 等价）；周期 condition=ConditionSystem tick（保留 CND_CONTINUE/CND_NO_HEAL_UP 位标志，feature/condition.c:14 坐实）；连续仿真=CombatSystem/HealSystem/NPCAISystem。heart_beat tick 绝不被规则引擎吸收（D07 已确立，本轮重申）。\n4. themed 治理 = 平台级可信 Python System + PunishmentPolicy 策略对象（天雷=输入管线限流阶段 PunishmentPolicy；阴间=DeathSystem 状态机；vote=SocialGovernanceSystem+condition 定时器；法院=scripted NPC 序列），fail-closed，不进层1、不对 UGC 开放编辑。\n5. 优先级/冲突 = 显式 priority + deny-wins（对齐 notify_fail）+ 同 action-tag 首匹配，按事件类型固定策略，不建通用冲突解决引擎，写进基线测试断言原 LPC 命中行为。\n6. 表达力不足应对 = 先做 30 文件表达力校准实验扩层1-2 原语（专家6 可测量方法），层3 逃生舱（RestrictedPython UGC）兜底，KPI<15% 护栏，明确禁止\"规则脚本\"中间层。\n\n边界：\n- 战斗热路径绝不经规则求值器（v2 已定，6 专家一致）。\n- 不引入 RETE/前向链/OPA/Drools 或任何外部规则引擎。\n- heart_beat/call_out/condition tick 不被规则引擎吸收——它们是 System 调度，不是触发器。\n- PermissionService 仍是唯一 (subject,action,resource) fail-closed 策略引擎，授权不分裂进第二个\"规则引擎\"。\n- \"层1 求值子模块\"不是独立组件、不设独立配置面、不对外暴露\"引擎\"概念，避免命名诱发 scope creep（专家2/5 警告）。",
+  "dissent": "6 位专家一致否决\"独立规则引擎组件\"，无根本分歧。但收敛前有 4 处细节分歧需明确裁决：\n\n1. 层1 表达力不足时的去向：专家1/6 倾向\"扩充层1 原语\"（专家6 附 30 文件校准实验的可测量方法），专家5 倾向\"走层3 逃生舱\"且明确禁止中间层。二者不矛盾（扩层1 + 层3 兜底可并存），但\"何时扩层1、何时下沉层3\"的判定标准未定，存在层1 原语无界膨胀蠕变成事实规则引擎的风险。\n2. 薄求值器的命名与组件边界：专家5 称之为\"薄 RuleEvaluator 函数\"，专家2 称\"无独立引擎组件，就是固定 dispatch table\"。二者是同一物的不同描述，但\"命名为 RuleEvaluator\"会否诱发 scope creep（专家2/5 自己警告）需在实现纪律上明确——它是层1 的求值子模块，非独立组件。\n3. call_out 的归属：专家5 独家提出 call_out（实测 905 文件/3949 处）应归 ActionScheduler+Effect，其他 5 位未明确讨论 call_out 的归属边界。这是被一家提出但未交叉验证的调度分区点，存在与 ConditionSystem/EventBus 边界不清的风险。\n4. 规则冲突解决规格：专家5 提出最详细方案（显式 priority + deny-wins 对齐 notify_fail + 同 action-tag 首匹配），专家2 仅提\"按 priority 迭代\"，专家3/4 未深入，专家1/6 未触及。冲突语义是迁移后命中行为是否漂移的承重点，需基线测试但规格细节未充分交叉。",
+  "open_risks": [
+    "层1 原语蠕变：反复扩充层1 条件/动作原语可能让层1 逐步长成事实上的规则引擎，与'否决独立引擎'的初衷背离。需 KPI<15% 逃生舱使用率护栏持续监测，并设定'扩充原语'与'下沉层3'的显式判定标准（如：该表达需求是否可声明式描述、是否需跨多条规则复用）。",
+    "规则冲突语义漂移：LPC 靠注册顺序隐式覆盖触发器命中，层1 若优先级/deny-wins 语义未严格对齐，迁移后 533 个 valid_leave 及其他触发器的命中行为会漂移，破坏行为等价验证。需基线测试断言原 LPC 命中行为（专家5 已提，但规格细节未充分交叉验证）。",
+    "call_out 归属未交叉验证：专家5 独家把 call_out（905 文件/3949 处）归 ActionScheduler，其他专家未确认。若 ActionScheduler 与 ConditionSystem/EventBus 边界不清，call_out 的延迟调度与自递归语义可能被错误归入规则求值或 condition tick，制造双真相源。",
+    "themed 治理硬编码不可热改：天雷/阴间/vote 用 Python 策略对象硬编码虽可审计，但运营期反作弊策略调整需改代码重启，对快速响应 flooding/外挂不友好。这是 fail-closed 的正确取舍，但需接受'反作弊策略迭代慢'的代价。",
+    "层1 与层3 之间中间地带被反复试探：'表达不下扩层1 vs 下沉层3'若无明确判定线，创作者/开发者会持续在中间地带试探，可能催生事实上的'规则脚本'中间层（专家5 明确禁止但无强制机制）。",
+    "薄求值器命名诱发 scope creep：若实现者把层1 求值子模块命名为'RuleEvaluator'并赋予独立配置面/独立测试面，会逐步演化为专家2/5 警告的'独立引擎'。需实现纪律约束其作为层1 子模块的身份。"
+  ],
+  "oppose": [
+    {
+      "expert": "游戏服务器架构师",
+      "point": "自定义规则引擎是经典过早抽象。v2 已有 DSL 层1（condition->action 编译为 JSON IR）即规则机制，再建独立规则引擎是把一个机制拆成两个。themed 治理是少量、深度、题材绑定的策略，更适合 Python 策略对象（同 SkillBehavior 模式）而非通用规则表。1000 在线下通用规则匹配器求值性能不如直接方法分派；战斗热路径绝不经规则引擎。"
+    },
+    {
+      "expert": "游戏引擎/ECS 专家",
+      "point": "独立的'规则引擎'作为命名组件是过度设计。heart_beat tick 不可被事件驱动替代，故任何试图统一'所有 condition-action'的引擎要么与 tick 驱动 System 逻辑重复制造双真相源，要么仅覆盖触发器——后者就是 DSL 层1，无需第二件物事。themed 治理留在 tick 驱动 System 而非规则引擎。"
+    },
+    {
+      "expert": "MUD 玩法与文化专家",
+      "point": "源码实证否决（533 valid_leave 已证明层1 是正确抽象层）。themed 治理系统是异构的，非统一 condition-action 对：天雷是输入管线限流惩罚（alias.c process_input 中 imperative 序列）、vote 是 condition 定时器（CND_CONTINUE 位标志 countdown）、阴间是死亡状态机、法院是 NPC 审判脚本。强行统一要么太平庸（无法表达状态机/输入管线惩罚）要么变图灵完备 DSL（与层3 逃生舱重叠）。"
+    },
+    {
+      "expert": "UGC 平台/插件架构专家",
+      "point": "独立规则引擎是过早抽象。v2 DSL 层1 已覆盖 UGC 触发器，再引入独立引擎会让 condition-action 逻辑存在于两处（层1+引擎），违反'收敛优先于完备'。themed 治理需脚本级表达力（上轮主策划已验证 death_penalty 反作弊逻辑非规则可表达），应作题材包内 Python 策略对象不进 UGC 规则层。1000 在线下事件触发式求值远低于 Rete 盈亏平衡点。"
+    },
+    {
+      "expert": "DSL/规则引擎专家",
+      "point": "LPC 的 condition-action 实为 4 种调度语义不同的机制（事件钩子/call_out 905 文件 3949 处/condition daemon 77 个含 CND_CONTINUE 位标志/heart_beat 35 文件）。一个'统一规则引擎'要么误模周期 tick（重蹈 D07 已纠正的'事件驱动替代 heart_beat'），要么自己长成第二个 ECS 调度器。砍掉独立引擎是本轮最大简化。themed 治理必须是非 UGC 可编辑的平台级 fail-closed Python，放进规则引擎会绕过反作弊。"
+    },
+    {
+      "expert": "游戏制作人/范围管理",
+      "point": "规则引擎是典型过早抽象，问题自身已暗示（'是否过度设计 vs 直接用 Python 策略对象+DSL 层1'）。在已押注纯 Python 达标、无 Rust 退路的约束下，不应再引入自建规则引擎求值性能这个新未知数；Python 策略对象+dict 查找是可预测的。与 themed 关系：显式 Python System 类比规则引擎配置更可审计（代码比数据规则更易追踪）。"
+    }
+  ],
+  "question": "Q2 自定义规则引擎统一 condition-action：是否引入自定义规则引擎，统一管理 condition-action 对，UGC 创作者的触发器也落到这一层？涉及与 DSL 层1 关系、与 Command/themed 治理关系、UGC 触发器落入、1000 在线性能、是否过度设计。",
+  "strongest_counterargument": "规则引擎的核心价值场景是\"让非开发者编写大量同类规则而不碰代码\"——这正是 UGC 平台的长期愿景。若规则散落在\"DSL 层1 声明式 + Python 策略对象硬编码\"两处，会产生四类真实代价：(1) 交互边界语义不清——当一条 UGC 层1 规则与一个 Python PunishmentPolicy 在同一事件上都想 act 时，跨层优先级无法统一表达；(2) 审计轨迹割裂——规则命中记录分散在层1 求值器日志与 System 日志两套流中，无法回溯一次状态变更的完整规则链路；(3) 层1 表达力不足时的中间地带被反复试探——扩充层1 原语（专家1/6 倾向）会蠕变成事实上的规则引擎，下沉层3 逃生舱（专家5 倾向）则失去声明式的可审计性与可静态分析性，而一个有显式 priority/deny-wins/统一审计的规则引擎本可从一开始就提供单一规则真相源避免此拉锯；(4) themed 治理全用 Python 硬编码意味着反作弊/治理策略无法在不重启改代码的情况下调整，对运营期响应 flooding/外挂不友好。即：否定独立引擎在当前阶段正确，但\"层1+Python 策略对象\"两分法把'统一 condition-action'这个真实诉求推给了未来，未来若 UGC 规模化可能被迫回头补建。",
+  "support": [
+    {
+      "expert": "DSL/规则引擎专家",
+      "point": "对 Q2 核心诉求（统一 condition-action）的软支持：保留一个'薄 RuleEvaluator 函数'作为层1 IR 的求值器，提供统一优先级（priority+deny-wins+同 action-tag 首匹配）、dirty-flag 缓存、主题注册动词派发、审计追踪。承认 condition-action 需要统一求值入口，但反对命名为'引擎'与建独立框架——求值器是层1 的子模块，不是平行组件。"
+    },
+    {
+      "expert": "游戏引擎/ECS 专家",
+      "point": "对'统一事件规则调度'的软支持：保留固定 dispatch table（key=event_type，value=编译后的 condition_predicate+action_list+priority 列表），事件发生时查表->按 priority 迭代->求值 condition->执行 action。承认事件触发器需要统一调度机制，但反对独立'引擎'命名与 RETE。"
+    },
+    {
+      "expert": "UGC 平台/插件架构专家",
+      "point": "对'UGC 触发器需统一表示层'的软支持：UGC 触发器落 DSL 层1（when/do 表达式+受限谓词/动词从题材包注册表查询），事件触发式求值 O(匹配规则数)。承认 UGC 创作者需要统一的触发器表达机制，但此机制即层1 本身，不需在其上叠引擎。"
+    }
+  ]
+}

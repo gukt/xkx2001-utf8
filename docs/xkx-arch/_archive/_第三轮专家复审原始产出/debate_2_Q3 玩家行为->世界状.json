@@ -1,0 +1,62 @@
+{
+  "converged_position": "有条件采纳：Command 模式仅覆盖玩家/管理员外部意图，System.update 覆盖 tick 派生变更。6/6 专家一致有条件采纳，边界高度一致。\\n\\n关键设计：\\n(1) Command = 8 段中间件管线信封的形式化命名 {verb, args, ActionContext(actor, source, capability_token, seq), result, effects}，不另起类层级——它就是现有 ResolvedAction+ActionContext+ActionResult 的命名（采纳 Expert 5 的反冗余立场）。管线 8 段（解码->限流->历史->别名->路由->授权->执行->审计）即 Command 的生命周期。路由段保真 command_hook 四分支（exits 回退->verb 路由->emote->channel，feature/command.c:50-64 已验证）。\\n(2) 玩家/管理员输入 -> Command 经完整 8 段管线。ActionContext+CapabilityToken 替换 previous_object/geteuid 信任链（156 处已验证），仅作用于 Command 路径。\\n(3) System.update(world, dt, ctx) 直接 mutate ECS 组件覆盖 tick 派生变更：heal、condition 过期（CND_CONTINUE）、combat do_attack/resolve_attack（6 处递归 combatd.c:772/777/804/812/823/831 已验证为 tick 驱动非命令驱动）、NPC AI。不经 Command、不经解码/限流/别名/历史中间件。resolve_attack 是 System 内纯函数非 Command。\\n(4) 确定性重放 = Command 日志（input log）+ RNG seed。System 变更是派生（从相同输入+seed 重放得出），不进 input log。\\n(5) 触发器（DSL 层 1）：规则求值是 Command 执行步内的子步骤（如 go 触发 valid_leave），规则触发的动作附加到父 Command 的 effect 账本，不另起新 Command。设最大链深度+环检测防止 valid_leave->damage->death->... 无限递归。\\n(6) force_me -> PrivilegedAction API：Command 变体，仅可信（ROOT 等价）System 代码可调，强制 authorize+审计。LPC 保真（force_me 经 command_hook，feature/command.c:89-95 已验证）但受能力门控。当前 4 调用点低频，边界泄漏可控可审。\\n(7) 战斗副作用账本：do_attack 的文本与状态交织变更（combat_exp/jingli 中途 mutate、hit_ob polymorphic 返回）按真实交织顺序记录，非\"先算后 apply\"（采纳 Expert 3 的承重修正）。此为 System 内部，非 Command。\\n(8) call_other 保真：Command.execute 同步执行返回结果（不经异步队列），对应 LPC call_other 同步语义（采纳 Expert 4）。\\n\\n边界一句话：Command = 玩家/管理员意图信封 + 信任链 + 审计单元 + 重放输入；System = 世界变更执行者 + tick/派生逻辑。Command 产出 Effect 交 System 应用，System 不反向调 Command（唯一例外是 force_me/PrivilegedAction，显式门控）。",
+  "dissent": "三处未消除分歧：(1) force_me/特权调用归属：Expert 5 提 PrivilegedAction API（Command 变体）保持 LPC 保真但使\"仅外部意图\"边界泄漏；其余专家未深入处理。代码验证 force_me 仅 4 调用点（updated.c 传闻/cost.c 巫师/to.c 语音×2），低频但真实存在，且 NPC AI 未用它做战斗/移动（走 heart_beat/do_attack），故泄漏面可控但需显式审计约束。(2) System 路径是否携带 ActionContext：Expert 5 主张 NPC/tick\"携带 ActionContext 但无解码/限流/别名/历史\"（为审计/能力），Expert 1/2/4/6 暗示 System.update 无 ActionContext（纯派生）。此分歧影响派生变更（战斗 exp/jingli mutate、condition 效果）的审计覆盖度——战斗有副作用账本覆盖，其他 System 变更可能无审计轨迹。(3) Command 是新类还是管线命名：Expert 5 明确\"不另起 Command 类层级，Command 即现有 ResolvedAction+ActionContext+ActionResult\"；其余专家描述 Command 为独立对象。若实质是命名现有结构则零成本，若新建抽象层则违反\"能砍则砍\"。",
+  "open_risks": [
+    "force_me 边界侵蚀：PrivilegedAction 是'仅外部意图'规则的例外，若未来 NPC AI 或触发器大量使用会侵蚀边界。缓解：审计/限制 PrivilegedAction 调用点，NPC 行为优先走 System 方法（当前 4 点低频，NPC 战斗/移动已走 heart_beat 不走 force_me）。",
+    "派生变更审计覆盖缺口：System.update 的 mutation（战斗外 exp/jingli、condition 效果、heal）无 Command 级审计轨迹。战斗有副作用账本覆盖，其他 System 变更可能不可审计。需逐 System 决定审计粒度。",
+    "冗余抽象风险：若 8 段管线已提供审计/重放/能力，正式 Command 类可能成死重。须保持 Command 为管线数据信封，抵抗向其添加方法/继承层级。",
+    "触发器链深度：Command->规则->规则->... 需最大深度限制+环检测。规则虽是子步骤但可递归（valid_leave->damage->death->...），无限制会栈溢出或状态分叉。",
+    "GC 压力：100 并发玩家 Command 全信封+中间件对象。1s tick 下大概率可接受（Expert 2 的 1s-tick 已验证 set_heart_beat(1)），但需 tick profiler 实测确认；System 路径已排除在 Command 外是关键减负。",
+    "System 路径 ActionContext 分歧未决：Expert 5 主张携带（审计）、其余暗示不携带（纯派生）。此选择影响确定性重放的 input log 语义——若 System 携带 ActionContext 是否需记入 input log 会模糊'派生变更不进 input log'规则。"
+  ],
+  "oppose": [
+    {
+      "expert": "DSL/规则引擎专家",
+      "point": "反对另起 Command 类层级：8 段中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）本质上已是 Command 模式（InputIntent->ResolvedAction->execute(ctx,args)->ActionResult 即 Command 三件套），不应再新建一套 Command 类抽象。形式化 Command 的价值在审计/重放/能力校验，这些管线阶段已提供，新类是冗余。"
+    },
+    {
+      "expert": "游戏引擎/ECS 专家",
+      "point": "反对将 Command 扩展到 tick 驱动的 System 内部 mutation：把每个 VitalsSystem.update/resolve_attack 包成 Command 会制造热路径对象 churn（GC 压力）与无收益的间接层，且与确定性 System 语义重复。1s tick 下避免热路径对象分配是控制 GC 的关键。"
+    },
+    {
+      "expert": "MUD 玩法与文化专家",
+      "point": "反对'每个操作含 NPC 行为/系统 tick/call_out 都走 Command'的扩张解读：LPC command_hook 只处理玩家输入（feature/command.c:32 已验证），heart_beat/auto_fight/condition update/call_out 回调直接 mutate dbase 不经命令路径。强制统一会制造大量无意义包装，且 tick 内高频 mutation 走 Command 会破坏战斗手感时序（do_attack 文本与副作用交织不可分离）。"
+    },
+    {
+      "expert": "游戏制作人/范围管理",
+      "point": "反对在未验证容量假设上叠加抽象：Command 对象即使只覆盖玩家意图，仍是新抽象层；8 段管线已隐含 Command 语义，应保持为管线数据信封而非新建类层级，避免在 1000+100 未达标的赌注上再增复杂度。"
+    },
+    {
+      "expert": "UGC 平台/插件架构专家",
+      "point": "反对默认异步化：Command 执行须保留 LPC 同步语义（命令内联同步执行返回结果，不经异步队列），否则破坏 68771 处同步调用栈语义。Command 是意图+上下文+结果信封，不拥有执行逻辑（执行在 verb handler/System）。"
+    }
+  ],
+  "question": "Q3 玩家行为->世界状态是否统一封装为 Command 模式？包括：与命令管线中间件关系、Command 职责边界、与 ECS/规则引擎关系、LPC 保真、是否所有操作（含 NPC/系统 tick）走 Command。",
+  "strongest_counterargument": "\"Command 仅覆盖外部意图、System tick 不走 Command\"的干净边界是理想化，LPC 自身并不遵守它。force_me（feature/command.c:89-95）允许任何 ROOT_UID 对象调用完整命令路径（process_input -> command_hook）——即系统 daemon 与可信对象在 LPC 中本就混合了\"仿真\"与\"命令\"。代码验证 4 个真实调用点：updated.c:177 强制传闻广播（系统发起）、cost.c:18 巫师工具、to.c:20-21 语音重定向。若新架构把 force_me 映射为 Command（PrivilegedAction，LPC 保真因为它确实走 command_hook），则\"仅外部意图\"边界泄漏：系统发起的动作变成了 Command，与\"NPC/System tick 不是 Command\"规则矛盾；若映射为 System.update（保边界纯净），则破坏 LPC 保真（force_me 在 LPC 走命令路径）。这不是理论边角案例而是真实 LPC 模式，收敛立场用\"PrivilegedAction API\"一词带过，未解决根本张力：LPC 的命令路径对可信代码是可复用的，\"仅外部意图\"是新架构的 restriction 而非 LPC 的 faithful preservation。最强反论因此是：要么边界在 force_me 处被迫妥协（承认系统发起也可走 Command），要么 LPC 保真在此处被牺牲——二者不可兼得，收敛立场选择了前者但未显式承认这是保真让步。",
+  "support": [
+    {
+      "expert": "游戏服务器架构师",
+      "point": "采纳，边界=外部输入。Command{verb, args, ctx(ActionContext+CapabilityToken), seq}.execute(World)->Result 覆盖玩家/管理员/NPC 经 AI 的外部输入，走 8 段中间件管线；System.update(world, dt, ctx) 直接 mutate 组件覆盖 tick 派生变更，不经 Command。确定性重放 input log = Command 日志 + RNG seed，System 变更是派生（从相同输入+seed 重放得出）。call_other 保真：Command.execute 是同步方法调用。"
+    },
+    {
+      "expert": "游戏引擎/ECS 专家",
+      "point": "采纳，Command{verb, args, ActionContext(capability_token, subject, seq)} 经管线到 VerbHandler->System 方法。玩家命令与触发器命令走 Command；NPC AI 决策与 System tick（heal/condition 过期/resolve_attack）直接经 System 方法 mutate，不经 Command。resolve_attack 是 System 内纯函数非 Command。审计只记录 Command 边界。"
+    },
+    {
+      "expert": "MUD 玩法与文化专家",
+      "point": "采纳，玩家 Command 携带 ActionContext{actor, source, capability_token, seq}，中间件复用 command_hook 四分支语义（exits 回退->verb 路由->emote->channel，feature/command.c:32-76 已验证）。CapabilityToken 替换 previous_object/geteuid 信任链（156 处已验证）。NPC AI/heart_beat/call_out 回调走各自 System 不封装为 Command。CombatSystem 内部副作用（exp/jingli/damage）走管线副作用账本不二次封装 Command。"
+    },
+    {
+      "expert": "UGC 平台/插件架构专家",
+      "point": "采纳，玩家命令走 CommandMessage{verb,args,ctx,seq} 经中间件管线，NPC AI/System tick 走 System.update() 变更账本+input log。Command=意图+上下文+结果信封，执行逻辑留在 verb handler/System。保留同步执行语义对应 call_other。命令执行可触发 DSL 层 1 规则（如 go 触发 valid_leave）作为副作用，规则触发不另起 Command。"
+    },
+    {
+      "expert": "DSL/规则引擎专家",
+      "point": "采纳但反对新建类层级。Command 职责边界=封装一次玩家意图源的完整变更（verb+args+ctx+result+effects），即现有 ResolvedAction+ActionContext+ActionResult，不应另起一套 Command 类。与 ECS 交互=Command 执行步产出 Effect 交 System 应用，System 不反向调 Command。与规则引擎关系=Command 执行步在状态变更前后触发层 1 规则求值（子步骤非平行中间件）。NPC 行为/tick=System 路径，带 ActionContext 但无解码/限流/别名/历史。force_me 后门=PrivilegedAction API+强制审计走授权步。"
+    },
+    {
+      "expert": "游戏制作人/范围管理",
+      "point": "采纳，Command 职责=parse+validate+authorize+execute+audit，不持有状态（状态在 ECS 组件）。玩家/管理员操作走 Command 经 8 段管线；tick 仿真/NPC AI/System 变更走 System.update 确定性路径不经 Command。ActionContext+CapabilityToken 贯穿 Command 链；previous_object 信任链显式化仅作用于 Command。"
+    }
+  ]
+}

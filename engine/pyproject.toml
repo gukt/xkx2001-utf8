@@ -1,0 +1,42 @@
+[project]
+name = "xkx"
+version = "0.0.0"
+description = "侠客行 MUD 现代化重构 - greenfield Python 引擎（阶段 -1 垂直切片）"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "TBD" }
+authors = [{ name = "gukt" }]
+dependencies = [
+    "pydantic>=2",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xkx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["xkx"]

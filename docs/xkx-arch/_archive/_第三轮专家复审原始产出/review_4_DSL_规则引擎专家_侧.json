@@ -1,0 +1,93 @@
+{
+  "expert": "DSL/规则引擎专家（侧重：自定义规则引擎统一 condition-action 的设计；与 DSL 层1 事件规则的关系；与 Command 模式、ECS System、themed 治理的关系；UGC 触发器落地；1000 在线下规则求值性能；是否过度设计；逃生舱边界）",
+  "gaps": [
+    {
+      "fix": "在 DSL 规格中显式分区触发器分类法：层1=事件触发器（init/valid_leave/accept_object/add_action/chat_msg）；调度=ActionScheduler+Effect（call_out）；周期 condition=ConditionSystem tick（保留 CND_CONTINUE/CND_NO_HEAL_UP 位标志语义）；连续仿真=CombatSystem/HealSystem/NPCAISystem。Q2 规则引擎问题因此被消解为'层1 只管事件触发器'，不再有'统一引擎'的想象空间。",
+      "issue": "v2 DSL 文档把 init/add_action/valid_leave/accept_object（事件）、call_out（调度）、update_condition（周期 tick）、heart_beat（连续仿真）笼统归入'层1 事件规则 condition->action'，但层1 只能合法覆盖事件触发器。这一混淆正是 Q2'统一规则引擎'设想的来源--若不澄清，团队会试图把周期 tick 塞进规则引擎，重蹈 D07 已纠正的'事件驱动替代 heart_beat'覆辙。",
+      "severity": "high"
+    },
+    {
+      "fix": "每条规则显式 priority 字段 + deny-wins（对齐 notify_fail 优先）+ 同 action-tag 首匹配；不建通用冲突解决引擎，按事件类型固定策略并写进基线测试（断言原 LPC 命中行为，参照 D04 对 12 个 imm/wiz 同名动词的处理）。",
+      "issue": "两个 valid_leave 规则一个 deny 一个 allow 时谁赢未定义；LPC 靠注册顺序隐式覆盖，层1 需显式语义，否则迁移后命中行为漂移。",
+      "severity": "medium"
+    },
+    {
+      "fix": "硬性规定 UGC 触发器=声明式层1（主题注册谓词/动词）；表达不下=层3 沙箱（RestrictedPython UGC / WASM 平台级）；明确禁止'规则脚本'中间层与 UGC 可编辑的 themed 治理规则。",
+      "issue": "文档暗示 UGC 触发器走层1 声明式但未硬性规定，存在'规则脚本'中间层渗透风险。",
+      "severity": "medium"
+    },
+    {
+      "fix": "文档显式声明 themed 治理=平台级可信 Python System + PunishmentPolicy 策略对象，fail-closed，不进层1 规则、不对 UGC 开放编辑；UGC 题材'自定义 themed 惩罚'仅限层2 SkillBehavior 级别且经平台审核。",
+      "issue": "PunishmentPolicy（天雷/法院）与 SocialGovernanceSystem（vote）若被表述为'规则'易被误归入可配置规则引擎，存在安全边界渗透风险。",
+      "severity": "medium"
+    },
+    {
+      "fix": "复用 AuditService，规则触发写 (rule_id, event, matched, actions_fired) 到同一审计流；MVP 不建独立规则追踪 UI，引擎工具链的 tick profiler 覆盖规则求值耗时即可。",
+      "issue": "1000 在线单机下规则求值追踪需求在 MVP 范围未定。",
+      "severity": "low"
+    },
+    {
+      "fix": "启动时从 JSON 快照加载规则/CPK 注册表到内存；运行时变更走'写新快照 + 内存原子切换'；热卸载活跃主题须先 drain 实体并落盘，否则 MVP 仅支持热加载与停服卸载。",
+      "issue": "收缩约束改为内存+本地 JSON 存档后，主题包/CPK 热卸载的'原子切换'与崩溃恢复语义需重定（原 D07 依赖 Redis/PG 的不可变快照+版本号机制不再适用）。",
+      "severity": "low"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "独立自定义规则引擎是过度设计，层1 DSL + Python 策略对象 + ECS System 已按调度语义正确切分 condition-action 空间，无须再叠一层'统一引擎'。",
+      "evidence": "LPC 实测 4 种机制语义不同--事件钩子（1833 init/532 valid_leave/164 accept_object/1254 add_action，离散事件即时求值）、call_out（931 文件/3754 处，延迟或自递归调度）、condition daemon（74 个，heart_beat 周期驱动 + CND_CONTINUE 位标志，见 /home/gukt/github/xkx2001-utf8/feature/condition.c:15-69 与 include/condition.h）、heart_beat（42 文件，连续仿真）；单一引擎无法统一而不重造 ECS 调度器。D07 对抗验证已把'事件驱动替代 heart_beat'列为最关键修正。",
+      "severity": "high"
+    },
+    {
+      "claim": "themed 治理（天雷/阴间/vote/法院）必须是非 UGC 可编辑的平台级 fail-closed Python，不能落入规则引擎或 UGC 可触的规则层。",
+      "evidence": "天雷是反作弊惩罚（PunishmentPolicy）、vote 是社区自治剥权（SocialGovernanceSystem）、法院是反外挂审判--均直接影响公平性与安全，与 PermissionService 同属 fail-closed 域；若 UGC 可经规则引擎改写将绕过反作弊，违反 D04 已确立的 fail-closed 安全约束（Redis 不可达默认拒绝）。",
+      "severity": "high"
+    },
+    {
+      "claim": "heart_beat 周期 tick 不是'触发器'，不能被事件驱动规则引擎吸收。",
+      "evidence": "/home/gukt/github/xkx2001-utf8/feature/condition.c:15 注释明确 'called by heart_beat to update continuously active conditions'；kungfu/condition/snake_poison.c 按 tick 衰减 duration 并返回 1（CND_CONTINUE 语义）自主存活--这是连续状态机非离散触发器；D07 对抗验证裁定'事件驱动替代全局心跳会导致战斗/AI/持续效果返工'。",
+      "severity": "medium"
+    },
+    {
+      "claim": "1000 在线/100 并发下规则求值不是瓶颈，无须 RETE/前向链/通用推理。",
+      "evidence": "每事件规则扇出为该房间注册的几十条，AST 白名单条件求值微秒级，配合 dirty-flag 缓存（D07 RuleEngine 已提'dirty 标记缓存'）；100 并发请求下规则求值占单核预算远低于 tick 仿真本身，瓶颈在战斗 ECS 不在规则。RETE 的 alpha/beta 网络构建成本在小规则集下反而高于线性求值。",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "三层边界：核心引擎（ECS 骨架/CombatKernel/DamageSystem/PermissionService/全仿真确定性）不可插拔；题材包只插拔词汇表层（条件谓词/动作动词/组件 schema family/默认资产，随 CPK 装载注册到 ThemeRegistry）；UGC 只编辑层1。热插拔机制=CPK load/unload + 不可变快照+版本号原子切换（D07 已有）；受信任开发者扩展=层2 SkillBehavior 平台 Python + 题材谓词包，不开放核心。MVP 只支持热加载与停服卸载，活跃实体的热卸载须先 drain/迁移。题材包即特殊 CPK，ThemeRegistry 是其运行时注册表。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "多题材是既定目标且 ThemeRegistry 已设计为注册谓词/动词/组件 schema family 的词汇表扩展，方向成立。但在单机+内存 JSON 约束下'热插拔'只能是运行时注册/卸载词汇表与资产 + 版本门控原子切换，不是 OS 级插件加载。旗舰深耕与共享运行时平庸化的冲突由 CombatKernel 抽象（七步是其具体实现）+ 武侠专属 SkillBehavior Python 化解，而非削弱核心。砍掉会怎样：多题材退化为硬编码 if-else，UGC 平台扩展性归零。"
+    },
+    {
+      "key_design": "不建独立规则引擎框架。保留层1 事件规则（condition->action）编译为 JSON IR + 一个薄 RuleEvaluator 函数（条件 dirty-flag 缓存 + 主题注册动词派发），由 EventBus / Command 执行步 / ECS System 按需调用。规则表示=层1 IR；求值模型=事件触发即时求值（非前向链）；优先级=显式 priority + deny-wins（对齐 notify_fail）+ 同 action-tag 首匹配；冲突解决按事件类型固定策略不建通用引擎。UGC 触发器=声明式层1，表达不下走层3，绝不设'规则脚本'中间层。themed=平台级 System + PunishmentPolicy，不进规则引擎。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "LPC 的 condition-action 实为 4 种调度语义不同的机制：事件钩子（1833 init / 532 valid_leave / 164 accept_object / 1254 add_action，离散即时求值）、call_out（931 文件/3754 处，延迟或自递归调度）、condition daemon（74 个，heart_beat 周期驱动 + CND_CONTINUE 位标志）、heart_beat（42 文件，连续仿真）。一个'统一规则引擎'要么误模周期 tick（重蹈 D07 已纠正的'事件驱动替代 heart_beat'），要么自己长成第二个 ECS 调度器。层1 DSL 编译为 IR 后由轻量 RuleEvaluator 求值已覆盖事件触发器；周期/调度归 ECS System；授权归 PermissionService；themed 归平台 Python。直接用'层1 + Python 策略对象 + ECS System'替代独立引擎。1000 在线下每事件规则扇出几十条、AST 白名单求值微秒级，无 RETE 必要。砍掉独立引擎是本轮最大简化。"
+    },
+    {
+      "key_design": "Command 对象职责边界=封装一次玩家意图源的完整变更（verb+args+ctx+result+effects），即现有 ResolvedAction+ActionContext+ActionResult，不新增类层级。与 ECS System 交互=Command 执行步产出 Effect 交 System 应用，System 不反向调 Command。与规则引擎关系=Command 执行步在状态变更前后触发层1 规则求值（enter_room 触发 init 规则），规则求值器是执行步内子步骤非平行中间件。NPC 行为/tick 变更=System 路径，带 ActionContext 但无解码/限流/别名/历史。force_me 后门=PrivilegedAction API + 强制审计走授权步。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "命令管线中间件（解码->限流->历史->别名->路由->授权->执行->审计）本质上已是 Command 模式（InputIntent->ResolvedAction->execute(ctx,args)->ActionResult 即 Command 对象三件套），不应再另起一套 Command 类层级。但'每个操作都走 Command'的激进解读错误：NPC 行为与系统 tick 产生的状态变更不是玩家意图，限流/历史/别名/解码对仿真无意义且会错误串行化 tick 仿真。划分两条路径：玩家意图源变更走完整 Command 管线；仿真源变更走 ECS System.update（携带 ActionContext 供能力/审计，但不经解码/限流/别名/历史中间件）。call_other/命令语义保真=保留 notify_fail/return 0/1 回退链与 exclude-before-trust（D04 已定）。"
+    }
+  ],
+  "verdict": "solid",
+  "verdict_rationale": "6 条收缩约束移除了会诱发重型规则引擎机制（分布式 fuel 聚合、PG 权威+Redis 读穿透、多分片规则一致性）的分布式/K8s 复杂度，留下一个本领域内健全的切分：层1 事件规则 DSL（编译为 JSON IR）管触发器、ECS System 管 tick/调度/heart_beat 仿真、命令管线中间件管玩家意图源变更、PermissionService 作唯一 fail-closed 的 (subject,action,resource) 策略引擎。在\"单机纯 Python + 内存 JSON 存档 + 1000 在线/100 并发\"内，一个薄 Python RuleEvaluator（AST 白名单条件求值 + dirty-flag 缓存 + 主题注册动词派发）即足，无须 RETE/前向链/独立引擎框架。整体风险完全集中在 3 个开放问题的回答方向：若按 Q2 字面建独立统一规则引擎、或把 Q3 解读为\"每个状态变更（含 NPC/tick）都走 Command\"，架构立即滑向 overengineered；按本复审立场（Q2 否决、Q3 有条件收敛于玩家意图）则保持 solid。唯一真实承重缺口是 v2 DSL 文档把 4 种调度语义不同的触发机制（事件/调度/周期 tick/heart_beat）笼统归入\"层1 事件规则\"，而层1 只能合法覆盖事件触发器--这正是 Q2\"统一规则引擎\"设想的认知来源，澄清后规则引擎问题自我消解。",
+  "what_to_cut": [
+    "独立自定义规则引擎框架（Q2 的字面提议）--层1 DSL 编译为 IR 后由轻量 RuleEvaluator 求值即可，再叠一层'统一规则引擎'是重复抽象，且会把 4 种不同调度语义的机制强行塞进一个引擎，重蹈 D07 已纠正的'事件驱动替代 heart_beat'覆辙。",
+    "RETE/前向链/通用推理及外部引擎（OPA/Rego、Drools 类）--1000 在线/100 并发下每事件规则扇出仅几十条、AST 白名单求值微秒级、无组合爆炸，RETE 的网络构建成本反而高于线性求值；D04 已排除 OPA，本轮重申。",
+    "'每个状态变更（含 NPC 行为/系统 tick）都走 Command 模式'（Q3 的激进解读）--NPC 不按键、限流/历史/别名/解码中间件对仿真无意义，强制走 Command 会错误串行化 tick 仿真并给 ECS System 套上不必要的管线开销；Command 只收敛玩家意图源变更。",
+    "分布式燃料聚合器（D07 提案）--单机进程内 per-CPK 燃料计数器即可，跨调用滑动窗口聚合是分布式多租户才需要的复杂度，收缩约束下纯多余。",
+    "themed 治理（天雷/阴间/vote/法院）作为可被 UGC 编辑的规则--这些是平台级 fail-closed 反作弊/治理，必须是无沙箱限制的可信 Python System + PunishmentPolicy，放进 UGC 可触的规则引擎违反 D04 已确立的 fail-closed 安全原则。"
+  ],
+  "what_to_keep": [
+    "层1 事件规则 DSL（condition->action，AST 白名单条件求值，主题注册谓词/动词）编译为 JSON IR--触发器的唯一规则表示层，UGC 触发器落此层且仅声明式。",
+    "ECS System 拥有 tick/调度/heart_beat 语义（ConditionSystem/CombatSystem/HealSystem/NPCAISystem/WorldGovernanceSystem）--周期仿真不是触发器，不能用规则引擎替代（D07 对抗验证列为最关键修正，feature/condition.c:15 注释'called by heart_beat'坐实）。",
+    "命令管线中间件（解码->限流->历史->别名->路由->授权->执行->审计）+ ActionContext + CapabilityToken--玩家意图源变更的唯一入口，保留 notify_fail/return 0/1 回退语义与 exclude-before-trust（D04 已定）。",
+    "PermissionService 作为唯一 (subject,action,resource) fail-closed 策略引擎--授权不分裂进第二个'规则引擎'，Redis 不可达 fail-closed（D04 已定，v2 §4.5/子系统4 已承重）。",
+    "逃生舱分层：层1 声明式不够用 -> 层3 RestrictedPython（UGC）/ WASM（平台级），<15% KPI--不在层1 与层3 之间塞'规则脚本'中间层。"
+  ]
+}

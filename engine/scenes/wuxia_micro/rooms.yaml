@@ -1,0 +1,12 @@
+- id: city/street
+  short: 城南街道
+  long: 一条热闹的街道，北边是一家茶馆，偶尔有官兵巡逻。
+  exits:
+    north: city/chaguan
+  objects:
+    city/npc/bing: 1
+- id: city/chaguan
+  short: 春来茶馆
+  long: 茶香沁入心脾，几张八仙桌坐满了客人。
+  exits:
+    south: city/street

@@ -1,0 +1,116 @@
+{
+  "expert": "游戏服务器架构师（侧重：收缩后整体分层架构；单机 1000 在线+100 并发在纯 Python+asyncio 下的可行性；内存+JSON 定时存档的崩溃安全与序列化性能；策略模式存储迁 PG/Mongo 路径；网关单进程化；v2 分布式设计的裁剪；路由/会话单机简化。）",
+  "gaps": [
+    {
+      "fix": "强制规范：每次存档写临时文件 tmp + os.rename(tmp, target) 原子替换（POSIX 同文件系统原子）；序列化用 orjson 且在 ThreadPoolExecutor 或独立 aiofiles 协程中 offload，绝不在事件循环主线程同步写。LPC 的 save_object 同样是无原子全量覆盖——greenfield 不得重复这个 bug。",
+      "issue": "JSON 定时存档的崩溃安全性完全未规定。约束 5 只说\"本地定时存档到本地 JSON 文件\"，但 json.dump 直接写目标文件在崩溃中途会产生损坏文件，导致重启时整档不可读。LPC 的 save_object 正是此缺陷（feature/save.c 全量覆盖写 .o 无原子保护）。",
+      "severity": "high"
+    },
+    {
+      "fix": "dirty-flag + 分摊存档：每 tick 只序列化并写盘 N 个 dirty 实体（N 按基准定，如 20-50），轮转覆盖全部 dirty；关键事件（死亡/升级/交易/门派变更，对应 LPC quit/die/save 触发点）强制同步 persist 该实体。明确数据丢失窗口=存档周期（建议 30-60s）并在玩家可见处声明。",
+      "issue": "存档频率与数据丢失窗口未定义，且全量 1000 实体同步序列化会阻塞 tick。1000 实体×约 20KB=约 20MB，orjson 约 200MB/s 即约 100ms——在事件循环内同步写会冻结一整个 tick 的 I/O。",
+      "severity": "high"
+    },
+    {
+      "fix": "列为阶段 1 硬约束：(1) 每tick计算硬上限（建议 50ms），超限则记录并降级（跳过低优先级 System）；(2) 非均匀 tick 为强制（仅活跃实体进 tick 队列，非全量 1000）；(3) GC 调优：启动暖机后 gc.freeze() 冻结长存对象到 gen2，tick 期间禁用 gen0 回收或调高阈值，tick 边界手动 gc.collect；(4) import 时固定 PYTHONHASHSEED=0 并禁用 set 迭代进确定性路径。阶段 0 micro-benchmark 为 go/no-go 门禁。",
+      "issue": "单进程下 tick 计算阻塞 WS I/O 是唯一承重风险，但无硬性预算规范与降级策略。v2 共识 9 已标 GIL/GC/PYTHONHASHSEED 三重天花板，收缩去掉了分布式逃生路径，却未补单机下的强制约束。",
+      "severity": "high"
+    },
+    {
+      "fix": "设计为\"持久化边界\"抽象：persist(entity_id, state) 契约=\"达到崩溃恢复级耐久\"，JSON 实现=异步文件写（write-behind，游戏不阻塞）；PG 实现=同步写穿（write-through，PG 即权威）。游戏逻辑只调 persist 不感知后端。迁 PG 时 persist 语义从\"checkpoint\"自然升级为\"authoritative\"，无需改游戏层。审计事件单独 append-only 接口（audit_event(type,payload)），JSON 实现追加日志文件，PG 实现 INSERT audit_events。",
+      "issue": "策略模式存储接口若按\"内存权威+JSON checkpoint\"语义设计（save=可选快照），迁 PG 时是架构变更而非策略切换：PG 权威要求每次状态变更写穿（write-through）或 WAL，与\"内存权威+异步落盘\"是不同一致性模型。",
+      "severity": "medium"
+    },
+    {
+      "fix": "明确规范：进程崩溃=冷重启（从最近 JSON checkpoint 加载世界）+ 客户端收到连接拒绝/重试 + 重启后客户端重新认证 + 服务端发全量 snapshot（非 ring 重放）+ 向玩家声明丢失窗口。进程内断线（未崩溃）才走 ring 重放。in-memory ring buffer 容量按典型战斗 tick×挂起窗口估算（如 1s tick × 900s × 每条 delta 字节），超容退化 snapshot。",
+      "issue": "单进程崩溃后的重连语义未定义。in-memory ring buffer 与 session 随进程消失，客户端重连到的是冷重启后的新进程，ring 重放不可用。若假装 ring 跨崩溃有效会制造静默状态漂移。",
+      "severity": "medium"
+    },
+    {
+      "fix": "规范：权限策略是启动时加载的可信配置/代码（非可变存档），进程内求值，永远可用（进程在则策略在，进程崩则一切崩）。fail-closed 语义重新定义为\"策略加载失败则拒绝启动\"，而非运行时外部依赖不可达。本地策略快照兜底随 Redis 一并移除。",
+      "issue": "Redis 整体砍除后，v2 的 PermissionService fail-closed（Redis 不可达默认拒绝）语义失效，但无替代规范。且权限策略来源未明确——若从可变的 JSON 存档加载，存在篡改风险。",
+      "severity": "medium"
+    },
+    {
+      "fix": "收缩为 entity_id: UUID（64 位整数或 UUID4），进程内直接对象引用/SparseSet 查询。world:// URL 格式作为分布式阶段的\"未来寻址\"在文档中保留一句后置指引，不在单机代码中出现。",
+      "issue": "EntityAddr `world://<shard>/<region>/<room>#<uuid>` 在单机下过度寻址——无 shard/region，URL 解析是无意义开销且是分布式遗留包袱。",
+      "severity": "low"
+    },
+    {
+      "fix": "降级为可选依赖：默认 stdlib asyncio 事件循环，uvloop 作为\"基准显示 I/O 是瓶颈时\"的可选加速（try-import 降级路径保留）。避免单点 C 扩展硬依赖。",
+      "issue": "uvloop 作为硬依赖风险与收益不匹配。1000 连接 I/O 非瓶颈（stdlib asyncio 可承载 10k+ 空闲连接），瓶颈是 compute；uvloop 作为 C 扩展在部分 Linux/Python 组合兼容性不稳。",
+      "severity": "low"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "1000 在线+100 并发在纯 Python 单进程 asyncio 下成立，但唯一前提是 tick 预算硬性受控（<50ms）+ 非均匀 tick（仅活跃实体，非全量 1000）+ 存档与 GC 不阻塞事件循环。否则 GIL 下单进程 tick 计算会冻结全网 I/O，这是收缩后唯一的承重可行性风险。",
+      "evidence": "现状 MAX_USERS=50（include/login.h:33）、驱动级 150（config.xkx），目标 1000=20x 放大但现代硬件+asyncio；do_attack 在 combatd.c:772/777/804/812/823/831 六处递归（riposte/double_attack/follow_up）使单次战斗结算 compute 不可忽视；Python GC 每 tick 千级短命对象触发 5-20ms 不可控暂停（v2 共识 9 已标）。1000 空闲连接 I/O 非瓶颈（stdlib asyncio 可承载 10k+），瓶颈在 compute 与 GC。阶段 0 micro-benchmark 是 go/no-go 门禁。",
+      "severity": "high"
+    },
+    {
+      "claim": "内存权威+JSON 存档 与 PG 权威+Redis 缓存 是两种不同一致性模型，策略模式存储接口必须以\"持久化边界\"（persist=崩溃恢复级耐久）为抽象而非\"save=权威写\"，否则迁 PG 时是架构变更非策略切换。",
+      "evidence": "约束 5 明确\"内存数据+本地 JSON 存档\"=memory authoritative + checkpoint；v2 子系统 6 是 PG 唯一权威+Redis 读穿透=write-through authoritative。两者写路径语义不同：前者游戏不阻塞于持久化，后者每次状态变更需写穿。若接口按 checkpoint 语义设计，迁 PG 须重铺每条写路径。",
+      "severity": "high"
+    },
+    {
+      "claim": "JSON 存档必须 write-temp+os.rename 原子写 + 事件循环外 offload + dirty-flag 分摊，否则崩溃即文件损坏或单 tick 冻结。LPC 的 save_object 正是无原子全量覆盖（feature/save.c 确认），greenfield 不得重复此 bug。",
+      "evidence": "feature/save.c 的 save() 直接 save_object(file) 全量覆盖写 .o，无原子保护、无自动存档（仅 quit/death/save 命令触发，崩溃丢全部进度）。约束 5 的 JSON 存档若同样直接 json.dump 到目标文件，崩溃中途产生损坏文件使整档不可读。os.rename 在 POSIX 同文件系统原子。1000 实体×约 20KB=约 20MB，orjson 约 200MB/s 即约 100ms 同步写=冻结一个 tick。",
+      "severity": "high"
+    },
+    {
+      "claim": "Redis 在本阶段应整体砍除（session/ring buffer/限流/路由/缓存/JobStore 全部内内存化），而非\"保留 Redis 读穿透\"。约束 5 的\"内存+JSON\"已隐含无 Redis；fail-closed 权限语义随 Redis 消失而 moot。",
+      "evidence": "约束 1 砍分布式、约束 5 指定内存+JSON 存档、约束 3 单进程网关——三者叠加下 Redis 的所有用途（跨进程 session 路由/跨分片 fanout/placement/读穿透缓存）均无消费方。v2 子系统 6 的 HotStateCache、子系统 1 的 session Redis Hash、D01 的 ring buffer ZSet/限流令牌桶/路由表全部失去存在理由。保留 Redis 只引入外部依赖与 fail-closed 复杂度。",
+      "severity": "medium"
+    },
+    {
+      "claim": "Command 模式只覆盖外部输入（玩家/管理员/NPC 经 AI 的命令），System tick 的派生状态变更不是 Command。混同二者会破坏确定性重放模型并制造 GC 压力。",
+      "evidence": "v2 §4.9 全仿真确定性=任意 tick 快照+input log 可重放，input log 的语义是\"外部输入\"。玩家命令是外部输入；heal/condition 过期/战斗结算是给定输入+seed 的仿真派生。若 System 变更也包装为 Command，input log 会记录派生变更而非纯输入，重放时派生变更被重复执行导致状态分叉；且 1000 实体×多 System×1Hz 产生大量短命 Command 对象加剧 GC（v2 共识 9 的 GC 天花板）。",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "ThemeRegistry = 启动时加载的 CPK 静态注册表（manifest 声明题材/依赖/执行权限），无运行时 unload/版本协商；CombatKernel 抽象接口（CombatAction/CombatResolver/DamageModel）是战斗模型的扩展缝，武侠七步是其具体实现；StdLib 可信 Python（无沙箱）vs UGC RestrictedPython 沙箱的二分执行路径已覆盖\"受信任开发者扩展模型\"。何时考虑运行时热插拔：第二个题材真实存在且需不停服切换时再议。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "旗舰武侠需深耕（门派灵魂 70%+ 在脚本），过早建运行时热插拔插件系统（register/unload/version/isolation）是典型过早抽象，且会迫使每个 System 从 Day1 就 theme-agnostic + version-aware，稀释武侠深度（\"共享运行时平庸化\"风险真实）。但三层边界（核心引擎/题材包 CPK/UGC）与 ThemeRegistry 作为静态扩展点应保留——这是 UGC 平台的天然结构，且 v2 的 CombatKernel 抽象已给出未来题材的扩展缝。运行时热插拔等第二个题材真实存在再建（YAGNI）。收敛优先于完备。"
+    },
+    {
+      "key_design": "DSL 层 1（condition->action JSON IR）+ Python 策略对象（PunishmentPolicy/DeathPolicy/SocialGovernancePolicy）+ EventBus（仅非热路径事件路由，战斗热路径绕过）。UGC 触发器 = DSL 层 1，不另建规则引擎组件。层 1 表达力不足时迭代其原语（v2 已有\"逃生舱 KPI<15% 超标触发层 1-2 表达力迭代\"机制），而非叠加规则引擎。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "自定义规则引擎是经典过早抽象，问题自身已问\"是否过度设计 vs 直接用 Python 策略对象 + DSL 层 1\"。v2 已有 DSL 层 1（condition->action 编译为 JSON IR）即规则机制，再建独立规则引擎是把一个机制拆成两个。themed 治理（天雷/阴间/vote/法院）是少量、深度、题材绑定的策略，更适合 Python 策略对象（同 SkillBehavior 模式）而非通用规则表——规则引擎擅长\"非开发者编写大量同类规则\"，这里恰好相反（少而深）。1000 在线下通用规则匹配器的求值性能不如直接方法分派；战斗热路径绝不经规则引擎（v2 已定）。"
+    },
+    {
+      "key_design": "Command{verb, args, ctx(ActionContext+CapabilityToken), seq}.execute(World)->Result 覆盖玩家/管理员/NPC 经 AI 的外部输入，走中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）；System.update(world, dt, ctx) 直接 mutate 组件覆盖 tick 派生变更，不经 Command。确定性重放 input log = Command 日志 + RNG seed；System 变更是派生（从相同输入+seed 重放得出）。LPC call_other 保真：Command.execute 是同步方法调用，与 call_other 语义一致。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "Command 对象统一\"外部输入\"边界，与确定性重放的 input log 天然对齐（input log 即 Command 日志），且授权（CapabilityToken）与审计有明确挂载点，与 v2 已有的命令中间件管线无缝。但 System tick 的派生状态变更（heal/condition 过期/战斗结算/NPC 确定性 AI）不是 Command——它们是给定输入的仿真派生，混同会破坏重放模型（input log 应记录外部输入，非派生变更）并制造 GC 压力（千实体×多系统×1Hz 产生海量短命 Command 对象，加剧共识 9 的 GC 天花板）。"
+    }
+  ],
+  "verdict": "risky",
+  "verdict_rationale": "收缩方向正确且必要——v2 的\"risky\"很大程度源于分布式/Ray/K8s/全量事件溯源等过早复杂度，6 条约束精准拆除了这些承重风险。但收缩后的单机纯 Python+asyncio+内存JSON 存档架构在三个承重细节上未落地，足以在实现期造成返工或运行时故障：(1) 单进程 tick 计算与 WS I/O 共享一个事件循环，tick 预算硬约束、非均匀 tick、GC 调优均未规范——这是 1000 在线+100 并发唯一真正的可行性风险，阶段 0 micro-benchmark 是 go/no-go 门禁而非走过场；(2) JSON 定时存档的崩溃安全性（原子写 write-temp+rename）、序列化 offload（不在事件循环内同步写）、存档频率与数据丢失窗口均未规定，naive 实现会重蹈 LPC save_object 全量覆盖无原子写的覆辙；(3) \"内存权威+JSON checkpoint\"与未来\"PG 权威+Redis 缓存\"是两种不同一致性模型，策略模式存储接口必须以\"持久化边界\"为抽象而非\"save=权威写\"，否则迁 PG 是架构变更非策略切换。3 个开放问题中 Q2（规则引擎）必须否决（过早抽象），Q1（热插拔）有条件采纳（仅静态注册不建运行时插件系统），Q3（Command）有条件采纳（只覆盖外部输入，System tick 派生变更不进 Command）。收缩去掉了分布式逃生路径，反而使这些单机细节成为硬约束——它们没有退路，必须显式规范。",
+  "what_to_cut": [
+    "砍 Redis 全部依赖（session 路由表/ring buffer/限流令牌桶/placement/读穿透缓存/JobStore）——单进程内全部内存化（session dict、per-session deque、进程内令牌桶、进程内 EventBus、内存 timer wheel）；Redis 等迁 PG 时作为读缓存再引入，本阶段引入只增加外部依赖与 fail-closed 复杂度。",
+    "砍分布式网关全套（SO_REUSEPORT 多 worker / 会话粘附路由表 / NATS 跨节点扇出 / PlacementService 一致性哈希 / MigrationCoordinator 两阶段提交 handoff / BoundaryRoomAgent / ShardSupervisor）——单进程 WS 服务器 + 内存 session + 进程内 EventBus 直接替代，分布式等单机达 80% 承载且 UGC 验证成立后再议。",
+    "砍 EntityAddr `world://<shard>/<region>/<room>#<uuid>` URL 寻址——单进程无 shard/region，直接用 entity_id(UUID) + 进程内对象引用/SparseSet 查询；URL 格式等引入分布式时再加回。",
+    "砍 uvloop 硬依赖——1000 连接的 I/O 不是瓶颈（stdlib asyncio 可承载 10k+ 空闲连接），瓶颈是 compute；先用 stdlib asyncio，按阶段 0 基准决定是否加 uvloop，避免 C 扩展兼容性单点风险。",
+    "砍 JWT RS256 非对称签名 + refresh token + Redis 黑名单吊销——单进程无跨进程鉴权需求，用 HS256 或纯内存 session token + 内存吊销集合即可；argon2 密码哈希保留（安全不妥协）。",
+    "砍题材包运行时热插拔（register/unload/version/isolation 完整插件系统）——这是过早抽象，会迫使每个 System 从 Day1 就 theme-agnostic + version-aware 稀释武侠旗舰深度；保留 ThemeRegistry 作为启动时加载的静态 CPK 注册表，第二个题材真实存在时再议热插拔。",
+    "砍自定义规则引擎——v2 已有 DSL 层 1（condition->action 编译为 JSON IR）即规则机制，themed 治理（天雷/阴间/vote）是少量深度策略更适合 Python 策略对象（PunishmentPolicy/DeathPolicy），通用规则匹配器在 1000 在线下性能不如直接方法分派且战斗热路径绝不能经规则引擎。",
+    "砍 APScheduler + Redis JobStore 持久调度——单进程崩溃=冷重启从 JSON checkpoint 恢复，定时器随状态重建，无需持久化调度；用进程内内存 timer wheel（call_out 等价），分层仅留短延迟内存层。"
+  ],
+  "what_to_keep": [
+    "自研 SparseSet ECS 单存储——核心对象模型，单进程下更简单（无跨进程迁移/序列化压力），组件运行时动态挂卸是 UGC 多题材的必要前提。",
+    "战斗七步管线 + resolve_attack 纯函数 + seeded DeterministicRNG + CombatContext 快照——全仿真确定性的基础，单进程无分布式干扰最易实现正确；do_attack 六处递归（combatd.c:772/777/804/812/823/831）的调用栈语义靠进程内同步调用天然保真。",
+    "命令中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）——保留，限流改进程内令牌桶、授权改进程内策略求值、previous_object 信任链显式化为 ActionContext+CapabilityToken 不变。",
+    "代词 10 变量 + emote 7 视角 + RANK_D 7 函数服务端预求值 PronounContext——文本保真承重设计，单进程下 RANK_D 求值非热路径（每事件一次，可缓存），开销可接受。",
+    "非均匀 tick（仅活跃实体 tick）——LPC set_heart_beat(0/1) 自适应节流的现代版，是单进程 1000 在线的性能关键（非全量 1000 实体每 tick 仿真）。",
+    "全仿真确定性（input log + RNG seed = 任意 tick 完整重放）——单进程下最易实现（无跨分片输入拼接），是标杆分水岭与反作弊/调试/自动化测试共享底座。",
+    "逻辑热重载（importlib.reload + entity state migration）——单进程下更简单（无跨分片协调），热重载安全窗口仅需'无进行中战斗'。",
+    "技能三层（SkillData YAML / SkillBehavior Python 策略 / SkillEffect 状态机）——门派灵魂 70%+ 在脚本，单进程下 SkillBehavior 是 Python 对象直接调用，无跨进程代理。",
+    "存储策略模式接口（StorageBackend 抽象）——保留，但须设计为'持久化边界'抽象（persist=崩溃恢复级耐久）而非'权威写'语义，使迁 PG 时是策略切换非架构变更。",
+    "5 个灵魂系统纳入 WorldGovernanceSystem（阴间/武林大会/vote/法院/intermud）——保留，单进程下是 System，与战斗引擎平级。"
+  ]
+}

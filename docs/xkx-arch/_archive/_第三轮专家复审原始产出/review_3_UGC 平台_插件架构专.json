@@ -1,0 +1,98 @@
+{
+  "expert": "UGC 平台/插件架构专家（侧重：题材包/模块包热插拔三层边界、热插拔机制、受信任开发者扩展模型、规则引擎作 UGC 触发层、创作者经济 Day1 预留、可视化编辑器定位）",
+  "gaps": [
+    {
+      "fix": "收缩后放弃 WASM，可信开发者扩展走代码审查+签名+SemVer 的进程级信任，UGC 走 RestrictedPython+能力令牌+配额的语言级沙箱。两道信任门而非两种语言。明确声明 RestrictedPython 是'劝退层非安全边界'，纵深防御靠能力令牌+配额+审查三重叠加。WASM 留作多租户生产阶段重新评估的选项。",
+      "issue": "收缩为单进程纯 Python 后，v2 的 WASM（平台级）/RestrictedPython（UGC）双沙箱语言边界失去依据。单进程内 WASM 引入 Rust/AssemblyScript 编译工具链负担，且 wasmtime-py 的宿主 API 边界开销在纯 Python 单进程场景下得不偿失。更关键的是：单进程内一个崩溃的受信任开发者扩展会拖垮整个进程，而 v2 原本靠 WASM 给平台级扩展的进程级隔离现在没有替代方案。",
+      "severity": "high"
+    },
+    {
+      "fix": "降级为'安全窗口冷插拔'：复用 v2 已有的热重载安全窗口（无进行中战斗、无活跃引用），卸载流程为 mark-for-removal -> 迁移/销毁使用该题材组件的实体 -> 确认无悬挂引用 -> 注销注册表。manifest 版本号+依赖图保证卸载顺序。明确禁止运行中战斗/活跃效果期间的任意热卸载。",
+      "issue": "Q1 的'热插拔'承诺在单进程纯 Python + 内存态下被过度承诺。真实热卸载一个有活跃实体使用其组件的题材包是悬挂引用噩梦（组件已注销但实体仍持有引用、in-flight Effect 引用已注销的 condition schema、活跃对话游标引用已卸载的对话树）。v2 的'热重载安全窗口'只覆盖 System 代码替换，没覆盖题材包组件 schema 注销的实体迁移。",
+      "severity": "high"
+    },
+    {
+      "fix": "确立三层粒度：Theme（schema family+谓词/动词词汇表+themed 治理策略，由受信任开发者维护）> Module Pack（门派/区域 CPK，受信任开发者，wuxia 主题下）> UGC CPK（创作者内容，沙箱受限）。ThemeRegistry 只管 Theme 注册；CPK registry 统一管 Module Pack 与 UGC CPK，靠 manifest 的 trusted 标志区分执行路径。",
+      "issue": "v2 ThemeRegistry 把'题材'（wuxia/nautical/academy）与'门派/区域模块包'混为一谈。源码验证 race/human.c 第 92-185 行对 19 门派做硬编码 if-else 加成，这些门派是 wuxia 题材下的内容包，不是独立题材。把门派当题材会让 schema family 机制退化成扁平命名空间，新增题材时无法区分'核心词汇表'与'题材专属内容'。",
+      "severity": "high"
+    },
+    {
+      "fix": "从 Day1 定义 JSON 可序列化的 manifest+依赖图格式，依赖图用 networkx 构建后序列化为 JSON 邻接表。存储接口用策略模式封装（current=JSON 文件，future=PG/MongoDB），manifest 格式与存储后端解耦。内容寻址 blake3 哈希对 JSON 文件天然适用。",
+      "issue": "收缩为内存+JSON 文件存档后，CPK 内容寻址与依赖图的持久化形态未定义。v2 设计 blake3 内容寻址+networkx 依赖图+PG 存储快照，现在存储后端变 JSON 文件，但 manifest/依赖图的序列化格式未定义。依赖图重建（进程重启后从 JSON 恢复 networkx 图）的协议缺失。",
+      "severity": "medium"
+    },
+    {
+      "fix": "层0 房间可视化编辑器纳入阶段-1 垂直切片（与 DSL+Agent 闭环并行验证），作为'玩家是否觉得好玩'的验证入口。先做最简的拖拽出口连线+表单填字段+所见即所得预览，底层生成层0 DSL IR。层1/层2 编辑器后置到引擎数据模型稳定后。",
+      "issue": "可视化编辑器在收缩后定位未重新校准。v2 说'引擎定型后做'，但收缩到单机后编辑器反而更重要（唯一的非程序员创作入口）且更可行（数据模型更简单）。上轮 UGC 专家已指出无编辑器则四层 DSL 门槛远超 Roblox 的 Lua+Studio，但该建议在 v2 整合时仍被降级为'引擎工具链一部分后置'。",
+      "severity": "medium"
+    },
+    {
+      "fix": "定义约束注入协议：Orchestrator 生成前读取题材包的 schema family+实体关系规则，注入为 structured-output 的 JSON schema+pydantic validator。约束分两级：硬约束（图可达/数值边界，生成时强制）与软约束（叙事风格/经济平衡，生成后评估）。硬约束失败触发局部重生成，软约束失败进六维评估矩阵。",
+      "issue": "Agent 创作的'生成时约束'（v2 Continuity 能力）缺具体机制。v2 说用 structured output+实体关系约束注入替代事后审查，但没定义约束从哪来、如何注入、如何校验。题材包的 schema family 与实体关系规则是约束源，但 Orchestrator 如何读取并注入到 LLM prompt 未定义。",
+      "severity": "medium"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "三层边界（核心引擎/题材包/UGC）是正确的抽象且必须早期确立，但'热插拔'应降级为'安全窗口冷插拔'——单进程纯 Python+内存态下运行中热卸载有活跃实体的题材包是悬挂引用研究题，不可承诺。",
+      "evidence": "单进程内组件注册表注销后实体仍持有组件引用、in-flight Effect 引用已注销 condition schema、活跃对话游标引用已卸载对话树——v2 热重载安全窗口只覆盖 System 代码替换未覆盖题材包组件 schema 注销的实体迁移。",
+      "severity": "high"
+    },
+    {
+      "claim": "19 门派是 wuxia 题材下的内容包（module pack）不是独立题材，v2 把门派当题材会让 schema family 机制退化为扁平命名空间。三层粒度应为 Theme（词汇表）> Module Pack（门派 CPK）> UGC CPK。",
+      "evidence": "kungfu/class/ 19 门派目录 + race/human.c 第92-185行对19门派硬编码 if-else 加成证明门派灵魂在脚本，是内容包不是题材级 schema family。",
+      "severity": "high"
+    },
+    {
+      "claim": "独立的自定义规则引擎是过早抽象——DSL 层1 condition->action 就是 UGC 触发层，系统级治理策略是题材包内 Python 策略对象，condition-action 逻辑有两处存放地就多了一处。1000 在线下事件触发式求值 O(匹配规则数) 无需 Rete。",
+      "evidence": "v2 DSL 层1 已覆盖 init/add_action/valid_leave/inquiry 事件钩子；themed 治理（天雷/阴间/vote）需脚本级表达（上轮主策划验证 death_penalty 反作弊逻辑）非规则引擎可承载；1000 在线事件触发式求值远低于 Rete 网络盈亏平衡点。",
+      "severity": "high"
+    },
+    {
+      "claim": "WASM 沙箱在纯 Python 单进程收缩下不划算——其价值是多租户进程级隔离，而收缩已明确排除分布式/多租户。应用 RestrictedPython 统一两层，靠审查门+能力令牌+配额区分信任级，WASM 留作后置选项。",
+      "evidence": "v2 WASM 定位平台级已审计扩展需 Rust/AssemblyScript 编译工具链，单进程内 wasmtime-py 宿主 API 边界开销不抵收益；收缩约束1排除分布式、约束3单进程网关、约束5本地 JSON 存档——无多租户隔离需求。",
+      "severity": "high"
+    },
+    {
+      "claim": "可视化编辑器层0（房间编辑器）必须纳入阶段-1 垂直切片而非后置到阶段4——它是非程序员唯一可行创作入口且是'好玩'验证的必要组成，上轮 UGC 专家已指出无编辑器四层 DSL 门槛远超 Roblox Lua+Studio。",
+      "evidence": "上轮 UGC 专家裁定 risky 核心缺口即'可视化创作工具完全缺失'，对标 Roblox Studio/Core Creator/Rec Room Maker 全部以编辑器为创作入口；收缩后单机数据模型更简单使编辑器更可行。",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "三层边界：核心引擎（ECS+tick+CombatKernel+DSL 编译器+沙箱，主题无关）/ 题材包（schema family+谓词/动词词汇表+themed 治理策略+默认资产，受信任开发者进程内 Python）/ UGC CPK（层0-2 DSL+层3 RestrictedPython，沙箱受限）。热插拔=安全窗口冷插拔（复用热重载安全窗口，卸载流程 mark-for-removal->迁移活跃实体->确认无悬挂引用->注销）。受信任开发者 API：register_component/register_system/register_predicate/register_verb/register_governance_policy，审查门+签名+SemVer；UGC 只能用已注册词汇表不能注册新词。两层注册表：ThemeRegistry 管 Theme，CPK registry 管 Module Pack+UGC CPK。武侠旗舰深耕，其余题材浅度 UGC 扩展不追求同等深度。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "三层边界（核心引擎/题材包/UGC）是正确的抽象，且 greenfield 下应 Day1 内建而非后置。但 v2 的 ThemeRegistry 把'题材'与'门派/区域模块包'混为一谈（源码验证 race/human.c 第92-185行对19门派硬编码 if-else，门派是 wuxia 题材下的内容包不是独立题材），且'热插拔'在单进程纯 Python+内存态下被过度承诺——真实热卸载一个有活跃实体使用其组件的题材包是悬挂引用噩梦。应确立三层粒度（Theme>Module Pack>UGC CPK），并把'热插拔'降级为'安全窗口冷插拔'。"
+    },
+    {
+      "key_design": "DSL 层1 condition->action 是 UGC 触发层（when/do 表达式+受限谓词/动词从题材包注册表查询），事件触发式求值 O(匹配规则数) 无需 Rete。系统级治理策略（天雷/阴间/vote/法院）是题材包内 Python 策略对象（PunishmentPolicy/DeathPolicy，受信任开发者维护），不进 DSL 层1。命令管线中间件处理命令级规则，DSL 层1 处理事件触发规则，两者分层不统一。组合漏洞靠能力令牌+配额在 DSL/沙箱层防御。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "独立自定义规则引擎是过早抽象。v2 已有 DSL 层1（condition->action 事件规则）覆盖 UGC 触发器，再引入独立规则引擎会让 condition-action 逻辑存在于两处（DSL 层1+规则引擎），违反'收敛优先于完备'。themed 治理（天雷/阴间/vote）是系统级策略（需脚本级表达力，上轮主策划已验证 death_penalty 反作弊逻辑非规则可表达），应作为题材包内 Python 策略对象，不进 UGC 规则层。1000 在线下事件触发式规则求值是 O(匹配该事件的规则数) 而非全局前向链式，无需 Rete 网络的复杂度。"
+    },
+    {
+      "key_design": "玩家命令走 Command 模式（CommandMessage{verb,args,ctx,seq} 经中间件管线），NPC AI/System tick 变更走 System.update() 纯函数变更账本+input log。Command=意图+上下文+结果信封，执行逻辑留在 verb handler/System。保留同步执行语义（命令内联同步执行，不经异步队列），对应 LPC call_other 同步语义。命令执行可触发 DSL 层1 规则（如 go 触发 valid_leave 规则）作为副作用，规则触发不另起 Command。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "玩家命令应封装为 Command（用于审计/授权/限流/确定性回放），但 NPC 行为与系统 tick 状态变更不应走 Command（那会让每个 NPC 攻击都成 Command，是过度抽象）。v2 命令管线中间件已隐含 Command 语义（CommandMessage{verb,args,ctx,seq}），显式化 Command 对象的收益是审计/重放/能力校验。Command 职责边界：封装意图+上下文+结果，不拥有执行逻辑（执行在 verb handler/System）。须保留 LPC 命令同步语义（命令内联执行返回结果，不要默认异步化，否则破坏 68771 处同步调用栈语义）。"
+    }
+  ],
+  "verdict": "risky",
+  "verdict_rationale": "收缩方向对 UGC 平台是净利好：砍掉分布式/分片/Louvain/跨分片 handoff 后，UGC 创作闭环不再背负\"先验证分布式再验证创作\"的串行债务，单进程纯 Python + 内存 JSON 让 CPK/manifest/依赖图能在阶段-1 垂直切片里直接验证。v2 的承重设计（四层 DSL 编译 JSON IR、CPK 内容寻址、能力令牌安全模型、ThemeRegistry 多题材）在收缩后大部分仍成立且更易落地。但存在三个承重级缺口使其未达 solid：(1) 单进程纯 Python 收缩后 v2 的 WASM（平台级）/RestrictedPython（UGC）双沙箱语言边界失去依据——单进程内 WASM 引入 Rust/AssemblyScript 编译工具链负担且 wasmtime-py 边界开销不抵收益，需重新界定\"受信任开发者扩展\"与\"UGC 脚本\"的信任边界（审查门+签名 vs 语言沙箱，而非两种语言）；(2) v2 ThemeRegistry 把\"题材\"（wuxia/nautical）与\"门派/区域模块包\"混为一谈（源码验证 race/human.c 第92-185行对19门派硬编码 if-else，门派是 wuxia 题材下的内容包不是独立题材），三层边界未厘清会导致 schema family 退化为扁平命名空间；(3) Q1 的\"热插拔\"承诺在单进程内存态下是悬挂引用研究题，需降级为\"安全窗口冷插拔\"。三个开放问题的方向大致正确但各有过度承诺需收敛。",
+  "what_to_cut": [
+    "WASM 沙箱用于平台级扩展：单进程纯 Python 下引入 Rust/AssemblyScript 编译为 wasm32-wasi 的工具链负担不抵收益，收缩已排除多租户进程隔离这一 WASM 的唯一正当理由；改用 RestrictedPython 统一两层，靠审查门+能力令牌+配额区分信任级而非语言隔离。",
+    "分布式燃料聚合器（按 CPK 维度聚合跨调用 fuel 的滑动窗口配额）：这是为跨分片 CPK 脚本设计的，单进程内 per-CPK fuel 就是一个进程内计数器，无需 Redis 计数器/分布式限流/熔断协议。",
+    "CRDT/OT 结构化合并的多创作者 CPK 协作工作流：单机阶段 UGC 验证不需要多人实时同编一个 CPK，砍到单作者 CPK + 简单 fork-merge（人工 merge 冲突），多创作者并发是后置能力。",
+    "内容市场/分发/计费的任何实现代码：阶段-1~2 只在 manifest 预留字段（author_id/revenue_share/price/title/tags），不实现浏览/搜索/安装/评分/分账。明确 manifest 字段早期建立但功能后置。",
+    "Louvain 社区检测及其衍生概念（区域共同体作为分片单元）：已由约束1排除，但须确认'区域共同体'不作为 CPK 依赖组织的隐含前提——CPK 依赖图就是 networkx 拓扑排序，不需要社区检测语义。"
+  ],
+  "what_to_keep": [
+    "CPK manifest + provenance + 依赖图（networkx 拓扑排序+环检测）：UGC 平台地基，必须早期建立。即使存储是 JSON 文件，manifest 格式与依赖解析协议须 Day1 定义且 JSON 可序列化，后期可经存储接口策略模式无痛迁 PG/MongoDB。",
+    "四层 DSL 全部编译为 JSON IR 作为唯一真相源：这是可视化编辑器（双向同步）与 Agent 契约层（schema 收敛 LLM 非确定性）的共同前提，收缩后反而更重要——单机阶段编辑器是唯一非程序员创作入口。",
+    "能力令牌安全模型（read_world/say/move_self/spawn_in_scene/schedule/...）：UGC 沙箱的承重边界，开放 UGC 脚本前必须就位。收缩后保留 RestrictedPython+能力令牌+fuel/wall_time/memory 配额三重纵深防御。",
+    "ThemeRegistry 两层注册表（题材包注册表 + CPK 注册表）：多题材机制的骨架。题材包注册 schema family+谓词/动词词汇表+themed 治理策略，CPK 注册表管 Module Pack（门派/区域，受信任开发者）与 UGC CPK（创作者内容）。",
+    "受限 Python 脚本逃生舱使用率 KPI <15% + 表达力校准实验（30 文件）：这是防止 UGC 退化为'脚本为主声明为辅'的护栏，上轮主策划已验证侠客行重战斗 MUD 上层3实际占比可能 40%+，KPI 超标触发层1-2 原语迭代而非放松 KPI。"
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "expert": "游戏引擎/ECS 专家（单进程 SparseSet ECS、tick 预算、GIL/IO 冲突、引擎工具链、热重载、确定性回放、GC/对象池）",
+  "gaps": [
+    {
+      "fix": "定义 tick=1s（LPC-faithful）。预算：tick compute<100ms（10% tick），硬告警 200ms；I/O 预算 900ms+。这样纯 Python+GIL+1000 在线 trivially 可达，compiled-core 后置无需紧迫决策。",
+      "issue": "tick 预算框架错误。v2 文档反复写'50ms/20Hz or 100ms/10Hz'，但 LPC heart_beat 实测是 1s（set_heart_beat(1) 已验证）。把 20Hz 框架套到 1s-tick MUD 上是在解一个我们不存在的 MMO 问题，且直接驱动了上一轮 Rust-panic 与本轮仍残留的 compiled-core 紧迫感，与纯 Python 约束矛盾。",
+      "severity": "high"
+    },
+    {
+      "fix": "阶段1 只保留 combat 确定性（CombatContext+seeded RNG+PYTHONHASHSEED=0+禁 set 迭代，已是 combat-sim 前置）。全仿真确定性显式移到 M3 后作为独立 re-introduction 决策点，不进阶段1 里程碑。",
+      "issue": "全仿真确定性作为阶段1 里程碑是范围蔓延。v2 §04 阶段1 把'所有 System seeded RNG+input log'列为交付物，但 §05 专家报告自身把它列为 P3。让每个 System 承受确定性税以换取规模期才兑现的收益，与单机收缩矛盾。",
+      "severity": "high"
+    },
+    {
+      "fix": "保存放后台线程（orjson 序列化释放 GIL）；写 temp+os.replace 原子化；声明崩溃丢失窗口（MUD 可接受 ≤60s，或加 write-ahead command log）。StorageBackend 策略接口保留。",
+      "issue": "JSON 存档的阻塞性/原子性/崩溃丢失窗口未设计。收缩改用内存+定时 JSON 存档，但 8000 实体×15 组件的 JSON 序列化可能 100ms+ 会阻塞 tick；未规定 temp+rename 原子写；未声明崩溃丢失窗口（每 N 秒存档则丢 ≤N 秒进度）。",
+      "severity": "high"
+    },
+    {
+      "fix": "保留 entity inspector（最小）+tick profiler（最小）+combat replay viewer（最小，因 combat 确定性保留）。砍 world graph visualizer（用 networkx 一次性 dump）、DSL preview（UGC 层非引擎层）、hot-reload console（砍到热重载成真）。",
+      "issue": "引擎工具链对单机过度建设。v2 要求 6 件工具作为阶段0 一等公民，但单机+内存+1000 在线下调试 8000 实体不需要全套标杆引擎工具链。",
+      "severity": "medium"
+    },
+    {
+      "fix": "简化为：System 模块在 tick 边界 importlib.reload，entity state 原样保留；schema 变更需重启。CPK/DSL YAML 数据随时自由重载（trivially safe）。砍 schema migration+safety window 协议。",
+      "issue": "热重载协议过度设计且含失效条款。v2 §4.9 定义'热重载安全窗口（无进行中战斗、无跨分片 handoff）'——handoff 在收缩下已不存在，条款失效；完整 schema migration+safety window 对单机过度。",
+      "severity": "medium"
+    },
+    {
+      "fix": "缓存 PronounContext per (subject,target) per tick；tick profiler 拆出 fan-out 耗时；武林大会等千人场设计为赛程串行（bracket）而非同时同房；单房超预算即接受 lag（MUD 固有）或设人口软上限。",
+      "issue": "热点房间 fan-out 是 1000 在线下真实性能风险，未被识别。单房间串行 CombatCoordinator 下，1000 人同房（武林大会）每 tick 的事件扇出（PronounContext 求 RANK_D 7 函数×N 事件×N 接收者 + orjson 序列化 + 1000 路 WS 广播）可能 50-100ms，是真实瓶颈而非 tick compute。无分布式后热点房间专用分片消失，该风险需单机内对策。",
+      "severity": "medium"
+    },
+    {
+      "fix": "定义 tick registry：每 System 注册 (interval_ticks, priority)，默认 1（每 tick=1s）。Combat=1，Heal=1，Condition=1，NPCAI 可配 2-4，WorldClock=墙钟驱动不走 tick。保持简单。",
+      "issue": "非均匀 tick/分级 tick 桶未规约。v2 提及但未定义哪些 System 以何频率 tick，1s 基础 tick 下这影响 Heal/Condition/NPCAI/WorldClock 的调度语义。",
+      "severity": "medium"
+    },
+    {
+      "fix": "热组件 dataclass 加 __slots__（廉价卫生）；用 tick profiler 实测 GC；仅当测量显示问题才引入对象池或 gc.disable/enable 包裹 tick。",
+      "issue": "对象池/GC 微优化过早。上一轮专家要求 CombatRoundResult/Effect 对象池化，但 1s tick+8000 实体下 GC 是非问题，对象池是 premature optimization。",
+      "severity": "low"
+    },
+    {
+      "fix": "本轮产出 v3 文档集，显式声明收缩后权威态=内存+JSON 存档，清除 PG/Redis 权威表述；handoff/Louvain/Ray 条款标注'分布式阶段重新引入'。",
+      "issue": "v2 文档未按收缩重新校准。多处仍写'PG 唯一权威+Redis 读穿透'、热重载 handoff 条款、分布式分片设计，与收缩约束冲突，实现时会产生歧义。",
+      "severity": "low"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "1s tick（LPC heart_beat 默认，已验证 set_heart_beat(1)）使 GIL/IO 冲突与 compiled-core 紧迫感在 1000 在线下基本 evaporate。上一轮的 Rust-panic 是按 20Hz/50ms-tick 校准的，该假设不适用于 MUD；纯 Python 在 1s tick 下有 900ms+ I/O 预算，1000 在线+100 并发 trivially 可达。",
+      "evidence": "inherit/char/char.c:53、feature/attack.c:44、feature/damage.c:34 均 set_heart_beat(1)（秒）；上一轮引擎专家自测 3000 实体/1500 attacks/tick 仅 1.93ms compute，在 1s tick 下占 0.2% 预算；config.xkx 无 sub-second tick 配置。",
+      "severity": "high"
+    },
+    {
+      "claim": "全仿真确定性扩展到所有 System 是阶段1 的错误范围；combat-only 确定性（CombatContext+seeded RNG）才是正确范围且已是 combat-sim 等价性的前置。把全仿真塞进阶段1 是让每个 System 承受确定性税以换取规模期才兑现的收益，与单机收缩矛盾，且与专家报告自身 P3 排序冲突。",
+      "evidence": "v2 §04 阶段1 里程碑列'全仿真确定性（所有 System seeded RNG+input log）'为交付物；v2 §05 专家报告优先级表把'全仿真确定性扩展到所有 System'列为 P3；combat-sim 调 resolve_attack 纯函数已要求 CombatContext 确定性（共识10）。",
+      "severity": "high"
+    },
+    {
+      "claim": "ECS 在 Python 是架构选择非性能优化——SparseSet 在 C++ 的 cache locality/SIMD 优势在 Python dict 存储下不存在。这意味着：保留 SparseSet（它是正确的组织选择，支持 UGC 动态挂卸），但不应以性能为由选型，不应驱动 compiled-core 决策，不应在无测量热点前加 SOA/numpy。",
+      "evidence": "上一轮引擎专家 R07 明确此论断；8000 实体×15 组件在 1s tick 下 Python dict 查询（~100ns）trivially 在预算内；Python 无连续内存无 SIMD 无真并行。",
+      "severity": "high"
+    },
+    {
+      "claim": "Command 模式必须只覆盖玩家发起+触发器发起的状态变更，绝不能套到 tick 驱动的 System 内部 mutation。把每个 VitalsSystem.update/resolve_attack 包成 Command 会制造热路径对象 churn（GC 压力）与无收益的间接层，且与确定性 System 语义重复。",
+      "evidence": "LPC heart_beat/tick 是 System 驱动非命令驱动；resolve_attack 是纯函数非命令；v2 已确立 heart_beat tick 不可被事件/命令驱动替代；1s tick 下避免热路径对象分配是控制 GC 的关键。",
+      "severity": "high"
+    },
+    {
+      "claim": "自定义规则引擎作为命名组件是过度设计——它就是 DSL 层1 IR 的求值器，命名'引擎'会诱发 RETE/独立 DSL/scope creep。themed 治理（天雷/阴间/vote）是 tick 驱动 System 逻辑不是规则引擎领域；只有触发器部分是规则领域，且已是 DSL 层1。",
+      "evidence": "v2 §4.6 已明确层1 事件规则只覆盖触发器（进房/命令/对话），heart_beat 不可被事件驱动替代；themed 治理已归 WorldGovernanceSystem/DeathSystem/PunishmentPolicy（System 层）；1000 在线下固定 dispatch table 求值 <1000 次/秒 trivially。",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "ThemePack=启动时加载的 Python 包，向 ThemeRegistry 注册 (component_schemas, condition_predicates, action_verbs, combat_resolver_impl, default_assets)。CPK manifest 复用其 theme+version+dependencies 字段做依赖与版本管理，不另建插件运行时。UGC 只能在已注册题材内编辑层1 内容，永不创作题材包本身。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "三层边界（核心引擎/题材包/UGC）正确且廉价，应采纳；但'热插拔'（运行时 mount/unmount 不重启）在单机收缩下是过度设计，本轮只做启动时加载（load-time registration）。受信任开发者题材包=StdLib 级无沙箱 Python，启动时 import，等同普通模块；UGC 永不创作题材包，只在已注册题材内编辑层1。CombatKernel 接口必须从武侠 do_attack 提取，不跨 4 题材预先设计——否则会为泛化而平庸化武侠深度。"
+    },
+    {
+      "key_design": "DSL 层1 IR 求值器=固定 dispatch table，key=event_type（enter_room/command/dialogue/accept_object/valid_leave/chat_msg），value=编译后的 (condition_predicate, action_list, priority) 列表。事件发生时查表→按 priority 迭代→求值 condition（Python callable 或受限 expr）→执行 action（注册的动作动词）。无 RETE、无独立规则 DSL、无独立引擎组件。themed 治理留在 tick 驱动 System。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "独立的'规则引擎'作为命名组件是过度设计。heart_beat tick 不可被事件驱动替代（已确立结论），故任何试图统一'所有 condition-action'的引擎要么（a）与 tick 驱动 System 逻辑重复制造双真相源，要么（b）仅覆盖触发器——后者就是 DSL 层1，无需第二件物事。themed 治理（天雷/阴间/vote）是 tick 驱动 System 逻辑（DeathSystem/PunishmentPolicy/SocialGovernanceSystem），不是规则引擎领域。UGC 触发器落入 DSL 层1 已是现设计。1000 在线下固定 dispatch table 求值是 O(匹配规则数/事件)，<1000 次求值/秒，trivial。"
+    },
+    {
+      "key_design": "Command{verb, args, ActionContext(capability_token, subject, seq)} 经中间件管线到 VerbHandler→System 方法。玩家命令与触发器命令走 Command；NPC AI 决策与 System tick（heal/condition 过期/combat resolve_attack）直接经 System 方法 mutate，不经 Command。resolve_attack 是 System 内纯函数非 Command。审计只记录 Command 边界。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "v2 已有命令中间件管线，把 execute 阶段形式化为 Command 对象（verb+args+ActionContext）有真实价值：统一审计、可测试、解耦请求与 mutation、承载 CapabilityToken 信任链、LPC verb→Command 映射干净。但'每个操作含 NPC 行为/系统 tick 状态变更都走 Command'是过度设计陷阱——tick 驱动的 System 内部 mutation（heal/condition 过期/combat 解算）不是 Command，强制包装只增加对象分配（GC 压力）与间接层，零收益，且 tick 已由 System 确定性保证。Command 是请求信封路由到 System 方法，System 拥有 mutation 不变量与 tick 逻辑。"
+    }
+  ],
+  "verdict": "risky",
+  "verdict_rationale": "收缩方向健康：砍掉分布式/K8s/Ray/PG 权威态，坍缩了上一轮最重的过度设计层，核心（SparseSet ECS、战斗七步管线、DSL 四层、存储策略模式）在单机+内存+1000 在线下是站得住的。但 v2 文档未按收缩重新校准，残留四处承重隐患：(1) tick 预算概念性错误——文档反复写\"50ms/20Hz or 100ms/10Hz\"，但 LPC heart_beat 实测是 1s（set_heart_beat(1) 已验证），把 20Hz 框架套到 1s-tick MUD 上是在解一个我们不存在的 MMO 问题，并直接驱动了上一轮 Rust-panic 与本轮仍残留的 compiled-core 紧迫感，与\"纯 Python 后置 compiled core\"约束自相矛盾；(2) 全仿真确定性作为阶段 1 里程碑会向每个 System 征收确定性税（seeded RNG+input log+禁 set 迭代），换取的 time-travel 调试/反作弊收益只在规模期兑现，单机阶段是纯负债——专家报告自身都把它列为 P3，却在阶段 1 里程碑里强制；(3) 6 件工具链作为阶段 0 一等公民对单机是过度建设；(4) 热重载安全窗口条款仍引用\"无跨分片 handoff\"——handoff 已不存在。这些残留若不校正，会把收缩本想消除的复杂度从后门请回来。核心不必重做，但需按收缩重写预算与里程碑校准。",
+  "what_to_cut": [
+    "砍掉全仿真确定性作为阶段 1 里程碑（所有 System seeded RNG+input log）；仅保留 combat 确定性（CombatContext+seeded RNG，已是 combat-sim 等价性前置），全仿真确定性显式移到 M3 后作为独立决策点，因为单机阶段对每个 System 征收确定性税只为换取规模期才兑现的收益。",
+    "砍掉 50ms/20Hz or 100ms/10Hz 的 tick 预算框架；LPC heart_beat 实测是 1s（set_heart_beat(1) 已验证），该框架在解一个 MUD 不存在的 MMO 问题，并错误驱动 compiled-core 紧迫感，应改为 tick=1s、compute<100ms、I/O 预算 900ms+。",
+    "砍掉 6 件工具链作为阶段 0 一等公民的排位；单机+内存+1000 在线下只保留 entity inspector（最小 REPL/dict-dump）+tick profiler（per-System time.perf_counter）+combat replay viewer（最小，因 combat 确定性保留），砍 world graph visualizer（networkx 一次性 dump 足够）、DSL preview（属 UGC 层非引擎层）、hot-reload console（热重载成真再做）。",
+    "砍掉热重载安全窗口协议（schema migration+entity state migration+'无跨分片 handoff'条款）；handoff 在收缩下已不存在，简化为：System 模块在 tick 边界 importlib.reload + entity state 原样保留 + schema 变更需重启；CPK/DSL YAML 数据可随时自由重载（trivially safe）。",
+    "砍掉 CombatKernel 跨 4 题材（wuxia/nautical/academy/modern）预先抽象设计；M3 前武侠是唯一题材，接口必须从武侠 do_attack 七步提取（extract FROM wuxia），不从 4 题材委员会设计，避免为泛化而平庸化武侠 70% 脚本灵魂。",
+    "砍掉 CombatRoundResult/Effect 的对象池化与 GC 微优化；1s tick+8000 实体下 GC 是非问题（上一轮专家自测 3000 实体/1500 attacks 仅 1.93ms compute），__slots__ 是廉价卫生可做，对象池是 premature optimization，用 tick profiler 实测后再决定。",
+    "砍掉题材包运行时热插拔（mount/unmount 不重启）；本轮只做启动时加载（load-time registration），运行时热插拔是多题材平台规模化后才有的需求，单机阶段为它建插件运行时是过早抽象。",
+    "砍掉独立'规则引擎'作为命名组件；它就是 DSL 层 1 IR 求值器（固定 dispatch table），命名为'引擎'会诱发 RETE/独立 DSL/scope creep，themed 治理（天雷/阴间/vote）留在 tick 驱动 System 而非规则引擎。"
+  ],
+  "what_to_keep": [
+    "保留 SparseSet ECS（单存储，不用 Archetype）；它是正确的架构选择——支持 UGC 动态挂卸组件、组合优于继承——但须明确 ECS 在 Python 是架构选择非性能优化（dict+dataclass 无 cache locality/SIMD），8000 实体 1s tick 下 trivially 在预算内。",
+    "保留战斗七步管线 + CombatContext 快照 + seeded RNG + 管线副作用账本（按 step 顺序 apply）；这是 combat-sim 调真实 resolve_attack 纯函数的前置（已确立承重结论），也是 combat 确定性回放的唯一必需范围。",
+    "保留 resolve_attack 纯函数提取 + combat-sim 调同一纯函数（非独立简化模型）；已确立承重结论，避免验证信号失真，纯函数提取是 Combat 迁移阶段 2.4 前置工作提前不浪费。",
+    "保留命令中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）+ ActionContext + CapabilityToken + fail-closed；正确拆解 command_hook god-function，previous_object 隐式信任链显式化。",
+    "保留存储策略模式（StorageBackend 接口）+ 内存态权威 + 定时 JSON 存档；健康收缩，接口让后期迁 PG/MongoDB 无需重做，享受单机迭代速度。",
+    "保留 PYTHONHASHSEED=0 + 禁 set 直接迭代 + 序列化 key 排序；即使只做 combat 确定性也必需，且是几行廉价纪律，do_attack 29 处 random() 消耗序列对迭代顺序敏感。",
+    "保留 heart_beat 1s tick（非均匀/分级 tick 桶）；MUD 固有，不可被事件驱动替代，层 1 只覆盖触发器（已确立结论），tick 是 System 调度器主干。",
+    "保留技能三层（SkillData YAML / SkillBehavior Python 策略 / SkillEffect 状态机）+ UGC 只编辑层 1；已确立承重结论，门派灵魂 70%+ 在脚本不在数据。",
+    "保留代词 10 变量/emote 7 视角/RANK_D 7 函数服务端求值 PronounContext；已确立承重结论，是业务逻辑求值非纯渲染。"
+  ]
+}

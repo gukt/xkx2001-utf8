@@ -1,0 +1,98 @@
+{
+  "expert": "MUD 玩法与文化专家（侧重：Command 模式对 LPC 命令语义/previous_object/call_other 的保真与风险；规则引擎能否承载 themed 治理而不平庸化、与 ConditionSystem 的关系；题材包对武侠玩法深度的影响；文化保真在收缩架构下是否成立；战斗手感七步管线副作用时序；门派灵魂在题材包模型下的归属）",
+  "gaps": [
+    {
+      "fix": "为每一步定义 (text_emitter, state_mutation) 双轨记录：文本片段与状态变更按发生顺序交错写入账本；hit_ob 等 hook 的 polymorphic 返回（string/int/mapping）在 IR 层显式标注为 'text+delta' 复合副作用。重放器必须按账本交错顺序回放，而非 '先算全部再 apply'。",
+      "issue": "do_attack 七步管线的文本与副作用是交织不可分离的，'按 step 顺序 apply' 不足以规格化。combatd.c:543-560 hit_ob 返回 polymorphic（string/int/mapping），可同时追加文本 result += foo['result'] 与修改 damage_bonus += foo['damage']；exp/jingli 在管线中途直接 mutate dbase（your['combat_exp']+=1, your['jingli']-=1, my['jingli']-=my['jiajin']）；递归 riposte/double_attack（772/777/804/812/823/831）嵌套产生子回合文本+副作用。任何'先纯计算后批量 apply'的建模都会丢失交织时序，破坏战斗手感。",
+      "severity": "high"
+    },
+    {
+      "fix": "明确 PronounContext = {speaker_id, viewer_id, target_id, vars[10]}，vars 由 TitleResolver 以 (speaker, viewer, target) 三元组求值；单机下 this_player() 映射为 ActionContext.actor。求值结果按 (speaker,viewer,target) 三元组缓存（房间内玩家对有限，组合数可控）。",
+      "issue": "RANK_D 的 query_close/query_self_close 是观察者相对函数，依赖 this_player()/previous_object() 获取说话者的 age/gender 与目标比较（rankd.c:574-613, 620-636）。这不是单实体纯函数，而是二元关系。PronounContext 若只携带 target 上下文会求值错误。单机下 this_player() 的映射规则未定义——在 System tick 内无'当前说话者'，代词如何求值？",
+      "severity": "high"
+    },
+    {
+      "fix": "三层边界须显式声明：核心引擎=实体/战斗/状态机骨架（题材无关）；题材包=SkillBehavior/FamilyDefinition/PunishmentPolicy 等带代码资产，仅受信任开发者可写，以 CPK+provenance 入库、平台级无沙箱执行；UGC=data-only（层0 YAML+层1 规则+层2 对话树），沙箱受限。门派灵魂属武侠题材包资产，非核心引擎硬编码，也非 UGC 可创作。",
+      "issue": "门派灵魂（SkillBehavior Python 策略，含隐藏大招/hit_by/auto_perform）在题材包模型的归属未定义。它是平台级核心引擎代码、还是武侠题材包资产？这直接决定受信任开发者扩展边界与多题材可移植性。若归核心引擎，则学院/科幻题材无法复用战斗骨架；若归题材包，则题材包必须携带可信 Python 代码，与 data-only UGC 隔离边界需明确。",
+      "severity": "high"
+    },
+    {
+      "fix": "中间件限流阶段产出 FloodingViolation，交由 WorldGovernanceSystem.PunishmentPolicy 求值；武侠题材注册'天雷'策略（themed 文本+unconscious+死因），其他题材注册各自惩罚。管线只负责检测与委托，不持有 themed 逻辑。",
+      "issue": "天雷在 process_input（输入管线 alias.c）而非 command 路径触发，是限流阶段的 themed 惩罚。v2 中间件管线（解码->限流->...->审计）的限流阶段需与 PunishmentPolicy 解耦，但当前设计未说明限流 middleware 如何调用 themed 文本与 unconscious/死因标记，存在职责混淆风险。",
+      "severity": "medium"
+    },
+    {
+      "fix": "明确声明 intermud 后置到 M3 后评估；内部分布式按约束 1 砍除，intermud 作为'外部联邦适配器'单列，FederationService 降级为可选模块而非 M3 必需。",
+      "issue": "intermud（adm/daemons/network 41 文件）在收缩约束 1（不考虑分布式）下的定位模糊。intermud 是跨 MUD 外部联邦（gchat/gwiz/gtell/mail），不是内部分片；约束 1 一刀切可能误伤它。v2 把它归入 WorldGovernanceSystem.FederationService'评估保留或替换'，但未在收缩下重新定性。",
+      "severity": "medium"
+    },
+    {
+      "fix": "派生一个 v2-contracted 子系统设计文档，删除子系统 2 的分布式组件，将子系统 6 改写为内存+JSON 存档接口，其余分布式残留标注'后置指引'。单一真相源。",
+      "issue": "v2 子系统设计文档（02-v2）仍含 20 处分布式残留（CombatCoordinator/Region Supervisor/handoff/outbox/Louvain/一致性哈希/placement/MigrationCoordinator）与 9 处 PG/Redis/NATS 残留，与收缩约束 1/5 直接矛盾。文档与约束'两张皮'会导致实现者按旧文档引入已砍复杂度。",
+      "severity": "medium"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "do_attack 七步管线的文本与副作用是交织不可分离的——hit_ob/weapon->hit_ob 返回 polymorphic（string/int/mapping），可同时追加战斗文案与修改伤害；exp/jingli 在管线中途直接 mutate dbase；递归 riposte 嵌套产生子回合交织。这是战斗手感的承重结构，任何纯函数化必须保留交织时序，不能'先算后 apply'。",
+      "evidence": "combatd.c:543-560（force_skill->hit_ob 返回 string/int/mapping 三态，result+=foo['result'] 与 damage_bonus+=foo['damage'] 并发）；combatd.c:441/449/455/458（your['combat_exp']+=1, your['jingli']-=1, my['jingli']-=my['jiajin'] 中途 mutate）；combatd.c:772/777/804/812/823/831（do_attack 递归自调用 riposte/double_attack，子回合文本+副作用嵌套进父回合）",
+      "severity": "high"
+    },
+    {
+      "claim": "RANK_D 的 query_close/query_self_close 是观察者相对的二元关系函数，依赖 this_player() 获取说话者 age/gender 与目标比较——代词求值不是单实体属性而是 (speaker, viewer, target) 关系。PronounContext 必须携带 viewer 上下文，单机下 this_player() 须映射为 ActionContext.actor。",
+      "evidence": "rankd.c:574-613 query_close 用 this_player()->query('age') 与 ob->query('age') 比较决定'哥哥/弟弟'；rankd.c:620-636 query_self_close 同样依赖 this_player()->query('gender')；无 this_player() 时回退 previous_object()——证明代词依赖调用链上下文非实体纯属性",
+      "severity": "high"
+    },
+    {
+      "claim": "533 个 valid_leave 触发器证明 DSL 层1（condition->action）是 LPC 事件触发器的正确且充分的抽象层，无需额外自定义规则引擎。引入规则引擎是冗余抽象，且会因无法统一表达异构 themed 治理而平庸化或过度膨胀。",
+      "evidence": "grep -rln valid_leave d/ feature/ inherit/ = 533 处，是 LPC 中最广泛的统一触发器模式；对比 vote_suspension.c（condition 定时器返回 0/1）、alias.c 天雷（输入管线惩罚）、d/death 死亡流程（状态机）——themed 治理系统是异构的，无统一 condition-action 规则形态",
+      "severity": "high"
+    },
+    {
+      "claim": "天雷是输入管线限流阶段的 themed PunishmentPolicy，不是独立规则引擎的 condition-action 对——它检测 command flooding 计数，施加 themed 文本（天雷闪电）+ unconscious + 死因标记 + 强制 quit，是 imperative 惩罚序列而非声明式规则。",
+      "evidence": "feature/alias.c:41-72（cnt > 3*CMDS_PER_TICK 触发 message_vision 天雷文本 + set_temp('last_damage_from','被天雷劈死了') + unconcious() + command('quit')；cnt > CMDS_PER_TICK 触发 receive_damage），逻辑嵌在 process_input 输入管线中",
+      "severity": "medium"
+    },
+    {
+      "claim": "securityd 的目录级 ACL 升级为 (subject,action,resource) 能力引擎是能力扩张而非保真复刻——原系统是 file-system 路径分层的 trusted/exclude 映射，新的能力引擎语义更宽。收缩下应保留路径分层 ACL 语义，fail-closed，不为通用性引入策略表达式求值。",
+      "evidence": "securityd.c:579-639 valid_write 与 642-707 valid_read 均为 explode(file,'/') 后从叶子向根遍历检查 exclude_write/exclude_read 再 trusted_write/trusted_read；authorized_cmds 是 directory->wiz_levels 映射（49-53）。无通用 (subject,action,resource) 三元组求值，是分层 ACL",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "三层边界文档化但热插拔机制延后；ThemeRegistry 接口预留 register/unregister 但实现为静态加载；题材包 manifest 标注 code-bearing vs data-only；门派 SkillBehavior 归属武侠题材包资产清单。受信任开发者扩展=带代码的题材包，走平台审核+CPK provenance，非 UGC 沙箱路径。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "三层边界（核心引擎/题材包/UGC）设计本身合理且必要，是 UGC 平台与多题材的语义基础，应保留。但'热插拔'机制（运行时注册/卸载/依赖解析/版本隔离）是过早抽象：武侠题材尚未完整实现，门派灵魂 70%+ 在 SkillBehavior Python 脚本（combatd.c 中 SKILL_D->hit_ob/query_action/hit_by 等策略调用证实），此时设计热插拔会在没有第二个题材做校验的情况下凭空发明接口契约。旗舰深耕优先：先把武侠做到标杆深度，再以第二个题材的真实需求反推热插拔契约，避免共享运行时平庸化。intermud 联邦是外部多世界互联（非内部分片），属后置能力，不应被'多题材'绑架提前。"
+    },
+    {
+      "key_design": "触发器统一落 DSL 层1（condition->action，覆盖 533 valid_leave 类）；themed 治理各归其 System（天雷=PunishmentPolicy 挂输入管线限流阶段，阴间=DeathSystem 状态机，vote=SocialGovernanceSystem+condition 定时器，法院=scripted NPC 序列）；ConditionSystem 只管持续效果 tick 聚合，与规则引擎概念无关。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "源码实证否决。533 个 valid_leave 触发器已证明 LPC 触发器的正确抽象层是 DSL 层1（condition->action），v2 已有此层，无需在其上再叠'规则引擎'。themed 治理系统是异构的，非统一 condition-action 对：天雷是输入管线限流惩罚（alias.c process_input 中 imperative 序列，非声明式规则）、vote 是命令+condition 定时器（vote_suspension.c 返回 CND_CONTINUE 位标志的 countdown）、阴间是死亡状态机、法院是 NPC 审判脚本序列。强行统一到规则引擎要么太弱（无法表达状态机/输入管线惩罚/condition countdown，平庸化）要么变图灵完备 DSL（过度膨胀，与层3逃生舱重叠）。1000 在线下每房间串行，Python 策略对象+DSL层1 足够。"
+    },
+    {
+      "key_design": "玩家 Command 携带 ActionContext{actor, source, capability_token, seq}；中间件管线复用 LPC command_hook 四分支语义（exits 回退->verb 路由->emote->channel）；CapabilityToken 替换 previous_object/geteuid 信任链（135 处）；NPC AI/heart_beat/call_out 回调走各自 System，不封装为 Command；CombatSystem 内部副作用（exp/jingli/damage）走管线副作用账本，不二次封装 Command。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "玩家发起的操作（命令管线解码->限流->历史->别名->路由->授权->执行->审计）走 Command 对象合理，且 ActionContext+CapabilityToken 替换 previous_object 信任链是必要的保真改进（135 处 previous_object 调用，如 action.c:64 start_call_out 的 geteuid(previous_object())!=ROOT_UID 检查）。但'每个操作含 NPC 行为/系统 tick/call_out 产生的状态变更都走 Command'是过度扩张，超出 LPC 语义：LPC 中 command_hook 只处理玩家输入，heart_beat/auto_fight/condition update/call_out 回调直接 mutate dbase，不经 command 路径。强制统一会制造大量无意义包装，且 tick 内高频 mutation 走 Command 会破坏战斗手感时序。Command 职责边界=信任链载体+审计单元，非万能状态变更闸口。"
+    }
+  ],
+  "verdict": "risky",
+  "verdict_rationale": "收缩方向正确，MUD 文化保真的承重设计（七步管线、PronounContext 服务端求值、技能三层、5 灵魂系统、命令中间件管线）在单机纯 Python 下反而比分布式更容易保真——call_other 退化为进程内同步调用天然契合 LPC 语义，单房间串行是 MUD 固有硬约束而非缺陷，previous_object 信任链在单进程内可干净映射为 ActionContext。但裁定 risky 而非 solid 有三层原因：(1) v2 子系统设计文档（02-v2）仍残留 20 处分布式脚手架（CombatCoordinator/Region Supervisor/handoff outbox/Louvain/一致性哈希/placement/MigrationCoordinator）与 9 处 PG/Redis/NATS 引用，与收缩约束 1（不考虑分布式）和约束 5（内存+JSON 存档）直接矛盾，文档与约束'两张皮'，实现者会按旧文档引入已砍复杂度。(2) 3 个开放问题中 Q1（完整热插拔）与 Q2（自定义规则引擎）若按扩张方向裁决，会重新引入过早抽象，抵消收缩红利。(3) 最承重的战斗手感风险被低估：do_attack 七步管线的文本与副作用是交织不可分离的（hit_ob 返回 polymorphic 可同时追加文案与修改伤害，exp/jingli 在管线中途直接 mutate dbase），v2 的'按 step 顺序 apply'措辞暗示可先算后 apply，会丢失交织时序。这层风险不消除，战斗手感 diff 验证无意义。整体不是设计不成立，而是收缩未贯彻到文档层、且最承重的时序规格未定义。",
+  "what_to_cut": [
+    "砍掉子系统 2 的分布式脚手架（CombatCoordinator/Region Supervisor/MigrationCoordinator/handoff outbox 协议/PlacementService 一致性哈希）——单进程 asyncio 下这些全是死代码，02-v2 文档仍残留 20 处引用须删除",
+    "砍掉 ThemeRegistry 运行时热插拔机制（注册/卸载/依赖解析/版本隔离）——武侠题材尚未完整，无第二个题材校验接口契约，热插拔是凭空发明抽象；初期只做静态加载",
+    "否决自定义规则引擎（Q2）——533 个 valid_leave 触发器已证明 DSL 层1 condition->action 是正确抽象层，themed 治理（天雷/阴间/vote/法院）是异构 System 非统一规则，规则引擎要么平庸要么变图灵完备 DSL",
+    "砍掉'每个状态变更（含 NPC/系统 tick/call_out）都走 Command 模式'的扩张解读——LPC command_hook 只处理玩家输入，heart_beat/auto_fight/condition 直接 mutate dbase 不经命令路径，强制统一会制造无意义包装且破坏战斗时序",
+    "砍掉 02-v2 子系统文档中 9 处 PG 唯一权威/Redis 读穿透/NATS 扇出引用——与约束 5（内存+JSON 定时存档+策略接口）矛盾，文档应同步收缩避免实现者按旧规格选型"
+  ],
+  "what_to_keep": [
+    "do_attack 七步管线 + 管线副作用账本——但账本须按文本与状态变更的真实交织顺序记录，而非'先算后 apply'；hit_ob/weapon->hit_ob 返回 polymorphic（string/int/mapping）可同时追加文案与修改伤害，这是战斗手感的承重结构（combatd.c:543-560,580-598）",
+    "服务端求值 PronounContext（代词 10 变量/emote 7 视角/RANK_D 7 函数）——rankd.c 的 query_close/query_self_close 依赖 this_player()（观察者），是二元关系非实体纯函数；单机下 this_player() 映射为 ActionContext.actor，比分布式下跨分片求值更易保真",
+    "技能三层（SkillData YAML / SkillBehavior Python 策略 / SkillEffect 状态机）——门派灵魂 70%+ 在 SkillBehavior（combatd.c 中 SKILL_D->hit_ob/query_action/hit_by/is_special 策略调用证实），UGC 只编辑 SkillData，坦白承认门派特色是平台资产非 UGC 内容",
+    "5 灵魂系统归入 WorldGovernanceSystem 与战斗引擎平级——天雷是 themed PunishmentPolicy 范式（alias.c:41-72 输入管线限流+文学化文本+unconscious+死因标记），阴间是 DeathSystem 死亡流程状态机，vote 是 SocialGovernanceSystem+condition 定时器（vote_suspension.c）",
+    "命令中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）+ ActionContext + CapabilityToken 替换 previous_object 信任链——command_hook 四分支分发（exits 回退/go 命令/emote/channel）须保真，previous_object 135 处调用须显式化"
+  ]
+}

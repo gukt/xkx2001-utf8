@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# 虚拟环境
+.venv/
+venv/
+
+# 工具缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# JSON 存档（内存+JSON 阶段的本地存档目录，原子写临时文件不入库）
+saves/
+*.json.bak
+*.json.tmp

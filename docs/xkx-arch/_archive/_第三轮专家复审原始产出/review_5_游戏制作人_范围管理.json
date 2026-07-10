@@ -1,0 +1,113 @@
+{
+  "expert": "游戏制作人/范围管理",
+  "gaps": [
+    {
+      "fix": "补一份'存储抽象迁移计划'：逐一把 v2 子系统6每个组件映射到内存/JSON等价物，显式标注语义丢失项（事务完整性、崩溃恢复、并发写、CAS乐观并发），并定义止损线（如'崩溃丢失最近30s可接受，仅限验证阶段；外部玩家测试前必须迁 PG'）。JSON用temp-file+rename原子写+30s周期存档+启动校验。",
+      "issue": "存储收缩（内存+本地JSON）是本轮最大的隐性范围变更，但文档未承认它是对 v2 子系统6的重新设计而非'换存储'。子系统6将 PG+Redis 贯穿于 EventStore/SnapshotStore/ReferenceStore/SchedulerStore/outbox/CommandBus乐观并发/CPK内容寻址（blake3+PG+MinIO）/CQRS ProjectionStore。策略模式封装接口是对的，但必须逐一标注哪些语义会丢失：事务原子性（JSON无事务）、崩溃恢复（内存态丢、JSON异步存档有窗口）、并发写保护（JSON无CAS）、关系完整性（JSON引用无外键）、append-only审计（JSON追加可篡改）。",
+      "severity": "high"
+    },
+    {
+      "fix": "把阶段0性能基准设为硬门禁并附显式 kill criteria：(a)单 do_attack 超阈值->先优化热路径（对象池/避免分配/缓存）；(b)1000实体 tick 超预算->降 tick 频率或裁剪 System；(c)1000+100 经优化仍不达标->把目标降级到 500在线+50并发（仍是当前10倍）并重新评估 Rust/Go 热路径。不得在未验证容量假设上推进阶段2。",
+      "issue": "1000在线+100并发在单进程纯 Python 上是从实测 MAX_USERS=50 的 20 倍跃升，且 v2 共识9已明确 GIL/GC/PYTHONHASHSEED 三重天花板，本轮约束4又砍掉 Rust/Go 退路。收缩没有为'基准达不到'设定 kill criteria，等于在一个无 Plan B 的容量假设上押注整个单机验证里程碑。",
+      "severity": "high"
+    },
+    {
+      "fix": "本轮补显式 kill criteria：(a)阶段-1：DSL+Agent创作闭环验证失败则停项；(b)阶段0：性能基准在优化后仍达不到 1000+100 且无 Rust 退路则降级目标到 500+50；(c)阶段1：单进程核心循环集成测试无法支撑 1000+100 则冻结功能范围纯做性能；(d)项目级：18个月未达 M3（单题材可玩demo）则冻结迁移、聚焦已迁移内容产品化。",
+      "issue": "本轮收缩加了硬边界但仍是'继续推进'检查点，无任何'何时停止/转向'标准。上一轮制作人已把 kill criteria 列为承重需求，本轮最关键的止损——'单机验证失败怎么办'——依然缺失。多年期单人项目最大风险是'永远做不完'。",
+      "severity": "high"
+    },
+    {
+      "fix": "明确分类：'引擎工具链'（entity inspector/tick profiler/combat replay viewer）= 本地开发工具，保留为阶段0交付物（廉价、本地WebSocket、迁移质量承重）；'运维可观测'（K8s/OpenSearch/ClickHouse/KEDA/ArgoCD）= 后置，本轮砍掉。二者不可混为一谈。",
+      "issue": "可观测收缩保留 OTel+Grafana+Langfuse 但对'引擎工具链'（entity inspector/tick profiler/replay viewer）态度含糊。这些不是'运维观测'（K8s/OpenSearch）而是本地开发工具，不应被'运维后置'牵连砍掉。没有它们，8400文件迁移调试只能靠 printf（正是 v2 共识8指出的问题）。",
+      "severity": "medium"
+    },
+    {
+      "fix": "垂直切片只纳入1个 themed治理元素（如天雷 PunishmentPolicy 或极简阴间死亡流）。武林大会276文件/vote/courthouse/intermud 推迟到 M3 之后。文化保真指标跟踪'代表性覆盖'而非'5系统全量'。",
+      "issue": "收缩砍了分布式但未重新排序'世界观治理层'5灵魂系统。这些（阴间/武林大会276文件/vote/法院/intermud）是文化范围，与分布式范围正交，砍分布式不降低其迁移成本。实测3个灵魂系统就332文件，对单机验证里程碑而言应降级为'垂直切片含1-2个代表性治理元素'而非'阶段2全量5系统'。",
+      "severity": "medium"
+    },
+    {
+      "fix": "定义每阶段 LLM token 预算和 kill criterion：若 Agent产出经Y轮迭代后人工修订量仍>X%，判定 DSL+Agent 假设走弱——先回头扩充 DSL 层1-2表达力，再继续投入 Agent。用 Langfuse 追踪修订量趋势。",
+      "issue": "收缩保留 Langfuse（Agent追踪）但未定义 Agent 创作的 LLM 成本止损。单 CPK 可能 75万-数百万 tokens（$2-40），验证期预算有限，若无成本门禁会在 DSL+Agent 假设未验证前烧光预算。",
+      "severity": "medium"
+    },
+    {
+      "fix": "保留抽样校准为阶段0交付物（1-2周，低成本）。它独立于分布式/存储收缩，是工时承诺的地基。",
+      "issue": "抽样校准实验（68771调用点按难度分层抽50-100实测工时）是上一轮制作人承重需求，本轮收缩未触及也未移除，但路线图仍未把它列为阶段0硬交付。无抽样校准，单机时间线仍是直觉估算。",
+      "severity": "medium"
+    },
+    {
+      "fix": "加'JSON存储止损'说明：原子写（temp-file+rename）、30s周期存档、启动 schema 校验、明确标注'非生产安全'。定义迁移触发点：任何外部玩家测试开始前必须迁 PG。",
+      "issue": "JSON 文件存储引入数据完整性风险（无 schema 强制、无并发写保护、无崩溃原子性），验证期可接受但需明确止损线，否则会带着'差不多能跑'的心态进入外部测试。",
+      "severity": "low"
+    }
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "存储收缩（内存+JSON）不是'换存储'而是对 v2 子系统6的隐性重新设计——子系统6把 PG+Redis 贯穿于 EventStore/SnapshotStore/ReferenceStore/SchedulerStore/outbox/CommandBus乐观并发/CPK内容寻址/CQRS投影，策略模式接口是对的但必须逐一标注丢失的语义（事务原子性、崩溃恢复、并发写、CAS、关系完整性），否则团队会在实现中发现半个数据层设计不成立。",
+      "evidence": "v2 02-子系统设计 子系统6 列出 PostgreSQL(唯一权威+审计)/Redis(读穿透缓存)/SnapshotStore/EventStore/ReferenceStore/SchedulerStore(APScheduler+Redis JobStore)/ProjectionStore(CQRS)/outbox(PG)/CommandBus乐观并发。本轮约束5用'内存数据+本地定时存档到本地JSON文件+策略模式封装'替换全部，但无子系统6重设计文档。",
+      "severity": "high"
+    },
+    {
+      "claim": "1000在线+100并发在单进程纯 Python 上是从实测 MAX_USERS=50 的 20 倍跃升，v2 共识9已明确 GIL/GC/PYTHONHASHSEED 三重天花板，本轮约束4又砍掉 Rust/Go 退路，且无'基准达不到'的 kill criteria——这使整个单机验证里程碑成为无 Plan B 的未验证赌注。",
+      "evidence": "实测 include/login.h:33 '#define MAX_USERS 50'（覆盖 config.xkx 的150）；v2 05-专家报告 共识9（GIL/GC/PYTHONHASHSEED 三重天花板，引擎+架构+分布式三方论证）；本轮约束4'纯Python改造，暂不考虑Rust/Go'；收缩文本无容量不达标的 kill criteria。",
+      "severity": "high"
+    },
+    {
+      "claim": "收缩砍了基础设施复杂度但未重新排序创作平台复杂度——4层DSL/Agent编排/6维评估/CPK+provenance/ThemeRegistry/沙箱+配额/审核pipeline/创作者经济仍是并行范围，这些平台特性远超'单机1000+100验证'，应显式排到引擎+核心循环验证之后而非并行，否则里程碑过载。",
+      "evidence": "v2 03-DSL文档 将四层DSL+CPK+ThemeRegistry+Agent五角色能力清单+6维评估矩阵+沙箱配额+审核pipeline+创作者经济全部纳入项目范围；本轮6条约束全部针对基础设施（分布式/观测/网关/语言/存储），无一条重新排序平台特性。",
+      "severity": "high"
+    },
+    {
+      "claim": "为单机验证阶段砍掉全仿真确定性扩展到所有System + 逻辑热重载是正确的范围纪律（上一轮制作人已论证二者是'正确目标但错误的阶段0门禁'），但收缩未显式标注'推迟非取消'，v2文档仍把它们列为承重差异化能力，团队会继续过度投入。",
+      "evidence": "v2 01-关键修正 §PY1/P3 将全仿真确定性扩展到所有System列为P3；v2 00-总纲 §4.9 将全仿真确定性+逻辑热重载列为'标杆分水岭'；C03制作人评审明确'全仿真确定性是正确目标但错误的阶段0门禁，战斗级确定性作为MVP已足够验证方向'；本轮收缩未提及二者。",
+      "severity": "medium"
+    },
+    {
+      "claim": "重新引入分布式/PG/K8s/Rust 的触发点必须现在就写定，否则'暂不考虑'会滑成'永不考虑'或'过早考虑'：(a)PG/MongoDB——外部玩家测试开始前（崩溃丢30s不可接受时）；(b)分布式——单进程持续负载达 1000+100 的80%且Python优化无余地时；(c)K8s——需编排2+服务且手动部署成瓶颈时（单机验证期docker-compose足够）；(d)Rust/Go——do_attack微基准与1000+100负载测试双失败且Python优化穷尽时。",
+      "evidence": "本轮约束1/2/3/4/5均为'暂不考虑/后置'但无触发条件；v2 04-迁移路径 阶段3分布式'按需，单节点达80%承载后'是唯一有触发点的（但被本轮约束1明确砍掉）；其余PG/K8s/Rust无触发点定义。",
+      "severity": "medium"
+    }
+  ],
+  "question_positions": [
+    {
+      "key_design": "CombatKernel抽象接口（CombatAction/CombatResolver/DamageModel，武侠七步是其具体实现）确保核心引擎不硬编码武侠语义；ThemeRegistry 实现为简单 Python 模块注册（theme_id->ThemeDescriptor 的 dict），无热插拔/卸载/版本协商/隔离；三层边界写进设计文档作为未来契约。",
+      "position": "有条件采纳",
+      "question": "Q1-题材包热插拔",
+      "rationale": "完整的热插拔机制（注册/卸载/依赖/版本/隔离）是'为不存在的受众建设基础设施'——当前只有1个题材（武侠）和实质1名开发者。注册/卸载/版本协商/沙箱隔离是平台特性，现在建是过早抽象。但'三层边界（核心引擎/题材包/UGC）'作为文档化概念必须保留，因为核心引擎不能硬编码武侠语义（这正是上一轮制作人警告的承重风险：CombatSystem 从 do_attack 反推带经脉/内力烙印）。真正的风险不在热插拔机制，而在内核是否主题无关——这个要在阶段-1用非武侠微场景验证，而非建注册中心。"
+    },
+    {
+      "key_design": "平台治理逻辑=显式 Python System 类（DeathSystem/SocialGovernanceSystem/PunishmentPolicy 策略对象）；UGC触发器=DSL层1 condition->action 事件规则。二者不合并、不引入中间规则引擎。若层1表达力不足，先做30文件表达力校准实验扩充层1-2原语，而非建并行引擎。",
+      "position": "否决",
+      "question": "Q2-规则引擎",
+      "rationale": "自定义规则引擎是典型的过早抽象，问题本身已暗示（'是否过度设计 vs 直接用 Python 策略对象+DSL层1'）。1000在线+100并发下，自建规则引擎的求值性能是新增未知数，而 Python策略对象+dict查找是可预测的——在已押注纯 Python 达标的约束下，不应再引入新性能变量。与 DSL 层1 的关系是重复：层1 condition->action 就是 UGC 的规则机制，再建独立引擎要么重复层1，要么要求层1编译进引擎，都是无已证需求的额外架构。与 themed 治理的关系：天雷/阴间/vote 是 Policy 对象（PunishmentPolicy/DeathPolicy），显式 Python System 类比规则引擎配置更可审计（代码比数据规则更易追踪）。与 Command 的关系：命令门控规则就是中间件（授权/限流），无需独立引擎。"
+    },
+    {
+      "key_design": "Command 对象职责边界=parse+validate+authorize+execute+audit，不持有状态（状态在 ECS 组件）；玩家/管理员操作走 Command 经8段中间件管线；tick 仿真/NPC AI/System 变更走 System.update 确定性路径，不经 Command；ActionContext+CapabilityToken 贯穿 Command 链；previous_object 信任链显式化仅作用于 Command。",
+      "position": "有条件采纳",
+      "question": "Q3-Command模式",
+      "rationale": "v2 已有的8段中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）本身就是 Command 模式的雏形，形式化为 Command 对象（verb+args+ctx+seq+capability）成本低、价值高：统一审计轨迹、支撑确定性回放、让中间件显式化。但'每个操作都走 Command'是过度设计陷阱——必须排除 tick/NPC/系统变更：玩家命令走 Command；NPC AI 行为（tick 驱动）和 System tick 变更（VitalsSystem 治疗/ConditionSystem 过期）是仿真步骤而非命令，包装成 Command 会（a）拖垮 tick 性能（1000实体×tick率×Command开销），（b）污染审计日志，（c）增加而非减少确定性复杂度。Command 是玩家意图的输入封装，System 是世界变更的执行者，二者职责分离。"
+    }
+  ],
+  "verdict": "risky",
+  "verdict_rationale": "收缩方向正确——砍分布式/K8s/Rust 正是上一轮制作人警告的\"greenfield 最大风险是过度设计\"的直接执行，与范围纪律一致。但收缩执行留下三处承重缺口，使风险从\"过度设计\"转移到\"隐性范围变更\"：（1）存储收缩（内存+JSON）不是\"换存储\"而是对 v2 子系统6（EventStore/SnapshotStore/ReferenceStore/SchedulerStore/outbox/CommandBus乐观并发/CPK内容寻址）的隐性重新设计，策略模式接口对但未标注丢失的语义（事务原子性/崩溃恢复/并发写/CAS/关系完整性）；（2）1000在线+100并发是从实测 MAX_USERS=50 的 20 倍跃升，v2 共识9已明确 GIL/GC/PYTHONHASHSEED 三重天花板，本轮又砍掉 Rust/Go 退路，却无\"基准达不到\"的 kill criteria，等于在无 Plan B 的容量假设上押注整个单机验证里程碑；（3）收缩砍了基础设施复杂度但未重新排序创作平台复杂度（4层DSL/Agent/6维评估/CPK+provenance/ThemeRegistry/沙箱+配额/审核pipeline/创作者经济），这些平台特性远超\"单机1000+100验证\"，应显式排到引擎+核心循环验证之后而非并行。另外全仿真确定性扩展到所有System与逻辑热重载两项 P3 标杆能力在单机验证期价值缩水（无分布式回放调试需求、无在线玩家不能容忍重启），应明确推迟而非保留为承重——收缩未触及它们，团队会继续过度投入。",
+  "what_to_cut": [
+    "砍全仿真确定性扩展到所有 System：单机验证期只保留战斗级确定性（CombatContext+seeded RNG+input log），它已是 M1 交付物且满足反作弊；全引擎确定性是 P3 巨大工程量，单机无分布式回放需求时标杆价值缩水。",
+    "砍逻辑热重载协议（importlib.reload+entity state migration+schema migration）至验证期之后：它是 P3，且'热重载安全窗口（无进行中战斗、无跨分片handoff）'本就是分布式概念；单机验证期用维护窗口重启即可，有在线玩家不能容忍重启时再引入。",
+    "砍残留的分布式机械（handoff outbox 两阶段提交/PlacementService 一致性哈希/BoundaryRoomAgent/Region Supervisor one-for-one）：约束1说不引入，但 v2 子系统2仍详述这些设计，需主动剪除而非'不引入'。",
+    "砍 Redis 为必需基础设施：约束5已改为内存+JSON存档，Redis 读穿透缓存/JobStore/路由表/outbox 全部失效；v2 子系统6 仍列 Redis，需一并剪除，仅保留策略模式接口供未来 PG/MongoDB 迁移。",
+    "砍 ThemeRegistry 热插拔机制（注册/卸载/版本/隔离）：当前只有1题材+1开发者，建热插拔注册中心是为不存在的受众建基础设施；保留为文档化概念+简单 Python 模块 dict 即可。",
+    "砍自定义规则引擎（Q2 否决）：1000在线下自建规则引擎求值性能是新增未知数，Python 策略对象+dict 查找可预测；DSL 层1 condition->action 已是 UGC 规则机制，再建独立引擎是重复架构。",
+    "砍 CPK 内容寻址存储（blake3+PG+MinIO/S3）与创作者经济/市场 MVP 至验证期之后：单机验证期 CPK 可以是 JSON 文件目录，内容寻址是过度工程；上一轮制作人已定调'不要在没有内容的地方建市场'，只保留 manifest 字段预留。"
+  ],
+  "what_to_keep": [
+    "保留阶段-1 垂直切片作为 P0 硬门禁（kill criteria：DSL+Agent 创作闭环不成立则停项），这是范围纪律的承重墙。",
+    "保留 resolve_attack 纯函数提取 + 战斗级确定性（CombatContext+seeded RNG+input log）：低成本、高价值，是 M1 交付物与反作弊基底。",
+    "保留 8 段命令中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）作为 Command 模式核心：已设计好、低成本、提供审计轨迹。",
+    "保留策略模式存储接口（约束5 自带）：这是允许未来迁 PG/MongoDB 的正确抽象，必须保留。",
+    "保留性能基准（单 do_attack μs + tick 预算 + 1000+100 负载压测）作为硬门禁：纯 Python 无 Rust 退路下，此门禁更承重而非更轻；不达标必须触发 kill criteria。",
+    "保留引擎工具链（entity inspector + tick profiler + combat replay viewer）作为本地开发工具：这不是'运维观测'（K8s/OpenSearch）而是 dev tooling，廉价且 8400 文件迁移质量承重，不应被'运维后置'牵连砍掉。",
+    "保留 greenfield 语义（LPC=规格源，无适配层/双栈/过渡期）与代词10变量/emote7视角/RANK_D7函数服务端求值：这些是规格保真，非可选。",
+    "保留技能三层（SkillData/SkillBehavior/SkillEffect）：门派灵魂70%+在脚本，这是保真承重设计。"
+  ]
+}

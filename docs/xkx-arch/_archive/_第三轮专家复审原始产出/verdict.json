@@ -1,0 +1,123 @@
+{
+  "architecture_delta": {
+    "add": [
+      "tick=1s（LPC heart_beat 实证 set_heart_beat(1)）+ compute<100ms（10%）+ 硬告警 200ms + I/O 预算 900ms+；非均匀 tick（仅活跃实体进 tick 队列，非全量 1000）；GC 调优（启动暖机后 gc.freeze() 冻结长存对象到 gen2，tick 期间禁 gen0 回收或调高阈值，tick 边界手动 gc.collect）--收缩去掉分布式逃生路径后这些成硬约束",
+      "阶段0 micro-benchmark 为 go/no-go 硬门禁：单 do_attack μs 基准 + 1000 实体 tick 预算 + 1000在线+100并发负载压测；不达标触发 kill criteria 而非继续推进阶段2",
+      "JSON 存档崩溃安全规范：write-temp + os.replace/os.rename 原子写（POSIX 同文件系统原子）+ 序列化 offload 到 ThreadPoolExecutor/aiofiles（绝不在事件循环主线程同步写）+ dirty-flag 分摊存档（每 tick 只写 N 个 dirty 实体轮转覆盖）+ 关键事件（死亡/升级/交易/门派变更）强制同步 persist 该实体 + 声明崩溃丢失窗口（30-60s）+ 启动 schema 校验 + 标注'非生产安全'",
+      "StorageBackend 策略接口重设计为'持久化边界'抽象：persist(entity_id,state) 契约='达到崩溃恢复级耐久'，JSON 实现=异步 write-behind（游戏不阻塞），PG 实现=同步 write-through（PG 即权威）；audit_event(type,payload) 独立 append-only 接口，JSON 实现追加日志文件，PG 实现 INSERT audit_events--使迁 PG 是策略切换非架构变更",
+      "崩溃重连语义规范：进程崩溃=冷重启（从最近 JSON checkpoint 加载世界）+ 客户端连接拒绝/重试 + 重启后重新认证 + 服务端发全量 snapshot（非 ring 重放）+ 声明丢失窗口；进程内断线（未崩溃）才走 in-memory ring buffer 重放；ring buffer 容量按典型战斗 tick×挂起窗口估算，超容退化 snapshot",
+      "权限策略规范：启动时加载的可信配置/代码（非可变存档），进程内求值，永远可用（进程在则策略在）；fail-closed 重定义为'策略加载失败则拒绝启动'非'运行时外部依赖不可达默认拒绝'；Redis 兜底随 Redis 一并移除；保留路径分层 ACL 语义（securityd.c 实证 trusted_write/exclude_write/authorized_cmds 为 directory->wizlevel 映射），不为通用性引入策略表达式求值",
+      "entity_id: UUID（64位整数或 UUID4）+ 进程内对象引用/SparseSet 查询；world:// URL 格式仅作文档中分布式阶段'未来寻址'后置指引，单机代码不出现",
+      "战斗副作用账本按文本与状态交织真实顺序记录（hit_ob/weapon->hit_ob 返回 polymorphic string/int/mapping 可同时追加文案与修改伤害、exp/jingli 中途直接 mutate dbase、递归子回合嵌套），重放器按账本交错顺序回放，非'先纯计算后批量 apply'",
+      "PronounContext = {speaker_id, viewer_id, target_id, vars[10]}，vars 由 TitleResolver 以 (speaker,viewer,target) 三元组求值（rankd.c query_close/query_self_close 实证依赖 this_player() 获取说话者 age/gender 与目标比较，是二元关系非实体纯属性）；单机下 this_player() 映射为 ActionContext.actor；求值结果按三元组缓存",
+      "三层粒度 Theme（schema family+谓词/动词词汇表+themed 治理策略）> Module Pack（门派/区域 CPK，受信任开发者）> UGC CPK（创作者内容，沙箱受限）；门派灵魂（SkillBehavior）归属武侠题材包资产；human.c 19 门派 if-else 加成迁移时须从 race/核心层剥离为题材包内容",
+      "调度语义四分文档化：事件触发器=层1 求值；call_out=进程内 ActionScheduler（timer wheel，call_out 等价）；周期 condition=ConditionSystem tick（保留 CND_CONTINUE/CND_NO_HEAL_UP 位标志）；连续仿真=Combat/Heal/NPCAI System",
+      "规则冲突解决规格：显式 priority + deny-wins（对齐 notify_fail）+ 同 action-tag 首匹配，按事件类型固定策略不建通用冲突解决引擎，写进基线测试断言原 LPC 命中行为（参照 533 valid_leave 及 12 个 imm/wiz 同名动词命中行为）",
+      "30 文件表达力校准实验（层1-2 原语）+ 逃生舱使用率 KPI<15% 护栏 + 扩层1/下沉层3 显式判定标准（可声明式描述且跨规则复用则扩层1，需图灵完备逻辑则层3）+ 明确禁止'规则脚本'中间层",
+      "Command = 现有 8 段中间件管线信封的形式化命名（不另起类层级），覆盖玩家/管理员外部意图；force_me = PrivilegedAction（Command 变体，ROOT 等价门控+强制审计，明确承认保真让步，4 调用点低频且 NPC 不用于战斗/移动）",
+      "阶段-1 硬门禁：用非武侠微场景验证 CombatKernel 内核主题无关性（实现从武侠 do_attack 提取，验证用非武侠）",
+      "v3 文档集重校准：显式声明收缩后权威态=内存+JSON 存档，清除 PG/Redis 权威表述；handoff/Louvain/Ray/分片/一致性哈希/placement 条款标注'分布式阶段重新引入'；02 子系统文档删除分布式脚手架与 PG/Redis/NATS 残留",
+      "引擎工具链收缩为最小三件：entity inspector（最小 REPL/dict-dump）+ tick profiler（per-System time.perf_counter）+ combat replay viewer（最小，因 combat 确定性保留）；明确区分'引擎工具链'（本地开发工具，阶段0 交付物）与'运维可观测'（OTel+Grafana+Langfuse，后置）",
+      "LLM token 预算 + kill criterion：单 CPK token 预算上限；Langfuse 追踪人工修订量趋势，3 轮迭代后修订率>40% 则先扩层1-2 表达力再继续 Agent，扩后仍>30% 则 Agent 降级为辅助",
+      "抽样校准实验列为阶段0 硬交付物（68771 调用点按难度分层抽 50-100 实测工时），独立于分布式/存储收缩，是工时承诺地基",
+      "JSON 存储止损线与迁移触发点：原子写 + 30s 周期存档 + 启动校验 + 标注'非生产安全'；任何外部玩家测试开始前必须迁 PG"
+    ],
+    "cut": [
+      "分布式全套：分片/Louvain 社区检测/一致性哈希路由/handoff 两阶段提交/MigrationCoordinator/BoundaryRoomAgent/Region Supervisor/outbox/PlacementService/cross-shard 消息",
+      "Redis 全部依赖：session 路由表/ring buffer/限流令牌桶/placement/读穿透缓存/JobStore（单进程内全部内存化：session dict、per-session deque、进程内令牌桶、进程内 EventBus、内存 timer wheel）",
+      "分布式网关：SO_REUSEPORT 多 worker/会话粘附路由表/NATS 跨节点扇出；收敛为单进程 WS 服务器",
+      "运维重型件：K8s/Helm/ArgoCD/OpenSearch/ClickHouse/KEDA；仅保留 OpenTelemetry+Grafana+Langfuse",
+      "EntityAddr `world://<shard>/<region>/<room>#<uuid>` URL 寻址（单机无 shard/region，直接用 entity_id(UUID)+进程内对象引用/SparseSet 查询）",
+      "uvloop 硬依赖（降级为可选依赖，默认 stdlib asyncio，按阶段0 基准决定是否启用）",
+      "JWT RS256 非对称签名+refresh token+Redis 黑名单吊销（单进程用 HS256 或纯内存 session token+内存吊销集合；argon2 密码哈希保留）",
+      "题材包运行时热插拔机制（register/unload/version/isolation 完整插件系统）",
+      "独立自定义规则引擎组件/RETE/前向链/OPA/Drools/任何外部规则引擎",
+      "'每个状态变更（含 NPC 行为/系统 tick/call_out）都走 Command 模式'的扩张解读",
+      "APScheduler+Redis JobStore 持久调度（单进程崩溃=冷重启从 JSON checkpoint 恢复，定时器随状态重建；用进程内内存 timer wheel）",
+      "WASM 沙箱用于平台级扩展（单进程纯 Python 下无多租户进程隔离需求；引入 Rust/AssemblyScript 编译工具链负担不抵收益；改用 RestrictedPython 统一两层靠审查门+能力令牌+配额区分信任级，WASM 留作多租户生产阶段重新评估）",
+      "50ms/20Hz or 100ms/10Hz 的 tick 预算框架（LPC heart_beat 实测 1s，set_heart_beat(1) 已验证；20Hz 框架在解 MUD 不存在的 MMO 问题，错误驱动 compiled-core 紧迫感）",
+      "全仿真确定性作为阶段1 里程碑（所有 System seeded RNG+input log）；仅保留 combat 确定性（CombatContext+seeded RNG+PYTHONHASHSEED=0+禁 set 迭代，已是 combat-sim 前置），全仿真确定性显式移到 M3 后作为独立 re-introduction 决策点",
+      "6 件工具链作为阶段0 一等公民；单机+内存+1000 在线下只保留 entity inspector（最小）+tick profiler（最小）+combat replay viewer（最小，因 combat 确定性保留），砍 world graph visualizer（networkx 一次性 dump 足够）、DSL preview（属 UGC 层非引擎层）、hot-reload console（热重载成真再做）",
+      "热重载安全窗口协议（schema migration+entity state migration+'无跨分片 handoff'条款）；handoff 已不存在，简化为 System 模块 tick 边界 importlib.reload+entity state 原样保留+schema 变更需重启；CPK/DSL YAML 数据随时自由重载（trivially safe）",
+      "CombatKernel 跨 4 题材（wuxia/nautical/academy/modern）预先抽象设计（M3 前武侠是唯一题材，接口从武侠 do_attack 七步提取，不从 4 题材委员会设计）",
+      "CombatRoundResult/Effect 对象池化与 GC 微优化（1s tick+8000 实体下 GC 是非问题，__slots__ 廉价卫生可做，对象池是 premature optimization，用 tick profiler 实测后再决定）",
+      "分布式燃料聚合器（按 CPK 维度聚合跨调用 fuel 滑动窗口配额；单进程内 per-CPK fuel 即进程内计数器）",
+      "CRDT/OT 结构化合并的多创作者 CPK 协作工作流（砍到单作者 CPK+简单 fork-merge）",
+      "内容市场/分发/计费实现代码（阶段-1~2 只在 manifest 预留字段 author_id/revenue_share/price/title/tags，不实现浏览/搜索/安装/评分/分账）",
+      "逻辑热重载协议至验证期之后（单机验证期用维护窗口重启即可，有在线玩家不能容忍重启时再引入；它是 P3 且'安全窗口'本就是分布式概念）"
+    ],
+    "keep": [
+      "自研 SparseSet ECS 单存储（不用 Archetype）；架构选择非性能优化（Python dict+dataclass 无 cache locality/SIMD），8000 实体 1s tick 下 trivially 在预算内；组件运行时动态挂卸是 UGC 多题材必要前提",
+      "战斗七步管线+CombatContext 快照+seeded RNG+管线副作用账本（按文本与状态交织真实顺序记录，非'先算后 apply'）；全仿真确定性的 combat 范围基础",
+      "resolve_attack 纯函数提取+combat-sim 调同一纯函数（非独立简化模型）；combat 确定性回放唯一必需范围",
+      "命令中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）+ActionContext+CapabilityToken+fail-closed；previous_object 隐式信任链显式化（155 处实证）",
+      "存储策略模式接口（StorageBackend 抽象）--但须设计为'持久化边界'抽象（persist=崩溃恢复级耐久）非'权威写'语义",
+      "PYTHONHASHSEED=0+禁 set 直接迭代+序列化 key 排序（即使只做 combat 确定性也必需，do_attack 29 处 random() 消耗序列对迭代顺序敏感）",
+      "heart_beat 1s tick+非均匀/分级 tick 桶（仅活跃实体 tick）；LPC 固有不可被事件驱动替代，层1 只覆盖触发器",
+      "技能三层（SkillData YAML/SkillBehavior Python 策略/SkillEffect 状态机）+UGC 只编辑层1；门派灵魂 70%+ 在脚本",
+      "代词 10 变量+emote 7 视角+RANK_D 7 函数服务端求值 PronounContext（rankd.c query_close/query_self_close 实证依赖 this_player()，是观察者相对二元关系非实体纯函数）",
+      "5 灵魂系统纳入 WorldGovernanceSystem（阴间/武林大会/vote/法院/intermud）与战斗引擎平级--但垂直切片只含 1-2 个代表性治理元素，276 文件武林大会/vote/courthouse/intermud 推迟 M3 之后",
+      "DSL 层1 事件规则（condition->action 编译为 JSON IR）=唯一规则表示层，UGC 触发器落此层且仅声明式",
+      "层1 薄求值子模块（不命名为'引擎'、不建独立框架、不设独立配置面）；事件触发即时求值+dirty-flag 缓存+主题注册动词派发",
+      "调度语义四分：事件触发器=层1 求值；call_out=进程内 ActionScheduler（timer wheel）；周期 condition=ConditionSystem tick（CND_CONTINUE/CND_NO_HEAL_UP 位标志）；连续仿真=Combat/Heal/NPCAI System",
+      "themed 治理=平台级可信 Python System+PunishmentPolicy 策略对象，fail-closed，不进层1、不对 UGC 开放编辑",
+      "PermissionService 作为唯一 (subject,action,resource) fail-closed 策略引擎；保留路径分层 ACL 语义（securityd.c 实证）",
+      "逃生舱分层：层1 声明式不够用->层3 RestrictedPython（UGC），<15% KPI 护栏；不在层1 与层3 之间塞'规则脚本'中间层",
+      "CPK manifest+provenance+依赖图（networkx 拓扑排序+环检测）；JSON 可序列化，存储后端解耦，后期可经存储接口策略模式无痛迁 PG/MongoDB",
+      "四层 DSL 全部编译为 JSON IR 作为唯一真相源（可视化编辑器双向同步与 Agent 契约层共同前提）",
+      "能力令牌安全模型（read_world/say/move_self/spawn_in_scene/schedule/...）+RestrictedPython+fuel/wall_time/memory 配额三重纵深防御",
+      "ThemeRegistry 两层注册表（Theme 注册表+CPK 注册表）作为启动时静态加载",
+      "greenfield 语义（LPC=规格源，无适配层/双栈/过渡期/修旧bug）",
+      "阶段-1 垂直切片作为 P0 硬门禁",
+      "抽样校准实验作为阶段0 硬交付物",
+      "性能基准（单 do_attack μs+tick 预算+1000+100 负载压测）作为硬门禁"
+    ]
+  },
+  "doc_outline_notes": "01 总纲展开（收缩架构）：(1) 权威态重写为'内存数据权威+本地 JSON 定时存档（write-temp+os.replace 原子写+offload+dirty-flag 分摊+30-60s 丢失窗口声明+非生产安全标注）'，清除 v2 的'PG 唯一权威+Redis 读穿透'表述；存储章节用'持久化边界'抽象（persist=崩溃恢复级耐久）而非'save=权威写'，附'迁 PG 时是策略切换非架构变更'说明与迁移触发点（外部玩家测试前）。(2) 容量与性能章节：tick=1s（set_heart_beat(1) 实证）+compute<100ms+I/O 预算 900ms+；非均匀 tick（仅活跃实体）；GC 调优三件（gc.freeze/gen0 抑制/tick 边界 collect）；阶段0 micro-benchmark 为 go/no-go 门禁。删除 50ms/20Hz 框架与 compiled-core 紧迫感，compiled core 移到'后置指引'且附双失败触发条件。(3) 网关与分布式章节：单进程 WS 服务器+内存 session+进程内 EventBus；分布式全套（分片/Louvain/handoff/Ray/一致性哈希/placement/MigrationCoordinator/outbox/NATS）与 Redis 全部依赖（session/ring/限流/缓存/JobStore）标注'分布式阶段重新引入'并附触发条件。崩溃重连语义（进程崩=冷重启+全量 snapshot；进程内断线=ring 重放）。权限策略改为启动加载可信配置+fail-closed=拒绝启动。(4) 标杆能力章节：全仿真确定性收缩为 combat 确定性（阶段1 交付物），全仿真移到 M3 后独立决策点；逻辑热重载推迟到验证期后；明确二者'推迟非取消'并附重新评估条件。\\n\\n02 子系统设计展开（3 问题裁决）：(1) 子系统2（战斗）：删除 CombatCoordinator/Region Supervisor/handoff outbox/PlacementService 一致性哈希（20 处分布式残留）；do_attack 七步管线副作用账本明确按'文本与状态交织真实顺序'记录（hit_ob polymorphic 返回 string/int/mapping 可同时追加文案与修改伤害、exp/jingli 中途 mutate dbase、递归子回合嵌套），重放器按交织顺序回放，显式否定'先纯计算后批量 apply'；resolve_attack 纯函数提取+combat-sim 调同一纯函数；CombatKernel 抽象从武侠七步提取（不从 4 题材预先设计），阶段-1 非武侠微场景验证主题无关性作为硬门禁。(2) 子系统4（命令与权限）：Command = 8 段管线信封形式化命名（不另起类层级），覆盖玩家/管理员外部意图；System.update 覆盖 tick 派生变更不经 Command；force_me=PrivilegedAction（Command 变体，ROOT 门控+强制审计，明确保真让步）；ActionContext+CapabilityToken 替换 previous_object/geteuid（155 处）；路由段保真 command_hook 四分支；触发器为 Command 执行步内子步骤+最大链深度+环检测。(3) 子系统5（DSL 与 UGC）：明确'否决独立规则引擎'+调度语义四分（事件触发器=层1/call_out=ActionScheduler timer wheel/周期 condition=ConditionSystem tick+ CND_CONTINUE/连续仿真=Combat/Heal/NPCAI System），heart_beat 绝不被规则引擎吸收；层1 求值器为子模块非'引擎'组件；规则冲突 priority+deny-wins+首匹配+基线测试；themed 治理=平台级 Python System+PunishmentPolicy fail-closed 不进层1 不对 UGC 开放；30 文件表达力校准+KPI<15%+禁止规则脚本中间层。WASM 砍除改 RestrictedPython 统一两层。层0 房间可视化编辑器纳入阶段-1 垂直切片。(4) 子系统6（数据与状态）：重写为内存+JSON 存档接口，删除 PG+Redis+NATS 残留（9 处）；StorageBackend='持久化边界'抽象；原子写+offload+dirty-flag 分摊+丢失窗口声明；audit_event append-only 接口；崩溃重连语义。(5) 子系统8（题材与扩展，新增/重写）：三层边界（核心引擎/题材包/UGC）+三层粒度（Theme>Module Pack>UGC CPK，human.c 19 门派实证）+ThemeRegistry 静态加载+门派灵魂归属武侠题材包资产+受信任开发者扩展模型（审查+签名+SemVer+provenance，进程级无沙箱）+热插拔后置指引。\\n\\n避坑重点：(1) 文档与约束'两张皮'是最需先修--02 子系统文档 20 处分布式残留+9 处 PG/Redis/NATS 残留必须主动剪除，否则实现者按旧文档引入已砍复杂度。(2) tick 预算概念性错误（50ms/20Hz）会从后门请回 compiled-core 紧迫感，必须用 1s tick 重写并附 set_heart_beat(1) 实证。(3) 战斗手感时序：'按 step 顺序 apply'措辞暗示可先算后 apply，必须显式改为'按文本与状态交织真实顺序记录'。(4) 存储收缩是隐性重新设计非'换存储'，必须逐一标注丢失语义（事务原子性/崩溃恢复/并发写 CAS/关系完整性/append-only 可篡改）+止损线。(5) PronounContext 必须携带 viewer（rankd.c 实证 this_player() 依赖），单机下 this_player() 映射 ActionContext.actor 需在 System tick 无'当前说话者'时定义回退。(6) 规则引擎否决但层1 原语蠕变风险需 KPI+判定标准护栏，薄求值器命名须避免'引擎'诱发 scope creep。(7) Command 不新建类层级，force_me 是保真让步须显式承认。(8) 5 灵魂系统降级为垂直切片 1-2 个代表性元素，276 文件武林大会等推迟 M3 后，避免阶段2 范围过载。\\n\\n技术选型收缩要点：语言纯 Python（Rust/Go 后置，双失败触发）；存储内存+JSON 原子写（PG 迁移触发=外部玩家测试前）；网关单进程（分布式触发=单进程达 80% 承载且 UGC 验证成立）；观测 OTel+Grafana+Langfuse（K8s/OpenSearch/ClickHouse 后置，触发=需编排 2+ 服务）；事件循环 stdlib asyncio 优先（uvloop 可选，触发=基准显示 I/O 瓶颈）；沙箱 RestrictedPython 统一两层（WASM 后置，触发=多租户生产）；调度进程内 timer wheel（APScheduler+Redis 后置，触发=需持久化跨重启调度）；热插拔静态加载（运行时热插拔后置，触发=第二题材真实存在且需不停服切换）。",
+  "kill_criteria": [
+    "阶段-1：DSL+Agent 创作闭环验证失败（垂直切片无法用 DSL+Agent 完成 5-10 房间+2NPC+1 战斗+1 任务+1 对话且行为等价）-> 停项，不投入引擎重构",
+    "阶段-1：非武侠微场景无法验证 CombatKernel 内核主题无关性（核心引擎硬编码武侠语义无法剥离）-> 暂停，先做内核主题无关性重构再继续",
+    "阶段0：micro-benchmark 单 do_attack 超阈值 -> 先优化热路径（对象池/避免分配/缓存）；1000 实体 tick 超预算 -> 降 tick 频率或裁剪 System；1000+100 经优化仍不达标且无 Rust 退路 -> 降级目标到 500 在线+50 并发（仍是当前 10 倍）并重新评估 Rust/Go 热路径",
+    "阶段0：30 文件表达力校准实验显示层3 逃生舱使用率经原语扩充后仍 >15% -> 暂停 Agent 投入，先扩层1-2 表达力（超标触发层1-2 迭代而非放松 KPI）",
+    "Agent 创作：单 CPK 经 3 轮生成-修订迭代后人工修订量仍 >40% -> DSL+Agent 假设走弱，先扩 DSL 层1-2 表达力再继续；扩后仍 >30% -> Agent 降级为辅助（人工为主 Agent 建议为辅）；LLM token 预算耗尽且未产出通过闭环的 CPK -> 停止 Agent 投入回退人工创作 DSL",
+    "阶段1：单进程核心循环集成测试无法支撑 1000+100 -> 冻结功能范围，纯做性能优化直至达标或触发目标降级",
+    "项目级：18 个月未达 M3（单题材可玩 demo）-> 冻结迁移，聚焦已迁移内容产品化",
+    "JSON 存储：任何外部玩家测试开始前必须迁 PG（崩溃丢 30s 对外部玩家不可接受）--这是硬止损线非可选",
+    "性能后置触发：do_attack 微基准与 1000+100 负载测试双失败且 Python 优化穷尽 -> 重新评估 Rust/Go 热路径（compiled core 重新引入的唯一触发条件）"
+  ],
+  "question_decisions": [
+    {
+      "deferral_note": "运行时热插拔（register/unload/version/isolation 完整机制）等第二个题材真实存在且需不停服切换时再议。届时须先预研悬挂引用问题（组件注销但实体持有引用、in-flight Effect 引用已注销 condition schema、活跃对话游标引用已卸载对话树）。CombatKernel 抽象时机张力靠阶段-1 非武侠微场景硬门禁兜底：实现从武侠 do_attack 提取，验证用非武侠，二者非对立而是互补。门派内容包边界切割（human.c race 层加成 + kungfu/class 脚本分散多处）须在迁移阶段2 明确切割，避免题材包变成大杂烩或核心引擎残留武侠烙印。",
+      "decision": "有条件采纳：保留三层边界（文档化+最小静态实现），砍运行时热插拔。",
+      "dissent": "三处分歧已裁决：(1) 热插拔降级程度取最简（架构师/引擎专家/制作人的纯静态加载），UGC 专家的'安全窗口冷插拔'与 DSL 专家的'热加载+停服卸载'本轮均不采纳，等第二个题材再议；(2) 三层粒度命名采纳 UGC 专家划分（human.c 实证支撑，其余专家未反对）；(3) CombatKernel 设计时机张力按'实现从武侠提取+非武侠验证'化解。未消除风险：CombatKernel 从武侠提取时接口可能过窄（锁死武侠语义）或过宽（平庸化），靠阶段-1 非武侠微场景硬门禁兜底；'第二个题材真实存在'触发条件未定义，热插拔后置若无触发点会滑成'永不考虑'。",
+      "question": "Q1 题材包/模块包热插拔：三层边界、热插拔机制、受信任开发者扩展模型、与 ThemeRegistry 关系、对武侠玩法深度影响。",
+      "rationale": "三层边界（核心引擎/题材包/UGC）是 UGC 平台天然结构且 greenfield 下应 Day1 文档化，但运行时热插拔是过早抽象（当前 1 题材+1 开发者）。采纳 UGC 专家的三层粒度划分（源码实证 adm/daemons/race/human.c 第92-185 行对武当/全真/峨嵋/少林/大理段家/雪山/血刀门/丐帮/华山/桃花岛/古墓派等 19 门派硬编码 if-else 加成，证明门派是 wuxia 题材下内容包非独立题材，v2 把门派当题材会让 schema family 退化为扁平命名空间）。门派灵魂（SkillBehavior Python 策略，含隐藏大招/hit_by/auto_perform）归属武侠题材包资产，非核心引擎硬编码，非 UGC 可创作；human.c 19 门派加成迁移时须从 race/核心层剥离为题材包内容。ThemeRegistry = 启动时加载的静态注册表（Python dict: theme_id -> ThemeDescriptor），manifest 声明 theme+version+dependencies，无运行时 unload/版本协商/隔离。CombatKernel 抽象（CombatAction/CombatResolver/DamageModel）从武侠 do_attack 七步提取（保武侠深度），阶段-1 用非武侠微场景验证内核主题无关性（保可移植）--实现从武侠来，验证用非武侠。受信任开发者扩展=带代码题材包，审查+签名+SemVer+CPK provenance，进程级无沙箱 Python（StdLib 级）；UGC 永不创作题材包，只在已注册题材内编辑层1。"
+    },
+    {
+      "deferral_note": "若未来 UGC 规模化后，'层1+Python 策略对象'两分法的统一 condition-action 诉求重新强烈（跨层优先级无法统一表达、审计轨迹割裂、层1 原语反复蠕变），再评估是否引入轻量统一求值入口--但本轮明确不建独立引擎。themed 治理运营期反作弊策略调整需改代码重启，是 fail-closed 的正确取舍，接受'反作弊迭代慢'代价，不为此引入可热改的规则配置。RETE/前向链/外部引擎永久排除（除非 UGC 规模证明线性求值成为瓶颈，此时先优化层1 求值而非换引擎）。",
+      "decision": "否决独立自定义规则引擎组件（6/6 共识，源码验证支撑）。",
+      "dissent": "6 位专家一致否决独立引擎，无根本分歧。细节裁决：(1) 层1 表达力不足时'扩层1 vs 下沉层3'判定标准定为：可声明式描述且跨多条规则复用则扩层1，需图灵完备逻辑则层3，二者并存；(2) 薄求值器须为层1 子模块非独立组件，实现纪律约束命名与边界；(3) call_out 归 ActionScheduler 采纳（独家提出但调度语义清晰，694 文件/3109 处需明确归属）；(4) 冲突解决规格采纳专家5 方案+基线测试。未消除风险：层1 原语蠕变成长成事实规则引擎（靠 KPI+判定标准护栏）；规则冲突语义漂移（靠基线测试断言原 LPC 命中行为，533 valid_leave 命中行为须断言）；call_out 与 ConditionSystem/EventBus 边界需实现时明确；薄求值器命名若失控诱发 scope creep。",
+      "question": "Q2 自定义规则引擎统一 condition-action：与 DSL 层1 关系、与 Command/themed 治理关系、UGC 触发器落入、1000 在线性能、是否过度设计。",
+      "rationale": "源码实证否决：LPC 的 condition-action 实为 4 种调度语义不同的机制（事件触发器 init 1668 处/valid_leave 533 处/accept_object/add_action 1134 处，离散即时求值；call_out 694 文件/3109 处，延迟或自递归调度；condition daemon，heart_beat 周期驱动+CND_CONTINUE/CND_NO_HEAL_UP 位标志，feature/condition.c:15 注释'called by heart_beat'坐实；heart_beat 连续仿真）。一个'统一规则引擎'要么误模周期 tick（重蹈'事件驱动替代 heart_beat'覆辙），要么自己长成第二个 ECS 调度器。规则表示层=DSL 层1（condition->action 编译为 JSON IR），唯一规则表示层，只覆盖事件触发器。求值器=层1 的薄求值子模块（不命名为'引擎'、不建独立框架、不设独立配置面，避免 scope creep），事件触发即时求值+dirty-flag 缓存+主题注册动词派发。调度语义四分：事件触发器=层1 求值；call_out=进程内 ActionScheduler（timer wheel，call_out 等价）；周期 condition=ConditionSystem tick；连续仿真=Combat/Heal/NPCAI System。heart_beat tick 绝不被规则引擎吸收。themed 治理=平台级可信 Python System+PunishmentPolicy 策略对象（天雷=输入管线限流阶段 PunishmentPolicy，feature/alias.c:41-72 实证 CMDS_PER_TICK=20 cnt>3x 触发天雷文本+unconcious+死因标记；阴间=DeathSystem 状态机；vote=SocialGovernanceSystem+condition 定时器；法院=scripted NPC 序列），fail-closed，不进层1、不对 UGC 开放编辑。冲突解决=显式 priority+deny-wins（对齐 notify_fail）+同 action-tag 首匹配，按事件类型固定策略，写进基线测试断言原 LPC 命中行为。表达力不足=先做 30 文件表达力校准实验扩层1-2 原语，层3 逃生舱兜底，KPI<15% 护栏，明确禁止'规则脚本'中间层。1000 在线下每事件规则扇出几十条、AST 白名单求值微秒级，无 RETE 必要。"
+    },
+    {
+      "deferral_note": "若未来 force_me 调用点增长或 NPC AI/触发器大量使用 PrivilegedAction 侵蚀'仅外部意图'边界，则重新评估是否收紧（强制走 System.update）或显式扩展边界并补审计。派生变更审计粒度逐 System 落地后，若发现关键 System 变更不可审计，再补 System 级审计轨迹。Command 全信封 GC 压力若 tick profiler 实测超预算，考虑轻量化 Command（仅 hot path 裁剪字段）。全仿真确定性若 M3 后作为独立决策点重新引入，input log 语义须与此处 Command/System 边界一致（派生变更不进 input log 的规则不变）。",
+      "decision": "有条件采纳：Command 仅覆盖玩家/管理员外部意图，System.update 覆盖 tick 派生变更。",
+      "dissent": "三处分歧已裁决：(1) force_me 归属=PrivilegedAction（Command 变体），ROOT 等价门控+强制审计，明确承认这是保真让步（LPC force_me 走 command_hook，feature/command.c:89-95 实证 geteuid(previous_object())!=ROOT_UID 检查+process_input+command；4 调用点低频，NPC 不用它做战斗/移动故泄漏面可控）--边界在 force_me 处妥协以保 LPC 保真，这是显式取舍；(2) System 路径携带轻量 SystemContext（供能力/审计钩子）但派生变更不进 input log，战斗有交织账本覆盖，其他 System 逐个决定审计粒度；(3) Command 不新建类层级，保持为管线数据信封，抵抗向其添加方法/继承。未消除风险：force_me 边界侵蚀（靠审计/限制调用点）；派生变更审计覆盖缺口（逐 System 决定）；触发器链深度需最大限制+环检测；100 并发 Command 全信封 GC 压力靠 tick profiler 实测（1s tick 下大概率可接受）。",
+      "question": "Q3 玩家行为->世界状态是否统一封装为 Command 模式：与命令管线中间件关系、Command 职责边界、与 ECS/规则引擎关系、LPC 保真、是否所有操作（含 NPC/系统 tick）走 Command。",
+      "rationale": "Command = 现有 8 段中间件管线（解码->限流->历史->别名->路由->授权->执行->审计）信封的形式化命名 {verb, args, ActionContext(actor, source, capability_token, seq), result, effects}，不另起类层级（采纳 DSL 专家反冗余立场：Command 即现有 ResolvedAction+ActionContext+ActionResult 的命名，零成本形式化）。覆盖玩家/管理员外部意图输入，走完整 8 段管线；路由段保真 command_hook 四分支（exits 回退->verb 路由->emote->channel，feature/command.c:50-64 实证）。ActionContext+CapabilityToken 替换 previous_object/geteuid 信任链（155 处实证），仅作用于 Command 路径。System.update(world, dt, ctx) 直接 mutate ECS 组件覆盖 tick 派生变更（heal/condition 过期 CND_CONTINUE/resolve_attack/NPC AI），不经 Command、不经解码/限流/别名/历史中间件；resolve_attack 是 System 内纯函数非 Command。确定性重放=Command 日志（input log）+RNG seed，System 变更是派生（从相同输入+seed 重放得出），不进 input log。触发器（层1）=Command 执行步内子步骤（如 go 触发 valid_leave），规则触发动作附加到父 Command 的 effect 账本，设最大链深度+环检测防止 valid_leave->damage->death 无限递归。战斗副作用账本按文本与状态交织真实顺序记录（hit_ob polymorphic 返回 string/int/mapping 可同时追加文案与修改伤害、exp/jingli 中途直接 mutate dbase、递归子回合嵌套），非'先算后 apply'。call_other 保真=Command.execute 同步执行返回结果（不经异步队列，保 68771 处同步调用栈语义）。"
+    }
+  ],
+  "scope_checkpoints": [
+    "阶段-1 垂直切片：DSL+Agent 创作闭环验证（5-10 房间+2NPC+1 战斗+1 任务+1 对话全 DSL，跑在 resolve_attack 纯函数+stub 运行时）--不通过则停项",
+    "阶段-1 硬门禁：非武侠微场景验证 CombatKernel 内核主题无关性（核心引擎是否硬编码武侠语义）--不通过则暂停补主题无关性",
+    "阶段0：LPC 规格提取管线+FluffOS Linux 编译可行性+单元级行为规约+抽样校准（50-100 调用点实测工时）+micro-benchmark go/no-go 门禁（单 do_attack μs+tick 预算+1000+100 负载）",
+    "阶段0：30 文件层1-2 表达力校准实验（逃生舱使用率 KPI<15%）",
+    "阶段1：单进程 asyncio 核心循环集成测试是否支撑 1000 在线+100 并发（tick compute<100ms 非均匀 tick+存档不阻塞事件循环）--不达标触发 kill criteria",
+    "阶段1：combat 确定性回放验证（CombatContext 快照+seeded RNG+PYTHONHASHSEED=0+禁 set 迭代，任意 tick 快照+输入日志=完整重放）",
+    "阶段2：按规格实现子系统，逐子系统行为等价验证（do_attack 七步管线副作用交织时序、PronounContext 三元组求值、技能三层、5 灵魂系统代表性元素）",
+    "阶段2：门派内容包边界切割验证（human.c race 层加成+kungfu/class 脚本是否干净剥离为题材包资产，核心引擎无武侠烙印残留）",
+    "外部玩家测试前：JSON 存档迁移触发点检查（必须已迁 PG，崩溃丢 30s 对外部玩家不可接受）",
+    "每阶段：tick profiler+combat replay viewer 验证无回归；Langfuse 追踪 Agent 修订量趋势"
+  ]
+}
