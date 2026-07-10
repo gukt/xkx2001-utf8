@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S5a 试玩技术准备完成（118 tests）：最小可玩 CLI REPL + 补试玩缺口（物品获取/多回合战斗/死亡复活）+ LPC 保真打磨（look 格式/get/方向简写/战斗节奏/昏迷文本/物品中文名）。阶段 -1 kill criteria 1 全量验证通过（8 房间 + 2 NPC + 1 任务 + 2 对话全 DSL）。S5b 玩家试玩待推进。
+**当前阶段**：阶段 0（规格提取与验证基建）进行中
+**当前状态**：阶段 0 任务 1（LPC 规格提取管线）方法论与计划已就绪，待启动 9 层并行提取。方法论见 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md)，实施计划见 [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)。核心发现：go/move/combat 三条路径不足以覆盖核心可玩循环，需 9 层（A 驱动桥梁 / B 对象基础 / C 命令系统 / D 世界构建 / E 战斗 / F 死亡轮回 / G NPC AI / H 核心守护进程 / I 角色登录）覆盖完整闭环，约 4500-5000 行 LPC。阶段 0 任务 2（driver 可运行）已完成（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)）。118 tests 全绿，ruff 全过。
 
 ## Done
 
@@ -103,9 +103,45 @@
   - **118 tests 全绿（+19），ruff 全过**
   - 分支 `feat/s5-playtest` 已 push，4 个提交：4ec0b2d2 / 6bc75498 / d808b8d9 / a3dbaf42
 
+- [x] **S5b 玩家试玩（创建者自评）完成**（kill criteria 3）：
+  - 创建者自评：保真度与原版侠客行相当，"觉得好玩"达可继续投入阈值
+  - 完整试玩路径验证通过：look -> go eastdown -> get 酥油罐 -> go westup -> ask 还愿 -> give 葛伦布 酥油罐 -> quest 完成 -> go north 放行 -> 探索 8 房间 -> kill 小喇嘛/葛伦布
+  - kill criteria 3 判定通过（创建者近似 = 目标玩家画像，M3 前补外部玩家测试）
+  - **阶段 -1 决策检查点 5/5 全部为是**：DSL 表达力 ✅ / Agent 修订量 24.5% ✅ / 觉得好玩 ✅ / resolve_attack 纯函数 ✅ / 非武侠主题无关性 ✅
+
+- [x] **阶段 0 任务 2：FluffOS 编译可行性评估完成**（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)）：
+  - 发现仓库 `driver` 是 FluffOS 3.0.20170907 x86_64 macOS 二进制（非 config.xkx 注释的 MudOS 0.9.20）
+  - 通过 Rosetta 2 + libevent 符号链接（2.1.6 -> 2.1.7）在 arm64 macOS 成功运行
+  - 全部 daemon 加载成功，端口 8888 监听，nc 连接可见登录界面
+  - 结论：现有二进制可运行，无需编译；golden trace 定位为辅助验证手段（非主线）
+  - 修正 04 §六不做清单"旧系统不可运行"假设；为 dissent 4 基线测试提供运行时验证路径
+
+- [x] **阶段 0 任务 1 前置：规格提取方法论与实施计划完成**（[ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md) / [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)）：
+  - 分析侠客行架构拆解说明书（14 份文档 / 36 子系统），发现 go/move/combat 三条路径不足以覆盖核心可玩循环
+  - 定义 9 层范围（A-I）：驱动桥梁 / 对象基础 / 命令系统 / 世界构建 / 战斗 / 死亡轮回 / NPC AI / 核心守护进程 / 角色登录，约 4500-5000 行 LPC
+  - 方法论：函数级契约（签名+前置/后置条件+不变量+副作用+随机性）+ pydantic v2 模型 + 3 个 Wave 并行提取
+  - 避免穷尽细节：不碰 kungfu/(798) + d/(6414)，condition 只提取框架，阴间流程后置，不做 LPC 解析器自动化
+  - 为新 session 准备好可直接执行的 9 层并行提取计划
+
+## 已知技术债（后置，不阻塞阶段 0）
+
+- **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
+- **`drop` 命令未实现**：`commands.py` 有 take/give 无 drop。阶段 0 物品系统规格提取时补全
+- **xlama2 交互闭环未完成**（S4e GAP）：ask_tea 的 set_flag 茶 + accept_object 酥油的 clear_flag + 物品生成需 ask->action 机制 / clear_flag action / 物品系统（阶段 0）
+- **门状态机运行时未实装**（S3 GAP）：do_knock / call_out 定时关 / 跨房间 exits 同步（阶段 0）
+
 ## In Progress
 
-（无 -- S5a 技术准备完成，S5b 玩家试玩待启动）
+**阶段 0 任务 1：LPC 规格提取管线** -- 方法论与计划已就绪，待新 session 启动 9 层并行提取。
+
+- 当前子任务：计划完成，待启动 Wave 1（层 A+B+C+D 并行）
+- 卡在哪：无（方法论 ADR-0010 + 实施计划 08 已就绪，可直接执行）
+- 下一步具体动作：
+  1. 读 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md) + [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md) 确认方法论与 9 层范围
+  2. 创建 `engine/src/xkx/spec/base.py`（FunctionSpec/SideEffect/RandomSpec 基础类型）
+  3. 启动 Wave 1：4 个 agent 并行提取层 A（驱动桥梁）+ B（对象基础）+ C（命令系统）+ D（世界构建）
+  4. Wave 1 完成后启动 Wave 2（层 E+F+G），再 Wave 3（层 H+I）
+  5. 每层产出 `spec/layer_*.py` + `tests/test_spec_*.py`
 
 ## Blocked
 
@@ -113,14 +149,24 @@
 
 ## Next Up
 
-**S5b：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--CLI REPL + 物品交互 + 多回合战斗 + 任务闭环已打通，试玩路径可行。
-- 运行 CLI：`cd engine && .venv/bin/python -m xkx.cli`
-- 收集反馈：试玩者是否觉得好玩？哪些环节枯燥/困惑？是否愿意继续玩？
-- kill criteria 3 判定：3-5 名目标玩家"觉得好玩"评分 ≥ 可继续投入阈值
+**阶段 0 任务 1 的 9 层提取**（[08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)）：
 
-**后置项**（S4+/阶段 0）：
-- 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步）
-- ask->action 机制 / clear_flag action / 物品生成（xlama2 酥油茶交互闭环，S4e GAP）
+- Wave 1（并行）：A 驱动桥梁 + B 对象基础 + C 命令系统 + D 世界构建
+- Wave 2（并行）：E 战斗系统 + F 死亡轮回 + G NPC AI
+- Wave 3（并行）：H 核心守护进程 + I 角色登录
+
+**可并行的独立任务**（不依赖规格提取，可随时启动）：
+- 任务 7：灵魂系统盘点（阴间/武林大会/vote/法院/intermud）
+- 任务 9：30 文件表达力校准（层3 占比 <15%）
+- 任务 6：抽样校准实验（68771 调用点抽 50-100 个）
+
+**依赖任务 1 产出的任务**：
+- 任务 3：单元级行为规约（每层规格产出后衔接 hypothesis 测试）
+- 任务 4：性能 micro-benchmark（层 E 完成后可启动 do_attack μs 基准；1000+100 负载需阶段 1 框架）
+- 任务 8：32 守护进程职责重新设计（层 H 完成后衔接）
+
+**阶段 0 其他任务**：
+- 任务 5：引擎工具链 PRD（最小三件：entity inspector / tick profiler / combat replay viewer）
 
 S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励、ask->action/clear_flag/物品生成）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) / [ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 表在 S4+ 或阶段 0 补全。
 
