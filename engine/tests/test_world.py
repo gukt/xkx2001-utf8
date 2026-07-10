@@ -37,7 +37,7 @@ def _ir() -> dict:
 
 
 def test_build_world_rooms_and_npcs() -> None:
-    world, room_idx = build_world(_ir())
+    world, room_idx, _ = build_world(_ir())
     assert "city/street" in room_idx
     npcs = list(world.entities_in_room("city/street"))
     assert len(npcs) == 1
@@ -47,14 +47,14 @@ def test_build_world_rooms_and_npcs() -> None:
 
 
 def test_spawn_player() -> None:
-    world, _ = build_world(_ir())
+    world, _, _ = build_world(_ir())
     pid = spawn_player(world, "玩家", "city/street")
     assert world.get(pid, Identity).is_player
     assert world.get(pid, Position).room_id == "city/street"
 
 
 def test_to_snapshot() -> None:
-    world, _ = build_world(_ir())
+    world, _, _ = build_world(_ir())
     eid = next(world.entities_in_room("city/street"))
     snap = to_snapshot(world, eid)
     assert snap.name == "官兵"
@@ -66,7 +66,7 @@ def test_to_snapshot() -> None:
 
 
 def test_apply_effects_damage() -> None:
-    world, _ = build_world(_ir())
+    world, _, _ = build_world(_ir())
     pid = spawn_player(world, "玩家", "city/street")
     before = world.get(pid, Vitals).qi
     apply_effects(world, [Effect(kind=KIND_DAMAGE, target_id=pid, amount=30)])
@@ -74,7 +74,7 @@ def test_apply_effects_damage() -> None:
 
 
 def test_apply_effects_exp() -> None:
-    world, _ = build_world(_ir())
+    world, _, _ = build_world(_ir())
     pid = spawn_player(world, "玩家", "city/street")
     before = world.get(pid, Vitals).combat_exp
     apply_effects(world, [Effect(kind=KIND_EXP, target_id=pid, amount=1)])

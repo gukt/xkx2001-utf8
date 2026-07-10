@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-10
 **当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）
-**当前状态**：S4b accept_object 事件 + inquiry 对话完成（75 tests），物品交互闭环验证通过（give -> set_flag -> go 放行）。S4 剩余子任务（任务 schema / SchemaValidator / Agent 映射文档 / 扩展到 5-10 房间）待推进。
+**当前状态**：S4c 最小任务系统完成（83 tests），阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过。S4 剩余子任务（SchemaValidator / Agent 映射文档 / 扩展到 5-10 房间）待推进。
 
 ## Done
 
@@ -59,9 +59,17 @@
   - 兑现 ADR-0004 缺口台账 accept_object 项（剩余 1 类：门状态机）
   - **75 tests 全绿（+11），ruff 全过**
 
+- [x] **S4c 最小任务系统完成**（[06](docs/xkx-arch/06-阶段-1-实施计划.md) S4 / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md)）：
+  - QuestDef / QuestObjective / QuestReward（layer0）；QuestLog 组件跟踪玩家任务状态
+  - `ask` 接任务（quest trigger 优先于 inquiry）、`give` 完成任务、`quest` 查询命令
+  - 任务目标 S4 最小集：`give_item`（kill_npc/reach_room 后置）；奖励 S4 最小集：`exp` + `flag` + `message`
+  - xueshan 供奉任务完整闭环：ask 还愿 -> `in_progress` -> give 酥油 -> `completed` + exp + flag 酥 -> go north 放行
+  - **阶段 -1 kill criteria 1 的"1 任务 + 1 对话全 DSL"验证通过**
+  - **83 tests 全绿（+8），ruff 全过**
+
 ## In Progress
 
-（无 -- S4b 已完成，S4 剩余子任务待启动）
+（无 -- S4c 已完成，S4 剩余子任务待启动）
 
 ## Blocked
 
@@ -71,15 +79,14 @@
 
 **S4 剩余子任务**（阶段 -1 kill criteria 1 收尾）：
 
-- 任务 schema（1 任务全 DSL，需状态机/目标/奖励；accept_object 已铺路）
 - SchemaValidator 四道校验加强（引用完整性 / Capability / Resource / Dependency + `extra` 字段警告，捕获 neili/max_neili 类静默偏差）
 - Agent schema 映射文档（LPC -> schema 字段 + map_skill 推断，预期降修订量 < 20%）
 - 扩展到 5-10 房间 + 2 NPC + 1 任务 + 1 对话全 DSL（阶段 -1 kill criteria 1 全量验证）
 - 门状态机运行时（do_knock / call_out 定时关 / 跨房间 exits 同步，S4+ 或阶段 0）
 
-**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--方向绑定 + 物品交互闭环已打通，试玩路径可行。
+**S5：3-5 名玩家试玩**（阶段 -1 kill criteria 3，"觉得好玩"达可继续投入阈值）--方向绑定 + 物品交互 + 任务闭环已打通，试玩路径可行。
 
-S2/S3/S4a/S4b 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) 表在 S4+ 或阶段 0 补全。
+S2/S3/S4a/S4b/S4c 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) 表在 S4+ 或阶段 0 补全。
 
 ## 阶段 -1 的 kill criteria（开工必读）
 

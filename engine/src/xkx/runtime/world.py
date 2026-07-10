@@ -1,6 +1,6 @@
 """加载场景 IR -> 构建 ECS 实体 + 战斗桥接。
 
-把层0 IR（room/npc）转为 ECS 实体 + 组件。提供实体 <-> CombatantSnapshot
+把层0 IR（room/npc/quest）转为 ECS 实体 + 组件。提供实体 <-> CombatantSnapshot
 转换（战斗时快照边界）与 Effect apply（按账本顺序写回组件）。
 """
 
@@ -24,6 +24,7 @@ from xkx.runtime.components import (
     Marks,
     NpcBehavior,
     Position,
+    QuestLog,
     RoomComp,
     Skills,
     Vitals,
@@ -31,11 +32,12 @@ from xkx.runtime.components import (
 from xkx.runtime.ecs import World
 
 
-def build_world(ir: dict) -> tuple[World, dict[str, int]]:
-    """从 IR 构建世界。返回 (world, room_id -> entity_id)。"""
+def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
+    """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。"""
     world = World()
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
+    quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}
 
     for r in ir["rooms"]:
         eid = world.new_entity()
@@ -61,7 +63,7 @@ def build_world(ir: dict) -> tuple[World, dict[str, int]]:
             for _ in range(count):
                 _spawn_npc(world, ndef, r["id"])
 
-    return world, room_entities
+    return world, room_entities, quest_idx
 
 
 def _spawn_npc(world: World, n: dict, room_id: str) -> int:
@@ -136,6 +138,7 @@ def spawn_player(
 
     S4 ADR-0005：``family`` + ``items`` 供 ``family_eq`` / ``has_item`` 谓词求值。
     S4 ADR-0006：``Marks`` 组件供 ``set_flag`` 副作用 / ``has_flag`` 谓词。
+    S4 ADR-0007：``QuestLog`` 组件跟踪任务状态。
     """
     eid = world.new_entity()
     world.add(eid, Identity(name=name, is_player=True, prototype_id="player"))
@@ -158,6 +161,7 @@ def spawn_player(
     world.add(eid, CombatState())
     world.add(eid, Inventory(items=items or set()))
     world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
+    world.add(eid, QuestLog())  # S4 ADR-0007：任务状态
     return eid
 
 

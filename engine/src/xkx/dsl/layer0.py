@@ -1,8 +1,9 @@
-"""层0：YAML 声明式数据（房间/NPC 定义）。
+"""层0：YAML 声明式数据（房间/NPC/任务定义）。
 
 吸收 LPC ``set()`` 调用：
 - 房间（``d/city/chaguan.c``）：``set("short"/"long"/"exits"/"objects")``
 - NPC（``d/city/npc/bing.c``）：``set_name`` + ``set`` 属性 + ``set_skill``
+- 任务（S4 ADR-0007）：从 LPC NPC 任务交互抽象的最小 DSL
 
 约 60% 的 LPC 内容是纯数据可直接转层0（03 §一）。编译到 JSON IR 见 ``ir.py``。
 """
@@ -70,6 +71,39 @@ class NpcDef(BaseModel):
     inquiry: dict[str, str] = Field(default_factory=dict)
 
 
+# S4 ADR-0007：最小任务定义
+class QuestReward(BaseModel):
+    """任务奖励（S4 最小集：经验 + 标记 + 消息）。"""
+
+    exp: int = 0
+    flag: str = ""  # 完成后设置的标记（LPC set_temp("marks/X")）
+    message: str = ""  # 完成时给玩家的消息
+
+
+class QuestObjective(BaseModel):
+    """任务目标（S4 最小集：给物品）。"""
+
+    kind: str = "give_item"  # S4 仅支持 give_item；kill_npc/reach_room 后置
+    npc_id: str = ""  # give_item 目标 NPC prototype_id
+    item_id: str = ""  # give_item 物品 id
+
+
+class QuestDef(BaseModel):
+    """任务定义（S4 ADR-0007）。
+
+    最小垂直切片：ask giver about trigger -> 接任务 -> give item to npc -> 完成 -> reward。
+    对照 LPC NPC 任务交互（如 xueshan gelun1.c 的 ask 还愿 + accept_object 酥油罐）。
+    """
+
+    id: str
+    name: str
+    giver: str  # NPC prototype_id（接任务的 NPC）
+    trigger: str  # ask 话题
+    description: str = ""  # 接任务时显示给玩家的描述
+    objective: QuestObjective = Field(default_factory=QuestObjective)
+    reward: QuestReward = Field(default_factory=QuestReward)
+
+
 def load_rooms(path: Path | str) -> list[RoomDef]:
     """从 YAML 加载房间列表（顶层为房间 dict 的 list）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -80,3 +114,9 @@ def load_npcs(path: Path | str) -> list[NpcDef]:
     """从 YAML 加载 NPC 列表（顶层为 NPC dict 的 list）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return [NpcDef(**n) for n in (data or [])]
+
+
+def load_quests(path: Path | str) -> list[QuestDef]:
+    """从 YAML 加载任务列表（S4 ADR-0007）。"""
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return [QuestDef(**q) for q in (data or [])]

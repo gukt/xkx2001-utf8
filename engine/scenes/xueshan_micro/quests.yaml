@@ -1,0 +1,15 @@
+# S4 ADR-0007：xueshan 供奉任务
+# 对照 d/xueshan/npc/gelun1.c ask 还愿 + accept_object 酥油罐 + set marks/酥
+- id: xueshan/tribute
+  name: 供奉佛爷
+  giver: xueshan/npc/gelun1
+  trigger: 还愿
+  description: 给葛伦布一罐酥油，供奉大轮寺佛爷。
+  objective:
+    kind: give_item
+    npc_id: xueshan/npc/gelun1
+    item_id: suyou_guan
+  reward:
+    exp: 100
+    flag: 酥
+    message: 葛伦布双手合什：佛爷会保佑施主的。

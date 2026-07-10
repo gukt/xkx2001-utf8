@@ -11,10 +11,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_npcs, load_rooms
+from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import Game, ask, give, go, kill
-from xkx.runtime.components import Identity, Inventory, Marks, Position, Vitals
+from xkx.runtime.components import Identity, Inventory, Marks, Position, QuestLog, Vitals
 from xkx.runtime.world import build_world, spawn_player
 
 SCENE_DIR = Path(__file__).resolve().parent.parent / "scenes" / "xueshan_micro"
@@ -28,11 +28,12 @@ def _game(
 ) -> tuple[Game, int]:
     rooms = load_rooms(SCENE_DIR / "rooms.yaml")
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
+    quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
-    ir = compile_scene(rooms, npcs)
-    world, room_idx = build_world(ir)
+    ir = compile_scene(rooms, npcs, quests)
+    world, room_idx, quest_idx = build_world(ir)
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
-    return Game(world, room_idx, rules, seed_base=seed_base), pid
+    return Game(world, room_idx, rules, quests=quest_idx, seed_base=seed_base), pid
 
 
 def _gelun_eid(game: Game) -> int:
@@ -82,10 +83,18 @@ def test_go_north_allowed_with_item() -> None:
 
 
 def test_ask_gelun1_inquiry() -> None:
-    """ask 葛伦布 about 还愿 -> inquiry 回复（LPC set("inquiry") + do_huanyuan）。"""
+    """ask 葛伦布 about 烧香 -> inquiry 回复（LPC set("inquiry") + do_huanyuan）。"""
+    game, pid = _game()
+    msgs = ask(game, pid, "葛伦布", "烧香")
+    assert any("孝敬佛爷" in m for m in msgs)
+
+
+def test_ask_gelun1_quest_trigger() -> None:
+    """ask 葛伦布 about 还愿 -> 接任务（quest trigger 优先于 inquiry，ADR-0007）。"""
     game, pid = _game()
     msgs = ask(game, pid, "葛伦布", "还愿")
-    assert any("孝敬佛爷" in m for m in msgs)
+    assert any("接下任务「供奉佛爷」" in m for m in msgs)
+    assert game.world.get(pid, QuestLog).statuses.get("xueshan/tribute") == "in_progress"
 
 
 def test_ask_unknown_topic() -> None:
@@ -166,3 +175,21 @@ def test_kill_deterministic_seed() -> None:
     g1, p1 = _game(seed_base=42)
     g2, p2 = _game(seed_base=42)
     assert kill(g1, p1, "葛伦布") == kill(g2, p2, "葛伦布")
+
+
+# --- 任务完整闭环（S4 ADR-0007） ---
+
+
+def test_quest_complete_closes_loop() -> None:
+    """任务完整闭环：ask 还愿接任务 -> give 酥油完成 -> 奖励 + 标记 -> go north 放行。"""
+    game, pid = _game(items={"suyou_guan"})
+    ask(game, pid, "葛伦布", "还愿")
+    before_exp = game.world.get(pid, Vitals).combat_exp
+    give(game, pid, "葛伦布", "suyou_guan")
+    assert game.world.get(pid, QuestLog).statuses["xueshan/tribute"] == "completed"
+    assert game.world.get(pid, Vitals).combat_exp == before_exp + 100
+    assert "酥" in game.world.get(pid, Marks).flags
+    # 完成任务后 north 放行（reward.flag + valid_leave has_flag）
+    msgs = go(game, pid, "north")
+    assert game.world.get(pid, Position).room_id == "xueshan/guangchang"
+    assert any("走去" in m for m in msgs)

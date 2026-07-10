@@ -29,7 +29,7 @@ def _game(
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
     ir = compile_scene(rooms, npcs)
-    world, room_idx = build_world(ir)
+    world, room_idx, _ = build_world(ir)
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     return Game(world, room_idx, rules, seed_base=seed_base), pid
 

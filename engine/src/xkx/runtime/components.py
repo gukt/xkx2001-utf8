@@ -107,6 +107,16 @@ class Marks:
 
 
 @dataclass
+class QuestLog:
+    """玩家任务日志（S4 ADR-0007）。
+
+    ``statuses``: {quest_id -> "not_started" | "in_progress" | "completed"}
+    """
+
+    statuses: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class RoomComp:
     room_id: str
     short: str
