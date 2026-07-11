@@ -11,7 +11,7 @@ S4 ADR-0007：compile_scene 扩展 ``quests``。
 
 from __future__ import annotations
 
-from xkx.dsl.layer0 import NpcDef, QuestDef, RoomDef
+from xkx.dsl.layer0 import ItemDef, NpcDef, QuestDef, RoomDef
 
 IR_SCHEMA_VERSION = 1
 
@@ -29,13 +29,22 @@ def compile_quest(quest: QuestDef) -> dict:
     return {"kind": "quest", **quest.model_dump()}
 
 
+def compile_item(item: ItemDef) -> dict:
+    """S5a：编译物品 IR。"""
+    return {"kind": "item", **item.model_dump()}
+
+
 def compile_scene(
-    rooms: list[RoomDef], npcs: list[NpcDef], quests: list[QuestDef] | None = None
+    rooms: list[RoomDef],
+    npcs: list[NpcDef],
+    quests: list[QuestDef] | None = None,
+    items: list[ItemDef] | None = None,
 ) -> dict:
-    """编译场景 IR（房间 + NPC + 任务；层1 规则在 S1-3 并入）。"""
+    """编译场景 IR（房间 + NPC + 任务 + 物品；层1 规则在 S1-3 并入）。"""
     return {
         "schema_version": IR_SCHEMA_VERSION,
         "rooms": [compile_room(r) for r in rooms],
         "npcs": [compile_npc(n) for n in npcs],
         "quests": [compile_quest(q) for q in (quests or [])],
+        "items": [compile_item(i) for i in (items or [])],
     }

@@ -1,0 +1,115 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/adm/daemons/combatd.c
+# basename: adm_daemons_combatd
+# combatd 是战斗核心 daemon，按 ADR-0014 演进为 CombatSystem（ECS System，层3 平台代码）。
+# 消息表（guard_msg/catch_hunt_*/winner_*/damage_msg 分级文本/eff_status_msg/status_msg 分级文本）
+# 是纯数据声明（层0），但 do_attack 七步管线/fight/auto_fight/death_penalty/killer_reward
+# 全部是层3 平台代码（图灵完备逻辑：状态机/算法/递归/循环）。
+# 语义单元 14 个：消息表常量(6) / create / damage_msg / eff_status_msg / status_msg /
+#   report_status / skill_power / do_attack / fight / auto_fight+start_* / announce /
+#   winner_reward / death_penalty / killer_reward
+# 层归属：层0=6  层1=0  层2=0  层3=9
+# 引擎侧/内容侧：引擎侧（消息表文本可由题材包扩展，但 daemon 逻辑是平台代码）
+
+# ── 层0：纯数据声明（消息表） ──
+guard_msg:
+  - "$N注视著$n的行动，企图寻找机会出手。\n"
+  - "$N正盯著$n的一举一动，随时准备发动攻势。\n"
+  - "$N缓缓地移动脚步，想要找出$n的破绽。\n"
+  - "$N目不转睛地盯著$n的动作，寻找进攻的最佳时机。\n"
+  - "$N慢慢地移动著脚步，伺机出手。\n"
+
+catch_hunt_human_msg:
+  - "$N和$n仇人相见份外眼红，立刻打了起来！\n"
+  - "$N对著$n大喝：「可恶，又是你！」\n"
+  - "$N和$n一碰面，二话不说就打了起来！\n"
+  - "$N一眼瞥见$n，「哼」的一声冲了过来！\n"
+  - "$N一见到$n，愣了一愣，大叫：「我宰了你！」\n"
+  - "$N喝道：「$n，我们的帐还没算完，看招！」\n"
+  - "$N喝道：「$n，看招！」\n"
+
+catch_hunt_beast_msg:
+  - "$N怒吼一声，扑了过来攻击$n！\n"
+  - "$N对著$n大吼，想杀死$n！\n"
+  - "$N发出连串低吼，突然暴起攻击$n！\n"
+
+catch_hunt_bird_msg:
+  - "$N对著$n一声怒鸣，飞冲了过来！\n"
+  - "$N怒鸣几声，突然暴起攻击$n！\n"
+  - "$N一声锐鸣，猛然向$n发动攻击！\n"
+
+winner_msg:
+  - "\n$N哈哈大笑，说道：承让了！\n\n"
+  - "\n$N双手一拱，笑著说道：承让！\n\n"
+  - "\n$N胜了这招，向后跃开三尺，笑道：承让！\n\n"
+  - "\n$n脸色微变，说道：佩服，佩服！\n\n"
+  - "\n$n向后退了几步，说道：这场比试算我输了，佩服，佩服！\n\n"
+  - "\n$n向后一纵，躬身做揖说道：阁下武艺不凡，果然高明！\n\n"
+
+winner_animal_msg:
+  - "\n$N退在一旁，警戒地向$n盯视！\n\n"
+  - "\n$N退守开来，但仍然豪不放松地盯着$n！\n\n"
+  - "\n$N退了几步，但随时可能再冲过来！\n"
+
+# damage_msg 分级文本表：8 种伤害类型 + default，每类型 6-7 档分级（<20/<40/<80/<120/<160/>=160，瘀伤/挫伤/内伤多一档 <240）
+# 伤害类型：擦伤/抓伤/割伤/劈伤/砍伤/刺伤/跌伤/鞭伤/咬伤/瘀伤/挫伤/内伤/default
+# 详见 layer_e_combat.py _damage_msg 规格 line_range=(68,228)
+damage_msg_tables:
+  description: "按伤害类型+伤害值分级的描述文本表，含 $n/$p/$l/$w 占位符"
+  types:
+    擦伤抓伤: { thresholds: [20,40,80,120,160] }
+    割伤劈伤砍伤: { thresholds: [20,40,80,120,160] }
+    刺伤: { thresholds: [20,40,80,120,160] }
+    跌伤: { thresholds: [20,40,80,120,160] }
+    鞭伤: { thresholds: [20,40,80,120,160] }
+    咬伤: { thresholds: [20,40,80,120,160] }
+    瘀伤挫伤: { thresholds: [10,20,40,80,120,160,240] }
+    内伤: { thresholds: [10,20,40,80,120,160,240] }
+    default: { thresholds: [10,20,30,50,80,120,170,230] }
+
+# eff_status_msg：eff_qi/max_qi 百分比 -> 伤势描述（11 档：100/>95/>90/>80/>60/>40/>30/>20/>10/>5/<=5）
+# status_msg：qi/max_qi 百分比 -> 疲惫度描述（10 档）
+# 详见 layer_e_combat.py _eff_status_msg / _status_msg 规格
+eff_status_msg_table:
+  description: "按 eff_qi/max_qi 百分比分级的伤势描述表"
+  levels: [100, 95, 90, 80, 60, 40, 30, 20, 10, 5, 0]
+
+status_msg_table:
+  description: "按 qi/max_qi 百分比分级的疲惫度描述表"
+  levels: [100, 95, 90, 80, 60, 40, 30, 20, 10, 0]
+
+# ── 层3：RestrictedPython 脚本逃生舱（ECS System 平台代码） ──
+# 按 ADR-0014，combatd -> CombatSystem（ECS System，tick 驱动）。
+# 以下全部语义单元是 combat 确定性核心 + 七步交织管线 + 状态机 + 算法，属层3 平台代码。
+
+# layer3-escape: create() seteuid + set name/id，daemon 初始化
+# layer3-escape: damage_msg(damage, type) 伤害描述生成：按 type switch + damage 分级 if-else 链查表，
+#   含 $n/$p/$l/$w 占位符替换。虽查表本身是数据驱动，但 switch+分级 if-else 是算法逻辑。
+#   （数据表已层0 提取，但 damage_msg 函数本身的分支逻辑是层3）
+# layer3-escape: eff_status_msg(ratio) / status_msg(ratio) 伤势描述生成：ratio 分级 if-else 链查表。
+# layer3-escape: report_status(ob, effective) 计算 ratio + 调 eff_status_msg/status_msg + message_vision 输出。
+# layer3-escape: skill_power(ob, skill, usage) 战斗力算法：level^3/3 + jingli_bonus(50-150) +
+#   ATTACK 用 str/DEFENSE 用 dex 加成 + is_fighting DEFENSE 乘 fight/dodge 修正 +
+#   level<1 时 combat_exp/20 补偿 + str/dex*100>300 封顶。纯算法函数，层3。
+# layer3-escape: do_attack(me, victim, weapon, attack_type) 七步管线核心：
+#   (0)选技能 (1)取招式 (2)AP/DP 计算 (3)闪避判定 random(ap+dp)<dp (4)招架判定 random(ap+pp)<pp
+#   (5)伤害结算（多层 hit_ob/hit_by 回调+damage_bonus 随机化+combat_exp 防御削减循环）
+#   (6)伤害施加 receive_damage/receive_wound (7)经验获得 (后)结果消息+状态报告+riposte 递归。
+#   29+ 处 random()，七步副作用交织不可分离（CLAUDE.md 不变量），riposte 递归，属层3。
+# layer3-escape: fight(me, victim) heart_beat 调用入口：victim busy/unconcious -> TYPE_QUICK 攻击、
+#   主动性判定 random(victim.dex*3)<me.str*2+speed -> TYPE_REGULAR、双武器/辟邪剑/双手互博二次攻击、
+#   guarding 防御姿态。状态机+随机判定，层3。
+# layer3-escape: auto_fight(me, obj, type) + start_berserk/hatred/vendetta/aggressive：
+#   NPC-NPC 不自动战斗、looking_for_trouble 防重复、call_out 延迟启动、
+#   start_berserk 有 neili vs shen 随机判定决定 kill/fight、start_hatred 按 race 输出不同消息。
+#   状态机+call_out+随机，层3。
+# layer3-escape: announce(ob, event) 死亡/昏迷/苏醒消息分发，switch event -> message_vision。
+# layer3-escape: winner_reward(killer, victim) 调 killer->defeated_enemy(victim)，委托对象侧回调。
+# layer3-escape: death_penalty(victim) 死亡惩罚算法：clear_condition + death_times+1 条件判定 +
+#   shen/behavior_exp 扣 1/20 + combat_exp 扣 amount(=combat_exp/100, 上限 5000, 最低 20) +
+#   potential 扣 1/2(若 amount>50) + balance 超万部分减半 + death_count+1 + thief 减半 +
+#   skill_death_penalty + save。多属性计算+条件分支+持久化，层3。
+# layer3-escape: killer_reward(killer, victim) 击杀奖励：killed_enemy + PKS+1 + pktime 记录 +
+#   /d/city/ PKer condition + race 决定 mode(咬/踩/啄/杀) + CHANNEL_D rumor +
+#   MKS+1(NPC victim) + mengzhu free_rider 判定 + shen/behavior_exp 扣减 +
+#   free_rider 标记清理 + pker condition+120 + vendetta 追加。
+#   多条件分支+对象状态写入+频道广播+condition 追加，层3。

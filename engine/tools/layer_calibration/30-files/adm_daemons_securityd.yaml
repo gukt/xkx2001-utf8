@@ -1,0 +1,86 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/adm/daemons/securityd.c
+# basename: adm_daemons_securityd
+# 安全 daemon：权限校验，引擎侧核心代码。多数为层3（平台安全逻辑）。
+# 权限 ACL 数据（trusted_write/authorized_cmds 等）可标层0，校验算法为层3。
+# 语义单元 24 个
+# 层归属：层0=7  层1=0  层2=0  层3=17
+id: adm/daemons/securityd
+
+# ──────────── 层0：权限 ACL 数据声明 ────────────
+wiz_levels:
+  - "(player)"
+  - "(immortal)"
+  - "(apprentice)"
+  - "(virtuoso)"
+  - "(caretaker)"
+  - "(creator)"
+  - "(designer)"
+  - "(wizard)"
+  - "(arch)"
+  - "(admin)"
+
+# 默认 trusted_write：只有 admin 可写 tmp 目录
+trusted_write:
+  tmp:
+    - "(admin)"
+
+# 默认 authorized_cmds：命令目录 -> 允许的 wiz_level 列表
+authorized_cmds:
+  cmds/adm: ["(admin)"]
+  cmds/arch: ["(admin)", "(arch)"]
+  cmds/wiz: ["(admin)", "(arch)", "(wiz)"]
+  cmds/imm: ["(admin)", "(arch)", "(wiz)", "(imm)"]
+
+# 默认空 ACL（运行时由 set_*access 修改并 save）
+exclude_read: {}
+exclude_write: {}
+exclude_cmds: {}
+# trusted_read 运行时填充
+trusted_read: {}
+
+# 存档文件路径
+save_file: data/securityd
+
+# ──────────── 层3：权限校验与 ACL 管理逻辑 ────────────
+# layer3-escape: create() 解析 WIZLIST 文件构建 wiz_status/wiz_sites 映射，
+#   含文件 IO + sscanf 解析 + 循环，属图灵完备过程逻辑
+# layer3-escape: valid_write(file, user, func) 文件写入权限校验，
+#   多层路径反向搜索 exclude/trusted ACL + euid/status 双重匹配 + 特例白名单逻辑，
+#   不可用谓词集表达
+# layer3-escape: valid_read(file, user, func) 文件读取权限校验，
+#   同 valid_write 的路径反向搜索 + 特例（/data/ /log/ /adm/etc/ 白名单 + adm/ cmds/ euid 放行），
+#   不可用谓词集表达
+# layer3-escape: valid_cmd(file, user, func) 命令执行权限校验，
+#   路径反向搜索 exclude_cmds/authorized_cmds + cmds/std/skill/usr 直放行，
+#   不可用谓词集表达
+# layer3-escape: valid_seteuid(ob, uid) seteuid 权限校验，
+#   四重条件分支（uid==0 / uid==getuid / ROOT_UID / adm 路径 / admin 提权），
+#   不可用谓词集表达
+# layer3-escape: valid_wiz_login(ob, site) wizard 登录站点校验，
+#   regexp 正则匹配 wiz_sites[euid]，属过程逻辑
+# layer3-escape: get_status(ob) 获取对象 wiz 等级，
+#   object/string 双分支 + wiz_status 查找 + wiz_levels member_array 回退，
+#   过程逻辑
+# layer3-escape: get_wiz_level(ob) / cmp_wiz_level(ob, lvl) 等级数值比较，
+#   依赖 get_status + member_array，过程逻辑
+# layer3-escape: set_status(ob, status, sites, promoter) 设置 wiz 等级，
+#   ROOT_UID + /cmds/adm/promote 双重权限门 + userp/string/ob 三分支取 uid +
+#   (player) 删除分支 + 日志 + save，过程逻辑
+# layer3-escape: query_cmdlist() / query_exclude_cmdlist() / query_readlist() /
+#   query_writelist() / query_exclude_readlist() / query_exclude_writelist()
+#   六个查询函数，均为：遍历 mapping keys + 路径前导 / 修正 + sort_array +
+#   字符串拼接，过程逻辑
+# layer3-escape: set_cmdlist / set_exclude_cmdlist / set_readaccess / set_writeaccess /
+#   set_exclude_readaccess / set_exclude_writeaccess 六个设置函数，
+#   均为：ROOT_UID 权限门 + 路径修正 + check_redundancy + map_delete/赋值 + save + 日志，
+#   过程逻辑
+# layer3-escape: check_redundancy(wizlist) 数组去重检查，
+#   双重循环比较，过程逻辑
+# layer3-escape: query_wizlist() 生成 wizlist 字符串，
+#   遍历 keys + 字符串拼接，过程逻辑
+# layer3-escape: query_wizstatus() 返回 wiz_status 映射，
+#   纯数据返回但依赖运行时状态，归层3
+# layer3-escape: get_wizlist() 返回 wiz_status keys，
+#   纯数据返回但依赖运行时状态，归层3
+# layer3-escape: remove() 调用 save() 持久化，
+#   生命周期钩子，过程逻辑

@@ -53,9 +53,10 @@ def test_go_deny_low_int() -> None:
 
 def test_kill_pirate_runs() -> None:
     game, pid = _game(seed_base=42)
-    before = game.world.get(_pirate_eid(game), Vitals).qi
+    pirate_eid = _pirate_eid(game)
+    before = game.world.get(pirate_eid, Vitals).qi
     msgs = kill(game, pid, "海盗")
-    after = game.world.get(_pirate_eid(game), Vitals).qi
+    after = game.world.get(pirate_eid, Vitals).qi
     assert len(msgs) >= 2
     assert after <= before
 

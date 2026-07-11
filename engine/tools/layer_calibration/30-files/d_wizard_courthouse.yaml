@@ -1,0 +1,29 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/wizard/courthouse.c
+# basename: d_wizard_courthouse
+# 法院（themed 治理，巫师审问机器人）。create() 纯数据（层0）。
+# test_me(me)：强制传送玩家到法院+set startroom=本文件+set_temp last_location+
+#   message_vision 文案+me->move(this_object())。这是 themed 治理平台代码
+#   （机器人审判强制传唤），标层3。
+# 注意：本文件无 init()，test_me 由外部（npc/judge 审判官）调用。
+# 语义单元 5 个：short / long / no_fight+no_sleep_room / objects+cost / test_me
+# 层归属：层0=4  层1=0  层2=0  层3=1
+id: d/wizard/courthouse
+short: 法院
+long: |
+  这里是侠客行的巫师审问机器人的法院，你一定是被人检举或是
+  行为太像机器人，才会来到这里，如果你答不出审判官的三个问题，会
+  被做上记号，超过三次的人将会被处以极刑，好好回答吧。
+no_fight: 1
+no_sleep_room: 1
+objects:
+  d/wizard/npc/judge: 1
+cost: 0
+
+# 层3 项（themed 治理平台代码，不进 UGC DSL）
+# layer3-escape: test_me(me) -- themed 治理平台代码（机器人审判强制传唤）：
+#   set_temp("old_startroom", me->query("startroom")) 保存原起点 +
+#   me->set("startroom", __FILE__) 强制改起点为法院（答错三次处刑后回这里）+
+#   set_temp("last_location", base_name(environment(me))) 记录原位置 +
+#   message_vision 文案（天上掉枷锁+机械手牵走）+
+#   me->move(this_object()) 强制传送。
+#   强制改玩家 startroom + 跨房间强制 move + 位置记录，themed 治理平台代码，层3。

@@ -1,0 +1,84 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/bwdh/kantai.c
+# basename: d_bwdh_kantai
+# 武林大会看台（themed 治理赛事系统）。create() 纯数据（层0）。
+# long_desc() 动态 long：含 query("age") 条件文案 + rank 排行榜 for 循环构造（含对齐填充），
+#   循环+字符串构造，层3。
+# init()：bwdh/fighting 玩家归道具（all_inventory 遍历 destruct）+cangku 仓库道具归还
+#   （find_object/load_object + basket 数组遍历 move）+restore+清 bwdh 多状态+add_action
+#   （practice/study/报名/放弃/start/stop）。themed 赛事平台代码，层3。
+# valid_leave(up: wizard||organizer / out: wizard||!admitted)：形态可层1（has_flag+is_wizard 组合），
+#   但 organizer/admitted 是 themed 赛事状态标记，且房间整体是 themed 平台代码。
+#   保留层1 表达（谓词集可覆盖），备注 themed 状态谓词来源。
+# sort_rank/do_start/do_stop/do_baoming/start/auto_check/let/full_all：全部 themed 赛事状态机，
+#   call_out 闭包循环（auto_check 每 30s/20s/1s 多档重排）+排行榜插入排序+跨房间 move
+#   （KANTAI<->LEITAI<->CANGKU）+find_player+save/restore+full_all 全属性重置。层3。
+# 语义单元 12 个（见 .md 标注表）。
+# 层归属：层0=4  层1=1  层2=0  层3=7
+id: d/bwdh/kantai
+short: 看台
+# long 由 long_desc() 动态生成，含 ASCII 擂台图 + 年龄组标题 + 排行榜，层3
+# layer3-escape: long_desc() -- 动态 long：query("age") 条件文案 + nRank for 循环构造排行榜
+#   （query rank/i/name/id/win/loss + strlen 对齐填充）+ 12 行空行填充。循环+字符串构造，
+#   themed 赛事平台代码，层3。
+long: null   # 见层3 动态生成
+valid_startroom: 1
+no_fight: 1
+no_practice: 1
+exits:
+  up: d/bwdh/leitai
+  out: d/bwdh/square
+objects:
+  d/bwdh/npc/xiaolongnu: 1
+
+# 层1 事件规则（valid_leave 形态可层1）
+rules:
+  - id: kantai_block_up_non_organizer
+    event: valid_leave
+    dir: up
+    condition:
+      not:
+        any:
+          - kind: is_wizard           # wizardp(me)
+          - kind: has_flag
+            flag: temp/organizer      # me->query_temp("organizer")
+    action: deny
+    priority: 0
+    message: 你不能自己上去。
+  - id: kantai_block_out_admitted_player
+    event: valid_leave
+    dir: out
+    condition:
+      all:
+        - not:
+            kind: is_wizard
+        - kind: has_flag
+          flag: temp/admitted         # me->query_temp("admitted")，themed 赛事状态
+    action: deny
+    priority: 0
+    message: 你是选手,现在不能离开。
+
+# 层3 项（themed 治理平台代码，不进 UGC DSL）
+# layer3-escape: init() -- themed 赛事平台代码：bwdh/fighting 玩家进场归道具
+#   （all_inventory 遍历 destruct 从擂台带回的物品）+cangku 仓库道具归还
+#   （find_object/load_object CANGKU + basket 数组遍历 move + cangku->delete basket/id）
+#   +player->restore()+清 bwdh/admitted|fighting|once+add_action(practice/study/报名/放弃/start/stop)。
+#   环境遍历+跨房间对象操作+多状态清理+命令注册，层3。
+# layer3-escape: sort_rank(ob,n) -- 排行榜插入排序：for 循环查找已有 id+未找到则 nRank++ 追加+
+#   向前比较 win 数冒泡交换（set rank/i/name|id|win|loss 多字段）。循环+多字段状态机，层3。
+# layer3-escape: do_start(arg) / do_stop(arg) -- wizard 发动/终止比武大会：sscanf age 参数+
+#   set("age")/set("start",1)+find_player host/challenger+move KANTAI+清 bwdh 状态+message_vision。
+#   themed 赛事生命周期管理，层3。
+# layer3-escape: do_baoming() -- 报名：call_out("auto_check",0)+age 超龄/已报名/连输三场校验+
+#   首报设 host+call_out("let")+有人比武则排队（set boy/time=id）+挑战者设 challenger+
+#   call_out("start",25/30,host,challenger)。多分支状态机+call_out 闭包，层3。
+# layer3-escape: start(host,challenger) -- 比武开始：find_player 双方+kill_ob 双向+
+#   set bwdh/fighting+断线则 call_out("start",10) 重试。战斗触发+延迟回调，层3。
+# layer3-escape: auto_check() -- 赛事主循环状态机：call_out 自调度（30s/20s/1s 多档）+
+#   host/challenger 存活判定（living/is_ghost/qi<=0）+败者 move KANTAI+sort_rank+
+#   胜者 full_all+连胜两场下场休息+boy 队列消费（keys 遍历 find_player）+
+#   no_challenger 计数（>=2 提示/>=3 判赢）+userp 断线兜底（new USER_OB+restore）。
+#   themed 赛事核心状态机，最复杂的层3 项，层3。
+# layer3-escape: let(arg) + full_all(me) -- 选手上台：find_player+save+all_inventory 遍历 move
+#   cangku 保管（basket 数组累加 old_basket）+move LEITAI+RANK_D->query_respect 文案+
+#   full_all 全属性重置（eff_jing/jing/eff_qi/qi/jingli/neili/food/water/max_*+
+#   remove_all_killer+clear_condition）+set bwdh/fighting。环境遍历+跨房间 move+全属性重置，层3。

@@ -49,6 +49,7 @@ def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
                 long=r["long"],
                 exits=r.get("exits", {}),
                 objects=r.get("objects", {}),
+                items=set(r.get("items", [])),
                 outdoors=r.get("outdoors", False),
                 no_fight=r.get("no_fight", False),
             ),

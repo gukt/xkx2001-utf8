@@ -1,0 +1,99 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/clone/npc/fa-e.c
+# basename: clone_npc_fa-e
+# 罚恶使者 NPC，结构与 meng-zhu 高度同构（挑战-继承-复原），含跨 NPC 校验。
+# 语义单元 14 个：create_name_long（层0） / create_attrs（层0） /
+#   create_skills（层0） / create_weapon_armor（层0） / create_restore_branch（层0） /
+#   init_hook（层1） / do_kill（层1） / accept_fight（层1+层3） /
+#   chat（层3） / do_copy（层3） / do_recopy（层3） / do_clone（层3） /
+#   do_recover（层3） / auto_enable（层3）
+# 层归属：层0=5  层1=3  层2=0  层3=6
+id: clone/npc/fa-e
+name: 西方月
+aliases: ["fae shizhe", "fae", "shizhe"]
+title: 罚恶使者
+gender: 男性
+age: 35
+attitude: heroism
+generation: 0
+winner: none
+long: |
+  一位神色严峻的中年武人，他就是嫉恶如仇，侠名远播的武林罚恶使者。
+str_: 25
+con_: 25
+int_: 25
+dex_: 25
+max_qi: 500
+eff_qi: 500
+qi: 500
+max_jing: 300
+jing: 300
+neili: 500
+max_neili: 500
+jiali: 30
+shen_type: 0
+combat_exp: 400000
+no_clean_up: 1
+skills:
+  force: 90
+  unarmed: 90
+  sword: 90
+  dodge: 90
+  parry: 90
+weapon: /d/shaolin/obj/changjian
+armor: /d/city/obj/cloth
+no_get: 1
+save_file: /data/npc/fa-e
+rules:
+  # init 钩子：设置 no_get + 环境写入 winner + 注册命令
+  - id: fae_init
+    event: init
+    condition:
+      kind: always
+    action: set_flag
+    flag: no_get
+    priority: 0
+    # 附带：environment->set("winner", this_object->query("winner"))
+    # 附带：add_action recover/kill
+  # do_kill：deny kill fae
+  - id: fae_deny_kill
+    event: command
+    command: kill
+    condition:
+      kind: always
+    action: deny
+    message: 不可对使者放肆！
+    priority: 0
+  # accept_fight deny 前置条件（跨 NPC 校验部分可层1，动态查询部分层3）
+  - id: fae_accept_fight_guards_static
+    event: accept_fight
+    condition:
+      any:
+        - kind: has_flag  # me->query_temp("shan/bangzhu")
+          flag: shan_bangzhu
+        - kind: has_flag  # me->query("winner") == ob->query("id")
+          flag: winner_is_challenger
+        - kind: has_flag  # wiz_level(this_player())
+          flag: is_wizard
+        - kind: has_flag  # me->is_fighting()
+          flag: is_fighting
+    action: deny
+    priority: 0
+    # deny 消息依分支不同
+# layer3-escape: accept_fight 的跨 NPC 动态校验分支 -
+#   find_living("mengzhu")/load_object + mengzhu->query("winner") 比对玩家 id（已是盟主则 deny）
+#   + find_living("shangshan")/load_object + shangshan->query("winner") 比对（已是赏善使者则 deny），
+#   动态 find_living/load_object 跨对象查询，超出谓词表达力，需逃生舱。
+#   通过分支同样需多项 set 副作用 + set_temp challenger，层3。
+# layer3-escape: chat() - 挑战判定主循环（与 meng-zhu 同构），is_fighting/present
+#   状态机 + qi 百分比计算 + call_out(do_copy,1) 闭包 + command(say/chat) 副作用。
+# layer3-escape: do_copy(me,ob) - generation 递增 + chinese_number 拼接 +
+#   ob->set_temp("apply/short") + call_out(do_clone,0) 闭包。
+# layer3-escape: do_recopy(me,ob) - 多分支 deny + 属性重写 + call_out(do_clone,0) 闭包。
+# layer3-escape: do_clone(me,ob) - 核心继承逻辑：3 套 for 循环删除/拷贝 skills/
+#   skill_map/skill_prepare + for 循环遍历 all_inventory 析构/重新 wield/wear +
+#   query_entire_dbase 批量 set 20+ 属性 + clear_condition + save + environment->set winner。
+# layer3-escape: do_recover() - family 双重校验 + for 循环删除/拷贝 skills/maps +
+#   combat_exp 拷贝 + 属性复原，循环+多分支。（注：fa-e 的 do_recover 比 meng-zhu 简化，
+#   无 skill_learned 构建，但仍含循环+多分支）
+# layer3-escape: auto_enable()（来自 auto_enable.h）- 插入排序+双重 for+
+#   SKILL_D 动态派发+map_skill/prepare_skill 副作用。
