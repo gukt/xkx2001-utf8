@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 1 T2（SchemaRegistry）完成，T3 待做
-**当前状态**：阶段 1 Wave 1 T2 完成。ADR-0019 产出（[SchemaRegistry 与 DSL SchemaValidator 边界](docs/adr/ADR-0019-schema-registry-and-dsl-validator-boundary.md)，关联 dissent 3 层1 原语蠕变护栏）。T2 实现：[schema.py](engine/src/xkx/runtime/schema.py) SchemaRegistry（组件类型注册 + 字段名存在性校验，从 dataclass fields 自动提取，with_builtins 注册 13 内置组件）+ [ecs.py](engine/src/xkx/runtime/ecs.py) World 可选注入 schema（get/add/has/remove/entities_with 调 resolve，未注册类型 raise SchemaError 非静默 None）+ [world.py](engine/src/xkx/runtime/world.py) build_world 用 with_builtins（生产路径强制校验）。边界：SchemaRegistry 只做拼写检查不做语义校验（dissent 3 护栏），语义留给 DSL SchemaValidator + System 不变量。**718 tests 全绿（+17：test_schema 17），ruff 全过**。下一步：Wave 1 T3（字段->组件映射表，DBASE_KEY_MAP，依赖 T2 has_field）。
+**当前阶段**：阶段 1 Wave 1 全部完成（T1+T2+T3），Wave 2 待启动
+**当前状态**：阶段 1 Wave 1 T3 完成。T3 实现：[dbase_map.py](engine/src/xkx/runtime/dbase_map.py) DBASE_KEY_MAP（37 已映射简单 key -> 组件字段）+ PATH_PREFIX_MAP（skill/marks 路径访问）+ POSTPONED_KEYS（55 后置 key）+ validate_dbase_map 启动期校验（T2 has_field 衔接）；[world.py](engine/src/xkx/runtime/world.py) build_world 调 validate_dbase_map（映射目标非法 raise SchemaError）；[13-dbase-key-map.md](docs/xkx-arch/13-dbase-key-map.md) 完整 key 枚举文档（82 spec key 全归类：已映射/路径/后置）。**Wave 1 全部完成（T1+T2+T3），727 tests 全绿（+9：test_dbase_map 9），ruff 全过**。下一步：Wave 2（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性，3 路并行）。
 
 ## Done
 
@@ -221,6 +221,14 @@
   - 测试：[test_schema.py](engine/tests/test_schema.py) 17 tests（注册/解析/字段查询/重复注册幂等/类型名冲突/非 dataclass 拒绝/未注册 raise/with_builtins 全覆盖/World 校验集成/build_world 带 schema/hypothesis 字段集一致性）
   - **718 tests 全绿（+17），ruff 全过**
 
+- [x] **阶段 1 Wave 1 T3：字段->组件映射表完成**（[13-dbase-key-map.md](docs/xkx-arch/13-dbase-key-map.md) / ADR-0019 覆盖）：
+  - [dbase_map.py](engine/src/xkx/runtime/dbase_map.py)：DBASE_KEY_MAP（37 已映射简单 key -> 13 组件字段，覆盖 Identity/Attributes/Vitals/Progression/Skills/NpcBehavior/RoomComp）+ PATH_PREFIX_MAP（skill/xxx -> Skills.levels，marks/xxx -> Marks.flags，LPC dbase 路径访问语义）+ POSTPONED_KEYS（55 后置 key，分 5 类：战斗行为/角色长期/PK法院/频道消息/登录重连/对象房间扩展）+ validate_dbase_map（T2 has_field 启动期校验映射目标合法）+ resolve_dbase_key（简单 key + 路径前缀解析，未映射返回 None）
+  - [world.py](engine/src/xkx/runtime/world.py)：build_world 调 validate_dbase_map，映射目标非法 raise SchemaError（T2-T3 衔接）
+  - [13-dbase-key-map.md](docs/xkx-arch/13-dbase-key-map.md)：完整 key 枚举文档（spec 82 key 全归类：37 已映射 + 2 路径前缀 + 55 后置 + 动态拼接 eff_/max_ type 维度）
+  - 测试：[test_dbase_map.py](engine/tests/test_dbase_map.py) 9 tests（validate 正常+空 schema 全报/resolve 简单+路径+未映射/POSTPONED 不污染已映射/hypothesis 映射目标合法）
+  - **727 tests 全绿（+9），ruff 全过**
+  - **Wave 1 全部完成（T1+T2+T3）**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -231,10 +239,12 @@
 
 ## In Progress
 
-**阶段 1 Wave 1 T2 完成**，T3 待做（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 Wave 1 全部完成（T1+T2+T3）**，Wave 2 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
-**Wave 1 剩余**：
-- T3 字段->组件映射表（query_entire_dbase 调用点读写键集枚举 + DBASE_KEY_MAP，依赖 T2 has_field/field_names）
+**Wave 2（3 路并行，依赖 Wave 1）**：
+- T4 命令 8 段中间件管线 + ActionContext + CapabilityToken（ADR-0020/0021 前置，关联 dissent 6 force_me 边界）
+- T5 内存权威 + JSON 存档（ADR-0022 前置，关联 dissent 8 存储收缩）
+- T6 combat 确定性扩展 + 简化台账补全（ADR-0023 前置，关联 dissent 1 CombatKernel 时机）
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -266,7 +276,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：Wave 1 T3（字段->组件映射表，DBASE_KEY_MAP，query_entire_dbase 调用点读写键集枚举）。T1/T2 已完成，T3 可继续。
+**下一步主线**：Wave 2（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性，3 路并行）。Wave 1 全部完成，Wave 2 可启动。Wave 2 各任务需先写对应 ADR（ADR-0020/0021 T4 / ADR-0022 T5 / ADR-0023 T6）。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
