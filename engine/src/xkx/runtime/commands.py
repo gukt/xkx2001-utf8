@@ -1,10 +1,23 @@
-"""命令管线最小版（S1）：go / kill + ask / give（S4 ADR-0006）+ quest（S4 ADR-0007）。
+"""命令管线 + 8 段中间件调度（阶段 1 Wave 2 T4，ADR-0020）。
 
 Command 仅覆盖玩家外部意图；System tick 派生变更不经 Command（02 Q3 裁决）。
-S1 不实装 8 段中间件全链路（01 子系统4），仅保留 路由 -> valid_leave/战斗/对话/物品/任务 执行。
+
+**阶段 1 Wave 2 T4 升级**（ADR-0020）：单段命令执行升级为 8 段中间件管线。
+本模块保留 10 命令（go/kill/ask/give/quest/take/look/inventory/hp）的终端执行函数
+（行为等价，e2e 测试不回归），并新增：
+
+- ``COMMAND_REGISTRY``：verb -> adapter ``(game, ctx) -> list[str]``，adapter 从
+  ActionContext 取参数调用原命令函数（原签名不变）。
+- ``run_pipeline``：8 段管线调度器（段 0-7 顺序执行，Abort 短路）。
+- ``dispatch``：高层入口，从原始命令字符串走完整 8 段管线。
+
+[ADR-0020](../../../docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md)
+[ADR-0021](../../../docs/adr/ADR-0021-previous-object-explicit-mapping.md)
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from xkx.combat.context import CombatContext
 from xkx.combat.resolve_attack import resolve_attack
@@ -14,6 +27,8 @@ from xkx.dsl.layer1 import (
     evaluate,
     evaluate_accept_object,
 )
+from xkx.runtime.action_context import Abort, ActionContext, new_context
+from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
     Identity,
@@ -27,6 +42,15 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.ecs import World
+from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
+from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
+from xkx.runtime.middleware.s2_permission import permission_check
+from xkx.runtime.middleware.s3_find_command import find_command
+from xkx.runtime.middleware.s4_direction import direction_shortcut
+from xkx.runtime.middleware.s5_parse_args import parse_args
+from xkx.runtime.middleware.s6_inject_context import inject_context
+from xkx.runtime.middleware.s7_execute_audit import AuditLog, execute_audit
+from xkx.runtime.privileged import PrivilegedActionLog
 from xkx.runtime.world import apply_effects, to_snapshot
 
 
@@ -443,3 +467,202 @@ def hp(game: Game, actor_id: int) -> list[str]:
         f"气：{vitals.qi}/{vitals.max_qi}  精力：{vitals.jingli}/{vitals.max_jingli}"
         f"  经验：{prog.combat_exp if prog else 0}"
     ]
+
+
+# ============================================================================
+# 阶段 1 Wave 2 T4：8 段中间件管线集成（ADR-0020）
+# ============================================================================
+
+
+def _adapter_go(game: Game, ctx: ActionContext) -> list[str]:
+    """go 命令适配器：从 ctx 取 direction（raw_args 或 parsed_args[0]）。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return go(game, ctx.actor, direction)
+
+
+def _adapter_kill(game: Game, ctx: ActionContext) -> list[str]:
+    """kill 命令适配器：target_name = parsed_args[0]（或 raw_args）。"""
+    target_name = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return kill(game, ctx.actor, target_name)
+
+
+def _adapter_ask(game: Game, ctx: ActionContext) -> list[str]:
+    """ask 命令适配器：ask <NPC> about <话题> 或 ask <NPC> <话题>。
+
+    对齐 cli.parse_and_run：优先按 about 拆分，否则首个 token 为 NPC，其余为话题。
+    """
+    args = ctx.parsed_args
+    if not args:
+        return ["如：ask 葛伦布 about 还愿"]
+    if "about" in args:
+        idx = args.index("about")
+        npc = " ".join(args[:idx])
+        topic = " ".join(args[idx + 1 :])
+    elif len(args) >= 2:
+        npc, topic = args[0], " ".join(args[1:])
+    else:
+        return ["如：ask 葛伦布 about 还愿"]
+    return ask(game, ctx.actor, npc, topic)
+
+
+def _adapter_give(game: Game, ctx: ActionContext) -> list[str]:
+    """give 命令适配器：give <NPC> <物品>（最后一个 token 为物品）。"""
+    args = ctx.parsed_args
+    if len(args) < 2:
+        return ["如：give 葛伦布 suyou_guan"]
+    npc = " ".join(args[:-1])
+    item = args[-1]
+    return give(game, ctx.actor, npc, item)
+
+
+def _adapter_quest(game: Game, ctx: ActionContext) -> list[str]:
+    """quest 命令适配器：quest 或 quest <id>。"""
+    arg = ctx.raw_args.strip()
+    return quest(game, ctx.actor, arg)
+
+
+def _adapter_take(game: Game, ctx: ActionContext) -> list[str]:
+    """take 命令适配器：take <物品>。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return take(game, ctx.actor, item_query)
+
+
+def _adapter_get(game: Game, ctx: ActionContext) -> list[str]:
+    """get 命令适配器（take 别名）。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return take(game, ctx.actor, item_query)
+
+
+def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
+    """look 命令适配器（无参，查看当前房间）。"""
+    return look(game, ctx.actor)
+
+
+def _adapter_inventory(game: Game, ctx: ActionContext) -> list[str]:
+    """inventory 命令适配器（无参）。"""
+    return inventory(game, ctx.actor)
+
+
+def _adapter_hp(game: Game, ctx: ActionContext) -> list[str]:
+    """hp 命令适配器（无参）。"""
+    return hp(game, ctx.actor)
+
+
+# 命令注册表：verb -> adapter (game, ctx) -> list[str]
+# 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
+COMMAND_REGISTRY: dict[str, Any] = {
+    "go": _adapter_go,
+    "kill": _adapter_kill,
+    "ask": _adapter_ask,
+    "give": _adapter_give,
+    "quest": _adapter_quest,
+    "take": _adapter_take,
+    "get": _adapter_get,
+    "look": _adapter_look,
+    "inventory": _adapter_inventory,
+    "hp": _adapter_hp,
+}
+
+
+def run_pipeline(
+    game: Game,
+    ctx: ActionContext,
+    *,
+    permission_service: PermissionService | None = None,
+    flood_state: FloodState | None = None,
+    alias_state: AliasState | None = None,
+    audit_log: AuditLog | None = None,
+    privileged_log: PrivilegedActionLog | None = None,
+    privileged_call_site: str = "",
+) -> ActionContext | Abort:
+    """8 段中间件管线调度器（ADR-0020 决策 1）。
+
+    段 0-7 顺序执行，任一段返回 Abort 则短路终止。段 2/3/4/7 需要额外参数
+    （permission_service / command_table / game / audit_log），通过参数注入。
+
+    ``privileged_call_site`` 非空时表示 PrivilegedAction 路径（审计日志标记 is_privileged）。
+    """
+    command_table = COMMAND_REGISTRY
+    current: ActionContext | Abort = ctx
+
+    # 段 0 刷屏检测
+    current = flood_check(current, flood_state)
+    if isinstance(current, Abort):
+        return current
+    # 段 1 别名解析
+    current = alias_resolve(current, alias_state)
+    if isinstance(current, Abort):
+        return current
+    # 段 2 权限校验
+    current = permission_check(current, permission_service)
+    if isinstance(current, Abort):
+        return current
+    # 段 3 命令查找
+    current = find_command(current, command_table)
+    if isinstance(current, Abort):
+        return current
+    # 段 4 方向快捷
+    current = direction_shortcut(current, game, command_table)
+    if isinstance(current, Abort):
+        return current
+    # 段 5 参数解析
+    current = parse_args(current)
+    if isinstance(current, Abort):
+        return current
+    # 段 6 previous_object 注入
+    current = inject_context(current)
+    if isinstance(current, Abort):
+        return current
+    # 段 7 执行 + 审计
+    return execute_audit(current, game, audit_log)
+
+
+def dispatch(
+    game: Game,
+    actor: int,
+    line: str,
+    *,
+    permission_service: PermissionService | None = None,
+    capability_token: CapabilityToken | None = None,
+    flood_state: FloodState | None = None,
+    alias_state: AliasState | None = None,
+    audit_log: AuditLog | None = None,
+    seq: int = 0,
+    source: int | None = None,
+) -> list[str]:
+    """高层命令入口：原始字符串 -> 8 段管线 -> 结果消息（ADR-0020）。
+
+    玩家命令路径默认 source=actor（source/viewer=actor 三者相同）。
+    PrivilegedAction 路径通过 ``PrivilegedAction.force`` 调 ``run_pipeline``，不走本函数。
+
+    无 ``permission_service`` 时段 2 跳过校验（测试/开发期）；生产路径必须注入
+    （fail-closed 由调用方保证）。无 ``capability_token`` 时段 2 fail-closed Abort。
+    """
+    line = line.strip()
+    parts = line.split(None, 1)
+    if not parts:
+        return []
+    verb = parts[0]
+    raw_args = parts[1] if len(parts) > 1 else ""
+    ctx = new_context(
+        verb=verb,
+        raw_args=raw_args,
+        actor=actor,
+        source=source,
+        capability_token=capability_token,
+        seq=seq,
+    )
+    result = run_pipeline(
+        game,
+        ctx,
+        permission_service=permission_service,
+        flood_state=flood_state,
+        alias_state=alias_state,
+        audit_log=audit_log,
+    )
+    if isinstance(result, Abort):
+        return list(result.messages)
+    return list(result.result)
+

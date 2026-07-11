@@ -33,14 +33,30 @@ from xkx.runtime.components import (
 from xkx.runtime.dbase_map import validate_dbase_map
 from xkx.runtime.ecs import World
 from xkx.runtime.schema import SchemaError, SchemaRegistry
+from xkx.runtime.storage import (
+    DEFAULT_CHECKPOINT_INTERVAL,
+    DEFAULT_PERSIST_INTERVAL,
+    StorageBackend,
+    StorageSystem,
+)
 
 
-def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
+def build_world(
+    ir: dict,
+    *,
+    storage_backend: StorageBackend | None = None,
+    persist_interval: int = DEFAULT_PERSIST_INTERVAL,
+    checkpoint_interval: int = DEFAULT_CHECKPOINT_INTERVAL,
+) -> tuple[World, dict[str, int], dict[str, dict]]:
     """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
 
     用 ``SchemaRegistry.with_builtins()`` 创建带类型校验的 World（ADR-0019），
     生产路径组件类型拼写错误启动期/调用期失败，非静默 None。同时校验
     ``DBASE_KEY_MAP`` 映射目标字段存在（T3，ADR-0019 has_field 衔接）。
+
+    ADR-0022 T5：可选 ``storage_backend`` 传入时创建 ``StorageSystem`` 并挂到
+    ``world.storage_system``（动态属性，不改 World 类）。调用方通过该属性驱动 tick
+    persist + mark_dirty。不传则不接入存档（向后兼容现有调用方）。
     """
     schema = SchemaRegistry.with_builtins()
     issues = validate_dbase_map(schema)
@@ -77,6 +93,15 @@ def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
                 continue
             for _ in range(count):
                 _spawn_npc(world, ndef, r["id"])
+
+    # ADR-0022 T5：接入 StorageSystem（可选，最小改动）
+    if storage_backend is not None:
+        world.storage_system = StorageSystem(  # type: ignore[attr-defined]
+            storage_backend,
+            schema=schema,
+            persist_interval=persist_interval,
+            checkpoint_interval=checkpoint_interval,
+        )
 
     return world, room_entities, quest_idx
 

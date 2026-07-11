@@ -129,21 +129,23 @@ DO_ATTACK_IMPL_MAP: dict[str, ImplEntry] = {
         adr_ref="ADR-0002",
         note="RESULT_DODGE/PARRY 时 effects 无 KIND_DAMAGE",
     ),
-    # --- simplified：resolve_attack 简化实现，验证简化版规格 ---
+    # --- implemented（T6 ADR-0023 升级：riposte 递归 + hit_ob/hit_by mapping
+    #     补全后交织顺序更完整可验证；three_layer_resource_invariant 始终可验证）---
     "three_layer_resource_invariant": ImplEntry(
         check_name="three_layer_resource_invariant",
-        status=ImplStatus.SIMPLIFIED,
+        status=ImplStatus.IMPLEMENTED,
         spec_ref="do_attack invariants[0] 0<=qi<=eff_qi<=max_qi",
-        adr_ref="ADR-0002",
-        note="产 Effect 不调 receive_damage/wound；验证 apply 后不变量",
+        adr_ref="ADR-0023",
+        note="产 Effect 不调 receive_damage/wound；验证 apply 后不变量（T6 升级："
+        "6 项简化台账补全后 combat 范围确定性重放可验证，三层资源不变量始终可验证）",
     ),
     "interleaving_order": ImplEntry(
         check_name="interleaving_order",
-        status=ImplStatus.SIMPLIFIED,
+        status=ImplStatus.IMPLEMENTED,
         spec_ref="do_attack invariants[1] 七步副作用交织不可分离",
-        adr_ref="ADR-0002",
-        note="S1 局部变量（limb/ap/dp）不记录 ledger，dodge/parry 分支交织不可验证；"
-        "仅检查 hit 分支 ledger 非全分组（receive_damage -> damage_msg 交织）",
+        adr_ref="ADR-0023",
+        note="T6 升级：riposte 递归子回合嵌入父回合 ledger + hit_ob/hit_by mapping "
+        "分支按规格 order 交织入账本，hit 分支 ledger 交织顺序完整可验证",
     ),
     # --- postponed：后置，跳过验证（不进 ConformanceChecker 检查范围）---
     # 以下检查项不注册到 impl_map，ConformanceChecker 不检查。

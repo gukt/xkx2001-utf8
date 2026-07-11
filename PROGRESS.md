@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 2 前置 ADR 全部产出（ADR-0020/0021/0022/0023），待 3 路并行实现
-**当前状态**：阶段 1 Wave 2 前置 ADR 完成。4 个 ADR 产出：[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md)（8 段管线 + ActionContext + CapabilityToken + force_me=PrivilegedAction）+ [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)（previous_object 155 处显式化 A/B/C 三类）+ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)（持久化边界 + 原子写 + dirty-flag + 丢失语义台账 + Effect 崩溃恢复）+ [ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)（combat-only 确定性 + 简化台账 6 项补全 + test_theme_neutrality 硬门禁兜底）。**727 tests 全绿（无回归），ruff 全过**。下一步：Wave 2 三路并行实现（T4/T5/T6）。
+**当前阶段**：阶段 1 Wave 2 全部完成（T4+T5+T6），Wave 3 待启动
+**当前状态**：阶段 1 Wave 2 全部完成。T4 命令 8 段管线（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) + [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)）+ T5 JSON 存档（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)）+ T6 combat 确定性（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)）3 路并行实现完成。**865 tests 全绿（+138：T4 +80 / T5 +25 / T6 +33），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。下一步：Wave 3（T7 WS 服务器 / T8 工具链 / T9 combat-sim，3 路并行）。
 
 ## Done
 
@@ -237,6 +237,41 @@
   - agent teams 3 路并行写 ADR（T4 一个 agent 写 0020+0021 / T5 一个写 0022 / T6 一个写 0023），审查收敛后修复 1 处交叉引用链接
   - **727 tests 全绿（无回归），ruff 全过**
 
+- [x] **阶段 1 Wave 2 T4 命令 8 段管线 + ActionContext + CapabilityToken 完成**（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) + [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T4）：
+  - 8 段中间件管线（[middleware/](engine/src/xkx/runtime/middleware/) 8 文件：s0 刷屏检测 / s1 别名 / s2 权限 / s3 命令查找 / s4 方向快捷 / s5 参数解析 / s6 previous_object 注入 / s7 执行+审计），对照 LPC command_hook 四分支 + process_input
+  - [ActionContext](engine/src/xkx/runtime/action_context.py) frozen dataclass 三元组（actor/source/viewer/target + capability_token + seq + result/effects），PronounContext viewer 不变量
+  - [CapabilityToken](engine/src/xkx/runtime/capability.py) HS256 签名 + 内存吊销集合 + 能力集映射 LPC 权限模型（exclude 优先 authorized）+ PermissionService 签发/验签/吊销
+  - [PrivilegedAction](engine/src/xkx/runtime/privileged.py) force_me=PrivilegedAction（ROOT 门控 + 强制审计 + 调用点白名单 4 处 + 走完整 8 段管线 + NPC AI 禁用）
+  - [previous_object_map.py](engine/src/xkx/runtime/previous_object_map.py) PREVIOUS_OBJECT_MAP（A/B/C 三类 11 条典型调用点）+ 启动期 MappingError 校验；[pronoun.py](engine/src/xkx/runtime/pronoun.py) PronounService（viewer/target 显式传参）；[system_context.py](engine/src/xkx/runtime/system_context.py) SystemContext（System.update 路径轻量）
+  - [commands.py](engine/src/xkx/runtime/commands.py) 重构接入管线（COMMAND_REGISTRY + run_pipeline + dispatch），10 命令行为等价
+  - 测试：[test_command_pipeline.py](engine/tests/test_command_pipeline.py) 26 + [test_capability_token.py](engine/tests/test_capability_token.py) 20 + [test_privileged_action.py](engine/tests/test_privileged_action.py) 13 + [test_previous_object_map.py](engine/tests/test_previous_object_map.py) 21
+  - **80 新测试全绿，61 e2e 不回归，ruff 全过**；关联 dissent 6
+
+- [x] **阶段 1 Wave 2 T5 内存权威 + JSON 存档完成**（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T5）：
+  - [storage.py](engine/src/xkx/runtime/storage.py) StorageBackend 抽象基类（persist=崩溃恢复级耐久，非 save=权威写）+ JsonFileBackend（原子写 write-temp+fsync+os.replace + offload asyncio.to_thread + per-entity dirty-flag）+ StorageSystem（tick 驱动周期 persist + mark_dirty + 全量 checkpoint 周期重置 + persist_now + restore_world 冷重启协议）
+  - [serialization.py](engine/src/xkx/runtime/serialization.py) 组件 dataclass <-> JSON 序列化（dataclasses.fields 提取 + SchemaRegistry 字段名衔接 + set 字段 sorted list 往返 + 多余/缺失字段容忍）
+  - [world.py](engine/src/xkx/runtime/world.py) 最小接入 StorageSystem（build_world 加可选 storage_backend 参数，world.storage_system 动态属性，零破坏现有调用）
+  - Effect 崩溃恢复：duration 不衰减（时间冻结）+ next_tick 对齐 current_tick+tick_interval（不补执行）+ 悬空 target_id 跳过 + 悬空 source_id 保留
+  - 丢失语义台账 5 项（ADR §5 已记录，PG 后置 kill criteria 8）
+  - 测试：[test_storage.py](engine/tests/test_storage.py) 25 tests（原子写崩溃 + offload 不阻塞 + dirty-flag + 冷重启 + Effect 崩溃恢复 + hypothesis 序列化往返 6 property）
+  - **25 新测试全绿，ruff 全过**；关联 dissent 8
+
+- [x] **阶段 1 Wave 2 T6 combat 确定性扩展 + 简化台账 6 项补全完成**（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T6）：
+  - 6 项简化台账补全（[resolve_attack.py](engine/src/xkx/combat/resolve_attack.py)）：
+    1. hit_ob/hit_by mapping 分支：[HitCallbackResult](engine/src/xkx/combat/context.py) 声明式载体（message/damage_delta/override，主题无关 + 可序列化），内核只做返回类型分发，按规格 order=23/25/26/32/33 交织入 ledger
+    2. riposte 递归：TYPE_REGULAR + damage<1 + victim guarding 时递归调 resolve_attack，子回合经 [embed_subresult](engine/src/xkx/combat/result.py) 嵌入父回合 ledger（LEDGER_SUBRESULT，非独立账本），_RIPOSTE_MAX_DEPTH=4 防死循环
+    3. 武器类型：不在内核枚举（test_theme_neutrality 源码无 sword/blade 硬门禁持续通过），attack_skill/weapon_label 由题材数据声明
+    4. skill_power 完整公式：level³/3 + jingli_bonus(上限 150) + str/dex 加成 + is_fighting DEFENSE 折减 + level<1 低技能经验补偿（LPC _skill_power invariants）
+    5. combat_exp 防御折减：defense_factor 折半自然终止（while 循环，每次 rng.rand），替代 S1 的固定 5 次上限
+    6. 技能 action：[SkillData](engine/src/xkx/combat/context.py) 载体（action/dodge/parry/damage/force/damage_type/post_action），快照从 SkillData 取值，post_action 声明式副作用入 ledger（order=47）
+  - CombatSystem（[system.py](engine/src/xkx/combat/system.py) 新建）：tick 驱动 + 快照构建 + input log 记录 + apply_effects + replay 入口 + flatten_messages/effects（展开 riposte 子回合）+ 不套 Command。独立实现（不继承 runtime.System，避免 combat->runtime 依赖），不接入 world.py System 注册（后续整合）
+  - replay 纯函数（[replay.py](engine/src/xkx/combat/replay.py) 新建）：replay(snapshot, seed, input_log) -> list[CombatRoundResult]，同 snapshot+seed+input_log -> 同输出（combat-only 确定性，不依赖运行时 ECS）
+  - impl_map 升级（[impl_map.py](engine/src/xkx/spec/impl_map.py)）：three_layer_resource_invariant / interleaving_order 状态 simplified -> implemented（14 implemented + 0 simplified）
+  - DeterministicRNG 加 derive_seed（riposte 子回合 seed 派生，确定性）
+  - 测试：[test_simplification_ledger.py](engine/tests/test_simplification_ledger.py) 20 tests（6 项补全回归 + 主题无关性断言）+ [test_combat_system.py](engine/tests/test_combat_system.py) 13 tests（tick 驱动 + 确定性重放 + apply_effects 三层不变量 + flatten 子回合展开）
+  - test_conformance.py 最小适配 2 处：test_ap_dp_pp_lower_bound（完整公式 level<1 边界行为，skill_power>=0 + resolve_attack max(1,ap) 修正）+ test_implemented_count（14/0）
+  - **840 tests 全绿（+33），ruff 全过**；test_theme_neutrality 5 断言全绿（硬门禁不回归）；ConformanceChecker 8 项全通过（riposte 场景验证）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -247,17 +282,23 @@
 
 ## In Progress
 
-**阶段 1 Wave 2 前置 ADR 全部产出**（ADR-0020/0021/0022/0023），待 3 路并行实现（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 Wave 2 全部完成（T4+T5+T6）**，Wave 3 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
-**Wave 2（3 路并行，依赖 Wave 1，前置 ADR 已就绪）**：
-- T4 命令 8 段中间件管线 + ActionContext + CapabilityToken（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) + [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)，关联 dissent 6 force_me 边界）
-- T5 内存权威 + JSON 存档（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，关联 dissent 8 存储收缩）
-- T6 combat 确定性扩展 + 简化台账补全（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)，关联 dissent 1 CombatKernel 时机）
+**Wave 3（3 路并行，依赖 Wave 2）**：
+- T7 单进程 WS 服务器 + 认证 + 重连（ADR-0024 前置，依赖 T4+T5，关联 dissent 8）
+- T8 引擎工具链三件实现（依赖 T1+T6，ADR-0013 已定）
+- T9 combat-sim 行为等价验证（依赖 T6，ADR-0011 已定）
+
+**Wave 2 整合遗留**（后续 System 列表整合时收纳，不阻塞 Wave 3）：
+- CombatSystem（combat/system.py）独立实现未接入 world.py System 注册
+- StorageSystem 通过 world.storage_system 动态属性接入，未纳入统一 System 列表
+- CombatState 组件需扩展 hit_ob/hit_by/guarding/is_fighting/fight_dodge 字段 + world.to_snapshot 传递（T6 用默认值兼容，不 break 但不启用 T6 新功能）
+- PermissionService 生产路径注入（dispatch 无 permission_service 时段 2 跳过校验，T7 WS 服务器注入）
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 2/3 期间穿插
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- T2/T4 期间穿插
+- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 3 期间穿插
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- T4 管线落地后可穿插
 
 ## Blocked
 
@@ -284,7 +325,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：Wave 2 三路并行实现（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性）。前置 ADR 全部就绪（ADR-0020/0021/0022/0023），可启动编码。3 路 agent teams 并行：T4 依赖 ADR-0020+0021 / T5 依赖 ADR-0022 / T6 依赖 ADR-0023，彼此无依赖。
+**下一步主线**：Wave 3 三路并行实现（T7 WS 服务器 / T8 工具链 / T9 combat-sim）。Wave 2 全部完成（T4+T5+T6，865 tests 全绿）。Wave 3 各任务：T7 需先写 ADR-0024（WS 协议 + 重连 ring vs snapshot + AccountService）；T8/T9 无新 ADR（ADR-0013/0011 已定）。3 路 agent teams 并行：T7 依赖 T4+T5 / T8 依赖 T1+T6 / T9 依赖 T6。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
