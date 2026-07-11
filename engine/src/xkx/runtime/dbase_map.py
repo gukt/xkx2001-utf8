@@ -22,6 +22,8 @@ LPC dbase 是字符串 key 的 mapping（[feature/dbase.c](../../../feature/dbas
 
 from __future__ import annotations
 
+from typing import Literal
+
 from xkx.runtime.components import (
     Attributes,
     Identity,
@@ -32,7 +34,7 @@ from xkx.runtime.components import (
     Skills,
     Vitals,
 )
-from xkx.runtime.schema import SchemaRegistry
+from xkx.runtime.schema import SchemaError, SchemaRegistry
 
 # LPC dbase 简单 key -> (组件类型, 字段名)
 # 启动期由 validate_dbase_map 校验映射目标字段存在（ADR-0019 has_field）
@@ -151,3 +153,44 @@ def resolve_dbase_key(key: str) -> tuple[type, str] | None:
         if prefix in PATH_PREFIX_MAP:
             return PATH_PREFIX_MAP[prefix]
     return None
+
+
+# ──────────────────────── ADR-0025：key 分类 + 异常 ────────────────────────
+
+
+class DbaseKeyError(SchemaError):
+    """未映射/后置 key 读写异常（ADR-0025）。
+
+    ``SchemaError`` 子类，复用 ADR-0019 错误体系。未映射 key 的拼写错误
+    （如 ``"cobmat_exp"``）raise 本异常，非静默返回 0/None（dissent 2）。
+    """
+
+
+# key 三类分类（ADR-0025 决策 1：区分后置与未知）
+KeyClass = Literal["mapped", "postponed", "unknown"]
+
+
+def is_postponed(key: str) -> bool:
+    """判断 key 是否为后置 key（POSTPONED_KEYS，ADR-0025）。
+
+    后置 key = 已知但对应子系统未实现（如 ``"title"`` 后置 2.5 TitleSystem）。
+    区别于"未知 key"（拼写错误，不在任何集合中）。
+    """
+    return key in POSTPONED_KEYS
+
+
+def classify_key(key: str) -> KeyClass:
+    """分类 key 为三类（ADR-0025 决策 1，dissent 2 拼写错误不静默）。
+
+    - ``"mapped"``：已映射（DBASE_KEY_MAP / PATH_PREFIX_MAP），可正常读写
+    - ``"postponed"``：后置 key（POSTPONED_KEYS），对应子系统未实现
+    - ``"unknown"``：未知 key（拼写错误或未枚举），raise 而非静默
+
+    路径前缀 key（``"skill/axe"``）按前缀判断：已知前缀 -> mapped，未知前缀 ->
+    unknown（不归 postponed，因未知前缀是拼写错误非后置）。
+    """
+    if resolve_dbase_key(key) is not None:
+        return "mapped"
+    if key in POSTPONED_KEYS:
+        return "postponed"
+    return "unknown"

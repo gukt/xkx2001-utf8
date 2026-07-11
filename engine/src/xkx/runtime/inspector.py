@@ -11,6 +11,7 @@ import sys
 from dataclasses import fields, is_dataclass
 from typing import Any
 
+from xkx.runtime import dbase_map
 from xkx.runtime.components import (
     Attributes,
     CombatState,
@@ -30,6 +31,9 @@ from xkx.runtime.ecs import World
 # ---------------------------------------------------------------------------
 # LPC F_DBASE key -> ECS 组件字段映射表（PRD §二.3）
 # ---------------------------------------------------------------------------
+# 单一信源收敛（ADR-0025 决策 6）：LPC_KEY_MAP 从 dbase_map 派生，不再硬编码
+# 重复 DBASE_KEY_MAP / PATH_PREFIX_MAP / POSTPONED_KEYS 的映射内容。仅保留
+# inspector 特有的展示信息（lpc_scope / field_path 描述格式 / 代表性后置 note）。
 
 
 class LPCKeyMapping:
@@ -64,60 +68,85 @@ class LPCKeyMapping:
         self.note = note
 
 
-# (key, scope, component, field_path, note)；mapped = component is not None
-_LPC_ENTRIES: list[tuple[str, str, type | None, str, str]] = [
-    ("name", "dbase", Identity, "name", ""),
-    ("id", "dbase", Identity, "aliases[0]", ""),
-    ("title", "dbase", None, "", "后置：阶段 2 称谓系统"),
-    ("nickname", "dbase", None, "", "后置"),
-    ("family", "dbase", Attributes, "family", ""),
-    ("family_name", "dbase", Attributes, "family", ""),
-    ("str", "dbase", Attributes, "str_", ""),
-    ("dex", "dbase", Attributes, "dex_", ""),
-    ("int", "dbase", Attributes, "int_", ""),
-    ("con", "dbase", Attributes, "con_", ""),
-    ("age", "dbase", Attributes, "age", ""),
-    ("gender", "dbase", Attributes, "gender", ""),
-    ("qi", "dbase", Vitals, "qi", ""),
-    ("max_qi", "dbase", Vitals, "max_qi", ""),
-    ("eff_qi", "dbase", Vitals, "eff_qi", ""),
-    ("jing", "dbase", Vitals, "jing", ""),
-    ("max_jing", "dbase", Vitals, "max_jing", ""),
-    ("jingli", "dbase", Vitals, "jingli", ""),
-    ("max_jingli", "dbase", Vitals, "max_jingli", ""),
-    ("neili", "dbase", Vitals, "neili", ""),
-    ("max_neili", "dbase", Vitals, "max_neili", ""),
-    ("combat_exp", "dbase", Progression, "combat_exp", ""),
-    ("potential", "dbase", Progression, "potential", ""),
-    ("skill/", "dbase", Skills, 'levels["<id>"]', "路径：skill/<id> -> levels[<id>]"),
-    ("apply_attack", "dbase", Skills, "apply_attack", ""),
-    ("apply_dodge", "dbase", Skills, "apply_dodge", ""),
-    ("apply_parry", "dbase", Skills, "apply_parry", ""),
-    ("apply_damage", "dbase", Skills, "apply_damage", ""),
-    ("apply_armor", "dbase", Skills, "apply_armor", ""),
-    ("marks/", "temp", Marks, "flags", "路径：marks/<flag> -> flags 含 <flag>"),
-    ("inquiry", "dbase", NpcBehavior, "inquiry", ""),
-    ("attitude", "dbase", NpcBehavior, "attitude", ""),
-    ("chat_chance_combat", "dbase", NpcBehavior, "chat_chance_combat", ""),
-    ("chat_msg_combat", "dbase", NpcBehavior, "chat_msg_combat", ""),
-    ("short", "dbase", RoomComp, "short", ""),
-    ("long", "dbase", RoomComp, "long", ""),
-    ("exits", "dbase", RoomComp, "exits", ""),
-    ("outdoors", "dbase", RoomComp, "outdoors", ""),
-    ("no_fight", "dbase", RoomComp, "no_fight", ""),
-    ("equipped", "dbase", None, "", "后置：阶段 2 装备系统"),
-    ("weight", "dbase", None, "", "后置：阶段 2 F_MOVE"),
-    ("encumbrance", "dbase", None, "", "后置：阶段 2 F_MOVE"),
-    ("channels", "dbase", None, "", "后置：阶段 2 F_MESSAGE"),
-]
-
-LPC_KEY_MAP: dict[str, LPCKeyMapping] = {
-    key: LPCKeyMapping(key, scope, comp, field, comp is not None, note)
-    for key, scope, comp, field, note in _LPC_ENTRIES
+# 路径前缀 key 展示信息（从 PATH_PREFIX_MAP 派生，附加 inspector 特有描述）
+# lpc_scope：marks/ 为 temp（set_temp 语义），skill/ 为 dbase
+# field_path：路径访问的描述格式（levels["<id>"] / flags 含 <flag>）
+_PATH_PREFIX_INFO: dict[str, tuple[str, str, str]] = {
+    "skill": ("dbase", 'levels["<id>"]', "路径：skill/<id> -> levels[<id>]"),
+    "marks": ("temp", "flags", "路径：marks/<flag> -> flags 含 <flag>"),
 }
 
-# 路径前缀（skill/ marks/）：lpc_key_mapping 对前缀 key 动态匹配
-_PATH_PREFIXES = ("skill/", "marks/")
+# 代表性后置 key 的 note（仅 inspector 列出的代表性条目进 LPC_KEY_MAP，
+# 其余 POSTPONED_KEYS 由 lpc_key_mapping 经 classify_key 动态判断）
+_POSTPONED_NOTES: dict[str, str] = {
+    "title": "后置：阶段 2 称谓系统",
+    "nickname": "后置",
+    "equipped": "后置：阶段 2 装备系统",
+    "weight": "后置：阶段 2 F_MOVE",
+    "encumbrance": "后置：阶段 2 F_MOVE",
+    "channels": "后置：阶段 2 F_MESSAGE",
+}
+
+
+def _build_lpc_key_map() -> dict[str, LPCKeyMapping]:
+    """从 dbase_map 派生 LPC_KEY_MAP（单一信源，ADR-0025 决策 6）。
+
+    - DBASE_KEY_MAP 每个 key -> mapped 条目（component/field_path 取自映射表）
+    - PATH_PREFIX_MAP 每个前缀（"skill/" "marks/"）-> 路径前缀条目（描述格式）
+    - POSTPONED_KEYS 中代表性 key（_POSTPONED_NOTES）-> 后置条目（mapped=False）
+    """
+    result: dict[str, LPCKeyMapping] = {}
+    # 已映射的简单 key（dbase_map 是单一信源）
+    for key, (comp_type, field_name) in dbase_map.DBASE_KEY_MAP.items():
+        result[key] = LPCKeyMapping(
+            key, "dbase", comp_type, field_name, True, ""
+        )
+    # 路径前缀 key（前缀 + "/" 作为 LPC_KEY_MAP 的查找键，供 main/lpc_key_mapping
+    # 对 skill/xxx、marks/xxx 走前缀匹配）
+    for prefix, (comp_type, _field_name) in dbase_map.PATH_PREFIX_MAP.items():
+        scope, field_path, note = _PATH_PREFIX_INFO[prefix]
+        result[f"{prefix}/"] = LPCKeyMapping(
+            f"{prefix}/", scope, comp_type, field_path, True, note
+        )
+    # 代表性后置 key（仅 _POSTPONED_NOTES 列出的，其余由 classify_key 动态判断）
+    for key, note in _POSTPONED_NOTES.items():
+        if key in result:
+            # 冲突防护：DBASE_KEY_MAP 已映射的 key 不覆盖（不应发生）
+            continue
+        result[key] = LPCKeyMapping(key, "dbase", None, "", False, note)
+    return result
+
+
+LPC_KEY_MAP: dict[str, LPCKeyMapping] = _build_lpc_key_map()
+
+# 路径前缀（skill/ marks/）：lpc_key_mapping / main 对前缀 key 动态匹配
+_PATH_PREFIXES = tuple(f"{prefix}/" for prefix in dbase_map.PATH_PREFIX_MAP)
+
+
+def _resolve_lpc_key_mapping(key: str) -> LPCKeyMapping:
+    """解析 LPC dbase key -> LPCKeyMapping（模块级静态，无需 world）。
+
+    复用 dbase_map.classify_key + resolve_dbase_key（ADR-0025 决策 1/6）：
+    - mapped：从 DBASE_KEY_MAP / PATH_PREFIX_MAP 取 component/field_path
+    - postponed：mapped=False，note 标注后置原因
+    - unknown：mapped=False，note="未映射"
+
+    供 EntityInspector.lpc_key_mapping 与 CLI main 共用，保证两路解析一致。
+    """
+    cls = dbase_map.classify_key(key)
+    if cls == "mapped":
+        comp_type, field_name = dbase_map.resolve_dbase_key(key)  # type: ignore[misc]
+        # 路径前缀 key（含 "/"）用描述格式展示，简单 key 用字段名
+        if "/" in key:
+            prefix = key.split("/", 1)[0]
+            scope, field_path, note = _PATH_PREFIX_INFO[prefix]
+            return LPCKeyMapping(key, scope, comp_type, field_path, True, note)
+        return LPCKeyMapping(key, "dbase", comp_type, field_name, True, "")
+    if cls == "postponed":
+        # 代表性后置 key 有专属 note，其余用通用后置说明
+        note = _POSTPONED_NOTES.get(key, "后置：对应子系统未实现")
+        return LPCKeyMapping(key, "dbase", None, "", False, note)
+    return LPCKeyMapping(key, "dbase", None, "", False, "未映射")
 
 
 # ---------------------------------------------------------------------------
@@ -211,17 +240,11 @@ class EntityInspector:
     def lpc_key_mapping(self, key: str) -> LPCKeyMapping:
         """查询 LPC dbase key 对应的 ECS 组件/字段。
 
-        精确匹配优先；skill/xxx、marks/xxx 走路径前缀匹配。
+        复用 dbase_map.classify_key + resolve_dbase_key（ADR-0025 决策 1/6）：
+        精确匹配 + 路径前缀（skill/xxx、marks/xxx）统一走 classify_key 判定，
+        不再维护 inspector 本地的映射表重复。
         """
-        if key in LPC_KEY_MAP:
-            return LPC_KEY_MAP[key]
-        for prefix in _PATH_PREFIXES:
-            if key.startswith(prefix):
-                base = LPC_KEY_MAP[prefix]
-                return LPCKeyMapping(
-                    key, base.lpc_scope, base.component, base.field_path, True, base.note
-                )
-        return LPCKeyMapping(key, "dbase", None, "", False, "未映射")
+        return _resolve_lpc_key_mapping(key)
 
 
 # ---------------------------------------------------------------------------
@@ -265,23 +288,9 @@ def main(argv: list[str] | None = None) -> int:
         if len(args) < 2:
             print("用法: inspect --map <lpc_key>")
             return 1
-        # 静态查询（无需 world 实例）
+        # 静态查询（无需 world 实例）：复用 classify_key 派生的映射逻辑
         key = args[1]
-        if key in LPC_KEY_MAP:
-            m = LPC_KEY_MAP[key]
-        else:
-            matched = False
-            m = None
-            for prefix in _PATH_PREFIXES:
-                if key.startswith(prefix):
-                    base = LPC_KEY_MAP[prefix]
-                    m = LPCKeyMapping(
-                        key, base.lpc_scope, base.component, base.field_path, True, base.note
-                    )
-                    matched = True
-                    break
-            if not matched:
-                m = LPCKeyMapping(key, "dbase", None, "", False, "未映射")
+        m = _resolve_lpc_key_mapping(key)
         comp_name = m.component.__name__ if m.component else "(unmapped)"
         print(f"  LPC key: {m.lpc_key}")
         print(f"  Component: {comp_name}")

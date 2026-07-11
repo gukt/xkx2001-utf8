@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 实施计划已产出，待评审后启动编码
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15-阶段2-子系统实施计划](docs/xkx-arch/15-阶段2-子系统实施计划.md)），分解 2.1-2.7 + 4 Wave + 6 ADR 需求（ADR-0025~0030）。当前分支 feat/stage-2-subsystems。待用户评审计划 + 确认启动编码。
+**当前阶段**：阶段 2 Wave 1 编码中（2.1 Query/索引层完成，待启动 Wave 2）
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)），ADR-0025（Wave 1 前置）已产出。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 1 2.1 Query/索引层完成**（ADR-0025 + query.py + dbase_map 扩展 + inspector 重构 + 66 tests，1101 tests 全绿）。下一步启动 Wave 2（2.2/2.3/2.5/2.6 并行）。
 
 ## Done
 
@@ -302,6 +302,18 @@
   - **kill criteria 3 完整判定通过**，不触发 kill criteria 6/降级；阶段 1 -> 2 决策检查点全部通过
   - **1035 tests 全绿（+16），ruff 全过**
 
+- [x] **阶段 2 Wave 1 2.1 Query/索引层完成**（[ADR-0025](docs/adr/ADR-0025-query-index-layer.md) / [15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.1）：
+  - [ADR-0025](docs/adr/ADR-0025-query-index-layer.md) Query/索引层设计（Wave 1 前置）：query() 语义对齐 LPC F_DBASE 8 函数 + 未映射 key 三类区分（mapped/postponed/unknown，dissent 2 拼写错误不静默）+ 索引层线性扫描 + 后置 key 激活策略 + 映射表收敛（inspector.LPC_KEY_MAP 从 DBASE_KEY_MAP 派生）
+  - [query.py](engine/src/xkx/runtime/query.py) 新建：8 函数（query/query_temp/set/set_temp/add/add_temp/delete/delete_temp，对照层 B 规格）+ 索引层（entities_with_family/entities_by_prototype/find_in_room/find_item）+ Identity/Position/Inventory 语义函数（id_match/short/move_to/environment/present_item/all_inventory）
+  - [dbase_map.py](engine/src/xkx/runtime/dbase_map.py) 扩展：DbaseKeyError（SchemaError 子类）+ is_postponed + classify_key（三类区分）+ KeyClass Literal
+  - [inspector.py](engine/src/xkx/runtime/inspector.py) 重构：LPC_KEY_MAP 从 DBASE_KEY_MAP + PATH_PREFIX_MAP + POSTPONED_KEYS 派生（删除 _LPC_ENTRIES 硬编码，单一信源收敛）；lpc_key_mapping 复用 classify_key + resolve_dbase_key
+  - greenfield 简化台账 12 项（ADR-0025 §简化台账）：raw/evaluate/default_ob/完整 treemap 砍掉（LPC 特有）；short 状态修饰后置 2.5；move 负重级联后置 2.3；greenfield 不区分 dbase vs tmp_dbase（query/query_temp 行为一致）
+  - [test_query.py](engine/tests/test_query.py) 66 tests：8 函数 + 三类处理 + 索引层 + 语义函数 + hypothesis 属性测试（路径前缀往返 + key 三类分类 + add 增量 + marks/ 往返）+ marks/ 自动创建
+  - **实现 bug 修复**：query.py `def set` 覆盖内置 `set` 类型 -> `builtins.set`/`builtins.frozenset`（3 处 isinstance + 1 处 all_inventory 副本构造）
+  - **1101 tests 全绿（+66），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - agent teams 并行：2 agent（inspector 重构 + test_query 编写），inspector 重构无回归，test_query 发现 set 覆盖 bug 后修复
+  - 关联 dissent 2（query 语义不偏离 LPC F_DBASE）+ dissent 8（不新增组件，无序列化需求）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -312,7 +324,7 @@
 
 ## In Progress
 
-**阶段 2 实施计划已产出，待评审**（[15-阶段2-子系统实施计划](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。
+**阶段 2 Wave 1 2.1 Query/索引层已完成**（[ADR-0025](docs/adr/ADR-0025-query-index-layer.md)）。
 
 阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems 已创建。
 
@@ -320,8 +332,16 @@
 - [x] 阶段 1 全部完成（T1-T10，1035 tests，kill criteria 3 GO）
 - [x] feat/stage-1-core-loop 合并到 master（merge `bffce2c3`）
 - [x] 分支 feat/stage-2-subsystems 已创建（从 master）
-- [ ] **ADR-0025** Query/索引层设计（Wave 1 前置）
-- [ ] 用户评审 15 文档 + 确认启动编码
+- [x] **ADR-0025** Query/索引层设计（Wave 1 前置）
+- [x] **2.1 Query/索引层编码完成**（1101 tests 全绿）
+- [ ] 用户确认启动 Wave 2 编码
+
+**下一步：Wave 2 启动**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
+- ADR-0026 ModifierStack 三类语义 + 技能三层划分（2.3 前置，Agent B 启动前写）
+- ADR-0028 RANK_D 规格提取 + PronounContext 三元组完整求值（2.5 前置，Agent C 启动前写）
+- ADR-0029 WorldGovernanceSystem 代表性元素 + fail-closed 边界（2.6 前置，Agent D 启动前写）
+- 2.2 Vitals/Heal/Condition 无需新 ADR（T1 ADR-0018 契约已定，填充实现）
+- 4 路 agent 并行：2.2 / 2.3 / 2.5 / 2.6
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -353,10 +373,10 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：用户评审 15 文档 -> 产出 ADR-0025（Wave 1 前置）-> 启动 2.1 Query/索引层。
+**下一步主线**：用户确认启动 Wave 2 -> 产出 ADR-0026/0028/0029（Wave 2 前置）-> 4 路 agent 并行启动 2.2/2.3/2.5/2.6。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
-- Wave 1：2.1 Query/索引层（基础，串行，2-3 周）
+- Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
 - Wave 2：2.2/2.3/2.5/2.6 并行（4 路，4-6 周）
 - Wave 3：2.4 Combat（高风险，3-5 周）
 - Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
