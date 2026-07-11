@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 1 全部完成（T1+T2+T3），Wave 2 待启动
-**当前状态**：阶段 1 Wave 1 T3 完成。T3 实现：[dbase_map.py](engine/src/xkx/runtime/dbase_map.py) DBASE_KEY_MAP（37 已映射简单 key -> 组件字段）+ PATH_PREFIX_MAP（skill/marks 路径访问）+ POSTPONED_KEYS（55 后置 key）+ validate_dbase_map 启动期校验（T2 has_field 衔接）；[world.py](engine/src/xkx/runtime/world.py) build_world 调 validate_dbase_map（映射目标非法 raise SchemaError）；[13-dbase-key-map.md](docs/xkx-arch/13-dbase-key-map.md) 完整 key 枚举文档（82 spec key 全归类：已映射/路径/后置）。**Wave 1 全部完成（T1+T2+T3），727 tests 全绿（+9：test_dbase_map 9），ruff 全过**。下一步：Wave 2（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性，3 路并行）。
+**当前阶段**：阶段 1 Wave 2 前置 ADR 全部产出（ADR-0020/0021/0022/0023），待 3 路并行实现
+**当前状态**：阶段 1 Wave 2 前置 ADR 完成。4 个 ADR 产出：[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md)（8 段管线 + ActionContext + CapabilityToken + force_me=PrivilegedAction）+ [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)（previous_object 155 处显式化 A/B/C 三类）+ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)（持久化边界 + 原子写 + dirty-flag + 丢失语义台账 + Effect 崩溃恢复）+ [ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)（combat-only 确定性 + 简化台账 6 项补全 + test_theme_neutrality 硬门禁兜底）。**727 tests 全绿（无回归），ruff 全过**。下一步：Wave 2 三路并行实现（T4/T5/T6）。
 
 ## Done
 
@@ -229,6 +229,14 @@
   - **727 tests 全绿（+9），ruff 全过**
   - **Wave 1 全部完成（T1+T2+T3）**
 
+- [x] **阶段 1 Wave 2 前置 ADR 全部产出**（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) / [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md) / [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md) / [ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)）：
+  - ADR-0020 命令 8 段中间件管线（对照 LPC command_hook 四分支 + process_input）+ ActionContext 三元组（actor/viewer/target，PronounContext viewer 不变量）+ CapabilityToken（HS256 + 内存吊销）+ force_me=PrivilegedAction（ROOT 门控 + 强制审计 + 调用点白名单）；关联 dissent 6
+  - ADR-0021 previous_object 155 处显式化映射表（this_player()->actor / previous_object()->source）+ A/B/C 三类处置 + 调用点审计策略（source 显式传参 + 白名单 + ROOT 签发审计 + 两类审计分离）；关联 dissent 6
+  - ADR-0022 持久化边界抽象（persist=崩溃恢复级耐久，非 save=权威写，为迁 PG 留策略切换）+ 原子写三步（write-temp + fsync + os.replace）+ 事件循环外 offload + dirty-flag 分摊 + 丢失语义台账 5 项（kill criteria 8 止损线）+ Effect 崩溃恢复 + 冷重启协议；关联 dissent 8
+  - ADR-0023 combat-only 确定性边界（范围内/范围外 + 边界红线）+ CombatSystem（tick 驱动 + 快照边界 + input log + replay 入口 + 不套 Command）+ 简化台账 6 项补全（hit_ob/hit_by mapping / riposte 递归 / 武器类型 / skill_power / combat_exp 防御折减 / 技能 action）+ test_theme_neutrality 硬门禁兜底；关联 dissent 1
+  - agent teams 3 路并行写 ADR（T4 一个 agent 写 0020+0021 / T5 一个写 0022 / T6 一个写 0023），审查收敛后修复 1 处交叉引用链接
+  - **727 tests 全绿（无回归），ruff 全过**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -239,12 +247,12 @@
 
 ## In Progress
 
-**阶段 1 Wave 1 全部完成（T1+T2+T3）**，Wave 2 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 Wave 2 前置 ADR 全部产出**（ADR-0020/0021/0022/0023），待 3 路并行实现（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
-**Wave 2（3 路并行，依赖 Wave 1）**：
-- T4 命令 8 段中间件管线 + ActionContext + CapabilityToken（ADR-0020/0021 前置，关联 dissent 6 force_me 边界）
-- T5 内存权威 + JSON 存档（ADR-0022 前置，关联 dissent 8 存储收缩）
-- T6 combat 确定性扩展 + 简化台账补全（ADR-0023 前置，关联 dissent 1 CombatKernel 时机）
+**Wave 2（3 路并行，依赖 Wave 1，前置 ADR 已就绪）**：
+- T4 命令 8 段中间件管线 + ActionContext + CapabilityToken（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) + [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)，关联 dissent 6 force_me 边界）
+- T5 内存权威 + JSON 存档（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，关联 dissent 8 存储收缩）
+- T6 combat 确定性扩展 + 简化台账补全（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)，关联 dissent 1 CombatKernel 时机）
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -276,7 +284,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：Wave 2（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性，3 路并行）。Wave 1 全部完成，Wave 2 可启动。Wave 2 各任务需先写对应 ADR（ADR-0020/0021 T4 / ADR-0022 T5 / ADR-0023 T6）。
+**下一步主线**：Wave 2 三路并行实现（T4 命令 8 段管线 / T5 JSON 存档 / T6 combat 确定性）。前置 ADR 全部就绪（ADR-0020/0021/0022/0023），可启动编码。3 路 agent teams 并行：T4 依赖 ADR-0020+0021 / T5 依赖 ADR-0022 / T6 依赖 ADR-0023，彼此无依赖。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
