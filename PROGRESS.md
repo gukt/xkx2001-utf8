@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 1 全部完成（T1-T10），阶段 2 待启动
-**当前状态**：阶段 1 Wave 4 T10 完成。**kill criteria 3 完整判定 GO**（tick p99 12.6ms < 100ms，存档 offload 生效，全量 persist 389.8ms 后台不阻塞 tick）。整合遗留收纳（[engine.py](engine/src/xkx/runtime/engine.py) 统一 tick 循环 + CombatBridge 适配器 + CombatState 扩展 + mark_dirty 整合）。**1035 tests 全绿（+16：test_engine 12 + test_load_test 4），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。阶段 1 -> 2 决策检查点全部通过。下一步：阶段 2 按规格实现子系统（2.1 Query/索引层起步）。压测报告见 [14-T10-压测报告](docs/xkx-arch/14-T10-压测报告.md)。
+**当前阶段**：阶段 2 实施计划已产出，待评审后启动编码
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15-阶段2-子系统实施计划](docs/xkx-arch/15-阶段2-子系统实施计划.md)），分解 2.1-2.7 + 4 Wave + 6 ADR 需求（ADR-0025~0030）。当前分支 feat/stage-2-subsystems。待用户评审计划 + 确认启动编码。
 
 ## Done
 
@@ -312,12 +312,21 @@
 
 ## In Progress
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿）**。阶段 1 -> 2 决策检查点全部通过（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）。Wave 2/3 整合遗留已收纳（Engine 统一 tick 循环 + CombatBridge + mark_dirty 整合）。
+**阶段 2 实施计划已产出，待评审**（[15-阶段2-子系统实施计划](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。
+
+阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems 已创建。
+
+**阶段 2 启动前置**（[15 §九](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
+- [x] 阶段 1 全部完成（T1-T10，1035 tests，kill criteria 3 GO）
+- [x] feat/stage-1-core-loop 合并到 master（merge `bffce2c3`）
+- [x] 分支 feat/stage-2-subsystems 已创建（从 master）
+- [ ] **ADR-0025** Query/索引层设计（Wave 1 前置）
+- [ ] 用户评审 15 文档 + 确认启动编码
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线）
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 可穿插
+- golden trace 定点辅助（driver PID 22753 运行中）-- 2.4 Combat 前录制 do_attack 七步基线（dissent 4 验证）
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 2.2/2.3 落地时自然带入
 
 ## Blocked
 
@@ -344,7 +353,19 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：阶段 2 按规格实现子系统（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)），顺序：2.1 Query/索引层 + Identity/Position/Inventory（低风险）-> 2.2 Vitals/Heal/Condition -> 2.3 Attribute/Skill/Equipment（中）-> 2.4 **Combat**（高，数值回归基线 + 管线副作用账本）-> 2.5 TitleSystem 称谓 -> 2.6 WorldGovernanceSystem -> 2.7 门派内容包边界切割。
+**下一步主线**：用户评审 15 文档 -> 产出 ADR-0025（Wave 1 前置）-> 启动 2.1 Query/索引层。
+
+**阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
+- Wave 1：2.1 Query/索引层（基础，串行，2-3 周）
+- Wave 2：2.2/2.3/2.5/2.6 并行（4 路，4-6 周）
+- Wave 3：2.4 Combat（高风险，3-5 周）
+- Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
+
+**阶段 2 -> M3 决策检查点**（04 §八，待阶段 2 完成）：
+- [ ] Combat 迁移行为等价验证 + 文本体验流 diff？（2.4）
+- [ ] 技能三层明确？（2.3）
+- [ ] 称谓系统、世界观治理层落地？（2.5/2.6）
+- [ ] 门派内容包边界干净切割？（2.7）
 
 **可穿插推进**（非阶段 2 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
