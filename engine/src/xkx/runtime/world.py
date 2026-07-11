@@ -31,11 +31,16 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.ecs import World
+from xkx.runtime.schema import SchemaRegistry
 
 
 def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
-    """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。"""
-    world = World()
+    """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
+
+    用 ``SchemaRegistry.with_builtins()`` 创建带类型校验的 World（ADR-0019），
+    生产路径组件类型拼写错误启动期/调用期失败，非静默 None。
+    """
+    world = World(SchemaRegistry.with_builtins())
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}

@@ -8,12 +8,20 @@ API 对齐阶段 -1 dict 版本（``new_entity``/``add``/``get``/``has``/``remov
 为 SparseSet，因 1000 实体 + 多 System 每 tick 查询下 dict 的 O(total) 遍历会
 放大开销。Archetype 后置（T10 压测发现瓶颈才评估，
 [ADR-0017](../../../docs/adr/ADR-0017-ecs-sparse-set-effect-component.md) §1）。
+
+T2（ADR-0019）：``World`` 可选注入 ``SchemaRegistry``，``get``/``add``/``has``/
+``remove``/``entities_with`` 调 ``resolve(comp_type)`` 校验类型已注册，未注册
+raise ``SchemaError``（非静默 None），防 LPC dbase query 拼写错误静默传播。
+``schema=None`` 时不校验（向后兼容测试与开发期临时组件）。
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from xkx.runtime.schema import SchemaRegistry
 
 
 class _SparseSet:
@@ -73,14 +81,21 @@ class _SparseSet:
 class World:
     """ECS 世界：entity_id 空间 + 按组件类型的 SparseSet 存储。"""
 
-    def __init__(self) -> None:
+    def __init__(self, schema: SchemaRegistry | None = None) -> None:
         self._stores: dict[type, _SparseSet] = {}
         self._next_id: int = 1
+        self._schema = schema
 
     def new_entity(self) -> int:
         eid = self._next_id
         self._next_id += 1
         return eid
+
+    def _resolve(self, comp_type: type) -> type:
+        """有 schema 时校验 comp_type 已注册（ADR-0019，未注册 raise SchemaError）。"""
+        if self._schema is not None:
+            self._schema.resolve(comp_type)
+        return comp_type
 
     def _store(self, comp_type: type) -> _SparseSet:
         s = self._stores.get(comp_type)
@@ -91,19 +106,23 @@ class World:
 
     def add(self, eid: int, comp: Any) -> None:
         """挂载组件到实体（同类型覆盖）。"""
-        self._store(type(comp)).insert(eid, comp)
+        ct = self._resolve(type(comp))
+        self._store(ct).insert(eid, comp)
 
     def get(self, eid: int, comp_type: type) -> Any | None:
         """读取实体的某类型组件（无则 None）。"""
+        self._resolve(comp_type)
         s = self._stores.get(comp_type)
         return s.get(eid) if s else None
 
     def has(self, eid: int, comp_type: type) -> bool:
+        self._resolve(comp_type)
         s = self._stores.get(comp_type)
         return s.has(eid) if s else False
 
     def remove(self, eid: int, comp_type: type) -> None:
         """移除实体的某类型组件（无则 no-op）。"""
+        self._resolve(comp_type)
         s = self._stores.get(comp_type)
         if s is not None:
             s.remove(eid)
@@ -112,6 +131,8 @@ class World:
         """返回同时拥有所有指定组件类型的实体 id。"""
         if not comp_types:
             return
+        for ct in comp_types:
+            self._resolve(ct)
         stores: list[_SparseSet] = []
         for ct in comp_types:
             s = self._stores.get(ct)

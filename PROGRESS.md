@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 1 T1（ECS 骨架升级）完成，T2/T3 待做
-**当前状态**：阶段 1 Wave 1 T1 完成。ADR-0017/0018 产出（[SparseSet 选型 + Effect 一等公民](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md) + [ConditionHandler.on_tick 契约](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）。T1 实现：SparseSet 升级 [ecs.py](engine/src/xkx/runtime/ecs.py)（swap-remove + 交集查询，API 兼容）+ Progression 组件（combat_exp/potential 从 Vitals 迁移）+ EffectComp 组件（持续 Effect，独立实体 attach 支持多 condition）+ [systems.py](engine/src/xkx/runtime/systems.py) System 基类 + [conditions.py](engine/src/xkx/runtime/conditions.py) ConditionHandler/ConditionSystem（on_tick 纯函数契约 + apply）。**701 tests 全绿（+21：test_ecs 7 + test_conditions 14），ruff 全过**。下一步：Wave 1 T2（SchemaRegistry，ADR-0019 前置）/ T3（字段映射表）。
+**当前阶段**：阶段 1 Wave 1 T2（SchemaRegistry）完成，T3 待做
+**当前状态**：阶段 1 Wave 1 T2 完成。ADR-0019 产出（[SchemaRegistry 与 DSL SchemaValidator 边界](docs/adr/ADR-0019-schema-registry-and-dsl-validator-boundary.md)，关联 dissent 3 层1 原语蠕变护栏）。T2 实现：[schema.py](engine/src/xkx/runtime/schema.py) SchemaRegistry（组件类型注册 + 字段名存在性校验，从 dataclass fields 自动提取，with_builtins 注册 13 内置组件）+ [ecs.py](engine/src/xkx/runtime/ecs.py) World 可选注入 schema（get/add/has/remove/entities_with 调 resolve，未注册类型 raise SchemaError 非静默 None）+ [world.py](engine/src/xkx/runtime/world.py) build_world 用 with_builtins（生产路径强制校验）。边界：SchemaRegistry 只做拼写检查不做语义校验（dissent 3 护栏），语义留给 DSL SchemaValidator + System 不变量。**718 tests 全绿（+17：test_schema 17），ruff 全过**。下一步：Wave 1 T3（字段->组件映射表，DBASE_KEY_MAP，依赖 T2 has_field）。
 
 ## Done
 
@@ -215,6 +215,12 @@
   - 测试：[test_ecs.py](engine/tests/test_ecs.py) 7 tests（SparseSet swap-remove/覆盖/交集 + hypothesis 属性测试）+ [test_conditions.py](engine/tests/test_conditions.py) 14 tests（on_tick 纯函数/衰减/completed/flags/多 condition/非均匀 tick）
   - **701 tests 全绿（+21），ruff 全过**
 
+- [x] **阶段 1 Wave 1 T2：SchemaRegistry 类型化组件完成**（[ADR-0019](docs/adr/ADR-0019-schema-registry-and-dsl-validator-boundary.md)）：
+  - ADR-0019 SchemaRegistry 与 DSL SchemaValidator 边界：runtime 组件层（启动期/运行期，类型注册+字段名存在性）vs DSL IR 层（创作期/加载期，结构+语义+引用）；dissent 3 护栏--SchemaRegistry 只做拼写检查不做语义校验（名字存在性 ≠ 值合法性），语义留给 DSL SchemaValidator + System 不变量
+  - T2 实现：[schema.py](engine/src/xkx/runtime/schema.py) SchemaRegistry（register/resolve/resolve_name/has_field/field_names，从 dataclasses.fields 自动提取字段集，with_builtins 注册 13 内置组件）+ [ecs.py](engine/src/xkx/runtime/ecs.py) World 可选注入 schema（schema=None 向后兼容测试；有 schema 时 get/add/has/remove/entities_with 调 resolve，未注册类型 raise SchemaError 非静默 None）+ [world.py](engine/src/xkx/runtime/world.py) build_world 用 World(SchemaRegistry.with_builtins()) 生产路径强制校验
+  - 测试：[test_schema.py](engine/tests/test_schema.py) 17 tests（注册/解析/字段查询/重复注册幂等/类型名冲突/非 dataclass 拒绝/未注册 raise/with_builtins 全覆盖/World 校验集成/build_world 带 schema/hypothesis 字段集一致性）
+  - **718 tests 全绿（+17），ruff 全过**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -225,11 +231,10 @@
 
 ## In Progress
 
-**阶段 1 Wave 1 T1 完成**，T2/T3 待做（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 Wave 1 T2 完成**，T3 待做（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
 **Wave 1 剩余**：
-- T2 SchemaRegistry 类型化组件（ADR-0019 前置，query 拼写错误启动期失败）
-- T3 字段->组件映射表（query_entire_dbase 调用点读写键集枚举）
+- T3 字段->组件映射表（query_entire_dbase 调用点读写键集枚举 + DBASE_KEY_MAP，依赖 T2 has_field/field_names）
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -261,7 +266,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：Wave 1 T2（SchemaRegistry 类型化组件，ADR-0019 前置）/ T3（字段映射表）。T1 已完成，T2/T3 可继续。
+**下一步主线**：Wave 1 T3（字段->组件映射表，DBASE_KEY_MAP，query_entire_dbase 调用点读写键集枚举）。T1/T2 已完成，T3 可继续。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
