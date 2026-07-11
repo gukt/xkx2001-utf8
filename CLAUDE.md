@@ -46,7 +46,10 @@
 
 - Python >=3.12，包名 `xkx`，代码在 [engine/src/xkx/](engine/src/xkx/)。
 - 测试：pytest + hypothesis（属性测试，架构明确要求）。
-- lint/format：ruff。
+- lint/format：ruff。行长上限 100（`engine/pyproject.toml` 的 `[tool.ruff]`）。E501 无法自动修复、`ruff format` 也不拆字符串字面量，须在写时即控制：
+  - 长字符串用括号隐式拼接折行（`s = ("前半" "后半")`），不要指望事后 format 救场。
+  - 中文按字符数计（每字算 1 字符），看着短不代表不超；中英文间空格也计入字符。
+  - 每写完一组 edit 立即 `ruff check` 自检，不要攒到全部写完再统一查。
 - 注释/排版遵循全局 CLAUDE.md（中文回复、中英文之间加空格、类注释不带 @author/@version）。
 - 类型：优先类型提示；CapabilityToken/PermissionService 等安全相关模块必须类型完整。
 - 提交：只在用户要求时 commit/push；在 master 分支时先开分支。
