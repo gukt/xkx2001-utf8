@@ -123,3 +123,12 @@ class ConditionSystem(System):
                 eff.duration = result.condition_deltas[eff.effect_id]
             if eff.next_tick <= tick:
                 eff.next_tick = tick + eff.tick_interval
+
+        # ADR-0022 §4：mutation 后 mark_dirty 供 StorageSystem 周期 persist
+        # （整合遗留：EffectComp duration/next_tick 变更 + apply_effects 改 Vitals）
+        storage = getattr(world, "storage_system", None)
+        if storage is not None:
+            for e in result.effects:
+                storage.mark_dirty(e.target_id)
+            for effect_eid in world.entities_with(EffectComp):
+                storage.mark_dirty(effect_eid)

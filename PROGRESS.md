@@ -3,9 +3,9 @@
 > 本文件是跨 session 的"活的状态"--每个 session 第一件事读它，知道做到哪、下一步做啥、什么卡住。
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
-**最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 3 全部完成（T7+T8+T9），Wave 4 待启动
-**当前状态**：阶段 1 Wave 3 全部完成。T7 WS 服务器（[ADR-0024](docs/adr/ADR-0024-ws-protocol-reconnect-accountservice.md)）+ T8 引擎工具链三件（[ADR-0013](docs/adr/ADR-0013-engine-toolchain-prd.md)）+ T9 combat-sim（[ADR-0011](docs/adr/ADR-0011-spec-conformance-checker.md)）3 路实现完成。**1019 tests 全绿（+154：T7 +81 / T8 +57 / T9 +16），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。下一步：Wave 4（T10 1000+100 集成测试，kill criteria 3 完整判定）。
+**最后更新**：2026-07-12
+**当前阶段**：阶段 1 全部完成（T1-T10），阶段 2 待启动
+**当前状态**：阶段 1 Wave 4 T10 完成。**kill criteria 3 完整判定 GO**（tick p99 12.6ms < 100ms，存档 offload 生效，全量 persist 389.8ms 后台不阻塞 tick）。整合遗留收纳（[engine.py](engine/src/xkx/runtime/engine.py) 统一 tick 循环 + CombatBridge 适配器 + CombatState 扩展 + mark_dirty 整合）。**1035 tests 全绿（+16：test_engine 12 + test_load_test 4），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。阶段 1 -> 2 决策检查点全部通过。下一步：阶段 2 按规格实现子系统（2.1 Query/索引层起步）。压测报告见 [14-T10-压测报告](docs/xkx-arch/14-T10-压测报告.md)。
 
 ## Done
 
@@ -293,6 +293,15 @@
   - 测试 [test_combat_sim.py](engine/tests/test_combat_sim.py) 端到端无 violation + 确定性 + JSON 往返 + CLI
   - **16 新测试全绿，ruff 全过**；greenfield 主门禁（不依赖运行 LPC）；impl_map 14 implemented + 0 simplified 自动区分
 
+- [x] **阶段 1 Wave 4 T10 1000+100 集成测试完成（kill criteria 3 完整判定 GO）**（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T10 / [14 压测报告](docs/xkx-arch/14-T10-压测报告.md)）：
+  - 整合遗留收纳：[engine.py](engine/src/xkx/runtime/engine.py) Engine 统一 tick 循环（System 注册 + TickProfiler 集成）+ CombatBridge 适配器（CombatSystem 接入，按 enemy_ids 构建 input_log O(活跃对) 非 O(n²)）+ CombatState 扩展 guarding/is_fighting/fight_dodge + to_snapshot 传递 + mark_dirty 整合（CombatBridge/ConditionSystem mutation 后标记）
+  - [load_test.py](engine/tools/load_test.py) 压测脚本：1300 实体（50 房间 + 200 NPC + 1000 玩家 + 50 Effect）+ 1000 会话 + 50 战斗对 + 300 tick；async 模式 StorageSystem offload 生效
+  - **tick p99 12.6ms < 100ms 预算 -> GO**；CombatSystem 5.3ms mean（占 92%），ConditionSystem 238μs，ConnectionSystem 236μs（1000 会话线性扩展），StorageSystem 6μs（persist tick 深拷贝 1.8ms）
+  - 存档 offload 验证：全量 persist p99 389.8ms 在后台（asyncio.to_thread），tick p99 不含 persist（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md) §3 生效）
+  - 测试 [test_engine.py](engine/tests/test_engine.py) 12（Engine tick 循环 + CombatBridge + CombatState 扩展 + 完整整合）+ [test_load_test.py](engine/tests/test_load_test.py) 4（CI 回归门禁 tick p99 < 100ms + JSON 往返 + scaled 降级）
+  - **kill criteria 3 完整判定通过**，不触发 kill criteria 6/降级；阶段 1 -> 2 决策检查点全部通过
+  - **1035 tests 全绿（+16），ruff 全过**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -303,20 +312,11 @@
 
 ## In Progress
 
-**阶段 1 Wave 3 全部完成（T7+T8+T9）**，Wave 4 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿）**。阶段 1 -> 2 决策检查点全部通过（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）。Wave 2/3 整合遗留已收纳（Engine 统一 tick 循环 + CombatBridge + mark_dirty 整合）。
 
-**Wave 4（串行，依赖 Wave 1-3 全部，kill criteria 3 完整判定）**：
-- T10 1000+100 集成测试 + go/no-go 报告（tick compute<100ms 非均匀 tick + 存档不阻塞事件循环；不达标触发 kill criteria 6 冻结功能范围纯做优化，或 kill criteria 3 降级 500+50）
-
-**Wave 2/3 整合遗留**（T10 前收纳，或 T10 期间发现瓶颈时补）：
-- CombatSystem（combat/system.py）独立实现未接入 world.py System 注册
-- StorageSystem 通过 world.storage_system 动态属性接入，未纳入统一 System 列表
-- CombatState 组件需扩展 hit_ob/hit_by/guarding/is_fighting/fight_dodge 字段 + world.to_snapshot 传递（T6 用默认值兼容，不 break 但不启用 T6 新功能）
-- PermissionService 已通过 T7 WSServer 注入 dispatch（段 2 权限校验生效）；ConnectionSystem + WSServer 已接入
-
-**剩余可选任务**（非阶段 1 前置，可穿插）：
+**剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 4 期间穿插
+- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线）
 - [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 可穿插
 
 ## Blocked
@@ -335,18 +335,18 @@
 
 ## Next Up
 
-**阶段 0 已合并 master，阶段 1 实施计划已产出**（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)），待确认启动编码。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿），阶段 2 待启动**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
-**阶段 0 -> 1 决策检查点**（04 §八）：
-- [x] LPC 规格提取覆盖 go/move/combat 核心路径？（任务 1 ✅）
-- [x] FluffOS 编译可行或降级为单元规约？（任务 2 ✅，现有二进制可运行）
-- [x] 性能 micro-benchmark 达标？（任务 4 阶段 0 部分 ✅，1000+100 后置阶段 1）
-- [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
-- [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
+**阶段 1 -> 2 决策检查点**（04 §八，全通过）：
+- [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
+- [x] **1000 在线+100 并发达标？**（T10 ✅ kill criteria 3 GO，tick p99 12.6ms < 100ms）
+- [x] combat 确定性可重放？（T6 ✅ [ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)）
+- [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
+- [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：Wave 4 T10 1000+100 集成测试（kill criteria 3 完整判定）。Wave 3 全部完成（T7+T8+T9，1019 tests 全绿）。T10 依赖 Wave 1-3 全部：1000 实体 + 100 并发会话压测 + tick compute<100ms 非均匀 tick（T8 TickProfiler 测量）+ 存档不阻塞事件循环（T5 StorageSystem）+ go/no-go 报告。不达标触发 kill criteria 6（冻结功能范围纯做优化）或 kill criteria 3（降级 500+50 或重新评估 Rust/Go）。Wave 2/3 整合遗留（CombatSystem/StorageSystem 接入统一 System 列表）T10 前收纳。
+**下一步主线**：阶段 2 按规格实现子系统（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)），顺序：2.1 Query/索引层 + Identity/Position/Inventory（低风险）-> 2.2 Vitals/Heal/Condition -> 2.3 Attribute/Skill/Equipment（中）-> 2.4 **Combat**（高，数值回归基线 + 管线副作用账本）-> 2.5 TitleSystem 称谓 -> 2.6 WorldGovernanceSystem -> 2.7 门派内容包边界切割。
 
-**可穿插推进**（非阶段 1 前置）：
+**可穿插推进**（非阶段 2 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）
 - [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现：层1 谓词集扩充 8 类（阶段 1 层1 运行时落地时）
@@ -371,8 +371,8 @@ S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mappin
 - 性能 micro-benchmark 达标 ✅（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md)，1000+100 后置阶段 1）
 - 30 文件表达力校准层3 <15% ✅（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md)，修正 KPI 6.4%）
 
-**阶段 1**（待启动，关注）：
-- 单进程核心循环集成测试无法支撑 1000+100 -> 冻结功能范围，纯做性能优化直至达标或触发目标降级（[04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md) 第 6 条）
+**阶段 1**（已完成，全通过）：
+- 1000+100 集成测试达标 ✅（[14 压测报告](docs/xkx-arch/14-T10-压测报告.md)，tick p99 12.6ms < 100ms，kill criteria 3 GO）
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 

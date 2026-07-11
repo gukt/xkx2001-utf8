@@ -97,8 +97,15 @@ class Engine:
         return list(self._systems)
 
     def add_system(self, system: SystemLike) -> None:
-        """注册 System（按加入顺序 tick）。"""
+        """注册 System（按加入顺序 tick）。
+
+        StorageSystem 接入时自动挂 ``world.storage_system``（供 CombatBridge /
+        ConditionSystem 等 System 通过 ``getattr(world, "storage_system")`` 调
+        ``mark_dirty``，ADR-0022 §4 mutation 路径标记）。build_world 已挂载时幂等。
+        """
         self._systems.append(system)
+        if system.name == "StorageSystem":
+            self._world.storage_system = system  # type: ignore[attr-defined]
 
     def remove_system(self, name: str) -> SystemLike | None:
         """按 name 移除 System。"""
@@ -193,3 +200,10 @@ class CombatBridge(System):
         for result in results:
             effects = CombatSystem.flatten_effects(result)
             apply_effects(world, effects)
+
+        # ADR-0022 §4：mutation 后 mark_dirty 供 StorageSystem 周期 persist
+        # （整合遗留：System mutation 路径显式标记，不依赖 setattr 拦截）
+        storage = getattr(world, "storage_system", None)
+        if storage is not None:
+            for eid in combatants:
+                storage.mark_dirty(eid)
