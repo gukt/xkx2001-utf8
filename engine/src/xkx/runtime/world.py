@@ -24,6 +24,7 @@ from xkx.runtime.components import (
     Marks,
     NpcBehavior,
     Position,
+    Progression,
     QuestLog,
     RoomComp,
     Skills,
@@ -93,9 +94,9 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             jingli=n.get("max_jingli", 100),
             max_jingli=n.get("max_jingli", 100),
             max_neili=n.get("max_neili", 0),
-            combat_exp=n.get("combat_exp", 0),
         ),
     )
+    world.add(eid, Progression(combat_exp=n.get("combat_exp", 0)))
     world.add(
         eid,
         Skills(
@@ -155,9 +156,9 @@ def spawn_player(
             max_jing=150,
             jingli=200,
             max_jingli=200,
-            combat_exp=500,
         ),
     )
+    world.add(eid, Progression(combat_exp=500))
     world.add(eid, Skills(levels={"unarmed": 30, "dodge": 20}))
     world.add(eid, CombatState())
     world.add(eid, Inventory(items=items or set()))
@@ -171,9 +172,10 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
     ident = world.get(eid, Identity)
     attrs = world.get(eid, Attributes)
     vitals = world.get(eid, Vitals)
+    prog = world.get(eid, Progression)
     skills = world.get(eid, Skills)
     combat = world.get(eid, CombatState)
-    assert ident and attrs and vitals and skills and combat
+    assert ident and attrs and vitals and prog and skills and combat
     return CombatantSnapshot(
         entity_id=eid,
         name=ident.name,
@@ -188,8 +190,9 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         max_jing=vitals.max_jing,
         jingli=vitals.jingli,
         max_jingli=vitals.max_jingli,
-        combat_exp=vitals.combat_exp,
-        potential=vitals.potential,
+        combat_exp=prog.combat_exp,
+        potential=prog.potential,
+        max_potential=prog.max_potential,
         skills=skills.levels,
         apply_attack=skills.apply_attack,
         apply_dodge=skills.apply_dodge,
@@ -218,10 +221,14 @@ def apply_effects(world: World, effects: list[Effect]) -> None:
             vitals.qi = max(0, vitals.qi - e.amount)
         elif e.kind == KIND_WOUND and vitals:
             vitals.eff_qi = max(0, vitals.eff_qi - e.amount)
-        elif e.kind == KIND_EXP and vitals:
-            vitals.combat_exp += e.amount
-        elif e.kind == KIND_POTENTIAL and vitals:
-            vitals.potential += e.amount
+        elif e.kind == KIND_EXP:
+            prog = world.get(e.target_id, Progression)
+            if prog:
+                prog.combat_exp += e.amount
+        elif e.kind == KIND_POTENTIAL:
+            prog = world.get(e.target_id, Progression)
+            if prog:
+                prog.potential = min(prog.max_potential, prog.potential + e.amount)
         elif e.kind == KIND_JINGLI and vitals:
             vitals.jingli = max(0, min(vitals.max_jingli, vitals.jingli + e.amount))
         elif e.kind == KIND_SKILL_IMPROVE:

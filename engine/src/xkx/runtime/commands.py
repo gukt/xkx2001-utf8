@@ -21,6 +21,7 @@ from xkx.runtime.components import (
     Marks,
     NpcBehavior,
     Position,
+    Progression,
     QuestLog,
     RoomComp,
     Vitals,
@@ -200,9 +201,9 @@ def _is_dead(world: World, eid: int) -> bool:
 def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
     """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验。"""
     world.remove(npc_eid, Position)
-    vitals = world.get(killer_id, Vitals)
-    if vitals:
-        vitals.combat_exp += 50
+    prog = world.get(killer_id, Progression)
+    if prog:
+        prog.combat_exp += 50
 
 
 def _handle_player_death(world: World, game: Game, player_id: int) -> None:
@@ -313,9 +314,9 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
             reward = q.get("reward", {})
             exp = reward.get("exp", 0)
             if exp:
-                vitals = world.get(actor_id, Vitals)
-                if vitals:
-                    vitals.combat_exp += exp
+                prog = world.get(actor_id, Progression)
+                if prog:
+                    prog.combat_exp += exp
             flag = reward.get("flag", "")
             if flag:
                 marks = world.get(actor_id, Marks)
@@ -437,7 +438,8 @@ def hp(game: Game, actor_id: int) -> list[str]:
     vitals = world.get(actor_id, Vitals)
     if not vitals:
         return ["你没有状态。"]
+    prog = world.get(actor_id, Progression)
     return [
         f"气：{vitals.qi}/{vitals.max_qi}  精力：{vitals.jingli}/{vitals.max_jingli}"
-        f"  经验：{vitals.combat_exp}"
+        f"  经验：{prog.combat_exp if prog else 0}"
     ]

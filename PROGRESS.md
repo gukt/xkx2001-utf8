@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 0 已合并 master，阶段 1 实施计划已产出，待确认启动编码
-**当前状态**：阶段 0 全部 9 任务完成并合并到 master（feat/s5-playtest `--no-ff` merge commit `1419d120`，118 files +28882 lines，push origin master）。从 master 开新分支 `feat/stage-1-core-loop`（feat/s5-playtest 保留作阶段 -1~0 历史标记）。阶段 1 实施计划文档产出（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）：10 个里程碑分解为 T1-T10 任务 + 4 个 Wave（Wave 1 串行 T1-T3 / Wave 2 并行 T4-T6 / Wave 3 并行 T7-T9 / Wave 4 串行 T10 门禁）+ 8 个待写 ADR（ADR-0017~0024，ADR-0017/0018 为 Wave 1 前置）+ 05 §五 10 条 dissent 全映射 + kill criteria 3/6/8 触发条件。680 tests 全绿，ruff 全过。下一步：用户确认启动阶段 1 编码 -> 先写 ADR-0017/0018（ECS SparseSet + Effect 一等公民 + ConditionHandler.on_tick 契约）-> Wave 1 T1。
+**当前阶段**：阶段 1 Wave 1 T1（ECS 骨架升级）完成，T2/T3 待做
+**当前状态**：阶段 1 Wave 1 T1 完成。ADR-0017/0018 产出（[SparseSet 选型 + Effect 一等公民](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md) + [ConditionHandler.on_tick 契约](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）。T1 实现：SparseSet 升级 [ecs.py](engine/src/xkx/runtime/ecs.py)（swap-remove + 交集查询，API 兼容）+ Progression 组件（combat_exp/potential 从 Vitals 迁移）+ EffectComp 组件（持续 Effect，独立实体 attach 支持多 condition）+ [systems.py](engine/src/xkx/runtime/systems.py) System 基类 + [conditions.py](engine/src/xkx/runtime/conditions.py) ConditionHandler/ConditionSystem（on_tick 纯函数契约 + apply）。**701 tests 全绿（+21：test_ecs 7 + test_conditions 14），ruff 全过**。下一步：Wave 1 T2（SchemaRegistry，ADR-0019 前置）/ T3（字段映射表）。
 
 ## Done
 
@@ -208,6 +208,13 @@
   - 现状盘点：阶段 -1/0 产出 16979 行可复用（combat/dsl/runtime/spec 四模块 + 680 tests），阶段 1 是"从 stub 到真实引擎"跃迁而非从零开始
   - 启动前置：ADR-0017/0018（Wave 1 前置）+ 用户确认启动编码
 
+- [x] **阶段 1 Wave 1 T1：ECS 骨架升级完成**（[ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md) + [ADR-0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）：
+  - ADR-0017 SparseSet 选型 + Effect 一等公民：SparseSet（非 Archetype，1000 实体规模足够，dict -> SparseSet 平滑升级 API 兼容）；Effect 一等公民（即时 Effect combat-only + 持续 Effect EffectComp，可序列化/可中断/可崩溃恢复 04 §三硬约束）
+  - ADR-0018 ConditionHandler.on_tick 契约：ConditionTickResult（effects/messages/condition_deltas/completed/flags/ledger 交织）；on_tick 纯函数不 mutate；非均匀 tick（对齐 LPC 5+random(10)）；dissent 7 派生变更审计轨迹
+  - T1 实现：SparseSet 升级 [ecs.py](engine/src/xkx/runtime/ecs.py)（swap-remove + 交集查询）+ Progression 组件（combat_exp/potential/max_potential 从 Vitals 迁移，[components.py](engine/src/xkx/runtime/components.py) + [world.py](engine/src/xkx/runtime/world.py) + [commands.py](engine/src/xkx/runtime/commands.py) + 4 tests 调整）+ EffectComp 组件（持续 Effect，独立实体 attach 支持多 condition）+ [systems.py](engine/src/xkx/runtime/systems.py) System 基类 + [conditions.py](engine/src/xkx/runtime/conditions.py) ConditionHandler/ConditionSystem
+  - 测试：[test_ecs.py](engine/tests/test_ecs.py) 7 tests（SparseSet swap-remove/覆盖/交集 + hypothesis 属性测试）+ [test_conditions.py](engine/tests/test_conditions.py) 14 tests（on_tick 纯函数/衰减/completed/flags/多 condition/非均匀 tick）
+  - **701 tests 全绿（+21），ruff 全过**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -218,12 +225,11 @@
 
 ## In Progress
 
-**阶段 1 实施计划已产出**（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)），待用户确认启动编码。
+**阶段 1 Wave 1 T1 完成**，T2/T3 待做（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
-**启动前置**（Wave 1 前置，确认后先写）：
-- ADR-0017 ECS SparseSet vs Archetype + Effect 一等公民设计（关联 dissent 7 派生变更审计）
-- ADR-0018 ConditionHandler.on_tick 组合返回值契约（关联 dissent 7）
-- 用户确认启动阶段 1 编码
+**Wave 1 剩余**：
+- T2 SchemaRegistry 类型化组件（ADR-0019 前置，query 拼写错误启动期失败）
+- T3 字段->组件映射表（query_entire_dbase 调用点读写键集枚举）
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -255,7 +261,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：启动阶段 1 编码（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。需用户确认。确认后先写 ADR-0017/0018（Wave 1 前置），再进 Wave 1 T1（ECS 骨架升级）。
+**下一步主线**：Wave 1 T2（SchemaRegistry 类型化组件，ADR-0019 前置）/ T3（字段映射表）。T1 已完成，T2/T3 可继续。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
