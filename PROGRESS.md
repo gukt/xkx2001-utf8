@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 0（规格提取与验证基建）完成，可启动阶段 1
-**当前状态**：**阶段 0 全部 9 任务完成**，决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）全部满足。任务 9（30 文件表达力校准）完成：30 文件 290 语义单元，修正 KPI（逃生舱层3/总单元）= 11/171 ≈ 6.4% < 15% ✓，不触发 kill criteria 4（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md) + [stats.md](engine/tools/layer_calibration/stats.md)）。谓词集 8 类缺口扩充决策已采纳（[ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md)，实现后置阶段 1）。driver UE 问题已解除（PID 22753 运行中）。680 tests 全绿，ruff 全过。下一步：阶段 0 -> 1 决策检查点通过，可启动阶段 1（单进程 asyncio 核心循环）/ golden trace 穿插。
+**当前阶段**：阶段 0 已合并 master，阶段 1 实施计划已产出，待确认启动编码
+**当前状态**：阶段 0 全部 9 任务完成并合并到 master（feat/s5-playtest `--no-ff` merge commit `1419d120`，118 files +28882 lines，push origin master）。从 master 开新分支 `feat/stage-1-core-loop`（feat/s5-playtest 保留作阶段 -1~0 历史标记）。阶段 1 实施计划文档产出（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）：10 个里程碑分解为 T1-T10 任务 + 4 个 Wave（Wave 1 串行 T1-T3 / Wave 2 并行 T4-T6 / Wave 3 并行 T7-T9 / Wave 4 串行 T10 门禁）+ 8 个待写 ADR（ADR-0017~0024，ADR-0017/0018 为 Wave 1 前置）+ 05 §五 10 条 dissent 全映射 + kill criteria 3/6/8 触发条件。680 tests 全绿，ruff 全过。下一步：用户确认启动阶段 1 编码 -> 先写 ADR-0017/0018（ECS SparseSet + Effect 一等公民 + ConditionHandler.on_tick 契约）-> Wave 1 T1。
 
 ## Done
 
@@ -202,6 +202,12 @@
   - **阶段 0 -> 1 决策检查点全部满足**，不触发 kill criteria 4
   - agent teams 并行：5 agent 各转译 6 文件
 
+- [x] **分支合并 + 阶段 1 实施计划产出**（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）：
+  - feat/s5-playtest 合并到 master（`--no-ff` merge commit `1419d120`，118 files +28882 lines），push origin master；从 master 开新分支 `feat/stage-1-core-loop`（feat/s5-playtest 保留作阶段 -1~0 历史标记）
+  - 阶段 1 实施计划文档：10 个里程碑（M1-1~M1-10，对应 04 §三）分解为 T1-T10 任务 + 依赖图 + 4 个 Wave（Wave 1 串行 T1-T3 基础层 / Wave 2 并行 T4-T6 / Wave 3 并行 T7-T9 / Wave 4 串行 T10 门禁）+ 8 个待写 ADR（ADR-0017~0024，关联 05 §五 dissent）+ 05 §五 10 条 dissent 全映射到任务 + kill criteria 3/6/8 触发条件 + 性能优化备选 6 步
+  - 现状盘点：阶段 -1/0 产出 16979 行可复用（combat/dsl/runtime/spec 四模块 + 680 tests），阶段 1 是"从 stub 到真实引擎"跃迁而非从零开始
+  - 启动前置：ADR-0017/0018（Wave 1 前置）+ 用户确认启动编码
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -212,14 +218,17 @@
 
 ## In Progress
 
-**阶段 0 全部 9 任务完成**，决策检查点（04 §八）全部满足。
+**阶段 1 实施计划已产出**（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)），待用户确认启动编码。
 
-**剩余可选任务**（非阶段 0 门禁，可后置或穿插）：
+**启动前置**（Wave 1 前置，确认后先写）：
+- ADR-0017 ECS SparseSet vs Archetype + Effect 一等公民设计（关联 dissent 7 派生变更审计）
+- ADR-0018 ConditionHandler.on_tick 组合返回值契约（关联 dissent 7）
+- 用户确认启动阶段 1 编码
+
+**剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver 已恢复，可穿插）-- 辅助验证手段（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)），非主线
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 后置阶段 1 层1 运行时落地时
-
-**下一步主线**：阶段 0 -> 1 决策检查点通过，启动阶段 1（单进程 asyncio 核心循环，[04 §三阶段 1](docs/xkx-arch/04-迁移路径与避坑清单.md)）。需用户确认是否启动阶段 1。
+- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 2/3 期间穿插
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- T2/T4 期间穿插
 
 ## Blocked
 
@@ -237,7 +246,7 @@
 
 ## Next Up
 
-**阶段 0 全部 9 任务完成**，决策检查点（04 §八）全部满足，可启动阶段 1。
+**阶段 0 已合并 master，阶段 1 实施计划已产出**（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)），待确认启动编码。
 
 **阶段 0 -> 1 决策检查点**（04 §八）：
 - [x] LPC 规格提取覆盖 go/move/combat 核心路径？（任务 1 ✅）
@@ -246,7 +255,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：启动阶段 1（单进程 asyncio 核心循环，[04 §三阶段 1](docs/xkx-arch/04-迁移路径与避坑清单.md)）。需用户确认。
+**下一步主线**：启动阶段 1 编码（[12-阶段1-核心循环实施计划.md](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。需用户确认。确认后先写 ADR-0017/0018（Wave 1 前置），再进 Wave 1 T1（ECS 骨架升级）。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
