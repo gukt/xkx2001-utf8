@@ -8,7 +8,7 @@ from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import Game, ask, give, quest
-from xkx.runtime.components import Marks, QuestLog, Vitals
+from xkx.runtime.components import Marks, Progression, QuestLog
 from xkx.runtime.world import build_world, spawn_player
 
 SCENE_DIR = Path(__file__).resolve().parent.parent / "scenes" / "xueshan_micro"
@@ -45,11 +45,11 @@ def test_give_completes_quest_and_rewards() -> None:
     """give 任务物品 -> 完成 quest + 奖励 exp + 设置 reward.flag。"""
     game, pid = _game(items={"suyou_guan"})
     ask(game, pid, "葛伦布", "还愿")
-    before_exp = game.world.get(pid, Vitals).combat_exp
+    before_exp = game.world.get(pid, Progression).combat_exp
     msgs = give(game, pid, "葛伦布", "suyou_guan")
     assert any("完成" in m for m in msgs)
     assert game.world.get(pid, QuestLog).statuses.get("xueshan/tribute") == "completed"
-    assert game.world.get(pid, Vitals).combat_exp == before_exp + 100
+    assert game.world.get(pid, Progression).combat_exp == before_exp + 100
     assert "酥" in game.world.get(pid, Marks).flags
 
 

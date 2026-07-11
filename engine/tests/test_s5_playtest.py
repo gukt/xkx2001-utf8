@@ -33,6 +33,7 @@ from xkx.runtime.components import (
     Inventory,
     NpcBehavior,
     Position,
+    Progression,
     QuestLog,
     Skills,
     Vitals,
@@ -81,6 +82,7 @@ def _spawn_weak_npc(game: Game, room_id: str, name: str = "木桩", max_qi: int 
     world.add(eid, Skills(levels={"dodge": 0, "parry": 0}))
     world.add(eid, CombatState())
     world.add(eid, NpcBehavior())
+    world.add(eid, Progression())
     return eid
 
 
@@ -172,12 +174,12 @@ def test_kill_multi_round_npc_death() -> None:
     """多回合战斗打死弱 NPC -> NPC 从房间移除 + 玩家加经验。"""
     game, pid = _game()
     weak = _spawn_weak_npc(game, "xueshan/shanmen", "木桩", max_qi=1)
-    before_exp = game.world.get(pid, Vitals).combat_exp
+    before_exp = game.world.get(pid, Progression).combat_exp
     msgs = kill(game, pid, "木桩")
     assert any("死了" in m for m in msgs)
     assert game.world.get(weak, Position) is None
     # _handle_npc_death +50；resolve_attack 战斗中也可能给玩家 +exp，故用 >=
-    assert game.world.get(pid, Vitals).combat_exp >= before_exp + 50
+    assert game.world.get(pid, Progression).combat_exp >= before_exp + 50
 
 
 def test_kill_player_death_respawn() -> None:

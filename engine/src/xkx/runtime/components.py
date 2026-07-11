@@ -44,8 +44,21 @@ class Vitals:
     max_jingli: int = 100
     neili: int = 0
     max_neili: int = 0
+
+
+@dataclass
+class Progression:
+    """角色长期进度（阶段 1 T1，ADR-0017）。
+
+    从 Vitals 拆出 ``combat_exp``/``potential``/``max_potential``：Vitals 专注当前
+    资源（qi/jing/jingli 会波动），Progression 承载长期进度（只增不减，除非死亡
+    惩罚）。对应 LPC dbase 的 combat_exp/potential 键。
+    [ADR-0017](../../../docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)
+    """
+
     combat_exp: int = 0
     potential: int = 0
+    max_potential: int = 100
 
 
 @dataclass
@@ -74,6 +87,14 @@ class CombatState:
     weapon_label: str = "拳头"
     hit_ob_bonus: int = 0
     hit_by_override: int | None = None
+    # T10 整合遗留：CombatantSnapshot 已有字段，CombatState 补齐 + to_snapshot 传递
+    # （ADR-0023 决策 4 第 4/5 项；T6 用默认值兼容，不 break 但不启用 T6 新功能）
+    # guarding：LPC set_temp("guarding")，riposte 触发条件之一（规格 order=48）
+    guarding: int = 0
+    # is_fighting：LPC is_fighting()，skill_power DEFENSE 折减判定
+    is_fighting: bool = False
+    # fight_dodge：LPC set_temp("fight/dodge")，DEFENSE 加成（规格 order=7）
+    fight_dodge: int = 0
 
 
 @dataclass
@@ -114,6 +135,32 @@ class QuestLog:
     """
 
     statuses: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class EffectComp:
+    """持续 Effect 组件（阶段 1 T1，ADR-0017）。
+
+    承载 condition（毒/醉/失明）/ buff / DoT 等持续效果，区别于 combat 即时
+    Effect（``CombatRoundResult.effects``，apply 后不持久化）。ConditionHandler.on_tick
+    按 ``next_tick`` 触发（ADR-0018）。
+
+    可序列化（字段全基本类型）/ 可中断（remove 或按 effect_id 取消）/ 可崩溃恢复
+    （存档含 duration/next_tick，04 §三硬约束）。
+    [ADR-0017](../../../docs/adr/ADR-0017-ecs-sparse-set-effect-component.md) /
+    [ADR-0018](../../../docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)
+    """
+
+    effect_id: str
+    kind: str
+    target_id: int
+    source_id: int = 0
+    amount: int = 0
+    detail: str = ""
+    duration: int = 0  # 剩余 tick（0=永久，需显式取消）
+    tick_interval: int = 1
+    next_tick: int = 0
+    flags: int = 0  # LPC CND_CONTINUE(1) / CND_NO_HEAL_UP(2)
 
 
 @dataclass

@@ -24,17 +24,47 @@ from xkx.runtime.components import (
     Marks,
     NpcBehavior,
     Position,
+    Progression,
     QuestLog,
     RoomComp,
     Skills,
     Vitals,
 )
+from xkx.runtime.dbase_map import validate_dbase_map
 from xkx.runtime.ecs import World
+from xkx.runtime.schema import SchemaError, SchemaRegistry
+from xkx.runtime.storage import (
+    DEFAULT_CHECKPOINT_INTERVAL,
+    DEFAULT_PERSIST_INTERVAL,
+    StorageBackend,
+    StorageSystem,
+)
 
 
-def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
-    """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。"""
-    world = World()
+def build_world(
+    ir: dict,
+    *,
+    storage_backend: StorageBackend | None = None,
+    persist_interval: int = DEFAULT_PERSIST_INTERVAL,
+    checkpoint_interval: int = DEFAULT_CHECKPOINT_INTERVAL,
+) -> tuple[World, dict[str, int], dict[str, dict]]:
+    """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
+
+    用 ``SchemaRegistry.with_builtins()`` 创建带类型校验的 World（ADR-0019），
+    生产路径组件类型拼写错误启动期/调用期失败，非静默 None。同时校验
+    ``DBASE_KEY_MAP`` 映射目标字段存在（T3，ADR-0019 has_field 衔接）。
+
+    ADR-0022 T5：可选 ``storage_backend`` 传入时创建 ``StorageSystem`` 并挂到
+    ``world.storage_system``（动态属性，不改 World 类）。调用方通过该属性驱动 tick
+    persist + mark_dirty。不传则不接入存档（向后兼容现有调用方）。
+    """
+    schema = SchemaRegistry.with_builtins()
+    issues = validate_dbase_map(schema)
+    if issues:
+        raise SchemaError(
+            "DBASE_KEY_MAP 映射校验失败（ADR-0019）:\n" + "\n".join(issues)
+        )
+    world = World(schema)
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}
@@ -63,6 +93,15 @@ def build_world(ir: dict) -> tuple[World, dict[str, int], dict[str, dict]]:
                 continue
             for _ in range(count):
                 _spawn_npc(world, ndef, r["id"])
+
+    # ADR-0022 T5：接入 StorageSystem（可选，最小改动）
+    if storage_backend is not None:
+        world.storage_system = StorageSystem(  # type: ignore[attr-defined]
+            storage_backend,
+            schema=schema,
+            persist_interval=persist_interval,
+            checkpoint_interval=checkpoint_interval,
+        )
 
     return world, room_entities, quest_idx
 
@@ -93,9 +132,9 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             jingli=n.get("max_jingli", 100),
             max_jingli=n.get("max_jingli", 100),
             max_neili=n.get("max_neili", 0),
-            combat_exp=n.get("combat_exp", 0),
         ),
     )
+    world.add(eid, Progression(combat_exp=n.get("combat_exp", 0)))
     world.add(
         eid,
         Skills(
@@ -155,9 +194,9 @@ def spawn_player(
             max_jing=150,
             jingli=200,
             max_jingli=200,
-            combat_exp=500,
         ),
     )
+    world.add(eid, Progression(combat_exp=500))
     world.add(eid, Skills(levels={"unarmed": 30, "dodge": 20}))
     world.add(eid, CombatState())
     world.add(eid, Inventory(items=items or set()))
@@ -171,9 +210,10 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
     ident = world.get(eid, Identity)
     attrs = world.get(eid, Attributes)
     vitals = world.get(eid, Vitals)
+    prog = world.get(eid, Progression)
     skills = world.get(eid, Skills)
     combat = world.get(eid, CombatState)
-    assert ident and attrs and vitals and skills and combat
+    assert ident and attrs and vitals and prog and skills and combat
     return CombatantSnapshot(
         entity_id=eid,
         name=ident.name,
@@ -188,8 +228,9 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         max_jing=vitals.max_jing,
         jingli=vitals.jingli,
         max_jingli=vitals.max_jingli,
-        combat_exp=vitals.combat_exp,
-        potential=vitals.potential,
+        combat_exp=prog.combat_exp,
+        potential=prog.potential,
+        max_potential=prog.max_potential,
         skills=skills.levels,
         apply_attack=skills.apply_attack,
         apply_dodge=skills.apply_dodge,
@@ -207,6 +248,10 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         action_damage_type=combat.action_damage_type,
         hit_ob_bonus=combat.hit_ob_bonus,
         hit_by_override=combat.hit_by_override,
+        # T10 整合遗留：CombatState 扩展字段传递（ADR-0023 决策 4 第 4/5 项）
+        guarding=combat.guarding,
+        is_fighting=combat.is_fighting,
+        fight_dodge=combat.fight_dodge,
     )
 
 
@@ -218,10 +263,14 @@ def apply_effects(world: World, effects: list[Effect]) -> None:
             vitals.qi = max(0, vitals.qi - e.amount)
         elif e.kind == KIND_WOUND and vitals:
             vitals.eff_qi = max(0, vitals.eff_qi - e.amount)
-        elif e.kind == KIND_EXP and vitals:
-            vitals.combat_exp += e.amount
-        elif e.kind == KIND_POTENTIAL and vitals:
-            vitals.potential += e.amount
+        elif e.kind == KIND_EXP:
+            prog = world.get(e.target_id, Progression)
+            if prog:
+                prog.combat_exp += e.amount
+        elif e.kind == KIND_POTENTIAL:
+            prog = world.get(e.target_id, Progression)
+            if prog:
+                prog.potential = min(prog.max_potential, prog.potential + e.amount)
         elif e.kind == KIND_JINGLI and vitals:
             vitals.jingli = max(0, min(vitals.max_jingli, vitals.jingli + e.amount))
         elif e.kind == KIND_SKILL_IMPROVE:

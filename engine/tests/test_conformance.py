@@ -249,14 +249,26 @@ class TestStatisticalProperties:
     @given(ctx=_combat_context())
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_ap_dp_pp_lower_bound(self, ctx: CombatContext) -> None:
-        """ap/dp/pp >= 1（do_attack invariants[2]，skill_power 返回值 >= 1）。"""
-        ap = skill_power(ctx.attacker, ctx.attacker.attack_skill, "attack")
-        dp = skill_power(ctx.victim, "dodge", "defense")
+        """ap/dp/pp >= 1（do_attack invariants[2]，resolve_attack 内 max(1, ap) 修正）。
+
+        T6（ADR-0023）：skill_power 完整公式在 level<1 + combat_exp=0 时低技能
+        经验补偿返回 0（符合 LPC ``_skill_power`` postconditions[1]）；invariants[2]
+        的 ``ap>=1`` 修正发生在 ``do_attack`` 内（``ap < 1 时 ap = 1``），T6 在
+        ``resolve_attack`` 内用 ``max(1, ap)`` 落地。故本测试断言 skill_power >= 0
+        + resolve_attack 内 max 修正后 ap/dp/pp >= 1。
+        """
+        ap_raw = skill_power(ctx.attacker, ctx.attacker.attack_skill, "attack")
+        dp_raw = skill_power(ctx.victim, "dodge", "defense")
         parry_skill = "parry" if "parry" in ctx.victim.skills else ctx.attacker.attack_skill
-        pp = skill_power(ctx.victim, parry_skill, "defense")
-        assert ap >= 1, f"ap={ap} < 1（attacker={ctx.attacker}）"
-        assert dp >= 1, f"dp={dp} < 1（victim={ctx.victim}）"
-        assert pp >= 1, f"pp={pp} < 1（victim={ctx.victim}）"
+        pp_raw = skill_power(ctx.victim, parry_skill, "defense")
+        # skill_power 完整公式非负（低技能补偿为 0 或正）
+        assert ap_raw >= 0, f"ap_raw={ap_raw} < 0（attacker={ctx.attacker}）"
+        assert dp_raw >= 0, f"dp_raw={dp_raw} < 0（victim={ctx.victim}）"
+        assert pp_raw >= 0, f"pp_raw={pp_raw} < 0（victim={ctx.victim}）"
+        # resolve_attack 内 max(1, ...) 修正后满足 invariants[2]
+        assert max(1, ap_raw) >= 1
+        assert max(1, dp_raw) >= 1
+        assert max(1, pp_raw) >= 1
 
     @given(seed=st.integers(min_value=0, max_value=10**6))
     @settings(max_examples=200, deadline=None)
@@ -305,18 +317,23 @@ class TestImplMap:
             assert entry.adr_ref.startswith("ADR-"), f"{name} adr_ref 格式错误: {entry.adr_ref}"
 
     def test_simplified_entries_have_note(self) -> None:
-        """simplified 状态的条目必须有 note 说明简化内容。"""
+        """simplified 状态的条目必须有 note 说明简化内容（T6 后无 simplified 项）。"""
         for name, entry in DO_ATTACK_IMPL_MAP.items():
             if entry.status == ImplStatus.SIMPLIFIED:
                 assert entry.note, f"simplified 条目 {name} 缺少 note"
 
     def test_implemented_count(self) -> None:
-        """impl_map 应有 12 项 implemented + 2 项 simplified = 14 项。"""
+        """impl_map 应有 14 项 implemented + 0 项 simplified（T6 ADR-0023 升级后）。
+
+        T6 前：12 implemented + 2 simplified（three_layer_resource_invariant /
+        interleaving_order）。T6 补全 6 项简化台账后，这两项升级为 implemented
+        （riposte 递归 + hit_ob/hit_by mapping 使交织顺序完整可验证）。
+        """
         implemented = sum(
             1 for e in DO_ATTACK_IMPL_MAP.values() if e.status == ImplStatus.IMPLEMENTED
         )
         simplified = sum(
             1 for e in DO_ATTACK_IMPL_MAP.values() if e.status == ImplStatus.SIMPLIFIED
         )
-        assert implemented == 12, f"implemented 数量 {implemented} != 12"
-        assert simplified == 2, f"simplified 数量 {simplified} != 2"
+        assert implemented == 14, f"implemented 数量 {implemented} != 14"
+        assert simplified == 0, f"simplified 数量 {simplified} != 0"

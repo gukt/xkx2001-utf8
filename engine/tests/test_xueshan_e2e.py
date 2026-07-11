@@ -14,7 +14,15 @@ from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import Game, ask, give, go, kill
-from xkx.runtime.components import Identity, Inventory, Marks, Position, QuestLog, Vitals
+from xkx.runtime.components import (
+    Identity,
+    Inventory,
+    Marks,
+    Position,
+    Progression,
+    QuestLog,
+    Vitals,
+)
 from xkx.runtime.world import build_world, spawn_player
 
 SCENE_DIR = Path(__file__).resolve().parent.parent / "scenes" / "xueshan_micro"
@@ -184,10 +192,10 @@ def test_quest_complete_closes_loop() -> None:
     """任务完整闭环：ask 还愿接任务 -> give 酥油完成 -> 奖励 + 标记 -> go north 放行。"""
     game, pid = _game(items={"suyou_guan"})
     ask(game, pid, "葛伦布", "还愿")
-    before_exp = game.world.get(pid, Vitals).combat_exp
+    before_exp = game.world.get(pid, Progression).combat_exp
     give(game, pid, "葛伦布", "suyou_guan")
     assert game.world.get(pid, QuestLog).statuses["xueshan/tribute"] == "completed"
-    assert game.world.get(pid, Vitals).combat_exp == before_exp + 100
+    assert game.world.get(pid, Progression).combat_exp == before_exp + 100
     assert "酥" in game.world.get(pid, Marks).flags
     # 完成任务后 north 放行（reward.flag + valid_leave has_flag）
     msgs = go(game, pid, "north")

@@ -38,3 +38,11 @@ class DeterministicRNG:
         if not seq:
             return None
         return seq[self._rng.randrange(len(seq))]
+
+    def derive_seed(self) -> int:
+        """从当前 RNG 状态派生子 seed（riposte 递归用，ADR-0023 决策 4 第 2 项）。
+
+        确定性：同 seed 链推进 -> 同派生 seed。用于 riposte 子回合的
+        ``DeterministicRNG`` 初始化，保证子回合可重放。
+        """
+        return self._rng.randrange(2**31)

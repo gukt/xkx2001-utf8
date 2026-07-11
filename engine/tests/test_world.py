@@ -5,7 +5,7 @@ from __future__ import annotations
 from xkx.combat.result import KIND_DAMAGE, KIND_EXP, Effect
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import NpcDef, RoomDef
-from xkx.runtime.components import Identity, Position, Vitals
+from xkx.runtime.components import Identity, Position, Progression, Vitals
 from xkx.runtime.world import apply_effects, build_world, spawn_player, to_snapshot
 
 
@@ -76,6 +76,6 @@ def test_apply_effects_damage() -> None:
 def test_apply_effects_exp() -> None:
     world, _, _ = build_world(_ir())
     pid = spawn_player(world, "玩家", "city/street")
-    before = world.get(pid, Vitals).combat_exp
+    before = world.get(pid, Progression).combat_exp
     apply_effects(world, [Effect(kind=KIND_EXP, target_id=pid, amount=1)])
-    assert world.get(pid, Vitals).combat_exp == before + 1
+    assert world.get(pid, Progression).combat_exp == before + 1
