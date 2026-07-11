@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 0（规格提取与验证基建）进行中
+**当前阶段**：阶段 0（规格提取与验证基建）完成，可启动阶段 1
 **当前状态**：**阶段 0 全部 9 任务完成**，决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）全部满足。任务 9（30 文件表达力校准）完成：30 文件 290 语义单元，修正 KPI（逃生舱层3/总单元）= 11/171 ≈ 6.4% < 15% ✓，不触发 kill criteria 4（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md) + [stats.md](engine/tools/layer_calibration/stats.md)）。谓词集 8 类缺口扩充决策已采纳（[ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md)，实现后置阶段 1）。driver UE 问题已解除（PID 22753 运行中）。680 tests 全绿，ruff 全过。下一步：阶段 0 -> 1 决策检查点通过，可启动阶段 1（单进程 asyncio 核心循环）/ golden trace 穿插。
 
 ## Done
@@ -263,10 +263,18 @@
 
 S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励、ask->action/clear_flag/物品生成）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) / [ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 表在 S4+ 或阶段 0 补全。
 
-## 阶段 -1 的 kill criteria（开工必读）
+## kill criteria 状态（开工必读）
 
-- DSL+Agent 创作闭环验证失败（垂直切片无法用 DSL+Agent 完成且行为等价）-> **停项**，不投入引擎重构。
-- 非武侠微场景无法验证 CombatKernel 内核主题无关性 -> **暂停**，先做内核主题无关性重构。
+**阶段 -1**（已完成，全通过）：
+- DSL+Agent 创作闭环验证 ✅
+- 非武侠微场景验证 CombatKernel 主题无关性 ✅
+
+**阶段 0**（已完成，全通过）：
+- 性能 micro-benchmark 达标 ✅（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md)，1000+100 后置阶段 1）
+- 30 文件表达力校准层3 <15% ✅（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md)，修正 KPI 6.4%）
+
+**阶段 1**（待启动，关注）：
+- 单进程核心循环集成测试无法支撑 1000+100 -> 冻结功能范围，纯做性能优化直至达标或触发目标降级（[04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md) 第 6 条）
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 
