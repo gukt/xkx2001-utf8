@@ -87,6 +87,14 @@ class CombatState:
     weapon_label: str = "拳头"
     hit_ob_bonus: int = 0
     hit_by_override: int | None = None
+    # T10 整合遗留：CombatantSnapshot 已有字段，CombatState 补齐 + to_snapshot 传递
+    # （ADR-0023 决策 4 第 4/5 项；T6 用默认值兼容，不 break 但不启用 T6 新功能）
+    # guarding：LPC set_temp("guarding")，riposte 触发条件之一（规格 order=48）
+    guarding: int = 0
+    # is_fighting：LPC is_fighting()，skill_power DEFENSE 折减判定
+    is_fighting: bool = False
+    # fight_dodge：LPC set_temp("fight/dodge")，DEFENSE 加成（规格 order=7）
+    fight_dodge: int = 0
 
 
 @dataclass

@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-11
-**当前阶段**：阶段 1 Wave 2 全部完成（T4+T5+T6），Wave 3 待启动
-**当前状态**：阶段 1 Wave 2 全部完成。T4 命令 8 段管线（[ADR-0020](docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) + [ADR-0021](docs/adr/ADR-0021-previous-object-explicit-mapping.md)）+ T5 JSON 存档（[ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)）+ T6 combat 确定性（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md)）3 路并行实现完成。**865 tests 全绿（+138：T4 +80 / T5 +25 / T6 +33），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。下一步：Wave 3（T7 WS 服务器 / T8 工具链 / T9 combat-sim，3 路并行）。
+**当前阶段**：阶段 1 Wave 3 全部完成（T7+T8+T9），Wave 4 待启动
+**当前状态**：阶段 1 Wave 3 全部完成。T7 WS 服务器（[ADR-0024](docs/adr/ADR-0024-ws-protocol-reconnect-accountservice.md)）+ T8 引擎工具链三件（[ADR-0013](docs/adr/ADR-0013-engine-toolchain-prd.md)）+ T9 combat-sim（[ADR-0011](docs/adr/ADR-0011-spec-conformance-checker.md)）3 路实现完成。**1019 tests 全绿（+154：T7 +81 / T8 +57 / T9 +16），ruff 全过**，test_theme_neutrality 硬门禁持续通过，e2e 不回归。下一步：Wave 4（T10 1000+100 集成测试，kill criteria 3 完整判定）。
 
 ## Done
 
@@ -272,6 +272,27 @@
   - test_conformance.py 最小适配 2 处：test_ap_dp_pp_lower_bound（完整公式 level<1 边界行为，skill_power>=0 + resolve_attack max(1,ap) 修正）+ test_implemented_count（14/0）
   - **840 tests 全绿（+33），ruff 全过**；test_theme_neutrality 5 断言全绿（硬门禁不回归）；ConformanceChecker 8 项全通过（riposte 场景验证）
 
+- [x] **阶段 1 Wave 3 T7 单进程 WS 服务器 + 认证 + 重连完成**（[ADR-0024](docs/adr/ADR-0024-ws-protocol-reconnect-accountservice.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T7）：
+  - [account.py](engine/src/xkx/runtime/account.py) AccountService（argon2id 密码哈希替换 LPC crypt + check_legal_id/name + random_gift 天赋生成不变量 str+int+con+dex+end=100 + JSON 存储账号）
+  - [login.py](engine/src/xkx/runtime/login.py) LoginMachine 状态机（WS 登录子协议驱动；老玩家 GET_ID->GET_PASSWD->DONE + 新玩家注册流程；阶段 1 简化跳过 CONFIRM_BIG5/wiz_lock/GET_GIFT/GET_EMAIL）
+  - [connection.py](engine/src/xkx/runtime/connection.py) ConnectionSystem（ADR-0014 第 6 个 System；tick 驱动会话超时 LOGIN/NET_DEAD/IDLE + ring buffer 重连 ring/snapshot 降级 + 进程内内存非持久化 dissent 8 取舍）
+  - [ws_server.py](engine/src/xkx/runtime/ws_server.py) WSServer（JSON 帧编解码 7 类帧 + 登录子协议 + command->dispatch 8 段管线 + resume 重连 + 事件推送；session token 复用 T4 CapabilityToken HS256；核心逻辑不依赖网络库可单元测试 + serve 方法用 websockets 库）
+  - 依赖：argon2-cffi + websockets 加 pyproject.toml；测试 28+14+23+16
+  - **81 新测试全绿，ruff 全过**；关联 dissent 8
+
+- [x] **阶段 1 Wave 3 T8 引擎工具链三件完成**（[ADR-0013](docs/adr/ADR-0013-engine-toolchain-prd.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T8）：
+  - [inspector.py](engine/src/xkx/runtime/inspector.py) EntityInspector（只读快照 + LPC F_DBASE 语义映射表 43 key 含 skill//marks/ 路径访问 + 程序化 API 6 方法 + CLI inspect --map；只读不修改 world）
+  - [profiler.py](engine/src/xkx/runtime/profiler.py) TickProfiler（per-System compute 统计 mean/p99/max/total/%tick + enabled=False 零开销 contextmanager + ring buffer 滑动窗口 + CLI profile tick + --json）
+  - [tools/replay.py](engine/src/xkx/tools/replay.py) Combat Replay Viewer（CombatLog JSON 归档 M1 前身 + 逐回合回放 + 交织时序展示 + ConformanceChecker 集成 + 确定性 diff 定位首次分歧 + CLI replay --step/--round/--diff/--conformance/--json；非侵入消费 ledger 仅依赖 xkx.combat）
+  - 测试 [test_inspector.py](engine/tests/test_inspector.py) + [test_profiler.py](engine/tests/test_profiler.py) + [test_replay_viewer.py](engine/tests/test_replay_viewer.py)
+  - **57 新测试全绿，ruff 全过**；关联 dissent 3/4/7
+
+- [x] **阶段 1 Wave 3 T9 combat-sim 行为等价验证完成**（[ADR-0011](docs/adr/ADR-0011-spec-conformance-checker.md) / [12](docs/xkx-arch/12-阶段1-核心循环实施计划.md) T9）：
+  - [combat_sim.py](engine/src/xkx/combat/combat_sim.py) run_combat_sim（replay + ConformanceChecker 8 项检查 + CombatSimReport/RoundReport + JSON 序列化 + CLI python -m xkx.combat.combat_sim）
+  - [replay.py](engine/src/xkx/combat/replay.py) 扩展 replay_with_context（返回 ctx+result 对供符合性检查用 ctx；replay 接口不变向后兼容）
+  - 测试 [test_combat_sim.py](engine/tests/test_combat_sim.py) 端到端无 violation + 确定性 + JSON 往返 + CLI
+  - **16 新测试全绿，ruff 全过**；greenfield 主门禁（不依赖运行 LPC）；impl_map 14 implemented + 0 simplified 自动区分
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -282,23 +303,21 @@
 
 ## In Progress
 
-**阶段 1 Wave 2 全部完成（T4+T5+T6）**，Wave 3 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
+**阶段 1 Wave 3 全部完成（T7+T8+T9）**，Wave 4 待启动（[12](docs/xkx-arch/12-阶段1-核心循环实施计划.md)）。
 
-**Wave 3（3 路并行，依赖 Wave 2）**：
-- T7 单进程 WS 服务器 + 认证 + 重连（ADR-0024 前置，依赖 T4+T5，关联 dissent 8）
-- T8 引擎工具链三件实现（依赖 T1+T6，ADR-0013 已定）
-- T9 combat-sim 行为等价验证（依赖 T6，ADR-0011 已定）
+**Wave 4（串行，依赖 Wave 1-3 全部，kill criteria 3 完整判定）**：
+- T10 1000+100 集成测试 + go/no-go 报告（tick compute<100ms 非均匀 tick + 存档不阻塞事件循环；不达标触发 kill criteria 6 冻结功能范围纯做优化，或 kill criteria 3 降级 500+50）
 
-**Wave 2 整合遗留**（后续 System 列表整合时收纳，不阻塞 Wave 3）：
+**Wave 2/3 整合遗留**（T10 前收纳，或 T10 期间发现瓶颈时补）：
 - CombatSystem（combat/system.py）独立实现未接入 world.py System 注册
 - StorageSystem 通过 world.storage_system 动态属性接入，未纳入统一 System 列表
 - CombatState 组件需扩展 hit_ob/hit_by/guarding/is_fighting/fight_dodge 字段 + world.to_snapshot 传递（T6 用默认值兼容，不 break 但不启用 T6 新功能）
-- PermissionService 生产路径注入（dispatch 无 permission_service 时段 2 跳过校验，T7 WS 服务器注入）
+- PermissionService 已通过 T7 WSServer 注入 dispatch（段 2 权限校验生效）；ConnectionSystem + WSServer 已接入
 
 **剩余可选任务**（非阶段 1 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 3 期间穿插
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- T4 管线落地后可穿插
+- golden trace 定点辅助（driver PID 22753 运行中）-- dissent 4 验证（valid_leave 命中行为 + do_attack 七步时序基线），Wave 4 期间穿插
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 可穿插
 
 ## Blocked
 
@@ -325,7 +344,7 @@
 - [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
 - [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**下一步主线**：Wave 3 三路并行实现（T7 WS 服务器 / T8 工具链 / T9 combat-sim）。Wave 2 全部完成（T4+T5+T6，865 tests 全绿）。Wave 3 各任务：T7 需先写 ADR-0024（WS 协议 + 重连 ring vs snapshot + AccountService）；T8/T9 无新 ADR（ADR-0013/0011 已定）。3 路 agent teams 并行：T7 依赖 T4+T5 / T8 依赖 T1+T6 / T9 依赖 T6。
+**下一步主线**：Wave 4 T10 1000+100 集成测试（kill criteria 3 完整判定）。Wave 3 全部完成（T7+T8+T9，1019 tests 全绿）。T10 依赖 Wave 1-3 全部：1000 实体 + 100 并发会话压测 + tick compute<100ms 非均匀 tick（T8 TickProfiler 测量）+ 存档不阻塞事件循环（T5 StorageSystem）+ go/no-go 报告。不达标触发 kill criteria 6（冻结功能范围纯做优化）或 kill criteria 3（降级 500+50 或重新评估 Rust/Go）。Wave 2/3 整合遗留（CombatSystem/StorageSystem 接入统一 System 列表）T10 前收纳。
 
 **可穿插推进**（非阶段 1 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）

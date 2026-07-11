@@ -248,6 +248,10 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         action_damage_type=combat.action_damage_type,
         hit_ob_bonus=combat.hit_ob_bonus,
         hit_by_override=combat.hit_by_override,
+        # T10 整合遗留：CombatState 扩展字段传递（ADR-0023 决策 4 第 4/5 项）
+        guarding=combat.guarding,
+        is_fighting=combat.is_fighting,
+        fight_dodge=combat.fight_dodge,
     )
 
 

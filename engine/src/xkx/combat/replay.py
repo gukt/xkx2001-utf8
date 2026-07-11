@@ -58,20 +58,18 @@ class CombatSnapshot(BaseModel):
     )
 
 
-def replay(
+def replay_with_context(
     snapshot: CombatSnapshot,
     seed: int,
     input_log: list[InputEntry],
-) -> list[CombatRoundResult]:
-    """确定性重放：按序消费 input log，驱动 resolve_attack。
+) -> list[tuple[CombatContext, CombatRoundResult]]:
+    """确定性重放，返回 (ctx, result) 对（T9 combat-sim 符合性检查需 ctx）。
 
-    同 snapshot + 同 seed + 同 input_log -> 同输出（combat-only 确定性）。
-    每条 ``attack`` 输入从快照取 attacker/victim 不可变副本，构造 ``CombatContext``
-    （seed 由调用方传入，单 tick 内多回合用 seed 递增派生保证确定性）。
-
-    不依赖运行时 ECS（ADR-0023 决策 2：重放不依赖运行时，只依赖快照 + seed + input log）。
+    同 ``replay`` 的重放逻辑，额外暴露每回合的 ``CombatContext`` 供
+    ``ConformanceChecker.check_conformance(ctx, result)`` 使用（T9，
+    [ADR-0011](../../../docs/adr/ADR-0011-spec-conformance-checker.md)）。
     """
-    results: list[CombatRoundResult] = []
+    pairs: list[tuple[CombatContext, CombatRoundResult]] = []
     for i, entry in enumerate(input_log):
         if entry.entry_type != INPUT_ATTACK:
             continue
@@ -87,5 +85,21 @@ def replay(
             attack_type=entry.attack_type,
             limbs=snapshot.limbs,
         )
-        results.append(resolve_attack(ctx))
-    return results
+        pairs.append((ctx, resolve_attack(ctx)))
+    return pairs
+
+
+def replay(
+    snapshot: CombatSnapshot,
+    seed: int,
+    input_log: list[InputEntry],
+) -> list[CombatRoundResult]:
+    """确定性重放：按序消费 input log，驱动 resolve_attack。
+
+    同 snapshot + 同 seed + 同 input_log -> 同输出（combat-only 确定性）。
+    每条 ``attack`` 输入从快照取 attacker/victim 不可变副本，构造 ``CombatContext``
+    （seed 由调用方传入，单 tick 内多回合用 seed 递增派生保证确定性）。
+
+    不依赖运行时 ECS（ADR-0023 决策 2：重放不依赖运行时，只依赖快照 + seed + input log）。
+    """
+    return [result for _, result in replay_with_context(snapshot, seed, input_log)]
