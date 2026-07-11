@@ -1,0 +1,21 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/city/jail.c
+# basename: d_city_jail
+# LPC 用 replace_program(ROOM) 终止虚拟基类，无自定义事件钩子，纯层0。
+# 语义单元 6 个：short / long / exits / objects / door / cost
+# 层归属：层0=6  层1=0  层2=0  层3=0
+id: d/city/jail
+short: 监狱
+long: |
+  这里是监狱，约莫两丈见方的一间大石室，墙壁和顶板都是大石所砌。
+  墙角里放着一只粪桶，鼻中闻到的尽是臭气和霉气。从西面墙上的小窗望
+  去，可以见到翰林府的一角。
+exits:
+  east: d/city/bingyin
+objects:
+  d/city/npc/dingdian: 1
+doors:
+  - dir: east
+    name: 铁门
+    reverse_dir: west
+    state: closed
+cost: 0

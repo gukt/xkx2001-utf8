@@ -1,0 +1,50 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/cmds/std/get.c
+# basename: cmds_std_get
+# get 命令是拿取主命令，属于引擎侧命令管线末端命令对象。
+# 层1 可尝试表达部分权限/前置检查，但主要逻辑仍是层3。
+# 语义单元 5 个：create / main / do_get / help / msg 常量
+# 层归属：层0=1  层1=1  层2=0  层3=3
+# 引擎侧/内容侧：引擎侧
+
+# ── 层0：纯数据声明 ──
+help_text: |
+  指令格式 : get <物品名称> [from <容器名>]
+  这个指令可以让你捡起地上或容器内的某样物品.
+
+# ── 层1：事件规则 condition->action（尝试表达） ──
+# 注意：以下为可提取的权限/前置检查谓词化表达，实际执行仍需层3 命令处理。
+rules:
+  - id: get_non_wizard_living_container
+    description: 非 wizard 对 living 容器搜身需为 lord
+    when: command == "get"
+    condition:
+      all:
+        - not: { has_flag: { target: me, flag: "wizard" } }
+        - present_npc: { target: env, npc: living }
+        - not: { attr_lt: { target: env, attr: "lord", value: me } }
+    action: deny
+    message: "光天化日的想抢劫啊？"
+
+  - id: get_wizard_lower_level_living
+    description: wizard 搜身 living 容器需 wiz_level 更高
+    when: command == "get"
+    condition:
+      all:
+        - has_flag: { target: me, flag: "wizard" }
+        - present_npc: { target: env, npc: living }
+        - attr_lt: { target: me, attr: "wiz_level", value: env }
+        - not: { has_flag: { target: env, flag: "ridable" } }
+        - not: { attr_lt: { target: env, attr: "lord", value: me } }
+    action: deny
+    message: "你的巫师等级必须比对方高，才能搜身。"
+
+# ── 层3：复杂命令处理逻辑 ──
+# layer3-escape: create() seteuid(getuid()) 对象生命周期初始化
+# layer3-escape: main() 拿取主逻辑：sscanf 解析 "X from Y" 容器语法、present 查找、
+#   wizard/living/lord 权限分支（部分已层1 表达但 sscanf+present 组合查询需层3）、
+#   sscanf 解析 "N item" 数量语法、obj->query_amount 分堆逻辑（new+set_amount 双对象操作）、
+#   "all" 快速拿取循环 all_inventory+is_character/no_get 过滤、do_get 委托。
+#   含字符串解析、对象克隆、循环、多分支条件，无法纯谓词表达。
+# layer3-escape: do_get() 实际拿取：is_character/no_get/equipped 检查、obj->move(me)、
+#   is_fighting start_busy(1)、message_vision 按来源（地面/角色身上/容器中）分支生成文本。
+#   文本生成含 sprintf+三元嵌套，副作用与文本交织，属层3。

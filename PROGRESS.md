@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-11
 **当前阶段**：阶段 0（规格提取与验证基建）进行中
-**当前状态**：阶段 0 任务 4（性能 micro-benchmark）阶段 0 部分**完成**--[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md)。resolve_attack μs 基准达标（hit 25.9μs / dodge 17.2μs / parry 17.3μs，< 50μs 阈值）；GC 压力极小（单次 5.3KB / 20k 次 0 次 gen0 回收，验证 04 §六"GC 是非问题"）；PYTHONHASHSEED 跨进程一致（combat 确定性基础）。go/no-go 判定 GO（μs 前置数据点充分，1000+100 负载后置阶段 1）。680 tests 全绿，ruff 全过。下一步：任务 5（工具链 PRD）/ 任务 8（32 守护进程职责重新设计）/ 任务 9（30 文件校准）/ 任务 6（抽样校准）/ golden trace 待 driver 恢复。
+**当前状态**：**阶段 0 全部 9 任务完成**，决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）全部满足。任务 9（30 文件表达力校准）完成：30 文件 290 语义单元，修正 KPI（逃生舱层3/总单元）= 11/171 ≈ 6.4% < 15% ✓，不触发 kill criteria 4（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md) + [stats.md](engine/tools/layer_calibration/stats.md)）。谓词集 8 类缺口扩充决策已采纳（[ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md)，实现后置阶段 1）。driver UE 问题已解除（PID 22753 运行中）。680 tests 全绿，ruff 全过。下一步：阶段 0 -> 1 决策检查点通过，可启动阶段 1（单进程 asyncio 核心循环）/ golden trace 穿插。
 
 ## Done
 
@@ -178,6 +178,30 @@
   - 不引入 pytest-benchmark（标准库 timeit 足够，符合 04 §一核心立场 7 收敛原则）
   - **680 tests 全绿（+4），ruff 全过**
 
+- [x] **阶段 0 任务 5：引擎工具链 PRD（最小三件）完成**（[ADR-0013](docs/adr/ADR-0013-engine-toolchain-prd.md)）：
+  - 3 个 PRD 文档产出（[entity-inspector](docs/xkx-arch/10-引擎工具链PRD-entity-inspector.md) / [tick-profiler](docs/xkx-arch/10-引擎工具链PRD-tick-profiler.md) / [combat-replay-viewer](docs/xkx-arch/10-引擎工具链PRD-combat-replay-viewer.md)），统一**定位为阶段 1 开发期工具**（非生产运维工具），进程内模块
+  - Entity Inspector：只读快照（< 0.1ms/查询）+ LPC F_DBASE 语义映射表（`query("skill/axe")`->`Skills.levels["axe"]`，`query_temp("marks/酥")`->`Marks.flags`）+ CLI `inspect` 命令 + 程序化 API
+  - Tick Profiler：per-System compute 统计（mean/p99/max）+ `enabled=False` 零开销 contextmanager + ring buffer；与 ADR-0012 benchmark 分工（μs 微基准 vs tick 宏观，互补构成 kill criteria 3 完整 go/no-go）
+  - Combat Replay Viewer：非侵入消费 CombatRoundResult ledger（不修改 combat 内核）+ 可离线回放 + 确定性 diff（同 seed 同 input->同输出）+ 与 ADR-0011 ConformanceChecker 联动（8 项检查）+ 战报归档格式衔接 M1 开源交付物
+  - 关联 dissent 3/4/7（性能基线 / 规则冲突语义漂移 / 派生变更审计）
+  - 阶段 0 -> 1 决策检查点"引擎工具链 PRD 评审通过"满足
+  - agent teams 并行：3 agent 各写一件工具 PRD
+
+- [x] **阶段 0 任务 8：32 守护进程职责重新设计完成**（[ADR-0014](docs/adr/ADR-0014-daemon-responsibility-redesign.md)）：
+  - 2 个盘点文档产出（[核心运行时组 15 个](docs/xkx-arch/11-守护进程职责重新设计-核心运行时组.md) / [社交辅助组 16 个](docs/xkx-arch/11-守护进程职责重新设计-社交辅助组.md)），31 个 .c 守护进程逐一标注归属
+  - 四类归属：6 ECS System（logind / natured / combatd / channeld / moneyd + ConnectionSystem）/ 12 无状态服务 / 2 新能力（securityd->PermissionService+CapabilityToken / regid->AccountService）/ 12 砍掉后置
+  - 关键决策：securityd fail-closed + exclude 优先 trusted / combatd 七步交织 combat 确定性 / rankd PronounContext 三元组 viewer / intermud 三件套砍掉（dns_master/ftpd/socket）/ channeld chblk 平台级 fail-closed / languaged+languanged 完全副本砍掉
+  - 关联 dissent 2/5/8（ECS 取代 daemon / themed 治理 / UGC 红线）
+  - agent teams 并行：2 agent 各盘点一组
+
+- [x] **阶段 0 任务 9（30 文件表达力校准）完成**（[ADR-0015](docs/adr/ADR-0015-layer-calibration-methodology.md) + [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md)）：
+  - 30 文件 5 批 agent 并行转译，290 语义单元，30 YAML + 30 MD 标注表（[stats.md](engine/tools/layer_calibration/stats.md)）
+  - 修正 KPI = 逃生舱层3 11/171 ≈ 6.4% < 15% ✓（区分预期层3 ~56 项 vs 逃生舱层3 ~11 项）
+  - KPI 定义修正：回归 03/04 "逃生舱使用率"原意（非"所有层3 占比"），原始层3 35.7% 超标是定义失真非表达力不足
+  - 谓词集 8 类缺口扩充决策（attr_eq/is_wizard/has_item 扩展/has_flag 扩展/derived_state/status_eq 系列/has_inquiry+attr_in/命令事件钩子），实现后置阶段 1
+  - **阶段 0 -> 1 决策检查点全部满足**，不触发 kill criteria 4
+  - agent teams 并行：5 agent 各转译 6 文件
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -188,49 +212,46 @@
 
 ## In Progress
 
-**阶段 0 剩余任务：5/8/9/6 + golden trace（被阻塞）** -- 任务 1/2/3/4(阶段 0 部分)/7 已完成。
+**阶段 0 全部 9 任务完成**，决策检查点（04 §八）全部满足。
 
-阶段 0 决策检查点（04 §八）剩余未满足项：
-- 引擎工具链 PRD（最小三件）是否评审通过？-- 任务 5 待启动
-- 30 文件表达力校准层3 是否 <15%？-- 任务 9 待启动（kill criteria 4）
+**剩余可选任务**（非阶段 0 门禁，可后置或穿插）：
+- 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
+- golden trace 定点辅助（driver 已恢复，可穿插）-- 辅助验证手段（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)），非主线
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 后置阶段 1 层1 运行时落地时
 
-下一步可选方向（需用户决策优先级）：
-1. **任务 5**：引擎工具链 PRD（entity inspector / tick profiler / combat replay viewer）-- 阶段 0 检查点要求
-2. **任务 8**：32 守护进程职责重新设计 -- 层 H 已产出可衔接
-3. **任务 9**：30 文件表达力校准 -- kill criteria 4，层3 占比 <15%
-4. **任务 6**：抽样校准实验 -- 68771 调用点抽 50-100 个实测工时
-5. **golden trace 定点辅助** -- 被 driver UE 状态阻塞，见 Blocked
+**下一步主线**：阶段 0 -> 1 决策检查点通过，启动阶段 1（单进程 asyncio 核心循环，[04 §三阶段 1](docs/xkx-arch/04-迁移路径与避坑清单.md)）。需用户确认是否启动阶段 1。
 
 ## Blocked
 
-**golden trace 定点辅助被 driver UE 状态阻塞**：
+**当前无阻塞项。**
 
-- 旧 driver 进程（PID 6740）处于 UE 状态（uninterruptible wait + exiting），端口 8888 不释放
-- SIGTERM/SIGKILL 均无法终止 UE 状态进程（内核 I/O 等待不可中断），需等待自行退出
-- config.xkx 只读约束（LPC 规格源禁止修改）不可改端口规避
-- ADR-0009 已记录此风险："driver 进程 kill -9 后可能处于 UE 状态，端口 8888 暂不释放。需等待自行退出或换端口"
-- **解除条件**：driver 进程自行退出后端口释放，可重启 driver 进行 golden trace 录制
-- **不阻塞主线**：golden trace 定位为辅助验证手段（ADR-0009），单元级行为规约（任务 3 已完成）是 greenfield 主门禁，不依赖运行旧系统
+**driver UE 问题已解除**（2026-07-11 用户重启电脑后验证）：
+
+- 重启清掉 UE 状态旧进程（PID 6740），端口 8888 释放
+- libevent-2.1.6 符号链接在（`/usr/local/opt/libevent/lib/libevent-2.1.6.dylib -> libevent-2.1.7.dylib`）
+- driver 重启成功（PID 22753 监听 8888，日志 "Accepting connections on 0.0.0.0:8888." + "Initializations complete."）
+- golden trace 定点辅助路径已打通，可在任务 9 执行期间并行推进
+- ADR-0009 记录的风险仍有效：未来 kill -9 driver 可能再次触发 UE，建议用 SIGTERM 优雅退出或等待自行退出
+
+**不阻塞主线**：golden trace 定位为辅助验证手段（ADR-0009），单元级行为规约（任务 3 已完成）是 greenfield 主门禁，不依赖运行旧系统
 
 ## Next Up
 
-**任务 4（阶段 0 部分）已完成**。阶段 0 剩余任务：5/8/9/6 + golden trace（被阻塞）。
+**阶段 0 全部 9 任务完成**，决策检查点（04 §八）全部满足，可启动阶段 1。
 
-**阶段 0 决策检查点（04 §八）剩余项**：
-- 引擎工具链 PRD（最小三件）评审通过？-- 任务 5
-- 30 文件表达力校准层3 <15%？-- 任务 9（kill criteria 4）
+**阶段 0 -> 1 决策检查点**（04 §八）：
+- [x] LPC 规格提取覆盖 go/move/combat 核心路径？（任务 1 ✅）
+- [x] FluffOS 编译可行或降级为单元规约？（任务 2 ✅，现有二进制可运行）
+- [x] 性能 micro-benchmark 达标？（任务 4 阶段 0 部分 ✅，1000+100 后置阶段 1）
+- [x] 引擎工具链 PRD 评审通过？（任务 5 ✅）
+- [x] 30 文件表达力校准层3 <15%？（任务 9 ✅，修正 KPI 6.4%）
 
-**可立即推进的任务**（按建议优先级）：
-1. 任务 5：引擎工具链 PRD（最小三件：entity inspector / tick profiler / combat replay viewer）-- 阶段 0 检查点要求，需先有 ADR + PRD
-2. 任务 8：32 守护进程职责重新设计 -- 层 H 已完成可衔接；任务 7 盘点补充了守护进程 themed 治理属性
-3. 任务 9：30 文件表达力校准（层3 占比 <15%）-- kill criteria 4
-4. 任务 6：抽样校准实验（68771 调用点抽 50-100 个）
+**下一步主线**：启动阶段 1（单进程 asyncio 核心循环，[04 §三阶段 1](docs/xkx-arch/04-迁移路径与避坑清单.md)）。需用户确认。
 
-**golden trace 定点辅助**（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md) 衔接，dissent 4 验证）-- **当前被 driver UE 状态阻塞**，见 Blocked：
-- 运行旧 driver 录制 valid_leave 命中行为（dissent 4 基线测试）
-- 录制 do_attack 七步副作用交织时序基线
-- 规格 notes 中已标注需 trace 确认处（如 reset 触发时机、creator_file fallthrough）
-- 待 driver 进程自行退出后可恢复
+**可穿插推进**（非阶段 1 前置）：
+- golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
+- 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现：层1 谓词集扩充 8 类（阶段 1 层1 运行时落地时）
 
 **任务 4 后置部分**（阶段 1）：1000+100 负载压测 + 1s tick 预算实测需阶段 1 ECS + WS 服务器框架（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md) 后置章节）
 

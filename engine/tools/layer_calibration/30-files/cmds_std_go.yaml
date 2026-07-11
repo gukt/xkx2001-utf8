@@ -1,0 +1,50 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/cmds/std/go.c
+# basename: cmds_std_go
+# go 命令是移动主命令，属于引擎侧命令管线末端命令对象。
+# default_dirs 是纯数据声明（层0），main() 主体是复杂命令处理逻辑（层3）。
+# help() 是纯文本声明（层0）。
+# 语义单元 6 个：default_dirs / day_event / create / main / do_flee / help
+# 层归属：层0=2  层1=0  层2=0  层3=4
+# 引擎侧/内容侧：引擎侧
+
+# ── 层0：纯数据声明 ──
+default_dirs:
+  north: 北
+  south: 南
+  east: 东
+  west: 西
+  northup: 北边
+  southup: 南边
+  eastup: 东边
+  westup: 西边
+  northdown: 北边
+  southdown: 南边
+  eastdown: 东边
+  westdown: 西边
+  northeast: 东北
+  northwest: 西北
+  southeast: 东南
+  southwest: 西南
+  up: 上
+  down: 下
+  out: 外
+  enter: 里
+  in: 里
+  left: 左
+  right: 右
+
+help_text: |
+  指令格式 : go <方向>
+  让你往指定的方向移动。
+
+# ── 层3：复杂命令处理逻辑 ──
+# layer3-escape: day_event() 委托 NATURE_D 查询当前户外事件，是运行时服务调用包装
+# layer3-escape: create() 设置 euid，是 LPC 对象生命周期初始化
+# layer3-escape: main() 移动主逻辑：over_encumbranced/is_busy/cannot_move 前置检查、
+#   战斗中逃跑 dex 随机判定、jingli 不足检查、exit 查找与 valid_leave 钩子、
+#   load_object 目标房间、骑乘/镖车/家畜/出口阻塞多分支条件、
+#   mout/min 出房入房文本生成（按 race/rided/fighting/outdoors 组合分支）、
+#   箫声 playing 拦截、exit_blockers 挡路 NPC 的 dex/exp 比较+撞落/停缰/闪让分支、
+#   jingli 消耗+unconcious、me.move(obj)+remove_all_enemy+follow_me+rided/rider 清理。
+#   含 10+ 处条件分支与 random() 调用，涉及对象状态读写与副作用交织，无法用谓词/对话树表达。
+# layer3-escape: do_flee() 随机选方向调 main()，是 AI 逃跑入口，含 random(sizeof(directions))

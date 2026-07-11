@@ -1,0 +1,51 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/xueshan/shanmen.c
+# basename: d_xueshan_shanmen
+# 大轮寺山门。create() 纯数据（层0）；valid_leave(north) 是葛伦布查供品的门禁规则，
+# 形态为 condition->deny（present_npc + family + has_item + has_flag 组合），可层1 表达。
+# 副作用：进入 north 时无条件 delete_temp("mark/comin")（清相邻房间的进山标记），
+#         以及通过检查后 set_temp("marks/酥",0) 重置供品标记——属规则 action 的 flag 副作用。
+# 语义单元 7 个：short / long / exits / item_desc / objects / outdoors+cost+no_clean_up / valid_leave
+# 层归属：层0=6  层1=1  层2=0  层3=0
+id: d/xueshan/shanmen
+short: 山门
+long: |
+  这里是大轮寺的山门，门前是络绎不绝的进香朝圣的信徒，有的甚至来
+  自乌丝藏西南的波丝。山门(gate)前站了几个手持法器的葛伦布在维持秩序，
+  东方是一条青石板铺成的山路。
+exits:
+  eastdown: d/xueshan/dshanlu
+  north: d/xueshan/guangchang
+item_desc:
+  gate: "两扇厚厚的铜色大门，非合数人之力，是难以推动的。\n"
+objects:
+  d/xueshan/npc/gelun1: 2
+  d/xueshan/npc/xiangke: 1
+outdoors: qilian-shan
+no_clean_up: 1
+cost: 1
+
+# 层1 事件规则
+rules:
+  - id: xueshan_shanmen_guard_gongfeng
+    event: valid_leave
+    dir: north
+    condition:
+      all:
+        - kind: present_npc
+          npc_id: ge lunbu
+        - not:
+            any:
+              - kind: family_eq
+                family: 雪山派
+              - kind: family_eq
+                family: 血刀门
+              - kind: has_item
+                item_id: suyou guan
+              - kind: has_flag
+                flag: marks/酥
+    action: deny
+    priority: 0
+    message: 葛伦布挡住你说：你准备用什麽供奉我们佛爷呀？
+    # action 副作用（层1 支持 flag set/clear）：
+    #   on_enter(north): clear_temp("mark/comin")   # 无条件清进山标记
+    #   on_pass(north):  set_temp("marks/酥", 0)     # 放过后重置供品标记

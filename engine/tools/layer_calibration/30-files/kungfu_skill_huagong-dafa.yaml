@@ -1,0 +1,39 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/kungfu/skill/huagong-dafa.c
+# basename: kungfu_skill_huagong-dafa
+# 化功大法：门派内功（force 类），内容侧 UGC CPK 资产。
+# hit_by 是 do_attack 步骤 5 的伤害回调，含 AP/DP 判定+四分支+随机性，标层3。
+# 语义单元 7 个
+# 层归属：层0=3  层1=0  层2=0  层3=4
+id: kungfu/skill/huagong-dafa
+
+# ──────────── 层0：技能元数据声明 ────────────
+skill_type: force          # check() 返回 "force"
+inherit: FORCE
+valid_enable: force        # valid_enable(usage) 仅 usage=="force" 时返回 1
+
+# exert_function 文件路径模板（运功函数目录）
+exert_function_file: /kungfu/skill/huagong-dafa/{func}
+
+# ──────────── 层3：复杂逻辑（学习条件/伤害回调/运功门控） ────────────
+# layer3-escape: valid_learn(me) 学习条件判定，
+#   t=2^(i/10) 指数增长 + force 基本内功等级要求 +
+#   shen 动态阈值（i>10 且 i<200 且 shen > t*100 时禁止）+
+#   互斥技能检查（buddhism/taoism/mahayana/lamaism 四教内功禁止）+
+#   互斥内功检查（hunyuan-yiqi/linji-zhuang/huntian-qigong/longxiang-banruo/
+#   taiji-shengong/zixia-gong/dulong-dafa/kurong-changong/bitao-xuangong 9 门内功禁止），
+#   多重条件分支 + 动态阈值 + 跨技能查询，不可谓词化
+# layer3-escape: practice_skill(me) 直接返回 notify_fail，
+#   化功大法只能用 learn 增加熟练度，不可练习，简单但属过程逻辑
+# layer3-escape: hit_by(me, victim, damage, damage_bonus, factor) 伤害承受回调
+#   （do_attack 步骤 5 的 hit_by 回调），
+#   hua temp 守卫（!=1 直接返回 damage）+
+#   dp=huagong-dafa 等级 + weapon2 分支（有天山杖 +chousui-zhang/sanyin-zhua prepare 检查）+
+#   ap=me.force 等级 + weapon1 分支（有武器 +dodge，空手 *2）+
+#   random(ap+dp) > ap 判定（combat 随机性，需 seeded RNG）+
+#   四分支（双方武器组合）× 两子分支（damage+bonus>0 / <=0）=
+#   8 种结果文本 + damage_bonus=-random(4000) + neili 转移（me 减 victim 增 huagong-dafa/3*2），
+#   极复杂多分支 + 随机性 + 副作用交织 + 返回 mapping {result, damage}，
+#   不可谓词化，是 do_attack 步骤 5 的武学 hit_by 回调（见 layer_e_combat.py SideEffect order=32）
+# layer3-escape: exert_function_file(func) 运功门控，
+#   遍历 this_player->query_skills 统计 force 类技能数（>=2 则冲突禁止运功）+
+#   返回路径模板，含循环+条件分支，过程逻辑

@@ -1,0 +1,82 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/zhongnan/gate.c
+# basename: d_zhongnan_gate
+# LPC 未 replace_program(ROOM)，有自定义 init/do_knock/close_door/valid_leave/look_door。
+# 语义单元 13 个：层0 数据 7 个 + 层1 规则 2 个 + 层3 逃生舱 4 个
+# 层归属：层0=7  层1=2  层2=0  层3=4
+id: d/zhongnan/gate
+short: 重阳宫大门
+long: |
+  你已走到了终南山半山腰，前面就是全真教的总部重阳宫了。
+  殿宇依山而筑，高低错落有致。周围古木森森，翠竹成林，景色清
+  幽。正前方黄墙碧瓦，飞檐翘檩，正中一道二丈来宽，三丈来高的
+  朱红杉木包铜大门(door)。上方一块大匾，龙飞凤舞地书着『重阳
+  宫』三个大字。南下是广场。
+exits:
+  southdown: d/zhongnan/dajiaochang
+  # north 出口由 do_knock 动态添加，close_door 动态删除，属层3 门状态机
+outdoors: shaolin
+item_desc:
+  door: 这是一道三丈来高的朱红色杉木包铜大门，你可以试着敲一下门 (Knock door) 看看。
+objects:
+  kungfu/class/quanzhen/pi: 1
+cost: 1
+
+# ===== 层1 事件规则 =====
+rules:
+  # 规则1：方向 north + 非全真教 + 未持香 -> deny
+  # 对应 LPC valid_leave: if (dir=="north") { if (family=="全真教") pass; else if (has_item("incense")) pass; else deny }
+  # deny 规则：not(any(family_eq(全真教), has_item(incense)))
+  - id: zhongnan_gate_guard
+    event: valid_leave
+    dir: north
+    condition:
+      not:
+        any:
+          - kind: family_eq
+            family: 全真教
+          - kind: has_item
+            item_id: incense
+    action: deny
+    priority: 0
+    message: 中年道士说道：如果不是进香，请回吧。
+
+  # 规则2：方向 north + 全真教 -> allow（带消息）
+  # 对应 LPC: write("中年道士侧身让开，说道：道兄辛苦了，请进。\n"); return 1;
+  - id: zhongnan_gate_quanzhen_pass
+    event: valid_leave
+    dir: north
+    condition:
+      kind: family_eq
+      family: 全真教
+    action: allow
+    priority: 1
+    message: 中年道士侧身让开，说道：道兄辛苦了，请进。
+
+  # 规则3：方向 north + 持香 + 非全真教 -> allow（带消息，贵客）
+  - id: zhongnan_gate_incense_pass
+    event: valid_leave
+    dir: north
+    condition:
+      all:
+        - kind: has_item
+          item_id: incense
+        - kind: not
+          child:
+            kind: family_eq
+            family: 全真教
+    action: allow
+    priority: 0
+    message: 中年道士侧身让开，说道：原来是贵客驾到，请进请进！
+
+# ===== 层3 逃生舱项 =====
+# 以下语义单元需图灵完备逻辑（call_out 闭包 + 跨房间状态同步 + 随机 + 循环），
+# 无法用层0-2 表达，标层3。
+
+# layer3-escape: do_knock 门状态机——knock door 动态添加 exits/north、跨房间设置 gate1 的 exits/south、
+#                call_out(close_door, 10) 延时关门。涉及跨房间 exits 双向同步 + 延时回调闭包 + 门开关状态机。
+# layer3-escape: close_door 门状态机关门——删除本房间 exits/north + 跨房间删除 gate1 的 exits/south +
+#                根据 NPC 在场选择不同消息文本。跨房间状态操作 + 条件消息。
+# layer3-escape: init add_action("do_knock","knock")——动态注册命令（knock），层1 谓词集无 add_action 维度，
+#                需层3 注册自定义命令处理。do_knock 内部逻辑本身也是层3（见上）。
+# layer3-escape: NATURE_D->outdoor_room_event()——do_knock 中调用 NATURE_D 获取户外房间事件（天气/时辰状态），
+#                虽本文件未实际使用 event 变量（赋值后未参与分支），但调用本身是外部 daemon 依赖，标层3 备查。

@@ -1,0 +1,56 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/kungfu/skill/wudu-xinfa.c
+# basename: kungfu_skill_wudu-xinfa
+# 五毒心法：门派内功（force 类），内容侧 UGC CPK 资产。
+# 技能元数据+学习/练习条件可标层0/层1，valid_learn 复杂条件分支标层3。
+# 语义单元 8 个
+# 层归属：层0=4  层1=1  层2=0  层3=3
+id: kungfu/skill/wudu-xinfa
+
+# ──────────── 层0：技能元数据声明 ────────────
+skill_type: force          # check() 返回 "force"
+inherit: FORCE
+valid_enable: force        # valid_enable(usage) 仅 usage=="force" 时返回 1
+
+# exert_function 文件路径模板（内功运功函数目录）
+exert_function_file: /kungfu/skill/wudu-xinfa/{func}
+
+# curing_msg 运功疗伤消息映射（6 条消息，含条件分支的 unfinish_other）
+curing_msg:
+  apply_short: '{name}坐在一旁垂帘入定，头顶笼罩淡蓝色的雾气。'
+  start_self: '你调息凝精，默运内功开始运功疗伤。'
+  start_other: '只见{name}闭目坐下，片刻之时，头顶冒出丝丝淡蓝色的雾气'
+  finish_self: '过了一会，雾气消去，你看起来脸色好多了。'
+  finish_other: '{name}惨白的脸色渐渐红润，缓缓睁开眼，站起身来。'
+  unfinish_self: '你渐感真气不纯，后劲不继，不得不将在体内搬运的内息收回。'
+  # unfinish_other 含条件分支（eff_qi < max_qi*3/4 ? 喷血 : 吐瘀血），标层3
+
+# ──────────── 层1：练习条件规则（condition->action） ────────────
+# practice_skill 的前置条件可用谓词表达
+practice_rule:
+  condition: all(
+    attr_lt(skill="wudu-xinfa", threshold=150),   # 五毒心法修为 >= 150 才能练习
+    not(has_item(slot="weapon")),                  # 必须空手
+    attr_lt(attr="qi", threshold=70),              # 体力 >= 70
+    attr_lt(attr="jingli", threshold=70),          # 精力 >= 70
+    attr_lt(attr="neili", threshold=70)            # 内力 >= 70
+  )
+  action:
+    - add(attr="neili", delta=-60)
+    - receive_damage(type="jingli", amount=60, cause="精力透支过度死了")
+    - receive_damage(type="qi", amount=60, cause="体力透支过度死了")
+  # 注意：attr_lt 语义这里是"属性低于阈值则不可练习"（deny 条件），
+  # 实际 LPC 是 if(ATTR < VAL) return fail，即 all(ATTR >= VAL) 才通过，
+  # 用 attr_lt 表示"低于阈值时 deny"的守卫语义
+
+# ──────────── 层3：复杂条件分支逻辑 ────────────
+# layer3-escape: valid_learn(me) 学习条件判定，
+#   含循环计算 t=2^(lvl/10) 指数增长 + 遍历 this_player->query_skills 统计 force 类技能数
+#   （>=2 则冲突）+ gender 无性/男性等级上限 + class bonze 禁止 +
+#   force 基本内功等级要求 + shen 负值要求（lvl>10 且 shen > -t*100 且 yunu-jue<100 时禁止），
+#   多重条件分支 + 循环 + 动态阈值，不可谓词化
+# layer3-escape: curing_msg 中的 unfinish_other 字段，
+#   含条件分支：eff_qi < max_qi*3/4 ? "喷出几口鲜血" : "吐出口紫黑瘀血"，
+#   消息文本的条件选择，过程逻辑
+# layer3-escape: practice_skill(me) 本身的过程逻辑（条件检查+资源扣减），
+#   虽然条件可层1表达，但 receive_damage 副作用调用是层3过程逻辑；
+#   此处 practice_rule 已将可层1化的部分提取，剩余过程逻辑归层3

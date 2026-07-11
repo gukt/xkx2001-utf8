@@ -1,0 +1,94 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/cmds/std/kill.c
+# basename: cmds_std_kill
+# kill 命令是战斗触发主命令，属于引擎侧命令管线末端命令对象。
+# kill 命令的多数前置检查可层1 谓词化，但最终 kill_ob/accept_kill/fight_ob 调用链是层3。
+# 语义单元 4 个：create(隐式) / main 前置检查 / main 战斗启动副作用 / help
+# 层归属：层0=1  层1=1  层2=0  层3=2
+# 引擎侧/内容侧：引擎侧
+
+# ── 层0：纯数据声明 ──
+help_text: |
+  指令格式 : kill <人物>
+  这个指令让你主动开始攻击一个人物，并且试图杀死对方，kill 和 fight 最大的
+  不同在於双方将会真刀实枪地打斗，也就是说，会真的受伤。由於 kill 只需单方
+  面一厢情愿就可以成立，因此你对任何人使用 kill 指令都会开始战斗，通常如果
+  对方是 NPC 的话，他们也会同样对你使用 kill。
+  当有人对你使用 kill 指令时会出现红色的字样警告你，对於一个玩家而言，如果
+  你没有对一名敌人使用过 kill 指令，就不会将对方真的打伤或杀死( 使用法术除
+  外)。
+  其他相关指令: fight
+  有关 fight 跟 kill 的区分请看 'help combat'.
+
+# ── 层1：事件规则 condition->action（前置检查谓词化） ──
+rules:
+  - id: kill_no_fight_room
+    description: no_fight 房间禁止战斗
+    when: command == "kill"
+    condition: { has_flag: { target: env, flag: "no_fight" } }
+    action: deny
+    message: "这里不准战斗。"
+
+  - id: kill_immortal_target
+    description: immortal 不可杀非 immortal
+    when: command == "kill"
+    condition:
+      all:
+        - family_eq: { target: me, family: "(immortal)" }
+        - not: { family_eq: { target: obj, family: "(immortal)" } }
+    action: deny
+    message: "你不能杀这个人！"
+
+  - id: kill_surrender_protected
+    description: 投降保护目标不可杀
+    when: command == "kill"
+    condition:
+      any:
+        - has_flag: { target: me, flag: "last_persuader==obj.id" }
+        - attr_lt: { target: obj, attr: "surrender/owner", value: me.id }
+    action: deny
+    message: "他/她已经投降了,你现在不能杀！"
+
+  - id: kill_self_surrender
+    description: 自身刚投降不可杀人
+    when: command == "kill"
+    condition: { has_flag: { target: me, flag: "surrender/owner!=0" } }
+    action: deny
+    message: "你刚投降过别人，别老想着干坏事！"
+
+  - id: kill_rided
+    description: 骑马状态不可杀人
+    when: command == "kill"
+    condition: { has_flag: { target: me, flag: "rided" } }
+    action: deny
+    message: "你骑着马，杀起来腾挪不开吧。"
+
+  - id: kill_xiakedao_user
+    description: 侠客岛禁止攻击玩家
+    when: command == "kill"
+    condition:
+      all:
+        - has_flag: { target: env, flag: "path=/d/xiakedao/" }
+        - has_flag: { target: obj, flag: "userp" }
+    action: deny
+    message: "龙岛主有令：不得在岛上攻击他人！"
+
+  - id: kill_pker_guilt
+    description: PKer 内疚或目标太年轻不可杀
+    when: command == "kill"
+    condition:
+      all:
+        - has_flag: { target: obj, flag: "userp" }
+        - has_flag: { target: me, flag: "userp" }
+        - any:
+            - attr_lt: { target: me, attr: "condition.pker", value: 240 }
+            - attr_lt: { target: obj, attr: "mud_age", value: 18000 }
+    action: deny
+    message: "你感到一丝内疚，手突然软了下来！"
+
+# ── 层3：复杂命令处理逻辑 ──
+# layer3-escape: main() 战斗启动副作用：present 查找目标、is_character/is_corpse 检查、
+#   RANK_D->query_rude 获取称呼、message_vision 输出喝道文本、free_rider 标记、
+#   me->kill_ob(obj) 启动追杀、NPC 分支 accept_kill+is_grpfight+kill_ob、
+#   玩家分支 is_killing 检查+pking temp 标记+fight_ob+initiate_pk 数组追加+tell_object 警告。
+#   涉及对象状态写入、敌人列表操作、condition 追加、多分支副作用交织，无法纯谓词表达。
+#   （注：main 的前置 deny 检查已层1 表达，此处仅指通过检查后的启动副作用部分）

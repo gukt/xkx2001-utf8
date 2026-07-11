@@ -1,0 +1,19 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/city/bingqiku.c
+# basename: d_city_bingqiku
+# LPC 用 replace_program(ROOM) 终止虚拟基类，无自定义事件钩子，纯层0。
+# 语义单元 6 个：short / long / exits / objects / door / outdoors+cost
+# 层归属：层0=6  层1=0  层2=0  层3=0
+id: d/city/bingqiku
+short: 兵器库
+long: |
+  这里是兵器库，到处银光闪闪，让人眼花缭乱。宝刀、宝剑、金箍棒，大刀、
+  长剑、哨棒，短刀、短剑、短棍，各色各样的兵器应有尽有，你一时不知道挑什
+  么好。
+exits:
+  north: d/city/bingyin
+doors:
+  - dir: north
+    name: 铁门
+    reverse_dir: south
+    state: closed
+cost: 0

@@ -1,0 +1,49 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/feature/damage.c
+# basename: feature_damage
+# 伤害特性：receive_damage/receive_wound/receive_heal/receive_curing/die/unconcious/revive/heal_up
+# 引擎侧核心代码，几乎全为层3（平台代码=ECS System）。
+# 语义单元 13 个
+# 层归属：层0=1  层1=0  层2=0  层3=12
+id: feature/damage
+
+# ──────────── 层0：静态声明 ────────────
+# ghost 标志（是否鬼魂），int ghost = 0
+ghost_init: 0
+
+# ──────────── 层3：伤害/恢复/死亡核心逻辑 ────────────
+# layer3-escape: is_ghost() 返回 ghost 标志，简单但属引擎平台状态查询接口
+# layer3-escape: receive_damage(type, damage, who) 三层资源 qi 层写入点，
+#   负值 error + 类型校验 + last_damage_from 记录 + val=query-damage（>=0 set else set -1）+
+#   set_heart_beat(1)，多步副作用交织，架构不变量：0<=qi<=eff_qi<=max_qi
+# layer3-escape: receive_wound(type, damage, who) 三层资源 eff 层写入点，
+#   负值 error + 类型校验（仅 qi/jing）+ last_damage_from 记录 +
+#   eff 层扣减 + qi 同步降低到不超过新 eff + set_heart_beat(1)，
+#   保持 qi<=eff_qi 不变量，多步副作用交织
+# layer3-escape: receive_heal(type, heal) 当前值层恢复，
+#   负值 error + 类型校验 + val=query+heal + 上限截断（jingli 上限 max，其他上限 eff），
+#   过程逻辑
+# layer3-escape: receive_curing(type, heal) eff 层恢复，
+#   负值 error + 类型校验（仅 qi/jing）+ val+heal 上限 max 截断 + 返回实际恢复量，
+#   过程逻辑
+# layer3-escape: unconcious() 昏迷，
+#   living/immortal 守卫 + winner_reward + remove_all_enemy + interrupt_me + dismiss_team +
+#   消息输出 + disable_player + qi/jing/jingli 归零 + block_msg + announce +
+#   call_out revive（random(100-con)+30 秒），多步副作用交织 + 随机性
+# layer3-escape: revive(quiet) 唤醒，
+#   remove_call_out + while environment 是 character 则 move 上层 + enable_player +
+#   announce + block_msg 清除 + 消息输出，过程逻辑
+# layer3-escape: die() 死亡流程（damage.c:152-253），
+#   no_death+userp 转 unconcious 守卫 + revive(1) + immortal 守卫 +
+#   clear_condition + delete poisoner + announce + death_penalty（userp 且非 no_death）+
+#   killer_reward + PKILL_DATA/PLAYER_DEATH 日志 + make_corpse+move +
+#   remove_all_killer + 资源归 1 + save + move DEATH_ROOM + start_death +
+#   MARRY_D->break_marriage + family/master_id feng qingyang 特例 + NPC destruct，
+#   极复杂多步副作用交织，层 F 死亡轮回触发点
+# layer3-escape: reincarnate() 转生重置，
+#   ghost=0 + 资源全恢复到 max，过程逻辑
+# layer3-escape: max_food_capacity() / max_water_capacity() 返回 query_weight()/200，
+#   依赖 weight 属性的计算函数
+# layer3-escape: heal_up() 三层资源恢复机制（damage.c:270-331），
+#   water/food 递减 + 水食不足时 userp 不恢复 + jing/qi/jingli/neili 按公式恢复
+#   （战斗 con/9+max/30 vs 非战斗 con/3+max/10）+ eff 层 +1 自愈 +
+#   jingli 上限 max*2 + neili 上限 max，多步副作用交织 + 战斗状态分支

@@ -1,0 +1,76 @@
+# 转译自 /Users/gukt/github/xkx2001-utf8/d/beijing/andingmen.c
+# basename: d_beijing_andingmen
+# 安定门。本文件本体只是数据常量（GATE_DESC_SHORT/LONG/EXITS/OBJECTS/ENTER_DIR），
+# 通过 #include "outer_gate.h" 文本展开拉入共享城门模板的全部逻辑。
+# outer_gate.h 含：create() 数据 set、look_gaoshi() 动态 item_desc、init() 命令注册、
+#   gen_killer() call_out 状态机（昼夜切换/生成杀手/御林军值班奖励）、
+#   do_guard/do_allow/do_climb 命令体、valid_leave 多守卫检测+武器检查+auto_kill、
+#   fix_inside/finish_climb/check_auto_kill/reward_shiwei 辅助。
+# 昼夜切换涉及跨房间 exits 同步（fix_inside->inner_side->fix_exits_for_night）、
+#   call_out 闭包循环（gen_killer 每 10s）、御林军 job 系统集成（HELPER/job_reward）、
+#   多对象环境遍历+战斗触发（check_auto_kill->kill_ob）--均超出层1/层2 表达力。
+# look_gaoshi() 是唯一可层1 的动态 item_desc（night 谓词二选一文案）。
+# 语义单元 13 个（见 .md 标注表）。
+# 层归属：层0=6  层1=1  层2=0  层3=6
+id: d/beijing/andingmen
+short: 安定门
+long: |
+  这是京城正北的安定门。西边是得胜门，南边是去鼓楼的大道。
+  这里远离闹市，只有些乡农来往运菜进京。城门口的告示(gaoshi)
+  似乎也没什么人看。
+exits:
+  south: d/beijing/zhonglou
+  west: d/beijing/tulu_anding_w
+  east: d/beijing/tulu_anding_e
+objects:
+  d/beijing/npc/bj_bing: 3
+outdoors: beijing
+cost: 3
+# 来自 outer_gate.h 的门控元数据
+is_outer_gate: 1
+enter_dir: south
+enter_room: d/beijing/zhonglou
+gate_name: 安定门
+# night_exits = exits 去掉 enter_dir(south)，即 {west, east}
+night_exits:
+  west: d/beijing/tulu_anding_w
+  east: d/beijing/tulu_anding_e
+
+# 层1 事件规则（仅 item_desc 动态文案）
+rules:
+  - id: andingmen_look_gaoshi
+    event: item_desc
+    target: gaoshi
+    condition:
+      kind: has_flag
+      flag: night   # 房间级 night 标记（由 gen_killer 状态机维护）
+    action: describe
+    message: 夜间不得出入城门。爬墙者格杀勿论。
+  - id: andingmen_look_gaoshi_day
+    event: item_desc
+    target: gaoshi
+    condition:
+      not:
+        kind: has_flag
+        flag: night
+    action: describe
+    message: 九门提督谕：近天地会匪猖獗，百姓凡携铁器者一概不许入京，违者格杀勿论。
+
+# 层3 项（themed 治理平台代码 + 复杂状态机，不进 UGC DSL）
+# layer3-escape: gen_killer() -- call_out 闭包每 10s 循环；昼夜切换 set("exits", night_exits) +
+#   跨房间 fix_inside()->inner_side->fix_exits_for_night()；生成天地会杀手 new(npc)->move；
+#   御林军值班 reward_shiwei()->HELPER->job_reward 集成。状态机+跨房间副作用+job 系统，层3。
+# layer3-escape: do_guard(string) -- 御林军 guard 命令：IS_SHIWEI/SHIWEI_LEVEL 权限+current_job
+#   校验+辰时/戌时时段门控+set_temp 多状态字段。复杂状态校验+job 集成，层3。
+# layer3-escape: do_allow(string) -- 侍卫私放带兵器者进城：can_allow 权限+present 目标+活人校验+
+#   set_temp("outer_gate_allowed")。命令体副作用，层3。
+# layer3-escape: do_climb(string) + finish_climb(object) -- 爬墙：night 前提+dodge 技能分级伤害
+#   （<50/<100/<150/<250/else 五档 receive_damage）+ call_out("finish_climb",4)+成功后 move 内城。
+#   技能分级计算+延迟回调+跨房间 move，层3。
+# layer3-escape: valid_leave(me,dir) dir==enter_dir 分支 -- 多守卫环境遍历
+#   （bing_present + shiwei_present 扫描 all_inventory）+武器检查（weapon_prop）+
+#   三态分支文案+check_auto_kill()->kill_ob 战斗触发。环境遍历+多对象交互+战斗触发，层3。
+#   （注：dir!=enter_dir 走 ::valid_leave 默认；IS_SHIWEI+can_allow 的"未完成守门任务不得离开"
+#   可层1，但与整体多守卫逻辑交织，整体标层3。）
+# layer3-escape: fix_inside() / check_auto_kill() / reward_shiwei() -- 辅助函数，
+#   跨房间 exits 同步 / NPC 自动战斗触发 / job 奖励结算，均层3。
