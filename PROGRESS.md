@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-11
 **当前阶段**：阶段 0（规格提取与验证基建）进行中
-**当前状态**：阶段 0 任务 1（LPC 规格提取管线）**9 层全部提取完成**。3 个 Wave 串行启动、Wave 内 agent 并行提取，产出 160 FunctionSpec / 631 SideEffect / 52 RandomSpec / 151 跨层引用，覆盖 A-I 九层约 7000 行 LPC。层 E 战斗系统为核心产出：do_attack 七步 49 个副作用严格交织（state_mutation 与 message_output 不可分离）+ 31 处 random 概率模型 + 三层资源不变量（0<=qi<=eff_qi<=max_qi）。599 tests 全绿（+481），ruff 全过。方法论见 [ADR-0010](docs/adr/ADR-0010-lpc-spec-extraction-methodology.md)，实施计划见 [08-阶段-0-实施计划.md](docs/xkx-arch/08-阶段-0-实施计划.md)。任务 1 验收标准（08 §四）全部满足。下一步：任务 3（单元规约 hypothesis 属性测试）衔接，或并行启动任务 7/9。
+**当前状态**：阶段 0 任务 4（性能 micro-benchmark）阶段 0 部分**完成**--[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md)。resolve_attack μs 基准达标（hit 25.9μs / dodge 17.2μs / parry 17.3μs，< 50μs 阈值）；GC 压力极小（单次 5.3KB / 20k 次 0 次 gen0 回收，验证 04 §六"GC 是非问题"）；PYTHONHASHSEED 跨进程一致（combat 确定性基础）。go/no-go 判定 GO（μs 前置数据点充分，1000+100 负载后置阶段 1）。680 tests 全绿，ruff 全过。下一步：任务 5（工具链 PRD）/ 任务 8（32 守护进程职责重新设计）/ 任务 9（30 文件校准）/ 任务 6（抽样校准）/ golden trace 待 driver 恢复。
 
 ## Done
 
@@ -140,6 +140,44 @@
   - **599 tests 全绿（+481），ruff 全过**
   - agent teams 并行提取高效：Wave 内 4/3/2 agent 并行，9 层总提取时间约 25 分钟
 
+- [x] **阶段 0 任务 3 路径 B：规格符合性检查器完成**（[ADR-0011](docs/adr/ADR-0011-spec-conformance-checker.md)）：
+  - impl_map（[impl_map.py](engine/src/xkx/spec/impl_map.py)）：do_attack 14 项检查条目三状态标注（12 implemented + 2 simplified），每条关联 ADR-0002 简化台账
+  - ConformanceChecker（[conformance.py](engine/src/xkx/combat/conformance.py)）：8 项单次 result 检查（result_code 合法 / damage 非负 / 非命中 damage=0 / effect target 合法 / 命中有 DAMAGE / 闪避招架无 DAMAGE / 三层资源不变量 / 交织顺序）
+  - CombatRoundResult 升级 ledger 字段（[result.py](engine/src/xkx/combat/result.py)）：记录 msg/eff 统一调用顺序，验证交织不变量；向后兼容（messages/effects 列表不变，S1 7 tests 不回归）
+  - 统计性属性测试 6 项：确定性 / 三分支可达 / 闪避概率 ≈ dp/(ap+dp) / 招架条件概率 ≈ pp/(ap+pp) / ap-dp-pp>=1 / TYPE_QUICK damage<=TYPE_REGULAR
+  - 核心价值：resolve_attack S1 简化版与 do_attack 规格的符合性可**自动区分"已知简化"与"真正违反"**（impl_map 三状态过滤），规格演进时检查项自动跟进
+  - **612 tests 全绿（+13），ruff 全过**
+
+- [x] **阶段 0 任务 3 路径 A：9 层规格一致性属性测试完成**（[ADR-0011](docs/adr/ADR-0011-spec-conformance-checker.md)）：
+  - 9 层 test_spec_*.py 从固定断言升级为 hypothesis 属性测试（4 类属性）：随机函数索引（签名完整 / order 递增连续 / kind 非空 / pre+post 条件）/ 副作用子集（随机子集 order 仍递增）/ random_specs 完整性（probability_model + semantic + lpc_call 非空）/ invariants-side_effects 对应（状态不变量 -> STATE_MUTATION）
+  - 跨层一致性测试（[test_spec_cross_layer.py](engine/tests/test_spec_cross_layer.py)）：9 层完整性（layer_id A-I 唯一 / 层名不重 / 单层 lpc_files 不重）+ cross_layer_refs 跨层可解析（目标层 ID 在 A-I 范围 + 非全自引用）+ hypothesis 全局函数索引（跨层任意函数签名完整 / 有副作用或 notes）
+  - agent teams 两批并行：批 1（B+C+D+E）+ 批 2（F+G+H+I），层 A 手动示范建立共享模式
+  - 智能适配层特点：层 B/H 无前置条件函数仅断言 postcondition / 层 G 用 re 词边界匹配 max_ 避免 MAX_OPPONENT 误命中 / 层 F/I 否定语境排除（"不修改状态"不要求 STATE_MUTATION）/ 层 E 保留 do_attack 七步交织 + 三层资源不变量 + skill_power 公式等核心契约
+  - 删除与 hypothesis 重复的固定断言（signature 完整 / order 连续 / random_spec 字段非空），保留层特有契约（do_attack 七步交织 / LOGIN_D 状态机 / visible 三级 / heart_beat 七步 / valid_leave 8 模式等）
+  - **676 tests 全绿（+64），ruff 全过**
+
+- [x] **阶段 0 任务 7：灵魂系统盘点完成**（[09-灵魂系统盘点.md](docs/xkx-arch/09-灵魂系统盘点.md)）：
+  - 5 个 agent 并行盘点阴间/武林大会/vote/法院/intermud 五个子系统，每个按 7 项模板产出（文件清单/职责/数据流/核心循环关系/themed 治理属性/关键函数/后置建议）
+  - **阴间系统**（d/death/ 15 文件）：死亡->阴间->还阳完整路径，黑白无常 5 段对话剧情 + inn1 隐藏还阳路径，gate.c 物品销毁是关键副作用，平台级 fail-closed，阶段 1 实现
+  - **武林大会**（d/bwdh/ 297 文件）：个人赛（8 年龄组擂台赛）+ 团体赛（试剑山庄夺旗积分赛），exec 代理机制是 LPC 特有 hack，control.c 53KB 需拆分，sjsz/sjsz2/sjsz3 三份副本需参数化，平台级 fail-closed，阶段 2 实现
+  - **vote 投票**（cmds/std/vote/ + condition）：玩家自治频道管理（chblk/unchblk），投票发起->计票->结果执行->超时清理，动议类型封闭枚举，平台级 fail-closed，阶段 2 实现
+  - **法院系统**（combatd + condition + NPC）：PK 通缉 + 官府执法 + 监狱服刑 + 玩家投票治理四线交织，killer/xakiller/dlkiller/bjkiller 四种区域通缉，courthouse 反机器人审判是独立子系统，平台级 fail-closed，阶段 1 实现
+  - **intermud**（adm/daemons/network/ 24 UDP 服务）：跨 MUD 网络通信，**违反收缩约束**（不考虑分布式架构/网关），建议砍掉/无限期后置，仅跨服频道广播接口预留
+  - themed 治理属性汇总：五系统全部平台级 fail-closed，验证 CLAUDE.md 不变量
+  - 题材文化系统台账：补充天雷/婚姻/师徒/门派/称号/频道/经济/邮件/emote/finger 十个系统定位
+  - 验收标准（04 §三）"无遗漏"满足
+
+- [x] **阶段 0 任务 4 阶段 0 部分：性能 micro-benchmark 完成**（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md)）：
+  - [benchmark.py](engine/tools/benchmark.py)：resolve_attack μs 基准（timeit + 三分支 hit/dodge/parry + GC on/off 双测）+ GC 基准（tracemalloc 单次峰值 + gc.get_stats gen0 回收）+ PYTHONHASHSEED 跨进程验证（subprocess 跑 0/1/random 各 3 次比较输出）
+  - [test_benchmark.py](engine/tests/test_benchmark.py)：4 项回归门禁（中位数 < 200μs / 单次 < 100KB / 5k 次 gen0 < 1000 / 同 seed 100 次一致），宽松阈值防退化（ADR-0012 决策 6）
+  - **μs 基准数据**：hit median 25.9μs / dodge 17.2μs / parry 17.3μs（< 50μs 阈值，p99 < 18μs < 200μs 阈值）；GC on/off 差异 ~0.1μs（resolve_attack 几乎不触发 GC）
+  - **GC 基准数据**：单次峰值 5336 bytes（~5KB，CombatRoundResult + Effect + LedgerEntry）；20k 次调用 gen0 回收 0 次（验证 04 §六"CombatRoundResult/Effect 对象池化...GC 是非问题"，对象池决策后置阶段 1 tick profiler 实测后）
+  - **PYTHONHASHSEED 验证**：跨进程（0/1/random）输出完全一致（resolve_attack 用 random.Random(seed) 不依赖 hash，combat 确定性基础成立）
+  - **go/no-go 判定：GO**（阶段 0 μs 前置数据点充分；1000+100 负载 + 1s tick 预算实测后置阶段 1 框架，kill criteria 3 完整判定需阶段 1）
+  - 阈值推导：1000 实体 * tick<100ms，combat 占 50% 预算 -> 1000*X < 50,000μs -> X < 50μs（保守上界，实际 1000 在线活跃战斗者远少于此）
+  - 不引入 pytest-benchmark（标准库 timeit 足够，符合 04 §一核心立场 7 收敛原则）
+  - **680 tests 全绿（+4），ruff 全过**
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -150,40 +188,57 @@
 
 ## In Progress
 
-**阶段 0 任务 1：LPC 规格提取管线** -- **9 层全部完成**，任务 1 主体工作结束。
+**阶段 0 剩余任务：5/8/9/6 + golden trace（被阻塞）** -- 任务 1/2/3/4(阶段 0 部分)/7 已完成。
 
-- 当前状态：160 FunctionSpec 已产出，验收标准全部满足
-- 下一步可选方向（需用户决策优先级）：
-  1. **任务 3（单元规约）衔接**：基于 9 层规格生成 hypothesis 属性测试（下游，消费任务 1 产出）
-  2. **golden trace 定点辅助**：运行旧 driver（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)）录制 valid_leave 命中行为 + do_attack 副作用时序基线（dissent 4 验证）
-  3. **并行启动独立任务**：任务 7（灵魂系统盘点）+ 任务 9（30 文件校准）+ 任务 6（抽样校准）
-  4. **任务 8 衔接**：层 H 已产出，可启动 32 守护进程职责重新设计
+阶段 0 决策检查点（04 §八）剩余未满足项：
+- 引擎工具链 PRD（最小三件）是否评审通过？-- 任务 5 待启动
+- 30 文件表达力校准层3 是否 <15%？-- 任务 9 待启动（kill criteria 4）
+
+下一步可选方向（需用户决策优先级）：
+1. **任务 5**：引擎工具链 PRD（entity inspector / tick profiler / combat replay viewer）-- 阶段 0 检查点要求
+2. **任务 8**：32 守护进程职责重新设计 -- 层 H 已产出可衔接
+3. **任务 9**：30 文件表达力校准 -- kill criteria 4，层3 占比 <15%
+4. **任务 6**：抽样校准实验 -- 68771 调用点抽 50-100 个实测工时
+5. **golden trace 定点辅助** -- 被 driver UE 状态阻塞，见 Blocked
 
 ## Blocked
 
-（无）
+**golden trace 定点辅助被 driver UE 状态阻塞**：
+
+- 旧 driver 进程（PID 6740）处于 UE 状态（uninterruptible wait + exiting），端口 8888 不释放
+- SIGTERM/SIGKILL 均无法终止 UE 状态进程（内核 I/O 等待不可中断），需等待自行退出
+- config.xkx 只读约束（LPC 规格源禁止修改）不可改端口规避
+- ADR-0009 已记录此风险："driver 进程 kill -9 后可能处于 UE 状态，端口 8888 暂不释放。需等待自行退出或换端口"
+- **解除条件**：driver 进程自行退出后端口释放，可重启 driver 进行 golden trace 录制
+- **不阻塞主线**：golden trace 定位为辅助验证手段（ADR-0009），单元级行为规约（任务 3 已完成）是 greenfield 主门禁，不依赖运行旧系统
 
 ## Next Up
 
-**阶段 0 任务 1 已完成**，9 层规格全部产出（160 FunctionSpec）。下一步任务优先级：
+**任务 4（阶段 0 部分）已完成**。阶段 0 剩余任务：5/8/9/6 + golden trace（被阻塞）。
 
-**依赖任务 1 产出的任务（现在可启动）**：
-- 任务 3：单元级行为规约 -- 基于 9 层规格生成 hypothesis 属性测试（下游，自然衔接）
-- 任务 4：性能 micro-benchmark -- 层 E 已完成，可启动 do_attack μs 基准；1000+100 负载需阶段 1 框架
-- 任务 8：32 守护进程职责重新设计 -- 层 H 已完成，可衔接
+**阶段 0 决策检查点（04 §八）剩余项**：
+- 引擎工具链 PRD（最小三件）评审通过？-- 任务 5
+- 30 文件表达力校准层3 <15%？-- 任务 9（kill criteria 4）
 
-**golden trace 定点辅助**（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md) 衔接）：
+**可立即推进的任务**（按建议优先级）：
+1. 任务 5：引擎工具链 PRD（最小三件：entity inspector / tick profiler / combat replay viewer）-- 阶段 0 检查点要求，需先有 ADR + PRD
+2. 任务 8：32 守护进程职责重新设计 -- 层 H 已完成可衔接；任务 7 盘点补充了守护进程 themed 治理属性
+3. 任务 9：30 文件表达力校准（层3 占比 <15%）-- kill criteria 4
+4. 任务 6：抽样校准实验（68771 调用点抽 50-100 个）
+
+**golden trace 定点辅助**（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md) 衔接，dissent 4 验证）-- **当前被 driver UE 状态阻塞**，见 Blocked：
 - 运行旧 driver 录制 valid_leave 命中行为（dissent 4 基线测试）
 - 录制 do_attack 七步副作用交织时序基线
 - 规格 notes 中已标注需 trace 确认处（如 reset 触发时机、creator_file fallthrough）
+- 待 driver 进程自行退出后可恢复
 
-**可并行的独立任务**（不依赖规格提取，可随时启动）：
-- 任务 7：灵魂系统盘点（阴间/武林大会/vote/法院/intermud）
-- 任务 9：30 文件表达力校准（层3 占比 <15%）
-- 任务 6：抽样校准实验（68771 调用点抽 50-100 个）
+**任务 4 后置部分**（阶段 1）：1000+100 负载压测 + 1s tick 预算实测需阶段 1 ECS + WS 服务器框架（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md) 后置章节）
 
-**阶段 0 其他任务**：
-- 任务 5：引擎工具链 PRD（最小三件：entity inspector / tick profiler / combat replay viewer）
+**规格补充建议**（任务 7 盘点产出，按 08 §七"实现到时才补"原则）：
+- 层 H 第二梯队：CHANNEL_D 的 chblk 检查规格、fingerd.c 的 get_killer() 规格、rankd.c 的 PKS 称号逻辑
+- 层 C：vote 命令规格
+- 层 I：human.c 的属性计算公式规格（武林大会用）
+- 层 F：补全阴间世界流程规格（黑白无常剧情/还阳路径/gate.c 物品销毁，当前标注"后置"）
 
 S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mapping、action_* 外提、动态回复函数、kill_npc/reach_room 任务目标、物品/金钱奖励、ask->action/clear_flag/物品生成）按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md) / [ADR-0003](docs/adr/ADR-0003-combatkernel-theme-neutrality.md) / [ADR-0004](docs/adr/ADR-0004-agent-dsl-generation-s3.md) / [ADR-0005](docs/adr/ADR-0005-layer1-predicate-expansion.md) / [ADR-0006](docs/adr/ADR-0006-accept-object-inquiry-set-flag.md) / [ADR-0007](docs/adr/ADR-0007-minimal-quest-system.md) / [ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 表在 S4+ 或阶段 0 补全。
 
