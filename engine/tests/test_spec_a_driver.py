@@ -1,10 +1,11 @@
-"""层 A（驱动桥梁）规格属性测试。
+"""层 A（驱动桥梁）规格属性测试（任务 3 路径 A）。
 
 测试内容：
 - smoke：LAYER_SPEC 可加载、layer_id / layer_name / function_specs 正确
 - 结构属性：每个 FunctionSpec 的 signature 字段完整
 - 副作用 order 唯一且递增（每个有副作用的函数）
 - cross_layer_refs 非空且格式一致
+- hypothesis 属性：随机函数索引 / 副作用子集 / invariants-side_effects 对应
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from xkx.spec.base import FunctionSpec
+from xkx.spec.base import FunctionSpec, SideEffectType
 from xkx.spec.layer_a_driver import LAYER_SPEC
 
 # ── smoke ─────────────────────────────────────────────────────────────────
@@ -151,21 +152,25 @@ class TestSideEffectOrder:
                 )
 
 
-# ── hypothesis 属性测试 ──────────────────────────────────────────────────
+# ── hypothesis 属性测试（路径 A） ────────────────────────────────────────
+#
+# 4 类属性：随机函数索引 / 副作用子集 / random_specs 完整性 / invariants-side_effects 对应
+# 验证规格模型自身一致性，不依赖被测实现。
 
 
-@given(idx=st.integers(min_value=0, max_value=len(LAYER_SPEC.function_specs) - 1))
+_N = len(LAYER_SPEC.function_specs) - 1
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
 def test_function_spec_by_index_valid(idx: int) -> None:
-    """属性：任意索引的 FunctionSpec 结构完整。"""
+    """属性：任意索引的 FunctionSpec 签名完整。"""
     spec = LAYER_SPEC.function_specs[idx]
     assert spec.signature.name
     assert spec.signature.return_type
     assert spec.signature.lpc_file
 
 
-@given(
-    idx=st.integers(min_value=0, max_value=len(LAYER_SPEC.function_specs) - 1),
-)
+@given(idx=st.integers(min_value=0, max_value=_N))
 def test_side_effect_order_monotonic(idx: int) -> None:
     """属性：任意函数的副作用 order 严格递增。"""
     spec = LAYER_SPEC.function_specs[idx]
@@ -176,19 +181,88 @@ def test_side_effect_order_monotonic(idx: int) -> None:
         )
 
 
-# ── 随机性规格 ────────────────────────────────────────────────────────────
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_side_effect_order_consecutive_from_one(idx: int) -> None:
+    """属性：任意函数的副作用 order 从 1 连续递增。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    if spec.side_effects:
+        orders = sorted(se.order for se in spec.side_effects)
+        expected = list(range(1, len(orders) + 1))
+        assert orders == expected, (
+            f"{spec.signature.name}: order 不连续: {orders}"
+        )
 
 
-class TestRandomSpecs:
-    def test_no_random_specs_expected(self) -> None:
-        """层 A（驱动桥梁）不含 random() 调用，random_specs 应为空。
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_side_effect_kind_and_description_nonempty(idx: int) -> None:
+    """属性：任意副作用 kind/description 非空。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    for se in spec.side_effects:
+        assert se.kind is not None, (
+            f"{spec.signature.name}: order={se.order} kind 为空"
+        )
+        assert se.description, (
+            f"{spec.signature.name}: order={se.order} description 为空"
+        )
 
-        combat 确定性范围 = combat-only（层 E），驱动桥梁无随机性。
-        """
-        for spec in LAYER_SPEC.function_specs:
-            assert len(spec.random_specs) == 0, (
-                f"{spec.signature.name}: 层 A 不应有 random_specs"
-            )
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_function_has_pre_and_post_conditions(idx: int) -> None:
+    """属性：任意函数至少有一个前置条件和一个后置条件。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    assert len(spec.preconditions) > 0, f"{spec.signature.name}: 无前置条件"
+    assert len(spec.postconditions) > 0, f"{spec.signature.name}: 无后置条件"
+
+
+@st.composite
+def _spec_with_subset(draw: st.DrawFn) -> tuple[FunctionSpec, list]:
+    """生成 (函数, 非空副作用子集)，子集保持原顺序。"""
+    specs_with_se = [s for s in LAYER_SPEC.function_specs if s.side_effects]
+    spec = draw(st.sampled_from(specs_with_se))
+    n = len(spec.side_effects)
+    indices = draw(
+        st.lists(st.integers(0, n - 1), min_size=1, max_size=n, unique=True)
+    )
+    subset = [spec.side_effects[i] for i in sorted(indices)]
+    return spec, subset
+
+
+@given(data=_spec_with_subset())
+def test_side_effect_subset_order_preserved(
+    data: tuple[FunctionSpec, list],
+) -> None:
+    """属性：任意函数副作用的随机子集，order 仍递增（子集保有序性）。"""
+    spec, subset = data
+    orders = [se.order for se in subset]
+    assert orders == sorted(orders), (
+        f"{spec.signature.name}: 子集 order 非递增: {orders}"
+    )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_state_invariant_implies_state_mutation(idx: int) -> None:
+    """属性：不变量提到状态/qi 的函数，副作用含 STATE_MUTATION。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    state_keywords = ("qi", "state", "状态", "eff_", "max_", "jing", "neili")
+    has_state_invariant = any(
+        any(kw in inv.description.lower() or kw in (inv.lpc_expr or "").lower()
+            for kw in state_keywords)
+        for inv in spec.invariants
+    )
+    if has_state_invariant and spec.side_effects:
+        kinds = {se.kind for se in spec.side_effects}
+        assert SideEffectType.STATE_MUTATION in kinds, (
+            f"{spec.signature.name}: 有状态不变量但无 STATE_MUTATION 副作用"
+        )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_no_random_specs_for_driver_layer(idx: int) -> None:
+    """属性：层 A 任意函数无 random_specs（驱动桥梁无随机性，combat 确定性范围=combat-only）。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    assert len(spec.random_specs) == 0, (
+        f"{spec.signature.name}: 层 A 不应有 random_specs"
+    )
 
 
 # ── 关键函数覆盖检查 ─────────────────────────────────────────────────────

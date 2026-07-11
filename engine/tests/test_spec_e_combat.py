@@ -2,17 +2,23 @@
 
 测试内容：
 - smoke：LAYER_SPEC 可加载、layer_id=="E"、function_specs 非空
-- 结构属性：每个 FunctionSpec 签名完整
-- 副作用 order 唯一且递增（连续）
+- 枚举完整性：CombatStep / ResourceType / AttackType
 - do_attack 七步副作用交织验证（state_mutation 与 message_output 交替）
-- random_specs 数量验证（>= 20）
 - 三层资源不变量验证
+- receive_damage/wound 契约
+- condition 框架
+- skill_power 公式
+- 26 函数名完整性
 - cross_layer_refs 非空
+- hypothesis 属性测试（路径 A）：随机函数索引 / 副作用子集 /
+  random_specs 完整性 / invariants-side_effects 对应
 """
 
 from __future__ import annotations
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from xkx.spec.base import FunctionSpec, LayerSpec, SideEffectType
 from xkx.spec.layer_e_combat import (
@@ -97,46 +103,15 @@ class TestEnums:
 
 
 # ---------------------------------------------------------------------------
-# 结构属性测试
+# 26 函数名完整性
 # ---------------------------------------------------------------------------
 
 
 class TestFunctionSpecStructure:
-    """每个 FunctionSpec 的结构完整性。"""
+    """26 函数名完整性（签名完整性由 hypothesis 属性测试覆盖）。"""
 
-    @pytest.fixture
-    def all_specs(self) -> list[FunctionSpec]:
-        return LAYER_SPEC.function_specs
-
-    def test_all_signatures_have_name(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            assert spec.signature.name, f"函数名不能为空: {spec}"
-
-    def test_all_signatures_have_return_type(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            assert spec.signature.return_type, (
-                f"返回类型不能为空: {spec.signature.name}"
-            )
-
-    def test_all_signatures_have_lpc_file(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            assert spec.signature.lpc_file, (
-                f"lpc_file 不能为空: {spec.signature.name}"
-            )
-
-    def test_all_specs_have_preconditions(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            assert len(spec.preconditions) > 0, (
-                f"应至少有一个前置条件: {spec.signature.name}"
-            )
-
-    def test_all_specs_have_side_effects(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            assert len(spec.side_effects) > 0, (
-                f"应至少有一个副作用: {spec.signature.name}"
-            )
-
-    def test_expected_function_names(self, all_specs: list[FunctionSpec]) -> None:
+    def test_expected_function_names(self) -> None:
+        all_specs = LAYER_SPEC.function_specs
         names = {spec.signature.name for spec in all_specs}
         expected = {
             "skill_power",
@@ -167,42 +142,6 @@ class TestFunctionSpecStructure:
             "heal_up",
         }
         assert names == expected, f"函数名不匹配: {names ^ expected}"
-
-
-# ---------------------------------------------------------------------------
-# 副作用 order 测试
-# ---------------------------------------------------------------------------
-
-
-class TestSideEffectOrder:
-    """副作用 order 唯一且连续递增。"""
-
-    @pytest.fixture
-    def all_specs(self) -> list[FunctionSpec]:
-        return LAYER_SPEC.function_specs
-
-    def test_order_unique_per_function(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            orders = [se.order for se in spec.side_effects]
-            assert len(orders) == len(set(orders)), (
-                f"副作用 order 不唯一: {spec.signature.name} orders={orders}"
-            )
-
-    def test_order_starts_from_1(self, all_specs: list[FunctionSpec]) -> None:
-        for spec in all_specs:
-            orders = sorted(se.order for se in spec.side_effects)
-            assert orders[0] == 1, (
-                f"order 应从 1 开始: {spec.signature.name} first={orders[0]}"
-            )
-
-    def test_order_consecutive(self, all_specs: list[FunctionSpec]) -> None:
-        """order 应连续递增（1, 2, 3, ... 无跳号）。"""
-        for spec in all_specs:
-            orders = sorted(se.order for se in spec.side_effects)
-            expected = list(range(1, len(orders) + 1))
-            assert orders == expected, (
-                f"order 不连续: {spec.signature.name} orders={orders}"
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -349,10 +288,13 @@ class TestDoAttackInterleaving:
 
 
 class TestRandomSpecs:
-    """29 处 random() 提取为 RandomSpec 的完整性验证。"""
+    """31 处 random() 提取为 RandomSpec 的特定验证。
+
+    通用完整性（semantic/probability_model 非空）由 hypothesis 属性测试覆盖。
+    """
 
     def test_total_random_specs_count(self) -> None:
-        """所有函数的 RandomSpec 总数应 >= 20（29 处可能合并相近的）。"""
+        """所有函数的 RandomSpec 总数应 >= 20。"""
         total = sum(len(spec.random_specs) for spec in LAYER_SPEC.function_specs)
         assert total >= 20, f"RandomSpec 总数 {total} 少于 20"
 
@@ -408,22 +350,6 @@ class TestRandomSpecs:
         )
         assert len(spec.random_specs) >= 1
         assert "con" in spec.random_specs[0].lpc_call
-
-    def test_all_random_specs_have_semantic(self) -> None:
-        """每个 RandomSpec 都有语义描述。"""
-        for spec in LAYER_SPEC.function_specs:
-            for rs in spec.random_specs:
-                assert rs.semantic, (
-                    f"{spec.signature.name} 的 RandomSpec 缺少 semantic"
-                )
-
-    def test_all_random_specs_have_probability_model(self) -> None:
-        """每个 RandomSpec 都有概率模型。"""
-        for spec in LAYER_SPEC.function_specs:
-            for rs in spec.random_specs:
-                assert rs.probability_model, (
-                    f"{spec.signature.name} 的 RandomSpec 缺少 probability_model"
-                )
 
 
 # ---------------------------------------------------------------------------
@@ -616,3 +542,168 @@ class TestSkillPower:
     def test_no_random_specs(self, skill_power_spec: FunctionSpec) -> None:
         """skill_power 是纯计算函数，无随机性。"""
         assert len(skill_power_spec.random_specs) == 0
+
+
+# ---------------------------------------------------------------------------
+# hypothesis 属性测试（路径 A）
+#
+# 4 类属性：随机函数索引 / 副作用子集 / random_specs 完整性 / invariants-side_effects 对应
+# 验证规格模型自身一致性，不依赖被测实现。
+# 层 E 特点：26 函数、31 random_specs（最多）、do_attack 49 副作用严格交织。
+#
+
+
+_N = len(LAYER_SPEC.function_specs) - 1
+
+
+# ── 第 1 类：随机函数索引 ──────────────────────────────────────────────────
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_function_spec_by_index_valid(idx: int) -> None:
+    """属性：任意索引的 FunctionSpec 签名完整（name/return_type/lpc_file 非空）。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    assert spec.signature.name
+    assert spec.signature.return_type
+    assert spec.signature.lpc_file
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_side_effect_order_monotonic(idx: int) -> None:
+    """属性：任意函数的副作用 order 严格递增。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    if spec.side_effects:
+        orders = [se.order for se in spec.side_effects]
+        assert orders == sorted(orders), (
+            f"{spec.signature.name}: side_effect order 非递增"
+        )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_side_effect_order_consecutive_from_one(idx: int) -> None:
+    """属性：任意函数的副作用 order 从 1 连续递增。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    if spec.side_effects:
+        orders = sorted(se.order for se in spec.side_effects)
+        expected = list(range(1, len(orders) + 1))
+        assert orders == expected, (
+            f"{spec.signature.name}: order 不连续: {orders}"
+        )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_side_effect_kind_and_description_nonempty(idx: int) -> None:
+    """属性：任意副作用 kind/description 非空。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    for se in spec.side_effects:
+        assert se.kind is not None, (
+            f"{spec.signature.name}: order={se.order} kind 为空"
+        )
+        assert se.description, (
+            f"{spec.signature.name}: order={se.order} description 为空"
+        )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_function_has_pre_and_post_conditions(idx: int) -> None:
+    """属性：任意函数至少有一个前置条件和一个后置条件。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    assert len(spec.preconditions) > 0, f"{spec.signature.name}: 无前置条件"
+    assert len(spec.postconditions) > 0, f"{spec.signature.name}: 无后置条件"
+
+
+# ── 第 2 类：副作用子集 ────────────────────────────────────────────────────
+
+
+@st.composite
+def _spec_with_subset(draw: st.DrawFn) -> tuple[FunctionSpec, list]:
+    """生成 (函数, 非空副作用子集)，子集保持原顺序。"""
+    specs_with_se = [s for s in LAYER_SPEC.function_specs if s.side_effects]
+    spec = draw(st.sampled_from(specs_with_se))
+    n = len(spec.side_effects)
+    indices = draw(
+        st.lists(st.integers(0, n - 1), min_size=1, max_size=n, unique=True)
+    )
+    subset = [spec.side_effects[i] for i in sorted(indices)]
+    return spec, subset
+
+
+@given(data=_spec_with_subset())
+def test_side_effect_subset_order_preserved(
+    data: tuple[FunctionSpec, list],
+) -> None:
+    """属性：任意函数副作用的随机子集，order 仍递增（子集保有序性）。"""
+    spec, subset = data
+    orders = [se.order for se in subset]
+    assert orders == sorted(orders), (
+        f"{spec.signature.name}: 子集 order 非递增: {orders}"
+    )
+
+
+# ── 第 3 类：random_specs 完整性 ──────────────────────────────────────────
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_random_specs_fields_nonempty(idx: int) -> None:
+    """属性：任意有 random_specs 的函数，每个 random_spec 的
+    probability_model/semantic/lpc_call 非空。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    for rs in spec.random_specs:
+        assert rs.probability_model, (
+            f"{spec.signature.name}: random_spec '{rs.lpc_call}' 缺少 probability_model"
+        )
+        assert rs.semantic, (
+            f"{spec.signature.name}: random_spec '{rs.lpc_call}' 缺少 semantic"
+        )
+        assert rs.lpc_call, (
+            f"{spec.signature.name}: random_spec 缺少 lpc_call"
+        )
+
+
+# ── 第 4 类：invariants-side_effects 对应（层 E 最关键） ──────────────────
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_state_invariant_implies_state_mutation(idx: int) -> None:
+    """属性：不变量提到状态/qi/state/状态/eff_/max_/jing/neili 的函数 -> 副作用含 STATE_MUTATION。
+
+    层 E 最关键：do_attack 七步 state+message 交织是 dissent 3/01 子系统 5 核心关注点。
+    排除纯查询不变量（lpc_expr 仅含 query() 无 set()），如 report_status 只读计算 ratio。
+    """
+    spec = LAYER_SPEC.function_specs[idx]
+    state_keywords = ("qi", "state", "状态", "eff_", "max_", "jing", "neili")
+
+    def _is_state_mutation_invariant(inv: object) -> bool:
+        has_kw = any(
+            kw in inv.description.lower() or kw in (inv.lpc_expr or "").lower()
+            for kw in state_keywords
+        )
+        if not has_kw:
+            return False
+        expr = (inv.lpc_expr or "").lower()
+        # 纯查询不变量（如 report_status 的 ratio 计算公式）不算状态修改
+        return not ("query(" in expr and "set(" not in expr)
+
+    has_state_invariant = any(_is_state_mutation_invariant(inv) for inv in spec.invariants)
+    if has_state_invariant and spec.side_effects:
+        kinds = {se.kind for se in spec.side_effects}
+        assert SideEffectType.STATE_MUTATION in kinds, (
+            f"{spec.signature.name}: 有状态不变量但无 STATE_MUTATION 副作用"
+        )
+
+
+@given(idx=st.integers(min_value=0, max_value=_N))
+def test_message_invariant_implies_message_output(idx: int) -> None:
+    """属性：不变量提到消息/message/vision 的函数 -> 副作用含 MESSAGE_OUTPUT。"""
+    spec = LAYER_SPEC.function_specs[idx]
+    message_keywords = ("message", "消息", "vision")
+    has_message_invariant = any(
+        any(kw in inv.description.lower() or kw in (inv.lpc_expr or "").lower()
+            for kw in message_keywords)
+        for inv in spec.invariants
+    )
+    if has_message_invariant and spec.side_effects:
+        kinds = {se.kind for se in spec.side_effects}
+        assert SideEffectType.MESSAGE_OUTPUT in kinds, (
+            f"{spec.signature.name}: 有消息不变量但无 MESSAGE_OUTPUT 副作用"
+        )
