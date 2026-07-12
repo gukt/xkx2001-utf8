@@ -1,8 +1,8 @@
 """统一 tick 循环 + System 注册（阶段 1 Wave 4 T10 整合遗留）。
 
 Wave 2/3 各 System 分散实现（CombatSystem / StorageSystem / ConditionSystem /
-ConnectionSystem），T10 前收纳为统一 tick 循环，用 TickProfiler 测量 per-System
-compute（kill criteria 3 完整判定基础设施，
+ConnectionSystem / GovernanceSystem），T10 前收纳为统一 tick 循环，用
+TickProfiler 测量 per-System compute（kill criteria 3 完整判定基础设施，
 [12](../../../docs/xkx-arch/12-阶段1-核心循环实施计划.md) T10）。
 
 整合遗留（PROGRESS.md Wave 2/3 整合遗留）：
@@ -10,6 +10,8 @@ compute（kill criteria 3 完整判定基础设施，
 - **StorageSystem** 通过 ``world.storage_system`` 动态属性 -> 纳入 ``Engine.systems``
 - **ConnectionSystem** 鸭子类型（``update(world, tick)``） -> 纳入 ``Engine.systems``
 - **ConditionSystem** 已继承 ``System`` -> 纳入 ``Engine.systems``
+- **GovernanceSystem**（governance.py）已继承 ``System`` -> 纳入 ``Engine.systems``
+  （2.6 ADR-0029，death_stage 治理剧情 EffectComp tick 驱动）
 
 非均匀 tick（CLAUDE.md 不变量）：tick=1s + compute<100ms。``Engine.tick`` 遍历
 systems 调 ``update``，用 ``TickProfiler.measure_system`` 包裹计时。
@@ -56,6 +58,7 @@ class Engine:
 
         engine = Engine(world, profiler=TickProfiler(enabled=True))
         engine.add_system(ConditionSystem())
+        engine.add_system(GovernanceSystem())  # 2.6 ADR-0029 治理剧情
         engine.add_system(CombatBridge())
         engine.add_system(world.storage_system)  # StorageSystem
         for _ in range(300):

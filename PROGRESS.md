@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 2 编码中（2.5 TitleSystem 完成，下一步 2.6）
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 2.5 TitleSystem 完成**（RANK_D 7 函数称谓求值 + PronounContext 10 变量三元组 + TitleComp 第 14 组件 + short 状态修饰 + spec 7 FunctionSpec，agent teams 3 路并行 + ADR-0016 穿插，1339 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出未提交。下一步 2.6 WorldGovernanceSystem（ADR-0029 已就绪）。Wave 2 采用**逐个串行**（用户裁决），2.5 内部 agent teams 3 路并行（不同文件无冲突）。
+**当前阶段**：阶段 2 Wave 2 全部完成（2.6 WorldGovernanceSystem 完成），下一步 Wave 3 2.4 Combat
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。下一步 Wave 3 2.4 Combat（高风险串行）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
 
 ## Done
 
@@ -370,6 +370,16 @@
   - agent 最终 task-notification 未到，基于文件状态（layer1.py 25 处谓词 + 24 tests passed + 24 分钟无改）确认实质完成
   - 关联 dissent 3（层1 原语蠕变护栏，8 类均有 LPC 实证）
 
+- [x] **阶段 2 Wave 2 2.6 WorldGovernanceSystem 完成**（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.6 / [ADR-0029](docs/adr/ADR-0029-world-governance-system.md)）：
+  - [governance.py](engine/src/xkx/runtime/governance.py) 新建（~590 行）：GovernanceSystem 平台级 fail-closed System（独立遍历 effect_id="death_stage" EffectComp，非均匀 tick，不混入 ConditionSystem on_tick）+ 阴间死亡轮回（enter_underworld gate.c 物品销毁 + 启动 death_stage EffectComp 首延 30 秒 5 段每段 5 秒 / death_stage_handler 纯函数 / reincarnate_at 主路径丢弃物品 + 隐藏路径不丢弃）+ 法院通缉（apply_wanted/query_wanted + WANTED_REGIONS 四区域 city/xa/dl/bj 统一为 WantedCondition）+ 审判收监（proceed_sentencing PKS 分级 99/74/49=>500/300/200 + 累犯加重 city_jail>4=>600 + 穿琵琶骨 + 经验转移上限 3000 + bribe_clear_wanted 受贿销案）+ 监狱（release_from_jail + JAIL_ROOMS city_jail/dali_jail/bonze_jail）
+  - **2.2 已完成使阴间闭环可做完整**（ADR-0029 决策 6 原计划只做骨架，但 2.2 death.py die/reincarnate/make_corpse 已就绪）：[death.py](engine/src/xkx/runtime/death.py) die() 衔接调 enter_underworld（加 tick 参数 + 延迟 import 规避循环依赖）+ check_death 透传 tick + [engine.py](engine/src/xkx/runtime/engine.py) GovernanceSystem 注册
+  - [conditions.py](engine/src/xkx/runtime/conditions.py) 扩展：3 jail handler（city_jail/dali_jail/bonze_jail 到期衔接 release_from_jail，延迟 import governance）+ JAIL_CONDITIONS 集合
+  - **累犯加重 bug 修复**：proceed_sentencing 原 clear_condition 在 query_condition("city_jail") 之前致累犯分支死代码（LPC kexiu.c:229 顺序相反），修复为 clear 前先查 existing_jail，累犯加重生效
+  - 3 个开放问题按 ADR-0029 倾向裁决：death_stage 归 GovernanceSystem 独立遍历（开放问题 1）/ 通缉衰减归 ConditionSystem（开放问题 2）/ 阴间位置 room_id 常量（开放问题 3）
+  - 测试 [test_governance.py](engine/tests/test_governance.py) 77 tests（1263 行）：A 平台 fail-closed 边界 + B 阴间完整闭环（die->gate.c 销毁->5 段->还阳主/隐藏）+ C gate.c 物品销毁副作用顺序 + D death_stage 崩溃恢复 + E 黑无常 is_ghost + F 法院通缉四区域 + G 审判收监 PKS 分级 + H 受贿销案 + I 监狱释放 + J 可序列化 + K hypothesis 3 属性（通缉衰减/量刑单调/PKS>99 恒 500）+ L test_theme_neutrality 硬门禁
+  - **1421 tests 全绿（+82：test_governance 77 + test_death +5 衔接），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 5（themed 治理平台级 fail-closed Python 不入 UGC 规则层）+ dissent 10（5 灵魂系统只含 2 代表性元素，276 文件武林大会/vote/intermud 后置 M3）+ dissent 5 延伸（call_out 翻译为 EffectComp，GovernanceSystem 自有 handler）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -380,15 +390,15 @@
 
 ## In Progress
 
-**阶段 2 Wave 2 2.5 TitleSystem 已完成**（[ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)，1339 tests 全绿）。
+**阶段 2 Wave 2 全部完成**（2.2 + 2.3 + 2.5 + 2.6，1421 tests 全绿）。
 
 阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems。
 
-**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突），2.5 内部 agent teams 3 路并行（不同文件无冲突）：
+**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突），全部完成：
 - [x] **2.2 Vitals/Heal/Condition 编码完成**（1159 tests 全绿）
 - [x] **2.3 Attribute/Skill/Equipment 编码完成**（1196 tests 全绿）
 - [x] **2.5 TitleSystem 编码完成**（1339 tests 全绿，agent teams 3 路并行 + ADR-0016 穿插）
-- [ ] 2.6 WorldGovernanceSystem（前置 ADR-0029 已就绪）
+- [x] **2.6 WorldGovernanceSystem 编码完成**（1421 tests 全绿，agent teams 3 批次：批次 0 governance.py 核心 + 批次 1 并行 conditions/death 衔接 + 批次 2 test_governance 77 tests）
 
 **Wave 2 前置 ADR 全部产出并已提交**：
 - [x] [ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) ModifierStack 三类语义 + 技能三层（2.3 前置）
@@ -396,14 +406,13 @@
 - [x] [ADR-0029](docs/adr/ADR-0029-world-governance-system.md) WorldGovernanceSystem + fail-closed（2.6 前置）
 - 2.2 无需新 ADR（T1 ADR-0018 契约已定，2.2 演进 effect_eid key）
 
-**下一步：2.6 WorldGovernanceSystem 启动**（[15 §三 2.6](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0029](docs/adr/ADR-0029-world-governance-system.md)）：
-- 选 1-2 个代表性治理元素（建议：阴间死亡轮回 + 法院 PK 通缉）
-- GovernanceSystem（平台级 fail-closed Python，不进 UGC 规则层）
-- 阴间路径（die -> 阴间 -> 黑白无常剧情 -> 还阳）+ gate.c 物品销毁
-- 法院（PK 通缉 + 官府执法 + 监狱服刑，killer/xakiller/dlkiller/bjkiller 四区域）
-- 依赖 2.2 死亡轮回（die->阴间衔接）+ 2.4 Combat（PK 触发通缉）
+**下一步：Wave 3 2.4 Combat 启动**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md)，高风险串行）：
+- combat 迁移行为等价验证 + 文本体验流 diff
+- 依赖 2.1 Query + 2.2 死亡轮回 + 2.3 Attribute/Skill + 2.6 治理（PK 触发通缉衔接）
+- 需 ADR-0031（combat 迁移边界，待启动前置产出）
+- golden trace 定点辅助（driver PID 22753 运行中）录制 do_attack 七步基线（dissent 4 验证）
 
-**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，后台 agent 实质完成：[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1339 含它，ruff 全过；agent 最终 task-notification 未到但文件 24 分钟无改 + 测试绿 = 实质完成）。
+**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1421 含它，ruff 全过）。
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -425,7 +434,7 @@
 
 ## Next Up
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 进行中（2.2/2.3/2.5 完成，下一步 2.6）**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 全部完成（2.2/2.3/2.5/2.6，1421 tests 全绿）。下一步 Wave 3 2.4 Combat**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
@@ -434,24 +443,24 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：2.6 WorldGovernanceSystem（ADR-0029）-> Wave 3 2.4 Combat。
+**下一步主线**：Wave 3 2.4 Combat（高风险串行，需 ADR-0031 前置）。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
-- Wave 2：2.2 ✅ / 2.3 ✅ / 2.5 / 2.6 逐个串行（用户裁决避免共享文件合并冲突，4-6 周）
+- Wave 2：2.2 ✅ / 2.3 ✅ / 2.5 ✅ / 2.6 ✅ 全部完成（逐个串行，用户裁决避免共享文件合并冲突）
 - Wave 3：2.4 Combat（高风险，3-5 周）
 - Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
 
 **阶段 2 -> M3 决策检查点**（04 §八，待阶段 2 完成）：
 - [ ] Combat 迁移行为等价验证 + 文本体验流 diff？（2.4）
-- [ ] 技能三层明确？（2.3）
-- [ ] 称谓系统、世界观治理层落地？（2.5/2.6）
+- [x] 技能三层明确？（2.3 ✅）
+- [x] 称谓系统、世界观治理层落地？（2.5 ✅ / 2.6 ✅）
 - [ ] 门派内容包边界干净切割？（2.7）
 
 **可穿插推进**（非阶段 2 前置）：
 - golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现：层1 谓词集扩充 8 类（阶段 1 层1 运行时落地时）
+- [x] [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 层1 谓词集扩充 8 类（已完成，穿插 2.5 期间）
 
 **任务 4 后置部分**（阶段 1）：1000+100 负载压测 + 1s tick 预算实测需阶段 1 ECS + WS 服务器框架（[ADR-0012](docs/adr/ADR-0012-performance-microbenchmark.md) 后置章节）
 

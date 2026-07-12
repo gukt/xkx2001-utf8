@@ -6,8 +6,9 @@ make_corpse / announce / check_death，对照 [spec/layer_f_death.py](_die_spec 
 直接 die；qi/jing/jingli<0 先 unconcious，昏迷中再触发 die。
 
 **2.2 范围控制**（收敛，对齐 04 §六 + ADR-0029 Wave 2 范围）：
-- 阴间剧情（黑白无常/还阳）后置 2.6 GovernanceSystem（die 玩家 ghost=1 +
-  move DEATH_ROOM 为止，不启动 start_death）。
+- 阴间剧情（黑白无常/还阳）由 2.6 GovernanceSystem 承接：die 玩家分支末调
+  ``governance.enter_underworld``（启动 death_stage EffectComp，ADR-0029
+  §决策 6 衔接协议）。die 内仍只做 ghost=1 + move DEATH_ROOM。
 - break_marriage / break_relation 后置 M3（die 中 stub 跳过）。
 - log_file 死亡日志 + 频道谣言后置 M3（stub 跳过）。
 - skill_death_penalty 简化 stub（所有技能 -1，真实 learned 公式后置 2.3/层 H）。
@@ -69,6 +70,9 @@ def check_death(world: World, eid: int, tick: int) -> bool:
     - eff_qi<0 或 eff_jing<0 -> 直接 die()（致命伤）
     - qi<0 或 jing<0 或 jingli<0 -> living() 则 unconcious()，已昏迷则 die()
 
+    ``tick`` 透传给 ``die()`` 供阴间剧情衔接（governance.enter_underworld
+    首延 30 秒 next_tick=tick+30，ADR-0029 §决策 6）。
+
     返回是否触发死亡/昏迷（True=已处理，调用方应跳过常规 tick）。
     """
     vitals = world.get(eid, Vitals)
@@ -76,14 +80,14 @@ def check_death(world: World, eid: int, tick: int) -> bool:
         return False
     # 致命伤：eff_qi/eff_jing < 0 -> 直接 die
     if vitals.eff_qi < 0 or vitals.eff_jing < 0:
-        die(world, eid)
+        die(world, eid, tick=tick)
         return True
     # qi/jing/jingli < 0 -> unconcious 或 die
     if vitals.qi < 0 or vitals.jing < 0 or vitals.jingli < 0:
         if _is_living(world, eid):
             unconcious(world, eid)
         else:
-            die(world, eid)
+            die(world, eid, tick=tick)
         return True
     return False
 
@@ -156,11 +160,19 @@ def reincarnate(world: World, eid: int) -> None:
 # ──────────────────────── die 主流程 ────────────────────────
 
 
-def die(world: World, eid: int, killer_id: int | None = None) -> None:
+def die(world: World, eid: int, killer_id: int | None = None, *, tick: int = 0) -> None:
     """死亡主流程（[spec/layer_f](_die)，feature/damage.c:152-253）。
 
     no_death 房玩家转 unconcious；玩家 ghost=1 move DEATH_ROOM；NPC 移除 Position。
-    阴间剧情（start_death 黑白无常）后置 2.6 GovernanceSystem。
+    玩家分支末衔接阴间剧情（governance.enter_underworld 启动 death_stage
+    EffectComp，ADR-0029 §决策 3 + §决策 6 衔接协议）。
+
+    Args:
+        world: ECS 世界。
+        eid: 死亡实体 id。
+        killer_id: 击杀者实体 id（None=非击杀致死，如致命伤/昏迷中死）。
+        tick: 当前 tick（阴间剧情首延 next_tick=tick+30；默认 0 向后兼容
+            无 tick 上下文的调用方，tick=0 时首延触发 tick=30）。
     """
     vitals = world.get(eid, Vitals)
     if vitals is None:
@@ -205,10 +217,19 @@ def die(world: World, eid: int, killer_id: int | None = None) -> None:
             vitals.eff_jing = vitals.max_jing
             _mark_dirty(world, eid)
             return
-        # ghost=1 + move DEATH_ROOM（阴间入口，阴间剧情 2.6）
+        # ghost=1 + move DEATH_ROOM（阴间入口）+ 衔接阴间剧情（ADR-0029 §决策 3/6）
         _set_flag(world, eid, GHOST_FLAG)
         move_to(world, eid, DEATH_ROOM)
         _save(world, eid)
+        # 阴间剧情衔接（2.6）：启动 death_stage EffectComp（gate.c 物品销毁 +
+        # 白无常 5 段剧情，首延 30 秒）。延迟 import 规避 governance -> death
+        # 反向循环依赖（governance 模块级 import death 用于 reincarnate 等）。
+        # 时序：enter_underworld 启动 EffectComp 但首延 30 秒，die 后立即状态
+        # 不变（ghost=1 + DEATH_ROOM + 无还阳），GovernanceSystem tick 推进 30
+        # 秒后才播第一段剧情（ADR-0029 §决策 4 非均匀 tick）。
+        from xkx.runtime import governance
+
+        governance.enter_underworld(world, eid, tick)
         # break_marriage / break_relation 后置 M3（stub 跳过）
     else:
         # NPC destruct：移除 Position（从房间消失，S5a 对齐）

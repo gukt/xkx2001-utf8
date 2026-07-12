@@ -19,8 +19,17 @@ Effect 作为独立实体（EffectComp attach 到 effect 实体，``target_id`` 
 - ``apply_condition`` 直接覆盖语义（LPC apply_condition 不自动叠加，叠加由调用方
   手写 query+delta，如 pker ``+120``）。
 
+**阶段 2.6 扩展**（ADR-0029 §决策 5 + 开放问题 2 裁决）：
+- 新增 3 个监狱 condition handler（city_jail/dali_jail/bonze_jail，共用
+  ``_jail_trigger``），对照 [kungfu/condition/city_jail.c](../../../kungfu/condition/city_jail.c)
+  / dali_jail.c / bonze_jail.c。纯衰减 + 到期消息，move 副作用不在 handler 内。
+- ``ConditionSystem.update`` 移除 completed 分支衔接 ``governance.release_from_jail``
+  （jail 到期 move 由 ConditionSystem 触发，调 governance.move_to + 设 startroom，
+  ADR-0029 §决策 5 + 开放问题 2）。延迟 import 规避 governance->conditions 循环依赖。
+
 [ADR-0018](../../../docs/adr/ADR-0018-conditionhandler-on-tick-contract.md) /
 [ADR-0025](../../../docs/adr/ADR-0025-query-index-layer.md) /
+[ADR-0029](../../../docs/adr/ADR-0029-world-governance-system.md) /
 [kungfu/condition/](../../../kungfu/condition/) /
 [spec/layer_f_death.py](../spec/layer_f_death.py)
 """
@@ -100,6 +109,12 @@ CONDITION_HANDLERS: dict[str, ConditionHandlerFn] = {}
 def register_condition(name: str, handler: ConditionHandlerFn) -> None:
     """注册 condition handler（2.2）。模块加载时注册具体 condition 类型。"""
     CONDITION_HANDLERS[name] = handler
+
+
+# 监狱 condition 类型集合（ADR-0029 §决策 5 + 开放问题 2 裁决：jail 到期 move 由
+# ConditionSystem 触发，调 governance.release_from_jail）。governance.py 未导出此集合
+# （只有 JAIL_ROOMS dict），故本地定义。与 governance.JAIL_ROOMS.keys() 保持一致。
+JAIL_CONDITIONS: frozenset[str] = frozenset({"city_jail", "dali_jail", "bonze_jail"})
 
 
 # ──────────────────────── 默认 handler（未注册 effect_id） ────────────────────────
@@ -265,6 +280,40 @@ def _revive_trigger(world: World, eff: EffectComp, tick: int) -> ConditionTrigge
     return r
 
 
+# effect_id -> 到期释放消息（对照 LPC city_jail.c / dali_jail.c / bonze_jail.c
+# tell_object 的 HIY ... NOR 文本）。city_jail 是"被扔出了衙门"，dali/bonze 是
+# "被扔出了监狱"（LPC 原文差异，greenfield 保真不统一）。
+_JAIL_EXPIRE_MESSAGES: dict[str, str] = {
+    "city_jail": "只觉一阵腾云驾雾般，你昏昏沉沉地被扔出了衙门！",
+    "dali_jail": "只觉一阵腾云驾雾般，你昏昏沉沉地被扔出了监狱！",
+    "bonze_jail": "只觉一阵腾云驾雾般，你昏昏沉沉地被扔出了监狱！",
+}
+
+
+def _jail_trigger(world: World, eff: EffectComp, tick: int) -> ConditionTriggerResult:
+    """监狱 condition handler（ADR-0029 §决策 5，对照 kungfu/condition/city_jail.c /
+    dali_jail.c / bonze_jail.c update_condition）。
+
+    city_jail / dali_jail / bonze_jail 三个 effect_id 共用本 handler（对照 killer
+    纯计时器模式）：
+    - 到期（duration<=1）：返回释放消息（LPC tell_object 文本，按 effect_id 区分
+      "衙门"/"监狱"措辞）+ new_duration=0（ConditionSystem.update 检测到 completed
+      且 effect_id in JAIL_CONDITIONS 时衔接 governance.release_from_jail 触发 move +
+      设 startroom）。
+    - 未到期：new_duration = duration-1（纯衰减）。
+
+    纯函数不 mutate（move 副作用由 ConditionSystem.update 衔接 governance 触发，
+    非 handler 内，ADR-0029 §决策 5 + 开放问题 2 裁决）。
+    """
+    r = ConditionTriggerResult()
+    if eff.duration <= 1:
+        r.messages.append(_JAIL_EXPIRE_MESSAGES.get(eff.effect_id, ""))
+        r.new_duration = 0
+    else:
+        r.new_duration = eff.duration - 1
+    return r
+
+
 # 模块加载时注册具体 condition 类型
 register_condition("poisoned", _poisoned_trigger)
 register_condition("snake_poison", _snake_poison_trigger)
@@ -273,6 +322,10 @@ register_condition("blind", _blind_trigger)
 register_condition("killer", _killer_trigger)
 register_condition("pker", _pker_trigger)
 register_condition("revive", _revive_trigger)
+# 监狱 condition（ADR-0029 §决策 5，city_jail/dali_jail/bonze_jail 共用 _jail_trigger）
+register_condition("city_jail", _jail_trigger)
+register_condition("dali_jail", _jail_trigger)
+register_condition("bonze_jail", _jail_trigger)
 
 
 # ──────────────────────── ConditionHandler（纯函数 on_tick） ────────────────────────
@@ -288,7 +341,10 @@ class ConditionHandler:
     非均匀 tick：只处理 ``next_tick <= tick`` 的 EffectComp（ADR-0018 §3）。
 
     2.2：按 effect_id 分派到注册 handler（poisoned/snake_poison/drunk/blind/
-    killer/pker），未注册用 _default_trigger。
+    killer/pker/revive），未注册用 _default_trigger。
+    2.6：新增监狱 condition（city_jail/dali_jail/bonze_jail 共用 _jail_trigger，
+    ADR-0029 §决策 5）。jail 到期 move 副作用由 ConditionSystem.update 衔接
+    governance.release_from_jail 触发（非 handler 内 mutate）。
     """
 
     def on_tick(self, world: World, tick: int) -> ConditionTickResult:
@@ -346,6 +402,17 @@ class ConditionSystem(System):
             if eff is None:
                 continue
             if effect_eid in result.completed:
+                # jail 到期衔接 governance.release_from_jail（ADR-0029 §决策 5 +
+                # 开放问题 2 裁决：jail 到期 move 由 ConditionSystem 触发）。move 出
+                # 监狱房间 + 设 startroom。先读 eff 字段再 remove（remove 后 eff 引用
+                # 仍可读，但先取语义更清晰）。延迟 import 规避 governance->conditions
+                # 循环依赖（governance.py 顶部已 import conditions 的 apply_condition 等）。
+                if eff.effect_id in JAIL_CONDITIONS:
+                    from xkx.runtime import governance
+
+                    governance.release_from_jail(
+                        world, eff.target_id, eff.effect_id
+                    )
                 world.remove(effect_eid, EffectComp)
                 continue
             if effect_eid in result.condition_deltas:

@@ -178,6 +178,122 @@ def test_die_clears_conditions() -> None:
     assert query_condition(w, p, "poisoned") == 0
 
 
+# ---- die 阴间剧情衔接（2.6 ADR-0029 §决策 6 衔接协议）----
+
+
+def test_die_player_starts_death_stage_effectcomp() -> None:
+    """玩家 die 衔接 governance.enter_underworld：启动 death_stage EffectComp。
+
+    ADR-0029 §决策 3/6：die 玩家分支 ghost=1 + move DEATH_ROOM 后调
+    ``governance.enter_underworld``，启动黑白无常 5 段剧情 EffectComp（首延
+    30 秒，next_tick=tick+30）。gate.c 物品销毁清空鬼魂 Inventory。
+    """
+    from xkx.runtime.components import EffectComp, Inventory
+    from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID, DEATH_STAGE_KIND
+
+    w = World()
+    _make_room(w)
+    p = _make_player(w)
+    w.add(p, Inventory(items={"sword", "potion"}))
+    die(w, p, tick=100)
+    # ghost=1 + move DEATH_ROOM 保留（2.2 核心行为不变）
+    assert GHOST_FLAG in w.get(p, Marks).flags
+    assert w.get(p, Position).room_id == DEATH_ROOM
+    # gate.c 物品销毁（鬼魂 Inventory 清空）
+    assert w.get(p, Inventory).items == set()
+    # 启动 death_stage EffectComp（首延 30 秒，next_tick=100+30=130）
+    death_effs = [
+        w.get(e, EffectComp)
+        for e in w.entities_with(EffectComp)
+        if w.get(e, EffectComp) is not None
+        and w.get(e, EffectComp).effect_id == DEATH_STAGE_EFFECT_ID
+    ]
+    assert len(death_effs) == 1
+    eff = death_effs[0]
+    assert eff.kind == DEATH_STAGE_KIND
+    assert eff.target_id == p
+    assert eff.detail == "wgargoyle"  # 主路径白无常入口
+    assert eff.duration == 5  # 5 段剧情
+    assert eff.next_tick == 130  # tick=100 + 首延 30
+
+
+def test_die_player_default_tick_first_delay_30() -> None:
+    """die 无 tick 参数（默认 0）时 death_stage 首延 next_tick=30（向后兼容）。"""
+    from xkx.runtime.components import EffectComp
+    from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
+
+    w = World()
+    _make_room(w)
+    p = _make_player(w)
+    die(w, p)  # tick 默认 0
+    death_effs = [
+        w.get(e, EffectComp)
+        for e in w.entities_with(EffectComp)
+        if w.get(e, EffectComp) is not None
+        and w.get(e, EffectComp).effect_id == DEATH_STAGE_EFFECT_ID
+    ]
+    assert len(death_effs) == 1
+    assert death_effs[0].next_tick == 30  # 0 + 首延 30
+
+
+def test_die_npc_no_death_stage_effectcomp() -> None:
+    """NPC die 不启动阴间剧情（仅玩家分支衔接 enter_underworld）。"""
+    from xkx.runtime.components import EffectComp
+    from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
+
+    w = World()
+    _make_room(w)
+    npc = _make_npc(w)
+    die(w, npc, tick=5)
+    death_effs = [
+        w.get(e, EffectComp)
+        for e in w.entities_with(EffectComp)
+        if w.get(e, EffectComp) is not None
+        and w.get(e, EffectComp).effect_id == DEATH_STAGE_EFFECT_ID
+    ]
+    assert death_effs == []
+
+
+def test_die_no_death_room_player_no_underworld() -> None:
+    """no_death 房玩家 die 转 unconcious，不衔接阴间（早退分支）。"""
+    from xkx.runtime.components import EffectComp
+    from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
+
+    w = World()
+    _make_room(w, room_id="safe", no_death=True)
+    p = _make_player(w, room_id="safe")
+    die(w, p, tick=10)
+    # no_death 房转 unconcious，不进鬼魂/阴间
+    assert GHOST_FLAG not in w.get(p, Marks).flags
+    death_effs = [
+        w.get(e, EffectComp)
+        for e in w.entities_with(EffectComp)
+        if w.get(e, EffectComp) is not None
+        and w.get(e, EffectComp).effect_id == DEATH_STAGE_EFFECT_ID
+    ]
+    assert death_effs == []
+
+
+def test_check_death_passes_tick_to_die_underworld() -> None:
+    """check_death 透传 tick 给 die -> enter_underworld（next_tick=tick+30）。"""
+    from xkx.runtime.components import EffectComp
+    from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
+
+    w = World()
+    _make_room(w)
+    p = _make_player(w, eff_qi=-1)  # 致命伤触发 die
+    assert check_death(w, p, tick=50) is True
+    death_effs = [
+        w.get(e, EffectComp)
+        for e in w.entities_with(EffectComp)
+        if w.get(e, EffectComp) is not None
+        and w.get(e, EffectComp).effect_id == DEATH_STAGE_EFFECT_ID
+    ]
+    assert len(death_effs) == 1
+    # check_death tick=50 透传 -> next_tick=50+30=80
+    assert death_effs[0].next_tick == 80
+
+
 # ---- unconcious / revive / reincarnate ----
 
 
