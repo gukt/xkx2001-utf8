@@ -59,6 +59,7 @@ DBASE_KEY_MAP: dict[str, tuple[type, str]] = {
     "jing": (Vitals, "jing"),
     "max_jing": (Vitals, "max_jing"),
     "eff_jing": (Vitals, "eff_jing"),  # 2.2 激活（heal_up 恢复上限）
+    "eff_jingli": (Vitals, "eff_jingli"),  # 2.7 激活（setup_race 用，2.2 遗漏补全）
     "jingli": (Vitals, "jingli"),
     "max_jingli": (Vitals, "max_jingli"),
     "neili": (Vitals, "neili"),
@@ -160,8 +161,7 @@ POSTPONED_KEYS: frozenset[str] = frozenset({
     "looking_for_trouble", "pursuer", "behavior_exp", "thief",
     "last_opponent", "last_damage_from", "last_eff_damage_from",
     "last_fainted_from", "my_killer",
-    # 资源扩展（eff_jingli 后置，Vitals 无字段；eff_jing 2.2 已激活）
-    "eff_jingli",
+    # 资源扩展（eff_jing 2.2 激活；eff_jingli 2.7 激活见 DBASE_KEY_MAP）
     # 角色长期状态（阶段 2 TitleSystem/Race/mud_age 时间系统）
     # 2.5 激活 title/shen 到 TitleComp（ADR-0028 决策 5），race/mud_age 等仍后置
     "race", "mud_age", "mud_age_last", "age_modify",

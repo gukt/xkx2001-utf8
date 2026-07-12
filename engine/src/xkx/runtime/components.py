@@ -43,6 +43,7 @@ class Vitals:
     eff_jing: int = 100  # 2.2：jing 有效上限（heal_up 恢复上限，对齐 eff_qi）
     jingli: int = 100
     max_jingli: int = 100
+    eff_jingli: int = 0  # 2.7：jingli 有效上限（对照 LPC eff_jingli，2.2 遗漏补全）
     neili: int = 0
     max_neili: int = 0
     water: int = 200  # 2.2：水度（heal_up 脱水门控，LPC set("water")）

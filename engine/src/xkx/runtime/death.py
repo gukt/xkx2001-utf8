@@ -8,7 +8,7 @@ make_corpse / announce / check_death，对照 [spec/layer_f_death.py](_die_spec 
 **2.2 范围控制**（收敛，对齐 04 §六 + ADR-0029 Wave 2 范围）：
 - 阴间剧情（黑白无常/还阳）由 2.6 GovernanceSystem 承接：die 玩家分支末调
   ``governance.enter_underworld``（启动 death_stage EffectComp，ADR-0029
-  §决策 6 衔接协议）。die 内仍只做 ghost=1 + move DEATH_ROOM。
+  §决策 6 衔接协议）。die 内仍只做 ghost=1 + move 阴间入口（theme_config.death_room）。
 - break_marriage / break_relation 后置 M3（die 中 stub 跳过）。
 - log_file 死亡日志 + 频道谣言后置 M3（stub 跳过）。
 - skill_death_penalty 简化 stub（所有技能 -1，真实 learned 公式后置 2.3/层 H）。
@@ -51,14 +51,22 @@ from xkx.runtime.conditions import (
 from xkx.runtime.ecs import World
 from xkx.runtime.equipment import unequip
 from xkx.runtime.query import move_to
-
-# 阴间入口房间 id（ADR-0029 决策 3，房间系统未实现用字符串常量，2.6 接管）
-DEATH_ROOM = "death/gate"
+from xkx.runtime.theme import ThemeConfig
 
 # 鬼魂/昏迷标记（Marks.flags，对照 LPC ghost / disable_player）
 GHOST_FLAG = "ghost"
 UNCONSCIOUS_FLAG = "unconscious"
 DISABLED_FLAG = "disabled"
+
+
+def _theme_config(world: World) -> ThemeConfig:
+    """读取 world.theme_config（ADR-0030 决策 2）。
+
+    裸 ``World()``（不经 ``build_world``）无 ``theme_config`` 属性时 fallback 到
+    ``ThemeConfig.default()``（非武侠测试默认配置）。death.py 源码不硬编码武侠
+    房间路径，统一从 ThemeConfig 读取。
+    """
+    return getattr(world, "theme_config", None) or ThemeConfig.default()
 
 
 # ──────────────────────── 死亡触发判定（heart_beat） ────────────────────────
@@ -163,7 +171,8 @@ def reincarnate(world: World, eid: int) -> None:
 def die(world: World, eid: int, killer_id: int | None = None, *, tick: int = 0) -> None:
     """死亡主流程（[spec/layer_f](_die)，feature/damage.c:152-253）。
 
-    no_death 房玩家转 unconcious；玩家 ghost=1 move DEATH_ROOM；NPC 移除 Position。
+    no_death 房玩家转 unconcious；玩家 ghost=1 move 阴间入口
+    （theme_config.death_room）；NPC 移除 Position。
     玩家分支末衔接阴间剧情（governance.enter_underworld 启动 death_stage
     EffectComp，ADR-0029 §决策 3 + §决策 6 衔接协议）。
 
@@ -217,15 +226,16 @@ def die(world: World, eid: int, killer_id: int | None = None, *, tick: int = 0) 
             vitals.eff_jing = vitals.max_jing
             _mark_dirty(world, eid)
             return
-        # ghost=1 + move DEATH_ROOM（阴间入口）+ 衔接阴间剧情（ADR-0029 §决策 3/6）
+        # ghost=1 + move 阴间入口（theme_config.death_room，ADR-0030 决策 2）
+        # + 衔接阴间剧情（ADR-0029 §决策 3/6）
         _set_flag(world, eid, GHOST_FLAG)
-        move_to(world, eid, DEATH_ROOM)
+        move_to(world, eid, _theme_config(world).death_room)
         _save(world, eid)
         # 阴间剧情衔接（2.6）：启动 death_stage EffectComp（gate.c 物品销毁 +
         # 白无常 5 段剧情，首延 30 秒）。延迟 import 规避 governance -> death
         # 反向循环依赖（governance 模块级 import death 用于 reincarnate 等）。
         # 时序：enter_underworld 启动 EffectComp 但首延 30 秒，die 后立即状态
-        # 不变（ghost=1 + DEATH_ROOM + 无还阳），GovernanceSystem tick 推进 30
+        # 不变（ghost=1 + 阴间入口 + 无还阳），GovernanceSystem tick 推进 30
         # 秒后才播第一段剧情（ADR-0029 §决策 4 非均匀 tick）。
         from xkx.runtime import governance
 

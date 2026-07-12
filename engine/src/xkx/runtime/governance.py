@@ -67,10 +67,17 @@ from xkx.runtime.conditions import (
 from xkx.runtime.ecs import World
 from xkx.runtime.query import move_to
 from xkx.runtime.systems import System
+from xkx.runtime.theme import ThemeConfig
 
-# 复用 death.py 的阴间入口常量（ADR-0029 开放问题 3：room_id 字符串常量，
-# 不依赖完整房间系统；与 death.DEATH_ROOM 保持一致避免重复定义）。
-DEATH_ROOM = death.DEATH_ROOM
+
+def _theme_config(world: World) -> ThemeConfig:
+    """读取 world.theme_config（ADR-0030 决策 2）。
+
+    裸 ``World()``（不经 ``build_world``）无 ``theme_config`` 属性时 fallback 到
+    ``ThemeConfig.default()``（非武侠测试默认配置）。governance.py 源码不硬编码
+    武侠房间路径，统一从 ThemeConfig 读取。
+    """
+    return getattr(world, "theme_config", None) or ThemeConfig.default()
 
 # ──────────── 平台级 fail-closed 治理常量（硬编码，ADR-0029 §决策 2） ────────────
 
@@ -112,16 +119,6 @@ _DEATH_STAGE_MSGS: dict[str, tuple[str, ...]] = {
     "bgargoyle": DEATH_STAGE_MSGS_BGARGOYLE,
 }
 
-# 黑无常活人闯入传送目标（对照 bgargoyle.c:64 ob->move("/d/city/wumiao")）。
-BGARGOYLE_LIVING_TELEPORT = "city/wumiao"
-
-# 还阳复活房间（主路径，对照 wgargoyle.c:68 ob->move(REVIVE_ROOM)）。
-# greenfield 房间系统未实现用字符串常量（ADR-0029 开放问题 3）。
-REVIVE_ROOM = "city/wumiao"
-
-# 隐藏路径还阳房间（inn1 ask 回家，对照 ADR-0029 §3 隐藏路径 + 09 §二注意 2）。
-HIDDEN_REVIVE_ROOM = "city/wumiao"
-
 # ──────────────────────── 法院 PK 通缉常量（ADR-0029 §决策 5） ────────────────────────
 
 # region -> effect_id 映射（对照 ADR-0029 §5 四区域通缉表 + 09 §五通缉 condition 文件表）。
@@ -159,14 +156,11 @@ SENTENCE_EXP_TRANSFER_CAP = 3000
 # 受贿销案阈值（对照 kexiu.c:175 ob->value() < combat_exp/10 不足销案）。
 BRIBE_EXP_DIVISOR = 10
 
-# ──────────────────────── 监狱释放房间（对照 city_jail.c:9 me->move） ────────────────────────
+# ──────────────────── 监狱释放房间（ADR-0030 决策 2 外提到 ThemeConfig） ────────────────────
 
-# jail_type -> 释放房间（对照 ADR-0029 §5 监狱表 + LPC city_jail.c / dali / shaolin）。
-JAIL_ROOMS: dict[str, str] = {
-    "city_jail": "city/yamen",  # 扬州衙门，city_jail.c:9
-    "dali_jail": "dali/taihejie5",  # 大理太和街，ADR-0029 §5
-    "bonze_jail": "shaolin/guangchang1",  # 少林广场，ADR-0029 §5
-}
+# jail_type -> 释放房间映射从 world.theme_config.jail_rooms 读取（ADR-0030 决策 2，
+# 对照 ADR-0029 §5 监狱表 + LPC city_jail.c 等 condition 文件）。governance.py 源码
+# 不硬编码武侠房间路径，统一从 ThemeConfig 注入。
 
 # 监狱释放后 startroom 标记前缀（对照 city_jail.c:14 me->set("startroom")）。
 STARTROOM_FLAG_PREFIX = "startroom"
@@ -217,10 +211,12 @@ class GovernanceSystem(System):
                 new_duration = eff.duration - 1
             eff.duration = new_duration
             if new_duration <= 0:
-                # stage 4（最后一段）触发还阳（主路径：丢弃物品 + move REVIVE_ROOM）
+                # stage 4（最后一段）触发还阳（主路径：丢弃物品 + move revive_room）
                 # 黑无常 detail 且活人闯入分支不在此（death_stage 只对 ghost 启动，
                 # bgargoyle 活人闯入在 enter_underworld 前置检查，见 death_stage_handler）
-                reincarnate_at(world, target_id, REVIVE_ROOM, drop_items=True)
+                reincarnate_at(
+                    world, target_id, _theme_config(world).revive_room, drop_items=True
+                )
                 world.remove(effect_eid, EffectComp)
             else:
                 # 更新 next_tick（下一段触发 tick）
@@ -235,7 +231,8 @@ class GovernanceSystem(System):
 def enter_underworld(world: World, eid: int, tick: int, *, gargoyle_eid: int = 0) -> None:
     """die() 触发阴间入口（ADR-0029 §决策 3，对照 d/death/gate.c init）。
 
-    die() 已做 ghost=1 + move DEATH_ROOM（death.py:208-211）。本函数做剩余部分：
+    die() 已做 ghost=1 + move 阴间入口（theme_config.death_room，death.py:208-211）。
+    本函数做剩余部分：
     1. gate.c 物品销毁：destruct 鬼魂 Inventory 所有非 character 物品（防御性，
        death.die make_corpse 已转移物品到尸体留在死亡地点，鬼魂本应无物品）。
     2. 启动 death_stage EffectComp（白无常 5 段剧情，首延 30 秒 + 5 秒间隔）。
@@ -282,7 +279,7 @@ def death_stage_handler(
     stage 反推：``stage = DEATH_STAGE_SEGMENTS - duration``（duration=5 时 stage=0，
     duration=1 时 stage=4）。
 
-    黑无常（detail="bgargoyle"）额外检查 is_ghost：活人闯入直接传送回 wumiao
+    黑无常（detail="bgargoyle"）额外检查 is_ghost：活人闯入直接传送回还阳房间
     （对照 bgargoyle.c:60-66），不推进剧情。greenfield：death_stage 只对 ghost
     启动（die 触发），活人闯入是隐藏路径，本 handler 检测后传送不推进 stage。
 
@@ -296,10 +293,11 @@ def death_stage_handler(
     """
     msgs = _DEATH_STAGE_MSGS.get(eff.detail, DEATH_STAGE_MSGS_WGARGOYLE)
     target_id = eff.target_id
-    # 黑无常活人闯入分支（bgargoyle.c:60-66 !is_ghost -> move wumiao）
+    # 黑无常活人闯入分支（bgargoyle.c:60-66 !is_ghost -> move 还阳房间）
     if eff.detail == "bgargoyle" and not _is_ghost(world, target_id):
-        # 活人闯入阴间：传送回 wumiao，不推进剧情（隐藏路径，ADR-0029 §3）
-        move_to(world, target_id, BGARGOYLE_LIVING_TELEPORT)
+        # 活人闯入阴间：传送回还阳房间（theme_config.revive_room），不推进剧情
+        # （隐藏路径，ADR-0029 §3）
+        move_to(world, target_id, _theme_config(world).revive_room)
         _mark_dirty(world, target_id)
         # 返回 new_duration=0 让 update 移除 EffectComp（剧情终止）
         return ConditionTriggerResult(
@@ -325,13 +323,16 @@ def reincarnate_at(
     """还阳（ADR-0029 §决策 3，对照 wgargoyle.c:62 reincarnate + DROP + move）。
 
     两条还阳路径统一入口（ADR-0029 §3 两条路径）：
-    - 主路径：黑白无常 5 段剧情结束 -> reincarnate + DROP_CMD 丢弃物品 + move REVIVE_ROOM。
-    - 隐藏路径：inn1 ask 回家 -> reincarnate + move wumiao（不丢弃物品）。
+    - 主路径：黑白无常 5 段剧情结束 -> reincarnate + DROP_CMD 丢弃物品 + move
+      ``theme_config.revive_room``（GovernanceSystem.update 调用）。
+    - 隐藏路径：inn1 ask 回家 -> reincarnate + move ``theme_config.revive_room``
+      （不丢弃物品，调用方传 ``drop_items=False``）。
 
     Args:
         world: ECS 世界。
         eid: 鬼魂实体 id。
-        revive_room: 还阳目标房间 id（主路径 REVIVE_ROOM / 隐藏路径 HIDDEN_REVIVE_ROOM）。
+        revive_room: 还阳目标房间 id（主路径/隐藏路径均由调用方从
+            ``world.theme_config.revive_room`` 读取传入）。
         drop_items: True=丢弃所有 Inventory 物品到房间地面（主路径）；
             False=不丢弃（隐藏路径，鬼魂本应无物品）。
     """
@@ -486,8 +487,8 @@ def bribe_clear_wanted(world: World, eid: int, amount: int) -> bool:
 def release_from_jail(world: World, eid: int, jail_type: str) -> None:
     """监狱 condition 到期释放（ADR-0029 §决策 5，对照 city_jail.c:9-14 update_condition）。
 
-    监狱 condition 到期时 move 出监狱房间（move_to JAIL_ROOMS[jail_type]）+ 设
-    startroom 标记（Marks.flags 加 "startroom:{room}"，对照 city_jail.c:14
+    监狱 condition 到期时 move 出监狱房间（move_to ``theme_config.jail_rooms[jail_type]``）
+    + 设 startroom 标记（Marks.flags 加 "startroom:{room}"，对照 city_jail.c:14
     me->set("startroom", "/d/city/yamen")）。
 
     Args:
@@ -495,7 +496,7 @@ def release_from_jail(world: World, eid: int, jail_type: str) -> None:
         eid: 服刑实体 id。
         jail_type: 监狱类型（"city_jail"|"dali_jail"|"bonze_jail"）。
     """
-    release_room = JAIL_ROOMS.get(jail_type)
+    release_room = _theme_config(world).jail_rooms.get(jail_type)
     if release_room is None:
         return  # 未知 jail_type 不释放（fail-closed）
     move_to(world, eid, release_room)

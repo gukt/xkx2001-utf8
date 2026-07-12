@@ -3,9 +3,9 @@
 > 本文件是跨 session 的"活的状态"--每个 session 第一件事读它，知道做到哪、下一步做啥、什么卡住。
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
-**最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 3 2.4 Combat 编码完成（ADR-0027 落地，1514 tests 全绿），下一步 Wave 4 2.7 门派切割
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。**Wave 3 2.4 Combat 编码完成**（ADR-0027 落地：call_out -> Effect 翻译 start_* 同步执行 + 5 防御检查 + CombatModifier 协同修正接口 + special_attack 调用点 + golden trace diff 三层协议，agent teams 2 批次 4 agent，1514 tests 全绿，关联 dissent 1/4/7）。golden trace diff CLI 端到端三层全 PASS（L1 卡方 p>0.05 / L2 七步结构 / L3 占位符渲染）。下一步 Wave 4 2.7 门派切割（主题无关性硬门禁收官）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
+**最后更新**：2026-07-13
+**当前阶段**：阶段 2 全部完成（Wave 4 2.7 门派切割完成，1598 tests 全绿），下一步 M3 单题材武侠 demo
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
 
@@ -400,6 +400,19 @@
   - **1514 tests 全绿（+93），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过；golden trace diff CLI 端到端三层全 PASS
   - 关联 dissent 1（CombatKernel 主题无关，阵法合击题材内容不进内核）+ dissent 4（golden trace diff 定位辅助验证非主线门禁）+ dissent 7（call_out 翻译 EffectComp 审计轨迹）
 
+- [x] **阶段 2 Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地 / [15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.7）：
+  - **race 层剥离**（决策 1）：[race.py](engine/src/xkx/runtime/race.py) RaceProfile 数据声明 + setup_race 纯函数（年龄分层 max_jing/max_qi/max_jingli 公式 + 70 岁衰减 + max_potential/max_encumbrance/weight，公式参数从 profile 读取不硬编码门派名）+ [family.py](engine/src/xkx/runtime/family.py) FamilyBonus 声明式载体 + apply_family_bonuses 分发函数（family_name 字符串匹配 + 条件检查 + 公式计算，不认识具体门派名）
+  - **ThemeConfig 房间路径外提**（决策 2）：[theme.py](engine/src/xkx/runtime/theme.py) ThemeConfig（start_room/death_room/revive_room/jail_rooms + default 非武侠/wuxia 武侠）+ [world.py](engine/src/xkx/runtime/world.py) build_world 加 theme_config 参数 + governance.py/death.py/cli.py 改读 world.theme_config（源码无武侠房间路径字面量）
+  - **dbase key 兼容层保真让步豁免**（决策 3）：dbase_map.py 的 "dali/rank" + TitleComp.dali_rank 字段名保留（LPC dbase key 兼容，类比 ADR-0003 qi/jing 拼音保留），test_theme_neutrality 硬门禁豁免
+  - **test_theme_neutrality 扩展收官硬门禁**（决策 4）：扫描范围扩展到 governance/death/cli/race/family，黑名单加门派名（武当/少林/峨嵋/华山/丐帮/桃花/古墓/灵鹫/星宿/白驼/明教/雪山派/血刀/大理段/全真）+ 武侠房间路径（shaolin//dali//xueshan//huashan//wudang//emei/），+4 tests
+  - **1-2 门派验证**（决策 5）：武当派保气标准加成（FamilyBonus 标准载体）+ 海盗帮派航行加成（非武侠 FamilyBonus 边界验证）
+  - **Vitals 补 eff_jingli**（2.2 遗漏补全）：LPC human.c 行 212/404 引用 eff_jingli，2.2 扩展 eff_jing 漏了 eff_jingli，2.7 补全 + dbase_map 激活
+  - **spec 层规格补充**（开放问题 1）：[layer_h_race.py](engine/src/xkx/spec/layer_h_race.py) setup_race + apply_family_bonuses 最小 FunctionSpec 契约（不穷尽 13 门派公式）+ [test_spec_race.py](engine/tests/test_spec_race.py) 41 tests
+  - **max_jingli 下限保护**：con<14 时 (con-14) 为负致 max_jingli 为负（LPC 边界 bug），加 max_jingli = max(max_jingli, 1) 下限保护（对照 human.c 行 417 setup_char 兜底）
+  - agent teams 3 路并行：A race.py+family.py+test / B theme.py+world/governance/death/cli 改 / C spec 层；A+C 完成后修复 B 的 test 适配 + test_theme_neutrality 扩展
+  - **1598 tests 全绿（+84：80 test_race_family + 41 test_spec_race + 4 test_theme_neutrality 扩展 - 适配调整），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 1（CombatKernel 主题无关性延伸：race 层 + 门派加成是 combat 之外的主题无关性收官）+ dissent 5（themed 治理，门派内容是题材包资产非治理逻辑）+ dissent 10（平台特性范围过载，只切割不全量迁移）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -454,7 +467,7 @@
 
 ## Next Up
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 全部完成（2.2/2.3/2.5/2.6，1421 tests 全绿）。Wave 3 2.4 Combat 编码完成（1514 tests 全绿）。下一步 Wave 4 2.7 门派切割**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**阶段 2 全部完成**（Wave 1 2.1 + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割，1598 tests 全绿）。**阶段 2 -> M3 决策检查点全部通过**。下一步 M3 单题材武侠完整可玩 demo（[04 §三 M3](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
@@ -463,19 +476,19 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：Wave 4 2.7 门派切割（主题无关性硬门禁收官，2-3 周）。2.4 Combat 已完成（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 落地，call_out 翻译 + CombatModifier 接口 + golden trace diff 三层协议，1514 tests 全绿）。2.7 依赖 2.4（CombatKernel 主题无关性），需 ADR-0030 门派内容包边界切割 + race 层剥离。
+**下一步主线**：M3 单题材武侠完整可玩 demo（6-8 月）。2.7 门派切割已完成（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地，RaceProfile + FamilyBonus + ThemeConfig + test_theme_neutrality 收官硬门禁，1598 tests 全绿）。M3 在阶段 2 基础上：武侠核心循环可玩（拜师/练功/战斗/任务/死亡轮回）+ 官方 StdLib CPK（武侠内容以 CPK 形式入库，2.7 边界已切）+ 内容审核 pipeline MVP + 版权清洗（金庸衍生 71 文件）+ 全仿真确定性决策点（M3 后评估）。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
 - Wave 2：2.2 ✅ / 2.3 ✅ / 2.5 ✅ / 2.6 ✅ 全部完成（逐个串行，用户裁决避免共享文件合并冲突）
 - Wave 3：2.4 Combat ✅ 完成（高风险，ADR-0027 落地，1514 tests）
-- Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
+- Wave 4：2.7 门派切割 ✅ 完成（主题无关性硬门禁收官，ADR-0030 落地，1598 tests）
 
 **阶段 2 -> M3 决策检查点**（04 §八，待阶段 2 完成）：
 - [x] Combat 迁移行为等价验证 + 文本体验流 diff？（2.4 ✅，golden trace diff 三层全 PASS + ConformanceChecker 8 项全通过）
 - [x] 技能三层明确？（2.3 ✅）
 - [x] 称谓系统、世界观治理层落地？（2.5 ✅ / 2.6 ✅）
-- [ ] 门派内容包边界干净切割？（2.7）
+- [x] 门派内容包边界干净切割？（2.7 ✅，ADR-0030 落地，test_theme_neutrality 收官硬门禁全通过）
 
 **可穿插推进**（非阶段 2 前置）：
 - [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：do_attack 七步文本 + 概率统计 dodge 27%/hit 73%（dissent 4 基线测试路径打通）；valid_leave 命中行为基线后置（layer1 已有属性测试）

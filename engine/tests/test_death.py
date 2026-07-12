@@ -19,7 +19,6 @@ from xkx.runtime.components import (
 )
 from xkx.runtime.conditions import apply_condition, query_condition
 from xkx.runtime.death import (
-    DEATH_ROOM,
     GHOST_FLAG,
     UNCONSCIOUS_FLAG,
     check_death,
@@ -32,6 +31,17 @@ from xkx.runtime.death import (
     unconcious,
 )
 from xkx.runtime.ecs import World
+from xkx.runtime.theme import ThemeConfig
+
+# ADR-0030 决策 2：房间路径从 ThemeConfig 获取（death.py 不再导出 DEATH_ROOM）
+DEATH_ROOM = ThemeConfig.wuxia().death_room
+
+
+def _new_world() -> World:
+    """创建带武侠 theme_config 的 World（die/reincarnate 读 theme_config.death_room）。"""
+    world = World()
+    world.theme_config = ThemeConfig.wuxia()  # type: ignore[attr-defined]
+    return world
 
 
 def _make_player(
@@ -94,7 +104,7 @@ def _make_room(world: World, *, room_id: str = "city/room1", no_death: bool = Fa
 
 def test_check_death_eff_qi_negative_dies() -> None:
     """eff_qi<0 直接触发 die（致命伤）。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, eff_qi=-1)
     assert check_death(w, p, tick=0) is True
@@ -104,7 +114,7 @@ def test_check_death_eff_qi_negative_dies() -> None:
 
 def test_check_death_qi_negative_unconcious() -> None:
     """qi<0 且 living 触发 unconcious（首次昏迷）。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, qi=-1)
     assert check_death(w, p, tick=0) is True
@@ -116,7 +126,7 @@ def test_check_death_qi_negative_unconcious() -> None:
 
 def test_check_death_qi_negative_already_unconscious_dies() -> None:
     """qi<0 且已昏迷（!living）触发 die（昏迷中再受创->死）。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, qi=-1)
     w.add(p, Marks(flags={UNCONSCIOUS_FLAG}))
@@ -126,7 +136,7 @@ def test_check_death_qi_negative_already_unconscious_dies() -> None:
 
 def test_check_death_no_trigger_when_healthy() -> None:
     """健康状态不触发死亡/昏迷。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, qi=100)
     assert check_death(w, p, tick=0) is False
@@ -137,7 +147,7 @@ def test_check_death_no_trigger_when_healthy() -> None:
 
 def test_die_player_ghost_and_move_death_room() -> None:
     """玩家 die 后 ghost=1 + move DEATH_ROOM + 血量清 1。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w)
     die(w, p)
@@ -150,7 +160,7 @@ def test_die_player_ghost_and_move_death_room() -> None:
 
 def test_die_npc_removes_position() -> None:
     """NPC die 后移除 Position（从房间消失）。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     npc = _make_npc(w)
     die(w, npc)
@@ -159,7 +169,7 @@ def test_die_npc_removes_position() -> None:
 
 def test_die_no_death_room_player_unconcious() -> None:
     """no_death 房玩家 die 转 unconcious（不真死，不进鬼魂）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="safe", no_death=True)
     p = _make_player(w, room_id="safe")
     die(w, p)
@@ -170,7 +180,7 @@ def test_die_no_death_room_player_unconcious() -> None:
 
 def test_die_clears_conditions() -> None:
     """die 清除所有 condition。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w)
     apply_condition(w, p, "poisoned", 10)
@@ -191,7 +201,7 @@ def test_die_player_starts_death_stage_effectcomp() -> None:
     from xkx.runtime.components import EffectComp, Inventory
     from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID, DEATH_STAGE_KIND
 
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w)
     w.add(p, Inventory(items={"sword", "potion"}))
@@ -222,7 +232,7 @@ def test_die_player_default_tick_first_delay_30() -> None:
     from xkx.runtime.components import EffectComp
     from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
 
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w)
     die(w, p)  # tick 默认 0
@@ -241,7 +251,7 @@ def test_die_npc_no_death_stage_effectcomp() -> None:
     from xkx.runtime.components import EffectComp
     from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
 
-    w = World()
+    w = _new_world()
     _make_room(w)
     npc = _make_npc(w)
     die(w, npc, tick=5)
@@ -259,7 +269,7 @@ def test_die_no_death_room_player_no_underworld() -> None:
     from xkx.runtime.components import EffectComp
     from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
 
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="safe", no_death=True)
     p = _make_player(w, room_id="safe")
     die(w, p, tick=10)
@@ -279,7 +289,7 @@ def test_check_death_passes_tick_to_die_underworld() -> None:
     from xkx.runtime.components import EffectComp
     from xkx.runtime.governance import DEATH_STAGE_EFFECT_ID
 
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, eff_qi=-1)  # 致命伤触发 die
     assert check_death(w, p, tick=50) is True
@@ -299,7 +309,7 @@ def test_check_death_passes_tick_to_die_underworld() -> None:
 
 def test_unconcious_clears_vitals_and_sets_flag() -> None:
     """unconcious 清零 qi/jing/jingli + 设 unconscious 标记 + revive 定时器。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, qi=50, jing=50, jingli=50)
     unconcious(w, p)
@@ -313,7 +323,7 @@ def test_unconcious_clears_vitals_and_sets_flag() -> None:
 
 def test_unconcious_skips_if_already_unconscious() -> None:
     """已昏迷不再触发 unconcious（LPC 前置条件）。"""
-    w = World()
+    w = _new_world()
     _make_room(w)
     p = _make_player(w, qi=50)
     w.add(p, Marks(flags={UNCONSCIOUS_FLAG}))
@@ -323,7 +333,7 @@ def test_unconcious_skips_if_already_unconscious() -> None:
 
 def test_revive_clears_flag() -> None:
     """revive 清 unconscious 标记 + 移除 revive 定时器。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     w.add(p, Marks(flags={UNCONSCIOUS_FLAG}))
     apply_condition(w, p, "revive", 30)
@@ -334,7 +344,7 @@ def test_revive_clears_flag() -> None:
 
 def test_reincarnate_full_restore() -> None:
     """reincarnate 完整恢复 qi/jing/eff 到 max + 清 ghost。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, qi=1, eff_qi=1, jing=1, eff_jing=1)
     w.add(p, Marks(flags={GHOST_FLAG}))
     reincarnate(w, p)
@@ -352,7 +362,7 @@ def test_reincarnate_full_restore() -> None:
 
 def test_death_penalty_high_exp() -> None:
     """combat_exp>5000 扣 amount=combat_exp/100 + potential 扣半。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=10000, potential=100)
     death_penalty(w, p)
     prog = w.get(p, Progression)
@@ -362,7 +372,7 @@ def test_death_penalty_high_exp() -> None:
 
 def test_death_penalty_mid_exp() -> None:
     """20 < combat_exp <= 5000 扣固定 20（potential 不扣）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=100, potential=100)
     death_penalty(w, p)
     prog = w.get(p, Progression)
@@ -372,7 +382,7 @@ def test_death_penalty_mid_exp() -> None:
 
 def test_death_penalty_low_exp_no_deduction() -> None:
     """combat_exp <= 20 不扣。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=10, potential=100)
     death_penalty(w, p)
     prog = w.get(p, Progression)
@@ -393,7 +403,7 @@ def test_death_penalty_deterministic() -> None:
 
 def test_death_penalty_skill_stub() -> None:
     """skill_death_penalty stub：所有技能 -1（LPC < 0 才删除，0 级保留）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     w.add(p, Skills(levels={"unarmed": 5, "dodge": 0}))
     death_penalty(w, p)
@@ -407,7 +417,7 @@ def test_death_penalty_skill_stub() -> None:
 
 def test_killer_reward_city_killer_condition() -> None:
     """killer 玩家在 /d/city/ 城区杀人施加 killer condition 100 tick。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     killer = _make_player(w, room_id="city/room1")
     victim = _make_player(w, room_id="city/room1")
@@ -417,7 +427,7 @@ def test_killer_reward_city_killer_condition() -> None:
 
 def test_killer_reward_non_city_no_killer_condition() -> None:
     """非城区杀人不施加 killer condition。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="forest/room1")
     killer = _make_player(w, room_id="forest/room1")
     victim = _make_player(w, room_id="forest/room1")
@@ -427,7 +437,7 @@ def test_killer_reward_non_city_no_killer_condition() -> None:
 
 def test_killer_reward_pvp_pker_accumulate() -> None:
     """双玩家 PvP 施加 pker +120（叠加）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     killer = _make_player(w, room_id="city/room1")
     victim = _make_player(w, room_id="city/room1")
@@ -439,7 +449,7 @@ def test_killer_reward_pvp_pker_accumulate() -> None:
 
 def test_killer_reward_npc_victim_no_pker() -> None:
     """victim 是 NPC 不施加 pker（仅 PvP）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     killer = _make_player(w, room_id="city/room1")
     victim = _make_npc(w, room_id="city/room1")
@@ -452,7 +462,7 @@ def test_killer_reward_npc_victim_no_pker() -> None:
 
 def test_make_corpse_transfers_inventory() -> None:
     """make_corpse 生成尸体 + 物品转移到尸体。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     npc = _make_npc(w, room_id="city/room1")
     w.add(npc, Inventory(items={"sword", "potion"}))
@@ -464,7 +474,7 @@ def test_make_corpse_transfers_inventory() -> None:
 
 def test_make_corpse_ghost_no_corpse() -> None:
     """ghost 死者不生成尸体，物品掉环境。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     p = _make_player(w, room_id="city/room1")
     w.add(p, Marks(flags={GHOST_FLAG}))
@@ -477,7 +487,7 @@ def test_make_corpse_ghost_no_corpse() -> None:
 
 def test_make_corpse_has_identity() -> None:
     """尸体有 Identity（名字=死者名+的尸体）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, room_id="city/room1")
     npc = _make_npc(w, room_id="city/room1")
     w.add(npc, Inventory(items=set()))

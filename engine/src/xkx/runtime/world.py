@@ -46,6 +46,7 @@ from xkx.runtime.storage import (
     StorageBackend,
     StorageSystem,
 )
+from xkx.runtime.theme import ThemeConfig
 
 
 def build_world(
@@ -54,6 +55,7 @@ def build_world(
     storage_backend: StorageBackend | None = None,
     persist_interval: int = DEFAULT_PERSIST_INTERVAL,
     checkpoint_interval: int = DEFAULT_CHECKPOINT_INTERVAL,
+    theme_config: ThemeConfig | None = None,
 ) -> tuple[World, dict[str, int], dict[str, dict]]:
     """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
 
@@ -64,6 +66,11 @@ def build_world(
     ADR-0022 T5：可选 ``storage_backend`` 传入时创建 ``StorageSystem`` 并挂到
     ``world.storage_system``（动态属性，不改 World 类）。调用方通过该属性驱动 tick
     persist + mark_dirty。不传则不接入存档（向后兼容现有调用方）。
+
+    ADR-0030 决策 2：可选 ``theme_config`` 传入时挂到 ``world.theme_config``
+    （动态属性，类比 ``storage_system`` 注入模式）。``None`` 时用
+    ``ThemeConfig.default()``（非武侠测试默认配置）。governance/death/cli 通过
+    ``world.theme_config`` 读取房间路径，不硬编码武侠路径字面量。
     """
     schema = SchemaRegistry.with_builtins()
     issues = validate_dbase_map(schema)
@@ -72,6 +79,8 @@ def build_world(
             "DBASE_KEY_MAP 映射校验失败（ADR-0019）:\n" + "\n".join(issues)
         )
     world = World(schema)
+    # ADR-0030 决策 2：注入 ThemeConfig（None 用默认非武侠配置）
+    world.theme_config = theme_config or ThemeConfig.default()  # type: ignore[attr-defined]
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}

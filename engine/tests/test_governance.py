@@ -43,13 +43,11 @@ from xkx.runtime.conditions import (
     query_condition,
 )
 from xkx.runtime.death import (
-    DEATH_ROOM,
     GHOST_FLAG,
     die,
 )
 from xkx.runtime.ecs import World
 from xkx.runtime.governance import (
-    BGARGOYLE_LIVING_TELEPORT,
     BRIBE_EXP_DIVISOR,
     DEATH_STAGE_EFFECT_ID,
     DEATH_STAGE_FIRST_DELAY,
@@ -59,9 +57,6 @@ from xkx.runtime.governance import (
     DEATH_STAGE_MSGS_WGARGOYLE,
     DEATH_STAGE_SEGMENTS,
     EMBEDDED_FLAG,
-    HIDDEN_REVIVE_ROOM,
-    JAIL_ROOMS,
-    REVIVE_ROOM,
     SENTENCE_DURATION_HIGH,
     SENTENCE_DURATION_LOW,
     SENTENCE_DURATION_MID,
@@ -84,6 +79,23 @@ from xkx.runtime.governance import (
     release_from_jail,
 )
 from xkx.runtime.serialization import deserialize_component, serialize_component
+from xkx.runtime.theme import ThemeConfig
+
+# ADR-0030 决策 2：房间路径从 ThemeConfig 获取（governance.py/death.py 不再导出
+# DEATH_ROOM/JAIL_ROOMS/REVIVE_ROOM/HIDDEN_REVIVE_ROOM/BGARGOYLE_LIVING_TELEPORT）
+_WUXIA = ThemeConfig.wuxia()
+DEATH_ROOM = _WUXIA.death_room
+REVIVE_ROOM = _WUXIA.revive_room
+HIDDEN_REVIVE_ROOM = _WUXIA.revive_room  # 隐藏路径还阳到同一房间
+BGARGOYLE_LIVING_TELEPORT = _WUXIA.revive_room  # 黑无常活人传送还阳房间
+JAIL_ROOMS = _WUXIA.jail_rooms
+
+
+def _new_world() -> World:
+    """创建带武侠 theme_config 的 World（governance/death 读 theme_config）。"""
+    world = World()
+    world.theme_config = ThemeConfig.wuxia()  # type: ignore[attr-defined]
+    return world
 
 # ──────────────────────── 测试辅助：世界 + 实体构造 ────────────────────────
 
@@ -197,7 +209,7 @@ def test_governance_constants_hardcoded_values() -> None:
 
 def test_wanted_duration_default_not_modified_by_caller() -> None:
     """apply_wanted 默认 duration=100（调用方不传则用 WANTED_DURATION）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, "city")  # 不传 duration
     assert query_condition(w, p, "killer") == WANTED_DURATION
@@ -259,7 +271,7 @@ def test_enter_underworld_clears_inventory_and_starts_death_stage() -> None:
     EffectComp 字段：effect_id=death_stage, kind=governance_dialog, detail=wgargoyle,
     duration=5, next_tick=tick+30, tick_interval=5, source_id=gargoyle_eid。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     p = _make_player(w, items={"sword", "potion"})
     gargoyle = w.new_entity()  # 无常 NPC
@@ -284,7 +296,7 @@ def test_enter_underworld_clears_inventory_and_starts_death_stage() -> None:
 
 def test_enter_underworld_default_gargoyle_eid_zero() -> None:
     """enter_underworld 不传 gargoyle_eid 时 source_id=0（无常 NPC 可选）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     enter_underworld(w, p, tick=0)
     eff = _death_stage_effs(w)[0]
@@ -297,7 +309,7 @@ def test_governance_update_advances_death_stage_five_segments() -> None:
 
     每 tick 推进一段，duration 5->4->3->2->1，stage 0-4 对话。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     _make_room(w, REVIVE_ROOM)
     p = _make_player(w, items=set())  # 鬼魂无物品（gate.c 已销毁）
@@ -327,7 +339,7 @@ def test_governance_update_advances_death_stage_five_segments() -> None:
 
 def test_governance_update_non_due_tick_no_advance() -> None:
     """非均匀 tick：next_tick > tick 的 EffectComp 不触发（ADR-0018 §3）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     p = _make_player(w)
     enter_underworld(w, p, tick=100)  # next_tick=130
@@ -345,7 +357,7 @@ def test_reincarnate_main_path_drops_items_and_moves() -> None:
     前），物品掉在鬼魂当前位置（DEATH_ROOM），随后 move 到 REVIVE_ROOM。
     对照 wgargoyle.c:62-68 reincarnate + DROP + move 顺序。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     _make_room(w, REVIVE_ROOM)
     p = _make_player(
@@ -382,7 +394,7 @@ def test_reincarnate_main_path_drops_items_and_moves() -> None:
 
 def test_reincarnate_hidden_path_no_drop() -> None:
     """还阳隐藏路径：reincarnate_at(drop_items=False) 不丢弃物品。"""
-    w = World()
+    w = _new_world()
     _make_room(w, HIDDEN_REVIVE_ROOM)
     p = _make_player(
         w,
@@ -407,7 +419,7 @@ def test_reincarnate_hidden_path_no_drop() -> None:
 def test_full_underworld_reincarnation_loop_via_die() -> None:
     """完整闭环：die(player) -> enter_underworld -> GovernanceSystem 推进 5 段 ->
     还阳主路径（tick=100,130,135,140,145,150）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, "city/room1")
     _make_room(w, DEATH_ROOM)
     _make_room(w, REVIVE_ROOM)
@@ -436,7 +448,7 @@ def test_full_underworld_reincarnation_loop_via_die() -> None:
 
 def test_death_stage_handler_returns_stage_messages() -> None:
     """death_stage_handler 纯函数：返回对应 stage 的对话 + new_duration 衰减。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, is_ghost=True)
     # duration=5 -> stage=0
     eff = EffectComp(
@@ -468,7 +480,7 @@ def test_die_make_corpse_transfers_items_before_ghost_move() -> None:
     断言：死亡房间有尸体（尸体 Inventory 含被转移物品），鬼魂在 DEATH_ROOM 且
     Inventory 为空（gate.c 销毁）。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, "city/room1")
     _make_room(w, DEATH_ROOM)
     p = _make_player(w, room_id="city/room1", items={"sword", "potion"})
@@ -498,7 +510,7 @@ def test_enter_underworld_defensive_destroy_remaining_items() -> None:
     正常路径 die.make_corpse 已转移物品，鬼魂本应无物品；本测试手动给鬼魂加
     物品后调 enter_underworld，验证 gate.c 防御性销毁仍清空。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     p = _make_player(w, room_id=DEATH_ROOM, is_ghost=True, items={"leftover"})
 
@@ -537,7 +549,7 @@ def test_death_stage_progress_survives_cold_restart() -> None:
     鬼魂玩家 + death_stage EffectComp 序列化 -> 反序列化到新 world ->
     鬼魂仍在阴间 + death_stage 进度继续（duration 不衰减，崩溃期间剧情暂停）。
     """
-    w1 = World()
+    w1 = _new_world()
     _make_room(w1, DEATH_ROOM)
     p = _make_player(w1, room_id=DEATH_ROOM, is_ghost=True)
     enter_underworld(w1, p, tick=100)
@@ -554,7 +566,7 @@ def test_death_stage_progress_survives_cold_restart() -> None:
     eff_data = serialize_component(eff1)
 
     # 冷重启：反序列化到新 world（崩溃期间无 tick 推进，duration 不衰减）
-    w2 = World()
+    w2 = _new_world()
     _make_room(w2, DEATH_ROOM)
     new_p = w2.new_entity()
     w2.add(new_p, deserialize_component(Marks, ghost_data["Marks"]))
@@ -578,7 +590,7 @@ def test_death_stage_no_decay_during_pause() -> None:
 
     模拟：启动 death_stage 后不调 update（引擎停摆），duration 保持 5。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     p = _make_player(w, is_ghost=True)
     enter_underworld(w, p, tick=100)
@@ -596,7 +608,7 @@ def test_bgargoyle_living_teleport_to_wumiao() -> None:
     对照 bgargoyle.c:60-66 ob->move("/d/city/wumiao")。
     death_stage_handler 返回 new_duration=0，update 移除 EffectComp。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, "death/gate")
     _make_room(w, BGARGOYLE_LIVING_TELEPORT)
     living = _make_player(w, room_id="death/gate", is_ghost=False)  # 活人
@@ -627,7 +639,7 @@ def test_bgargoyle_living_teleport_to_wumiao() -> None:
 
 def test_bgargoyle_handler_living_returns_zero_duration() -> None:
     """death_stage_handler 黑无常活人分支返回 new_duration=0 + 传送消息。"""
-    w = World()
+    w = _new_world()
     _make_room(w, BGARGOYLE_LIVING_TELEPORT)
     living = _make_player(w, is_ghost=False)
     eff = EffectComp(
@@ -651,7 +663,7 @@ def test_wgargoyle_does_not_check_is_ghost() -> None:
 
     白无常是鬼门关入口，只对 ghost 启动；活人不会进入白无常剧情（无活人分支）。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, DEATH_ROOM)
     ghost = _make_player(w, room_id=DEATH_ROOM, is_ghost=True)
     eff = EffectComp(
@@ -683,7 +695,7 @@ def test_wgargoyle_does_not_check_is_ghost() -> None:
 )
 def test_apply_wanted_four_regions(region: str, effect_id: str) -> None:
     """apply_wanted 四区域：city/xa/dl/bj -> killer/xakiller/dlkiller/bjkiller。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, region)
     assert query_condition(w, p, effect_id) == WANTED_DURATION
@@ -691,7 +703,7 @@ def test_apply_wanted_four_regions(region: str, effect_id: str) -> None:
 
 def test_apply_wanted_unknown_region_no_op() -> None:
     """未知 region 不施加（fail-closed，不静默 fallback 到通用 killer）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, "unknown_region")
     assert query_condition(w, p, "killer") == 0
@@ -700,7 +712,7 @@ def test_apply_wanted_unknown_region_no_op() -> None:
 
 def test_apply_wanted_custom_duration() -> None:
     """apply_wanted 自定义 duration（调用方可指定非默认时长）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, "city", duration=50)
     assert query_condition(w, p, "killer") == 50
@@ -712,7 +724,7 @@ def test_apply_wanted_custom_duration() -> None:
 )
 def test_query_wanted_returns_region(region: str) -> None:
     """query_wanted 返回 region（"city" 等）或 None（无通缉）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, region)
     assert query_wanted(w, p) == region
@@ -720,7 +732,7 @@ def test_query_wanted_returns_region(region: str) -> None:
 
 def test_query_wanted_none_when_no_wanted() -> None:
     """无通缉 condition 时 query_wanted 返回 None。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     assert query_wanted(w, p) is None
 
@@ -729,7 +741,7 @@ def test_bjkiller_supported_without_lpc_condition_file() -> None:
     """bjkiller 无 LPC condition 文件也支持（apply_condition 直接施加，走 _default
     衰减容错）。bjkiller 无注册 handler，ConditionSystem.update 走 _default_trigger
     衰减。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, "bj")
     assert query_condition(w, p, "bjkiller") == WANTED_DURATION
@@ -740,7 +752,7 @@ def test_bjkiller_supported_without_lpc_condition_file() -> None:
 
 def test_query_wanted_first_match_deterministic() -> None:
     """多 condition 同时存在时返回首个匹配（WANTED_REGIONS 迭代顺序，无 random）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     # 同时施加 city 和 xa 通缉
     apply_wanted(w, p, "city")
@@ -767,7 +779,7 @@ def test_query_wanted_first_match_deterministic() -> None:
 )
 def test_proceed_sentencing_pks_grading(pks: int, expected_sentence: int) -> None:
     """proceed_sentencing PKS 分级量刑（>99=>500 / >74=>300 / >49=>200 / <=49=>0）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=pks, combat_exp=0)  # combat_exp=0 避免经验转移干扰
     arrester = _make_arrester(w)
     sentence = proceed_sentencing(w, p, arrester)
@@ -780,7 +792,7 @@ def test_proceed_sentencing_pks_grading(pks: int, expected_sentence: int) -> Non
 
 def test_proceed_sentencing_embedded_flag() -> None:
     """穿琵琶骨：Marks.flags 含 EMBEDDED_FLAG（对照 set("embedded", 1)）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=0)
     arrester = _make_arrester(w)
     proceed_sentencing(w, p, arrester)
@@ -789,7 +801,7 @@ def test_proceed_sentencing_embedded_flag() -> None:
 
 def test_proceed_sentencing_clears_inventory() -> None:
     """审判清空被审 eid 的 Inventory（destruct 所有物品）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=0, items={"sword", "armor"})
     arrester = _make_arrester(w)
     proceed_sentencing(w, p, arrester)
@@ -798,7 +810,7 @@ def test_proceed_sentencing_clears_inventory() -> None:
 
 def test_proceed_sentencing_exp_transfer_high_pks() -> None:
     """经验转移：PKS>99 时 arrester.combat_exp += bonus（combat_exp//10，上限 3000）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=10000)
     arrester = _make_arrester(w, combat_exp=0)
     proceed_sentencing(w, p, arrester)
@@ -810,7 +822,7 @@ def test_proceed_sentencing_exp_transfer_high_pks() -> None:
 
 def test_proceed_sentencing_exp_transfer_cap_3000() -> None:
     """经验转移上限 3000（combat_exp//10 > 3000 时截断）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=100000)  # 100000//10=10000 > 3000
     arrester = _make_arrester(w, combat_exp=0)
     proceed_sentencing(w, p, arrester)
@@ -819,7 +831,7 @@ def test_proceed_sentencing_exp_transfer_cap_3000() -> None:
 
 def test_proceed_sentencing_exp_transfer_mid_pks_two_thirds() -> None:
     """PKS>74（MID）经验转移 = bonus * 2 // 3。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=75, combat_exp=9000)  # bonus=900
     arrester = _make_arrester(w, combat_exp=0)
     proceed_sentencing(w, p, arrester)
@@ -829,7 +841,7 @@ def test_proceed_sentencing_exp_transfer_mid_pks_two_thirds() -> None:
 
 def test_proceed_sentencing_exp_transfer_low_pks_half() -> None:
     """PKS>49（LOW）经验转移 = bonus // 2。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=50, combat_exp=8000)  # bonus=800
     arrester = _make_arrester(w, combat_exp=0)
     proceed_sentencing(w, p, arrester)
@@ -839,7 +851,7 @@ def test_proceed_sentencing_exp_transfer_low_pks_half() -> None:
 
 def test_proceed_sentencing_clears_existing_conditions() -> None:
     """proceed_sentencing 先 clear_condition（清所有 condition，对照 kexiu.c:192）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=0)
     apply_condition(w, p, "killer", 100)
     apply_condition(w, p, "poisoned", 10)
@@ -852,7 +864,7 @@ def test_proceed_sentencing_clears_existing_conditions() -> None:
 
 def test_proceed_sentencing_returns_sentence_int() -> None:
     """proceed_sentencing 返回刑期 int（对照 apply_condition("city_jail", N) 的 N）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=0)
     arrester = _make_arrester(w)
     sentence = proceed_sentencing(w, p, arrester)
@@ -868,7 +880,7 @@ def test_proceed_sentencing_recidivist_aggravation() -> None:
     累犯检测在 clear_condition 之前查 city_jail（修复前 clear 在前导致死代码，
     修复后累犯加重生效）。
     """
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=100, combat_exp=0)
     arrester = _make_arrester(w)
     # 先施加 city_jail duration=10（模拟累犯在押）
@@ -884,7 +896,7 @@ def test_proceed_sentencing_recidivist_aggravation() -> None:
 
 def test_proceed_sentencing_low_pks_no_jail_no_exp_transfer() -> None:
     """PKS<=49 不量刑：sentence=0 + 不施加 city_jail + 不转移经验。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=10, combat_exp=10000)
     arrester = _make_arrester(w, combat_exp=0)
     sentence = proceed_sentencing(w, p, arrester)
@@ -900,7 +912,7 @@ def test_proceed_sentencing_low_pks_no_jail_no_exp_transfer() -> None:
 
 def test_bribe_clear_wanted_sufficient_amount() -> None:
     """受贿销案：amount >= combat_exp//10 -> 清 killer 返回 True。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=10000)  # 阈值 = 1000
     apply_condition(w, p, "killer", 100)
     # amount=1000 >= 1000 -> 销案
@@ -910,7 +922,7 @@ def test_bribe_clear_wanted_sufficient_amount() -> None:
 
 def test_bribe_clear_wanted_more_than_threshold() -> None:
     """受贿销案：amount > 阈值也销案（>= 含等号，超也成立）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=10000)  # 阈值 1000
     apply_condition(w, p, "killer", 100)
     assert bribe_clear_wanted(w, p, 5000) is True
@@ -919,7 +931,7 @@ def test_bribe_clear_wanted_more_than_threshold() -> None:
 
 def test_bribe_clear_wanted_insufficient_amount() -> None:
     """受贿销案：amount < 阈值 -> 返回 False（不清除）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=10000)  # 阈值 1000
     apply_condition(w, p, "killer", 100)
     # amount=999 < 1000 -> 不足
@@ -929,7 +941,7 @@ def test_bribe_clear_wanted_insufficient_amount() -> None:
 
 def test_bribe_clear_wanted_no_killer_returns_false() -> None:
     """受贿销案：无 killer condition 时 clear_one_condition 返回 False。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=1000)  # 阈值 100
     # amount 足够但无 killer condition
     assert bribe_clear_wanted(w, p, 200) is False
@@ -937,7 +949,7 @@ def test_bribe_clear_wanted_no_killer_returns_false() -> None:
 
 def test_bribe_threshold_zero_combat_exp() -> None:
     """combat_exp=0 时阈值=0，任意正金额销案（amount >= 0）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, combat_exp=0)  # 阈值 0
     apply_condition(w, p, "killer", 100)
     assert bribe_clear_wanted(w, p, 0) is True  # 0 >= 0
@@ -956,7 +968,7 @@ def test_bribe_threshold_zero_combat_exp() -> None:
 )
 def test_release_from_jail_moves_and_sets_startroom(jail_type: str, release_room: str) -> None:
     """release_from_jail：move 到 JAIL_ROOMS[jail_type] + 设 startroom 标记。"""
-    w = World()
+    w = _new_world()
     _make_room(w, release_room)
     p = _make_player(w, room_id="jail/cell")
     release_from_jail(w, p, jail_type)
@@ -967,7 +979,7 @@ def test_release_from_jail_moves_and_sets_startroom(jail_type: str, release_room
 
 def test_release_from_jail_unknown_type_no_op() -> None:
     """未知 jail_type 不释放（fail-closed）。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w, room_id="jail/cell")
     release_from_jail(w, p, "unknown_jail")
     assert w.get(p, Position).room_id == "jail/cell"  # 未移动
@@ -980,7 +992,7 @@ def test_jail_condition_expire_triggers_release_via_condition_system() -> None:
     ADR-0029 §决策 5 + 开放问题 2：jail 到期 move 由 ConditionSystem 触发，
     调 governance.release_from_jail。
     """
-    w = World()
+    w = _new_world()
     _make_room(w, "city/yamen")
     p = _make_player(w, room_id="jail/cell")
     # 施加 city_jail duration=1（下 tick 到期）
@@ -997,7 +1009,7 @@ def test_jail_condition_expire_triggers_release_via_condition_system() -> None:
 
 def test_jail_condition_not_expired_no_release() -> None:
     """city_jail 未到期不释放（duration>1 时纯衰减）。"""
-    w = World()
+    w = _new_world()
     _make_room(w, "city/yamen")
     p = _make_player(w, room_id="jail/cell")
     apply_condition(w, p, "city_jail", 5)  # duration=5，未到期
@@ -1011,7 +1023,7 @@ def test_jail_condition_not_expired_no_release() -> None:
 
 def test_dali_jail_expire_release_room() -> None:
     """dali_jail 到期 -> move 到 dali/taihejie5。"""
-    w = World()
+    w = _new_world()
     _make_room(w, "dali/taihejie5")
     p = _make_player(w, room_id="jail/cell")
     apply_condition(w, p, "dali_jail", 1)
@@ -1024,7 +1036,7 @@ def test_dali_jail_expire_release_room() -> None:
 
 def test_bonze_jail_expire_release_room() -> None:
     """bonze_jail 到期 -> move 到 shaolin/guangchang1。"""
-    w = World()
+    w = _new_world()
     _make_room(w, "shaolin/guangchang1")
     p = _make_player(w, room_id="jail/cell")
     apply_condition(w, p, "bonze_jail", 1)
@@ -1049,7 +1061,7 @@ def test_bonze_jail_expire_release_room() -> None:
 )
 def test_wanted_condition_serialization_roundtrip(region: str, effect_id: str) -> None:
     """WantedCondition（EffectComp effect_id=killer 等）序列化往返一致性。"""
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, region, duration=77)
     # 找到施加的 EffectComp
@@ -1093,7 +1105,7 @@ def test_death_stage_effectcomp_full_fields_roundtrip() -> None:
 def test_ghost_player_with_death_stage_survives_cold_restart() -> None:
     """冷重启场景：ghost 玩家 + death_stage EffectComp 序列化 -> 反序列化到新 world
     -> 鬼魂仍在阴间 + death_stage 进度继续。"""
-    w1 = World()
+    w1 = _new_world()
     _make_room(w1, DEATH_ROOM)
     p = _make_player(w1, room_id=DEATH_ROOM, is_ghost=True)
     enter_underworld(w1, p, tick=100)
@@ -1111,7 +1123,7 @@ def test_ghost_player_with_death_stage_survives_cold_restart() -> None:
     eff_data = serialize_component(eff1)
 
     # 冷重启到新 world
-    w2 = World()
+    w2 = _new_world()
     _make_room(w2, DEATH_ROOM)
     new_p = w2.new_entity()
     w2.add(new_p, deserialize_component(Marks, marks_data))
@@ -1146,7 +1158,7 @@ def test_prop_wanted_duration_decays_linearly(duration: int, n_ticks: int) -> No
     ADR-0029 §验收 10 + §决策 5：通缉 condition 走 ConditionSystem 通用衰减。
     ConditionSystem 非均匀 tick：next_tick<=tick 才触发，故每次 update 递增 tick。
     """
-    w = World()
+    w = _new_world()
     p = _make_player(w)
     apply_wanted(w, p, "city", duration=duration)
 
@@ -1173,12 +1185,12 @@ def test_prop_sentencing_monotonic_in_pks(pks1: int, pks2: int) -> None:
     if pks1 > pks2:
         pks1, pks2 = pks2, pks1  # 保证 pks1 <= pks2
 
-    w1 = World()
+    w1 = _new_world()
     p1 = _make_player(w1, pks=pks1, combat_exp=0)
     a1 = _make_arrester(w1)
     s1 = proceed_sentencing(w1, p1, a1)
 
-    w2 = World()
+    w2 = _new_world()
     p2 = _make_player(w2, pks=pks2, combat_exp=0)
     a2 = _make_arrester(w2)
     s2 = proceed_sentencing(w2, p2, a2)
@@ -1196,7 +1208,7 @@ def test_prop_sentencing_high_pks_always_500(pks: int) -> None:
 
     验证分级阈值 99 的严格性（>99 触发 HIGH）。
     """
-    w = World()
+    w = _new_world()
     p = _make_player(w, pks=pks, combat_exp=0)
     a = _make_arrester(w)
     assert proceed_sentencing(w, p, a) == SENTENCE_DURATION_HIGH
