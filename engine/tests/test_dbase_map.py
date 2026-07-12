@@ -64,7 +64,7 @@ def test_resolve_path_prefix() -> None:
 def test_resolve_unmapped_returns_none() -> None:
     """未映射 key（后置/未知/未映射路径前缀）返回 None。"""
     assert resolve_dbase_key("actions") is None  # 后置
-    assert resolve_dbase_key("shen") is None  # 后置
+    assert resolve_dbase_key("race") is None  # 后置（2.5 未激活，2.6 Race）
     assert resolve_dbase_key("nosuchkey") is None  # 未知
     assert resolve_dbase_key("env/immortal") is None  # 路径但前缀未映射
     assert resolve_dbase_key("apply/astral_vision") is None  # 后置路径

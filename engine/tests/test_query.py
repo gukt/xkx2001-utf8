@@ -31,6 +31,7 @@ from xkx.runtime.components import (
     Position,
     Progression,
     Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.dbase_map import (
@@ -387,9 +388,13 @@ def test_classify_key_mapped() -> None:
 
 
 def test_classify_key_postponed() -> None:
-    """后置 key 分类为 postponed（equipped/apply 2.3 激活为 mapped，见他测）。"""
-    assert classify_key("title") == "postponed"
-    assert classify_key("shen") == "postponed"
+    """后置 key 分类为 postponed（equipped/apply 2.3 激活为 mapped，见他测）。
+
+    title/shen 2.5 已激活到 TitleComp（ADR-0028 决策 5），这里用仍在 POSTPONED
+    的 race（2.6 Race）/mud_age（M3 时间系统）作后置示例。
+    """
+    assert classify_key("race") == "postponed"
+    assert classify_key("mud_age") == "postponed"
 
 
 def test_classify_key_unknown() -> None:
@@ -400,8 +405,11 @@ def test_classify_key_unknown() -> None:
 
 
 def test_is_postponed_true_false() -> None:
-    """is_postponed 判断正确（equipped 2.3 激活为语义 key 非 postponed）。"""
-    assert is_postponed("title") is True
+    """is_postponed 判断正确（equipped 2.3 激活为语义 key 非 postponed）。
+
+    title 2.5 已激活到 TitleComp（ADR-0028 决策 5），用 race（2.6 Race）作后置示例。
+    """
+    assert is_postponed("race") is True
     assert is_postponed("qi") is False
     assert is_postponed("equipped") is False  # 2.3 激活（语义 key）
     assert is_postponed("cobmat_exp") is False  # 未知非后置
@@ -409,18 +417,24 @@ def test_is_postponed_true_false() -> None:
 
 
 def test_postponed_key_query_warns_returns_none() -> None:
-    """后置 key query 返回 None + warnings.warn（用 pytest.warns 捕获）。"""
+    """后置 key query 返回 None + warnings.warn（用 pytest.warns 捕获）。
+
+    title 2.5 已激活到 TitleComp（ADR-0028 决策 5），用 race（2.6 Race）作后置示例。
+    """
     world, eid = _make_world_with_player()
     with pytest.warns(UserWarning, match="后置 key"):
-        result = query(world, eid, "title")
+        result = query(world, eid, "race")
     assert result is None
 
 
 def test_postponed_key_set_raises_dbasekeyerror() -> None:
-    """后置 key set raise DbaseKeyError（无组件承接，写无意义）。"""
+    """后置 key set raise DbaseKeyError（无组件承接，写无意义）。
+
+    title 2.5 已激活到 TitleComp（ADR-0028 决策 5），用 race（2.6 Race）作后置示例。
+    """
     world, eid = _make_world_with_player()
     with pytest.raises(DbaseKeyError, match="后置 key"):
-        set(world, eid, "title", "侠客")
+        set(world, eid, "race", "人类")
 
 
 def test_semantic_key_set_raises_dbasekeyerror() -> None:
@@ -545,15 +559,144 @@ def test_id_match_no_match() -> None:
 
 
 def test_short_with_aliases() -> None:
-    """short: name(id) 格式，id 取 aliases[0]。"""
-    ident = Identity(name="葛伦布", aliases=["ge lunbu"])
-    assert short(ident) == "葛伦布(ge lunbu)"
+    """short: name(id) 格式，id 取 aliases[0]（raw 默认 False，无状态标记输出基础名）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="葛伦布", aliases=["ge lunbu"]))
+    assert short(world, eid) == "葛伦布(ge lunbu)"
 
 
 def test_short_without_aliases_fallback_prototype() -> None:
-    """short: 无 aliases 回退 prototype_id。"""
-    ident = Identity(name="神秘人", aliases=[], prototype_id="npc/mystery")
-    assert short(ident) == "神秘人(npc/mystery)"
+    """short: 无 aliases 回退 prototype_id（raw 默认 False，无状态标记输出基础名）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="神秘人", aliases=[], prototype_id="npc/mystery"))
+    assert short(world, eid) == "神秘人(npc/mystery)"
+
+
+def test_short_raw_true_no_state_modification() -> None:
+    """short(raw=True)：纯函数无状态修饰，即使有 Marks/TitleComp 标记也只返回基础名。
+
+    对齐 name.c raw=1（look 命令目标匹配用，ADR-0028 决策 6 不变量）。
+    """
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="张三", aliases=["zhang san"]))
+    world.add(eid, Marks(flags={"pending/exercise", "netdead", "disabled"}))
+    world.add(
+        eid,
+        TitleComp(title="大侠", nickname="老顽童", is_ghost=True),
+    )
+    # raw=True 跳过所有状态修饰，只返回基础名
+    assert short(world, eid, raw=True) == "张三(zhang san)"
+
+
+def test_short_no_identity_returns_empty() -> None:
+    """short: 实体无 Identity（非角色对象，name.c 行 109 !is_character）返回空串。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    # 无 Identity 组件（模拟物品实体）
+    assert short(world, eid) == ""
+
+
+def test_short_pending_exercise_early_return() -> None:
+    """short: pending/exercise 提前 return，name + 修炼内力后缀（name.c 行 112-113）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="李四", aliases=["li si"]))
+    world.add(eid, Marks(flags={"pending/exercise"}))
+    # 打坐修饰提前 return，title/nick/鬼气等前缀不生效
+    world.add(eid, TitleComp(title="大侠", is_ghost=True))
+    assert short(world, eid) == "李四(li si)正坐在地下修炼内力。"
+
+
+def test_short_pending_respirate_early_return() -> None:
+    """short: pending/respirate 提前 return，name + 吐纳炼精后缀（name.c 行 114-115）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="李四", aliases=["li si"]))
+    world.add(eid, Marks(flags={"pending/respirate"}))
+    assert short(world, eid) == "李四(li si)正坐在地下吐纳炼精。"
+
+
+def test_short_pending_jingzuo_early_return() -> None:
+    """short: pending/jingzuo 提前 return，name + 盘膝静坐后缀（name.c 行 116-117）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="李四", aliases=["li si"]))
+    world.add(eid, Marks(flags={"pending/jingzuo"}))
+    assert short(world, eid) == "李四(li si)正在蒲团上盘膝静坐。"
+
+
+def test_short_nickname_prefix() -> None:
+    """short: nickname 非空 -> 「{nick}」前缀（name.c 行 129-130）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="周伯通", aliases=["zhou botong"]))
+    world.add(eid, TitleComp(nickname="老顽童"))
+    assert short(world, eid) == "「老顽童」周伯通(zhou botong)"
+
+
+def test_short_title_prefix_with_nick() -> None:
+    """short: title + nickname 同时，title 后不加空格（nick 已带「」收尾，name.c 行 132-133）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="周伯通", aliases=["zhou botong"]))
+    world.add(eid, TitleComp(title="大侠", nickname="老顽童"))
+    assert short(world, eid) == "大侠「老顽童」周伯通(zhou botong)"
+
+
+def test_short_title_prefix_without_nick() -> None:
+    """short: 仅 title 无 nick，title 后加空格（name.c 行 132-133，nick?"":" "）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="王五", aliases=["wang wu"]))
+    world.add(eid, TitleComp(title="普通百姓"))
+    assert short(world, eid) == "普通百姓 王五(wang wu)"
+
+
+def test_short_ghost_prefix() -> None:
+    """short: is_ghost True -> (鬼气) 前缀（name.c 行 137）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="鬼魂", aliases=["ghost"]))
+    world.add(eid, TitleComp(is_ghost=True))
+    assert short(world, eid) == "(鬼气) 鬼魂(ghost)"
+
+
+def test_short_netdead_suffix() -> None:
+    """short: netdead 标记 -> 尾部 <断线中>（name.c 行 138）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="赵六", aliases=["zhao liu"]))
+    world.add(eid, Marks(flags={"netdead"}))
+    assert short(world, eid) == "赵六(zhao liu) <断线中>"
+
+
+def test_short_disabled_suffix() -> None:
+    """short: disabled 标记 -> 尾部 <昏迷中>（name.c 行 143，disable_type 固定值 2.5）。"""
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="赵六", aliases=["zhao liu"]))
+    world.add(eid, Marks(flags={"disabled"}))
+    assert short(world, eid) == "赵六(zhao liu)<昏迷中>"
+
+
+def test_short_full_state_order() -> None:
+    """short: 完整状态修饰顺序（鬼气前缀 + 断线/昏迷尾部，无 pending 提前 return）。
+
+    顺序对齐 name.c：title/nick 前缀 -> 鬼气前缀 -> 断线尾部 -> 昏迷尾部。
+    """
+    world, _ = _make_world_with_player()
+    eid = world.new_entity()
+    world.add(eid, Identity(name="全状态", aliases=["full"]))
+    world.add(
+        eid,
+        TitleComp(title="大侠", nickname="老顽童", is_ghost=True),
+    )
+    world.add(eid, Marks(flags={"netdead", "disabled"}))
+    # 鬼气前缀在最前（在 title/nick 之后），断线/昏迷尾部按顺序
+    assert short(world, eid) == "(鬼气) 大侠「老顽童」全状态(full) <断线中><昏迷中>"
 
 
 def test_move_to_switches_room() -> None:

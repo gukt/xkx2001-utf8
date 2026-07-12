@@ -34,6 +34,7 @@ from xkx.runtime.components import (
     QuestLog,
     RoomComp,
     Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.dbase_map import validate_dbase_map
@@ -175,6 +176,10 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             inquiry=n.get("inquiry", {}),
         ),
     )
+    # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
+    # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
+    # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
+    world.add(eid, TitleComp())
     return eid
 
 
@@ -216,6 +221,7 @@ def spawn_player(
     world.add(eid, Equipment())  # 2.3：装备组件（默认空槽，wield/wear 填充）
     world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
     world.add(eid, QuestLog())  # S4 ADR-0007：任务状态
+    world.add(eid, TitleComp())  # 2.5 ADR-0028：称谓组件（rankd 求值所需 dbase key）
     return eid
 
 

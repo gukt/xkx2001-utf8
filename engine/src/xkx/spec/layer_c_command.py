@@ -45,6 +45,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from pydantic import BaseModel, Field
+
 from xkx.spec.base import (
     FunctionSignature,
     FunctionSpec,
@@ -889,6 +891,161 @@ _func_set_alias = FunctionSpec(
     random_specs=[],
     notes="玩家自定义别名管理。本层规格中仅提取契约，自定义别名的完整实现后置。",
 )
+
+
+# ── 命令前置 deny 规则规格（ADR-0016 第二批层1 谓词集） ────────────────
+# 本节规格化 cmds/std/kill.c 与 cmds/std/ask.c 的命令前置 deny 检查，作为
+# 层1 EventRule(event=command) 的规格源（[ADR-0016](../../docs/adr/
+# ADR-0016-layer1-predicate-expansion-batch2.md) 决策 6/7/8）。层1 仅管前置
+# deny 条件，命令主体（副作用）仍层3（"层1 管条件，层3 管副作用"分工）。
+
+
+class CommandDenyRule(BaseModel):
+    """命令前置 deny 规格条目（层1 command 事件规则的规格源）。
+
+    每条对应 LPC 命令主体内的一处 ``notify_fail`` 前置检查。``layer1_predicates``
+    列出可表达该条件的层1 谓词组合（ADR-0016 扩充集），用于校验"逃生舱层3"
+    KPI（kill criteria 4）：能用扩充后谓词集表达即不算逃生舱。
+    """
+
+    verb: str  # 命令动词（LPC add_action verb，如 "kill" / "ask" / "knock"）
+    deny_message: str  # LPC notify_fail 的提示文本
+    lpc_expr: str  # 对应 LPC 判定表达式
+    lpc_file: str  # 源文件
+    line_range: tuple[int, int]
+    # 表达该条件的层1 谓词（ADR-0016 扩充集），任一非空即该规则可层1 化
+    layer1_predicates: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+# cmds/std/kill.c 的 7 条前置 deny（ADR-0016 决策 6 实证）。
+# 行号对齐 kill.c 源（cmds/std/kill.c）。
+COMMAND_DENY_RULES_KILL: list[CommandDenyRule] = [
+    CommandDenyRule(
+        verb="kill",
+        deny_message="这里不准战斗。",
+        lpc_expr="environment(me)->query(\"no_fight\") 或等价 no_fight 标记",
+        lpc_file="cmds/std/kill.c",
+        line_range=(15, 17),
+        layer1_predicates=["has_flag(flag=no_fight)"],
+        notes="场所禁止战斗标记（环境层 deny）。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="你想杀谁？",
+        lpc_expr='arg == ""',
+        lpc_file="cmds/std/kill.c",
+        line_range=(18, 20),
+        layer1_predicates=["attr_eq(attr=__arg, value_str=\"\")"],
+        notes="无目标参数 deny；属命令输入约束。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="这里没有这个人。",
+        lpc_expr="!objectp(obj) || !present(obj, environment(me))",
+        lpc_file="cmds/std/kill.c",
+        line_range=(21, 23),
+        layer1_predicates=["present_npc(npc_id=target)"],
+        notes="目标对象不在场 deny；present_npc 反向（目标缺席）。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="你不能杀这个人！",
+        lpc_expr='SECURITY_D->get_status(me)=="(immortal)" && get_status(obj)!="(immortal)"',
+        lpc_file="cmds/std/kill.c",
+        line_range=(25, 27),
+        layer1_predicates=["all(is_wizard, not(derived_state(state=immortal)(target)))"],
+        notes="巫师(immortal 身份) 不可杀非 immortal；is_wizard 谓词覆盖身份判断。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="你不能杀这个人！",
+        lpc_expr="me->query_temp(\"last_persuader\") == obj->query(\"id\")",
+        lpc_file="cmds/std/kill.c",
+        line_range=(29, 31),
+        layer1_predicates=["status_eq(flag=last_persuader, source=temp, value_str=target_id)"],
+        notes="劝降保护：temp 标记 == 目标 id；has_flag source=temp 扩展（决策 4）。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="他/她已经投降了,你现在不能杀！",
+        lpc_expr='me->query(\"id\") == obj->query_temp(\"surrender/ownder\")',
+        lpc_file="cmds/std/kill.c",
+        line_range=(33, 34),
+        layer1_predicates=["same_object"],
+        notes="目标已投降本 actor：对象引用相等（same_object 谓词，决策 6）。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="你刚投降过别人，别老想着干坏事！",
+        lpc_expr='me->query_temp(\"surrender/ownder\") != 0',
+        lpc_file="cmds/std/kill.c",
+        line_range=(36, 37),
+        layer1_predicates=["has_flag(flag=surrender/ownder, source=temp)"],
+        notes="本 actor 刚投降过：temp 标记存在性（决策 4 has_flag 扩展）。",
+    ),
+    CommandDenyRule(
+        verb="kill",
+        deny_message="你感到一丝内疚，手突然软了下来！",
+        lpc_expr='PKer 内疚 || obj->query(\"mud_age\") < 18000',
+        lpc_file="cmds/std/kill.c",
+        line_range=(50, 53),
+        layer1_predicates=["any(has_flag(flag=pker_guilt), mud_age_lt(value=18000))"],
+        notes="目标游戏年龄过小或 PKer 内疚 deny；mud_age_lt 谓词（决策 6）。",
+    ),
+]
+
+# cmds/std/ask.c 对话分支（ADR-0016 决策 7 实证）。
+COMMAND_DENY_RULES_ASK: list[CommandDenyRule] = [
+    CommandDenyRule(
+        verb="ask",
+        deny_message="你要问谁什么事？",
+        lpc_expr='arg == "" 或 arg 缺少目标/topic',
+        lpc_file="cmds/std/ask.c",
+        line_range=(40, 42),
+        layer1_predicates=["attr_eq(attr=__arg, value_str=\"\")"],
+        notes="无参数 deny；命令输入约束。",
+    ),
+    CommandDenyRule(
+        verb="ask",
+        deny_message="这里没有这个人。",
+        lpc_expr="!objectp(ob) || !present(ob, environment(me))",
+        lpc_file="cmds/std/ask.c",
+        line_range=(43, 45),
+        layer1_predicates=["present_npc(npc_id=target)"],
+        notes="目标 NPC 不在场 deny。",
+    ),
+    CommandDenyRule(
+        verb="ask",
+        deny_message="何必问自己？",
+        lpc_expr="ob == me",
+        lpc_file="cmds/std/ask.c",
+        line_range=(46, 48),
+        layer1_predicates=["same_object"],
+        notes="自问自答 deny；same_object 谓词（决策 6）。",
+    ),
+    CommandDenyRule(
+        verb="ask",
+        deny_message="<topic 对话分支>",
+        lpc_expr='ob->query(\"inquiry/\" + topic)',
+        lpc_file="cmds/std/ask.c",
+        line_range=(68, 70),
+        layer1_predicates=["has_inquiry(topic=<topic>)"],
+        notes="NPC inquiry 列表含 topic 时走该分支；has_inquiry 谓词（决策 7）。",
+    ),
+    CommandDenyRule(
+        verb="ask",
+        deny_message="<attitude 响应分支>",
+        lpc_expr='att = ob->query(\"attitude\"); att in {\"good\", \"bad\", ...}',
+        lpc_file="cmds/std/ask.c",
+        line_range=(81, 110),
+        layer1_predicates=["attr_in(attr=attitude, values=[\"good\",\"bad\",...])"],
+        notes="按 attitude 枚举分支响应；attr_in 谓词（决策 7，字面量列表不正则）。",
+    ),
+]
+
+# kill.c + ask.c 命令前置 deny 规格全集（供层1 command 事件规则生成校验）。
+COMMAND_DENY_RULES: list[CommandDenyRule] = COMMAND_DENY_RULES_KILL + COMMAND_DENY_RULES_ASK
 
 
 # ── 层规格实例 ────────────────────────────────────────────────────────

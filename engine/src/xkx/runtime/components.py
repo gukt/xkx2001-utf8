@@ -222,3 +222,45 @@ class RoomComp:
     outdoors: bool = False
     no_fight: bool = False
     no_death: bool = False  # 2.2：no_death 房玩家死亡转 unconcious（LPC query("no_death")）
+
+
+@dataclass
+class TitleComp:
+    """称谓组件（阶段 2.5，ADR-0028 决策 3，第 14 组件）。
+
+    承载 RANK_D 7 函数求值所需的 dbase key：title/nickname/shen（玩家称号）+
+    rank_info 四键（rankd 覆盖优先）+ PKS/MKS（PKS 称号）+ class/dali/rank
+    （门派职位/官职）+ is_ghost（鬼魂状态）。
+
+    对照 LPC set("title"/"nickname"/"shen"/"rank_info/*"/"PKS"/"MKS"/"class")
+    dbase key（dbase_map.py POSTPONED_KEYS，2.5 激活 title/shen；PKS/MKS/class/
+    rank/dali/rank 本未在 POSTPONED，2.5 新增激活，ADR-0028 决策 5）。
+
+    可序列化（ADR-0022）：字段全基本类型（str/int/bool/None），serialization.py
+    按 dataclasses.fields 自动提取，无需额外适配。
+    [ADR-0028](../../../docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)
+    """
+
+    # 玩家称号（LPC set("title")/set("nickname")/set("shen")）
+    title: str = ""  # LPC "title"：头衔（如"普通百姓"/"华山派弟子"）
+    nickname: str = ""  # LPC "nickname"：绰号（如「老顽童」）
+    shen: int = 0  # LPC "shen"：道德值（正=侠，负=魔，rankd 按阈值分级）
+
+    # rank_info 覆盖（LPC set("rank_info/respect|rude|self|self_rude")）
+    # rankd.c 行 327/411/468/520：stringp 时直接返回，跳过 gender/class 求值
+    rank_info_respect: str | None = None
+    rank_info_rude: str | None = None
+    rank_info_self: str | None = None
+    rank_info_self_rude: str | None = None
+
+    # PKS 称号（LPC "PKS"/"MKS"，09 §五法院系统）
+    pks: int = 0  # 玩家击杀数（PKS>100 且 PKS>MKS -> "土匪"/"土匪婆"）
+    mks: int = 0  # 怪物击杀数（对照用）
+
+    # 门派职位/官职（LPC "class"/"dali/rank"/"rank"）
+    char_class: str = ""  # LPC "class"：职业（bonze/taoist/beggar/eunach/swordsman/...）
+    dali_rank: int = 0  # LPC "dali/rank"：大理官职（1-5，5=王爷/王妃）
+    family_rank: int = 0  # LPC "rank"：丐帮袋数（rankd 行 28/130-145/280-295）
+
+    # 鬼魂状态（LPC is_ghost()，rankd 行 19 最先判定）
+    is_ghost: bool = False

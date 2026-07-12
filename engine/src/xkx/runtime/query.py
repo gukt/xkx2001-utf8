@@ -32,6 +32,7 @@ from xkx.runtime.components import (
     Marks,
     Position,
     Skills,
+    TitleComp,
 )
 from xkx.runtime.dbase_map import (
     APPLY_PREFIX,
@@ -371,11 +372,80 @@ def id_match(identity: Identity, keyword: str) -> bool:
     return keyword == identity.name or keyword in identity.aliases
 
 
-def short(identity: Identity) -> str:
-    """基础 short 格式：name(id)（LPC ``short(raw=1)`` 语义，[spec/layer_b](_short_spec)）。
+def short(world: World, eid: int, *, raw: bool = False) -> str:
+    """实体 short 格式（LPC ``short(raw)`` 语义，ADR-0028 决策 6）。
 
-    状态修饰（打坐/鬼气/断线/昏迷）后置 2.5 TitleSystem。id 取 aliases[0]
-    （LPC set_name 的 id[0] 主 ID）；无 aliases 回退 prototype_id。
+    对照 [feature/name.c:99-147](../../feature/name.c) `short(raw)`：raw=True
+    返回基础名 ``name(id)`` 格式（无状态修饰，对齐 name.c ``raw=1``，纯函数无
+    副作用，look 命令目标匹配用）；raw=False 加状态修饰，顺序严格对齐 name.c：
+
+    1. 基础名 ``name(id)`` 格式（colorname 后置简化台账 13，无 ANSI 颜色内核化）
+    2. short key 覆盖（LPC query("short")，name.c 行 106-107）：角色对象的 short
+       key 后置（无对应组件），2.5 跳过用默认基础名
+    3. 非角色对象直接返回基础名（LPC ``!is_character``，name.c 行 109）--
+       greenfield 无 is_character，按有无 Identity 判断（有 Identity 即角色，
+       物品无 Identity）
+    4. 打坐/吐纳/静坐（提前 return，name.c 行 112-117）：Marks.flags 含
+       ``pending/exercise``/``pending/respirate``/``pending/jingzuo`` 返回
+       ``name + "正坐在地下修炼内力。"`` 等
+    5. title/nickname 前缀（name.c 行 129-133）：TitleComp.nickname 非空 ->
+       ``「{nickname}」`` 前缀；TitleComp.title 非空 -> ``{title}`` 前缀（有 nick
+       不加空格，无 nick 加空格）
+    6. 鬼气前缀（name.c 行 137）：TitleComp.is_ghost True -> ``(鬼气) `` 前缀
+    7. 断线尾部（name.c 行 138）：Marks.flags 含 ``netdead`` -> 尾部 `` <断线中>``
+    8. 昏迷尾部（name.c 行 143）：Marks.flags 含 ``disabled`` -> 尾部 ``<昏迷中>``
+       （disable_type 完整值后置，2.5 用固定 ``<昏迷中>``）
+
+    in_input/in_edit/idle>120 后置 M3（依赖连接状态 T7 WS，简化台账 8）。
+    战斗中 ``!living`` 的 short 修饰与 combat 管线交织（ADR-0023 副作用账本），
+    short() 调用时机在 combat 文本产出之前（2.5 不改 combat，仅保证 short 可用）。
+    """
+    ident = world.get(eid, Identity)
+    if ident is None:
+        # 非角色对象（无 Identity）：直接返回基础名（name.c 行 109 !is_character）
+        # greenfield 无独立物品 short key，物品展示由物品系统产出，此处回退空串
+        return ""
+    # 基础名 name(id) 格式（id 取 aliases[0]，无则回退 prototype_id）
+    base = _base_name(ident)
+    if raw:
+        # raw=True：仅返回基础名，无状态修饰无副作用（纯函数，look 目标匹配用）
+        return base
+    # 非角色对象（无 Identity 已在上面返回）；角色对象继续状态修饰
+    marks = world.get(eid, Marks)
+    flags = marks.flags if marks is not None else builtins.set()
+    # 打坐/吐纳/静坐（提前 return，name.c 行 112-117）
+    if "pending/exercise" in flags:
+        return base + "正坐在地下修炼内力。"
+    if "pending/respirate" in flags:
+        return base + "正坐在地下吐纳炼精。"
+    if "pending/jingzuo" in flags:
+        return base + "正在蒲团上盘膝静坐。"
+    # title/nickname 前缀（name.c 行 129-133）
+    s = base
+    title_comp = world.get(eid, TitleComp)
+    nick = title_comp.nickname if title_comp is not None else ""
+    title = title_comp.title if title_comp is not None else ""
+    if nick:
+        s = f"「{nick}」" + s
+    if title:
+        # 有 nick 不加空格（nick 已带「」收尾），无 nick 在 title 后加空格
+        s = title + ("" if nick else " ") + s
+    # 鬼气前缀（name.c 行 137）
+    if title_comp is not None and title_comp.is_ghost:
+        s = "(鬼气) " + s
+    # 断线尾部（name.c 行 138）
+    if "netdead" in flags:
+        s += " <断线中>"
+    # 昏迷尾部（name.c 行 143，disable_type 完整值后置，2.5 用固定 <昏迷中>）
+    if "disabled" in flags:
+        s += "<昏迷中>"
+    return s
+
+
+def _base_name(identity: Identity) -> str:
+    """基础 short 格式 name(id)（LPC ``short(raw=1)`` 基础名，[spec/layer_b]）。
+
+    id 取 aliases[0]（LPC set_name 的 id[0] 主 ID）；无 aliases 回退 prototype_id。
     """
     id_str = identity.aliases[0] if identity.aliases else identity.prototype_id
     return f"{identity.name}({id_str})"

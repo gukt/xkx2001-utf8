@@ -106,6 +106,7 @@ class SchemaRegistry:
             QuestLog,
             RoomComp,
             Skills,
+            TitleComp,
             Vitals,
         )
 
@@ -125,6 +126,7 @@ class SchemaRegistry:
             QuestLog,
             EffectComp,
             RoomComp,
+            TitleComp,
         ):
             reg.register(t)
         return reg

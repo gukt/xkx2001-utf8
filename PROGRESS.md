@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 2 编码中（2.3 Attribute/Skill/Equipment 完成，下一步 2.5）
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 2.3 Attribute/Skill/Equipment 完成**（Equipment 组件 + wield/wear/unequip + ModifierStack 三类叠加 + query_skill 三层 + skill_death_penalty learned 公式 + ADR-0026 实现期细化 6 项，1196 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出未提交。下一步 2.5 TitleSystem（ADR-0028 已就绪）。Wave 2 采用**逐个串行**（用户裁决，避免共享文件合并冲突）。
+**当前阶段**：阶段 2 Wave 2 编码中（2.5 TitleSystem 完成，下一步 2.6）
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 2.5 TitleSystem 完成**（RANK_D 7 函数称谓求值 + PronounContext 10 变量三元组 + TitleComp 第 14 组件 + short 状态修饰 + spec 7 FunctionSpec，agent teams 3 路并行 + ADR-0016 穿插，1339 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出未提交。下一步 2.6 WorldGovernanceSystem（ADR-0029 已就绪）。Wave 2 采用**逐个串行**（用户裁决），2.5 内部 agent teams 3 路并行（不同文件无冲突）。
 
 ## Done
 
@@ -346,6 +346,30 @@
   - **1196 tests 全绿（+37），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
   - 关联 dissent 3（三类叠加语义明确 + apply_* 不落入层1 DSL）+ 专家 3 承重（技能三层 levels+skill_map）+ dissent 8（Equipment 可序列化）+ dissent 7（per-slot prop 副本来源可追溯）
 
+- [x] **阶段 2 Wave 2 2.5 TitleSystem 称谓完成**（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.5 / [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)）：
+  - [title.py](engine/src/xkx/runtime/title.py) 新建：RANK_D 7 函数无状态纯函数（query_rank/respect/rude/self/self_rude/query_close/query_self_close，对照 [rankd.c](adm/daemons/rankd.c) 行 8-651 精确对齐）+ 5 张可注入 class 表（CLASS_RANK/RESPECT/RUDE/SELF/SELF_RUDE_TABLE）+ WIZHOOD_TITLES + set/reset_class_tables + query_wizhood 钩子
+  - 求值顺序不变量：is_ghost 最先(行19) -> wizhood 优先(行60-78) -> PKS>100 且 PKS>MKS(行80) -> class 注入表(行85-318) -> shen 阈值分级(行147-316，正降序/负升序/default 平民) -> rank_info 四键覆盖优先(行327/411/468/520)
+  - **主题中立**（ADR-0028 开放问题 2 裁决）：核心引擎不硬编码武侠门派职业字面量（bonze/taoist 等），class 分支表数据从题材包注入，test_theme_neutrality 硬门禁 grep 无武侠字面量
+  - [pronoun.py](engine/src/xkx/runtime/pronoun.py) 扩展：PronounContext frozen dataclass slots 10 字段（name_me/you + pronoun_me/you + close/close_rev + respect/respect_rev + self/self_rude）+ PronounService 7 函数委托 + build_context（$C/$c 角色互换 viewer 翻转：close=query_close(speaker,target)/close_rev=query_close(target,speaker)）+ render（10 占位符 $N/$n/$P/$p/$C/$c/$R/$r/$S/$s 替换）+ build_context_for_system（System tick viewer=speaker 回退，决策 4）+ visible 补 is_ghost 判定 + 可见性门控（不可见时 $n/$p/$C/$c/$R/$r 退化避免泄露隐身目标）
+  - TitleComp 第 14 组件（13 字段：title/nickname/shen/rank_info 四键/pks/mks/char_class/dali_rank/family_rank/is_ghost，可序列化 ADR-0022）+ dbase_map 激活 7 key（title/nickname/shen/PKS/MKS/class/rank）+ 2 路径前缀分发（rank_info->四字段，dali->dali_rank）
+  - [query.py](engine/src/xkx/runtime/query.py) short 状态修饰：short(world, eid, *, raw=False)，严格按 [name.c](feature/name.c) 行 99-147 顺序（打坐/吐纳/静坐提前 return -> title/nickname 前缀 -> 鬼气前缀 -> 断线/昏迷尾部），raw=True 纯函数
+  - [spec/layer_h_daemons.py](engine/src/xkx/spec/layer_h_daemons.py) 补 RANK_D 7 函数 FunctionSpec（行号精确 + 不变量完整 + this_player 依赖标注 + cross_layer_refs 19->24），LAYER_SPEC.function_specs 26->33
+  - [world.py](engine/src/xkx/runtime/world.py) spawn 衔接：_spawn_npc/spawn_player 加 TitleComp() 默认实例
+  - **agent teams 3 路并行**：批次 0 单 agent 根依赖（TitleComp+dbase_map+schema）-> 批次 1 三路并行（A: title.py+pronoun.py+spawn，B: spec FunctionSpec，C: query.py short，改不同文件无冲突）-> 批次 2 单 agent test_title.py 107 tests
+  - **穿插 ADR-0016** 层1 谓词扩充 8 类（独立 dsl 层，后台并行，不碰 runtime）
+  - 测试 [test_title.py](engine/tests/test_title.py) 107 tests：7 函数行为等价（gender/class/shen/PKS/age/wizhood/ghost 全分支）+ PronounContext 10 变量（$C/$c 翻转 + 可见性门控 + System 回退）+ TitleComp 序列化往返 + short 集成 + PKS 称号 + 5 hypothesis 属性测试（rank_info 覆盖 + query_close 辈分 + is_ghost 短路）
+  - **1339 tests 全绿（+143：107 test_title + 12 test_query short + 24 其他适配），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 6（PronounContext viewer 显式传参 + $C/$c 翻转实证专家 3 承重论断 2）+ dissent 8（TitleComp 可序列化）+ dissent 3（class 分支表数据非层1 谓词，主题中立）
+
+- [x] **穿插 ADR-0016 层1 谓词扩充第二批完成**（[ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 8 类缺口，2.5 推进期间后台并行）：
+  - [layer1.py](engine/src/xkx/dsl/layer1.py) 扩展 8 类谓词（attr_eq / is_wizard / has_item 扩展 item_category+item_name / has_flag 扩展 source=temp / derived_state / status_eq+same_object+mud_age_lt / has_inquiry+attr_in / command 事件钩子）
+  - [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格补充（kill.c 7 条 + ask.c 分支）
+  - 测试 [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests passed
+  - 护栏遵守：不引入 attr_gt/le/ge、不引入 has_item_count、derived_state 统一抽象、command 仅前置 deny
+  - **全量 1339 tests 含 ADR-0016 24 tests，ruff 全过**；独立 dsl 层不碰 runtime/components（与 2.5/2.6 无文件冲突）
+  - agent 最终 task-notification 未到，基于文件状态（layer1.py 25 处谓词 + 24 tests passed + 24 分钟无改）确认实质完成
+  - 关联 dissent 3（层1 原语蠕变护栏，8 类均有 LPC 实证）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -356,33 +380,34 @@
 
 ## In Progress
 
-**阶段 2 Wave 2 2.3 Attribute/Skill/Equipment 已完成**（[ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) + 实现期细化 6 项）。
+**阶段 2 Wave 2 2.5 TitleSystem 已完成**（[ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)，1339 tests 全绿）。
 
-阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems 已创建。
+阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems。
 
-**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突）：
+**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突），2.5 内部 agent teams 3 路并行（不同文件无冲突）：
 - [x] **2.2 Vitals/Heal/Condition 编码完成**（1159 tests 全绿）
 - [x] **2.3 Attribute/Skill/Equipment 编码完成**（1196 tests 全绿）
-- [ ] 2.5 TitleSystem（前置 ADR-0028 已就绪）
+- [x] **2.5 TitleSystem 编码完成**（1339 tests 全绿，agent teams 3 路并行 + ADR-0016 穿插）
 - [ ] 2.6 WorldGovernanceSystem（前置 ADR-0029 已就绪）
 
-**Wave 2 前置 ADR 已产出（未提交，git untracked，用户要求编码完成后一起 commit）**：
+**Wave 2 前置 ADR 全部产出并已提交**：
 - [x] [ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) ModifierStack 三类语义 + 技能三层（2.3 前置）
 - [x] [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md) RANK_D + PronounContext 三元组（2.5 前置）
 - [x] [ADR-0029](docs/adr/ADR-0029-world-governance-system.md) WorldGovernanceSystem + fail-closed（2.6 前置）
 - 2.2 无需新 ADR（T1 ADR-0018 契约已定，2.2 演进 effect_eid key）
 
-**下一步：2.5 TitleSystem 启动**（[15 §三 2.5](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)）：
-- RANK_D 7 函数称谓求值（三元组 speaker/viewer/target -> 称谓字符串，对照 rankd.c）
-- TitleComp 组件（玩家称号 + 门派职位 + PKS 称号，后置 key title/shen 激活）
-- PronounContext 三元组完整求值（10 变量占位符 $N/$n/$w/$l 等，衔接 T4 PronounService）
-- 2.2 留的 stub 衔接：PKS/MKS/shen 计数（killer_reward 后置 2.5 补）+ apply 状态修饰 short()
-- 后置 key 激活：title/shen/race/mud_age（从 POSTPONED_KEYS 移除）
+**下一步：2.6 WorldGovernanceSystem 启动**（[15 §三 2.6](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0029](docs/adr/ADR-0029-world-governance-system.md)）：
+- 选 1-2 个代表性治理元素（建议：阴间死亡轮回 + 法院 PK 通缉）
+- GovernanceSystem（平台级 fail-closed Python，不进 UGC 规则层）
+- 阴间路径（die -> 阴间 -> 黑白无常剧情 -> 还阳）+ gate.c 物品销毁
+- 法院（PK 通缉 + 官府执法 + 监狱服刑，killer/xakiller/dlkiller/bjkiller 四区域）
+- 依赖 2.2 死亡轮回（die->阴间衔接）+ 2.4 Combat（PK 触发通缉）
+
+**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，后台 agent 实质完成：[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1339 含它，ruff 全过；agent 最终 task-notification 未到但文件 24 分钟无改 + 测试绿 = 实质完成）。
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
 - golden trace 定点辅助（driver PID 22753 运行中）-- 2.4 Combat 前录制 do_attack 七步基线（dissent 4 验证）
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 2.3 落地时自然带入
 
 ## Blocked
 
@@ -400,7 +425,7 @@
 
 ## Next Up
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 进行中（2.2/2.3 完成，下一步 2.5）**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 进行中（2.2/2.3/2.5 完成，下一步 2.6）**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
@@ -409,7 +434,7 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：2.5 TitleSystem（ADR-0028）-> 2.6 WorldGovernanceSystem（ADR-0029）-> Wave 3 2.4 Combat。
+**下一步主线**：2.6 WorldGovernanceSystem（ADR-0029）-> Wave 3 2.4 Combat。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
