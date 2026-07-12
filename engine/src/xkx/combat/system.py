@@ -20,6 +20,7 @@ combat-only 确定性边界（ADR-0023 决策 1）：只有 ``resolve_attack`` +
 from __future__ import annotations
 
 from xkx.combat.context import CombatantSnapshot, CombatContext
+from xkx.combat.modifier import CombatModifier
 from xkx.combat.replay import CombatSnapshot, InputEntry
 from xkx.combat.replay import replay as replay_fn
 from xkx.combat.resolve_attack import resolve_attack
@@ -73,6 +74,16 @@ class CombatSystem:
 
         不套 Command（CLAUDE.md 不变量）：tick mutation 通过 Effect 账本记录，
         不经 Command 管线。
+
+        ADR-0027 §2.3 special_attack 调用点（实现期细化）：
+        - 协同标记检查移到快照构建边界（runtime 层 CombatBridge 从 Marks 查协同标记
+          -> 查题材数据 CombatModifier -> 注入 ``CombatantSnapshot.formation_modifier``），
+          combat 包不查 Marks（combat 包自包含，ADR-0023 决策 2），由 runtime 层注入
+          （后置整合）。
+        - 本 tick 只读 ``formation_modifier``：构建 ``CombatContext`` 时，如果 attacker
+          或 victim 有 formation_modifier，apply 到快照副本（ap/dp 修正 + message 替换
+          + post_action 透传），再调 ``resolve_attack``（只读快照，不改 resolve_attack）。
+        - ``formation_modifier`` 默认 None：无协同修正时行为不变（回归基线）。
         """
         self._input_log.clear()
         results: list[CombatRoundResult] = []
@@ -97,12 +108,7 @@ class CombatSystem:
                     seq=seq,
                 )
                 self.record_input(entry)
-                ctx = CombatContext(
-                    attacker=attacker.model_copy(),
-                    victim=victim.model_copy(),
-                    seed=seed + seq,
-                    limbs=snapshot.limbs,
-                )
+                ctx = _build_context(attacker, victim, seed + seq, snapshot.limbs)
                 results.append(resolve_attack(ctx))
                 seq += 1
         return results
@@ -182,3 +188,66 @@ class CombatSystem:
 def make_rng(seed: int) -> DeterministicRNG:
     """构造 DeterministicRNG（供外部测试/重放用）。"""
     return DeterministicRNG(seed)
+
+
+def _apply_formation_modifier(
+    snapshot: CombatantSnapshot,
+    modifier: CombatModifier,
+    *,
+    is_attacker: bool,
+) -> CombatantSnapshot:
+    """把 CombatModifier apply 到快照副本（ADR-0027 §2.3 special_attack 调用点）。
+
+    协同标记检查在快照构建边界完成（runtime 层 CombatBridge 注入
+    ``formation_modifier``），本函数只读 modifier 做数值修正 + 文本替换，不改
+    ``resolve_attack``（只读快照）。
+
+    - attacker 路径（``is_attacker=True``）：``apply_attack += attack_modifier``，
+      ``action_message`` 替换为 ``modifier.message``（非空时），``action_post_action_result``
+      替换为 ``modifier.post_action``（非空时）。
+    - victim 路径（``is_attacker=False``）：``apply_dodge += defense_modifier``。
+      victim 的 message/post_action 不替换（victim 是被攻击方，不发起招式文本）。
+
+    用 ``model_copy(update={...})`` 构建修正后的快照（与 ``resolve_attack.py``
+    riposte 的 model_copy 模式一致，保持快照不可变）。
+    """
+    update: dict[str, object] = {}
+    if is_attacker:
+        update["apply_attack"] = snapshot.apply_attack + modifier.attack_modifier
+        if modifier.message:
+            update["action_message"] = modifier.message
+        if modifier.post_action is not None:
+            update["action_post_action_result"] = modifier.post_action
+    else:
+        update["apply_dodge"] = snapshot.apply_dodge + modifier.defense_modifier
+    return snapshot.model_copy(update=update)
+
+
+def _build_context(
+    attacker: CombatantSnapshot,
+    victim: CombatantSnapshot,
+    seed: int,
+    limbs: tuple[str, ...],
+) -> CombatContext:
+    """构建 CombatContext，注入 formation_modifier（ADR-0027 §2.3 special_attack 调用点）。
+
+    读 attacker/victim 的 ``formation_modifier``，非空时 apply 到快照副本
+    （ap/dp 修正 + message 替换 + post_action 透传），再构建 ``CombatContext``。
+    formation_modifier=None 时行为不变（回归基线，无协同修正）。
+    """
+    a = attacker
+    if attacker.formation_modifier is not None:
+        a = _apply_formation_modifier(
+            attacker, attacker.formation_modifier, is_attacker=True
+        )
+    v = victim
+    if victim.formation_modifier is not None:
+        v = _apply_formation_modifier(
+            victim, victim.formation_modifier, is_attacker=False
+        )
+    return CombatContext(
+        attacker=a.model_copy(),
+        victim=v.model_copy(),
+        seed=seed,
+        limbs=limbs,
+    )

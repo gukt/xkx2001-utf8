@@ -1,0 +1,71 @@
+{
+  "driver": "FluffOS 3.0.20170907 (MudOS v22b25 兼容), Rosetta 2 x86_64 macOS",
+  "host": "127.0.0.1:8888",
+  "encoding_out": "utf-8",
+  "encoding_cn_input": "gbk",
+  "account": "goldtcg",
+  "cn_name": "金录庚",
+  "scene": {
+    "room_id": "/d/xiakedao/ybting",
+    "room_short": "迎宾厅",
+    "npc_id": "huashan dizi (dizi/lingxiao)",
+    "npc_name": "凌逍（华山第十四代弟子）",
+    "npc_combat_exp": "中等（华山弟子，新角色裸装被秒杀）"
+  },
+  "sampling": {
+    "rounds_observed": 14,
+    "duration_s": 60,
+    "outcome": "玩家被凌逍杀死 -> 鬼门关（阴间死亡轮回衔接 2.6）"
+  },
+  "stats": {
+    "totals": {
+      "dodge": 4,
+      "parry": 0,
+      "hit": 11,
+      "miss": 0,
+      "wound": 9,
+      "dodge_exp": 0,
+      "crit": 0
+    },
+    "probabilities": {
+      "dodge_p": 0.2667,
+      "parry_p": 0.0,
+      "hit_p": 0.7333,
+      "n_decided": 15
+    },
+    "damage_values": [],
+    "damage_stats": {},
+    "lpc_formula_map": {
+      "dodge": "闪避概率 = dp/(ap+dp)",
+      "parry": "招架概率 = pp/(ap+pp)",
+      "hit": "命中 = 1 - dodge - parry",
+      "miss": "未命中（稀有）",
+      "wound": "wound: 空手kill 1/4, 武器kill 1/2, 空手非kill 1/7, 武器非kill 1/4",
+      "dodge_exp": "闪避后获经验: (jingli_ratio*100+int)>50",
+      "crit": "暴击（伤害随机化上界）"
+    }
+  },
+  "lpc_formula_map": {
+    "dodge": "闪避概率 = dp/(ap+dp)",
+    "parry": "招架概率 = pp/(ap+pp)",
+    "hit": "命中 = 1 - dodge - parry",
+    "miss": "未命中（稀有）",
+    "wound": "wound: 空手kill 1/4, 武器kill 1/2, 空手非kill 1/7, 武器非kill 1/4",
+    "dodge_exp": "闪避后获经验: (jingli_ratio*100+int)>50",
+    "crit": "暴击（伤害随机化上界）"
+  },
+  "login_flow": "新角色 10 步 (BIG5=n/英文名/y/中文名GBK/密码/确认/天赋y/电子邮件/性别/进游戏) -> 引导 follow li si 18s -> register 房间 -> register email 重置密码 -> 老玩家登录 3 步 (n/英文名/密码) -> 侠客岛 shatan.c",
+  "repro_cmds": [
+    "cd engine && .venv/bin/python -m tools.golden_trace.recorder --login",
+    "XKX_ACCOUNT=goldtcg .venv/bin/python -m tools.golden_trace.recorder --sample",
+    "完整流程见 README.md（含引导 + register 重置密码）"
+  ],
+  "notes": [
+    "driver 单进程共享，须串行单连接",
+    "不得 kill -9 driver（UE 状态端口 8888 不释放）",
+    "ANSI 颜色码保留在 raw，clean 文件已剥离",
+    "随机性：LPC random() 每次采样结果不同，概率需多次采样取分布",
+    "样本受限：新角色裸装被凌逍秒杀，14 回合；2.4 实施期可 wield 武器 + 找弱 NPC 补 30+ 回合",
+    "伤害文本为描述性（瘀青/瘀伤/肿），非数值；diff 须按描述文本分类"
+  ]
+}

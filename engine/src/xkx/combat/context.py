@@ -9,11 +9,20 @@ T6（ADR-0023）扩展：
 - ``HitCallbackResult`` hit_ob/hit_by 回调的声明式结果载体（回调实现由题材数据
   声明，在快照构建边界求值为声明式 result，内核只做返回类型分发，不解释回调
   逻辑--保持 ADR-0003 主题无关性 + 快照可序列化以支撑确定性重放）。
+
+2.4（ADR-0027）扩展：
+- ``CombatantSnapshot.formation_modifier``：阵法合击修正载体（``CombatModifier``，
+  主题无关声明式载体）。题材数据在快照构建边界注入（runtime 层 CombatBridge 从
+  Marks 查阵法标记 -> 查题材数据 CombatModifier -> 注入本字段），combat 包不查
+  Marks，由 runtime 层注入（后置整合）。CombatSystem.tick 只读本字段，构建
+  CombatContext 时 apply 到快照副本（ap/dp 修正 + message 替换）。
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
+
+from xkx.combat.modifier import CombatModifier
 
 # attack_type 取值（对应 include/combat.h）
 TYPE_REGULAR = 0
@@ -106,6 +115,7 @@ class CombatantSnapshot(BaseModel):
     apply_parry: int = 0
     apply_damage: int = 0
     apply_armor: int = 0
+    apply_speed: int = 0  # 2.3：apply/speed（fight/riposte 判定，ADR-0026 §1）
 
     # 武器类型（None = 空手）；题材无关，内核不解释具体武器名
     weapon: str | None = None
@@ -145,6 +155,14 @@ class CombatantSnapshot(BaseModel):
     # fight/dodge temp（LPC set_temp("fight/dodge")；skill_power DEFENSE 加成，规格 order=7）
     # is_fighting() 时 DEFENSE 额外乘 (100 + fight/dodge/10) / 100
     fight_dodge: int = 0
+
+    # 阵法合击修正载体（ADR-0027 §2.3 special_attack 调用点）。
+    # 题材数据在快照构建边界注入：runtime 层 CombatBridge 从 Marks 查阵法标记 ->
+    # 查题材数据 CombatModifier -> 注入本字段。combat 包不查 Marks（combat 包自包含，
+    # ADR-0023 决策 2），由 runtime 层注入（后置整合）。
+    # CombatSystem.tick 只读本字段：非空时 apply 到快照副本（ap/dp 修正 + message
+    # 替换），再调 resolve_attack。None = 无阵法修正，行为不变（回归基线）。
+    formation_modifier: CombatModifier | None = None
 
 
 class CombatContext(BaseModel):

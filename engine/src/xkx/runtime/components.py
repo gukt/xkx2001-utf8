@@ -40,10 +40,14 @@ class Vitals:
     eff_qi: int = 100
     jing: int = 100
     max_jing: int = 100
+    eff_jing: int = 100  # 2.2：jing 有效上限（heal_up 恢复上限，对齐 eff_qi）
     jingli: int = 100
     max_jingli: int = 100
+    eff_jingli: int = 0  # 2.7：jingli 有效上限（对照 LPC eff_jingli，2.2 遗漏补全）
     neili: int = 0
     max_neili: int = 0
+    water: int = 200  # 2.2：水度（heal_up 脱水门控，LPC set("water")）
+    food: int = 200  # 2.2：食物度（heal_up 饥饿门控，LPC set("food")）
 
 
 @dataclass
@@ -63,13 +67,58 @@ class Progression:
 
 @dataclass
 class Skills:
+    """技能 + 临时修正（阶段 2.3 扩展，对照 LPC feature/skill.c）。
+
+    - ``levels``：技能等级（永久基础值层，对照 LPC ``skills`` mapping）
+    - ``apply_*``：临时修正标量（对照 LPC ``query_temp("apply/...")``，装备加成
+      在 equip 时注入 + condition 修正由 EffectComp 驱动，三类叠加见 ADR-0026）
+    - ``skill_map``/``skill_prepare``/``learned``：2.3 新增（对照 LPC skill_map/
+      skill_prepare/learned mapping，query_skill 三层叠加 + skill_death_penalty）
+    """
+
     levels: dict[str, int] = field(default_factory=dict)
     apply_attack: int = 0
     apply_dodge: int = 0
     apply_parry: int = 0
     apply_damage: int = 0
     apply_armor: int = 0
+    apply_speed: int = 0  # 2.3：apply/speed（fight/riposte 判定，ADR-0026 §1）
     weapon: str | None = None
+    # 2.3 新增（ADR-0026 §2 技能三层）：skill_map 映射 + skill_prepare 准备 +
+    # learned 进度（skill_death_penalty 真实公式用，对照 skill.c:121-147）
+    skill_map: dict[str, str] = field(default_factory=dict)
+    skill_prepare: dict[str, str] = field(default_factory=dict)
+    learned: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class Equipment:
+    """装备组件（阶段 2.3，对照 LPC feature/equip.c wield/wear/unequip）。
+
+    装备槽 + per-slot prop 副本（unequip 反向扣减 apply_* 用，对照 LPC
+    ``applied_prop``）。可序列化（字段全基本类型 + dict 容器，ADR-0022 存档崩溃
+    安全）。
+
+    prop 副本按槽位存（weapon_props/secondary_weapon_props/armor_props），unequip
+    单个物品时按该槽 prop 副本扣减 Skills.apply_*，不依赖 apply_* 当前值（避免
+    LPC "中途 condition 改了同 key 导致扣减出错"的隐性 bug，ADR-0026 §1）。
+
+    [ADR-0026](../../../docs/adr/ADR-0026-modifier-stack-and-skill-layers.md)
+    """
+
+    # 装备槽（物品 id，None=空）
+    weapon: str | None = None
+    secondary_weapon: str | None = None
+    armors: dict[str, str] = field(default_factory=dict)  # armor_type -> item_id
+
+    # per-slot prop 副本（key: apply_* 路径名如 "attack"/"dodge"；unequip 扣减用）
+    weapon_props: dict[str, int] = field(default_factory=dict)
+    secondary_weapon_props: dict[str, int] = field(default_factory=dict)
+    armor_props: dict[str, dict[str, int]] = field(default_factory=dict)  # type -> prop
+
+    # 负重（对照 LPC F_MOVE weight/encumbrance，ADR-0025 后置 2.3 衔接）
+    encumbrance: int = 0  # 当前负重（物品重量总和）
+    max_encumbrance: int = 0  # 最大负重（由 str 决定，LPC set_max_encumbrance）
 
 
 @dataclass
@@ -173,3 +222,46 @@ class RoomComp:
     items: set[str] = field(default_factory=set)  # S5a：房间地面物品（take 命令拾取）
     outdoors: bool = False
     no_fight: bool = False
+    no_death: bool = False  # 2.2：no_death 房玩家死亡转 unconcious（LPC query("no_death")）
+
+
+@dataclass
+class TitleComp:
+    """称谓组件（阶段 2.5，ADR-0028 决策 3，第 14 组件）。
+
+    承载 RANK_D 7 函数求值所需的 dbase key：title/nickname/shen（玩家称号）+
+    rank_info 四键（rankd 覆盖优先）+ PKS/MKS（PKS 称号）+ class/dali/rank
+    （门派职位/官职）+ is_ghost（鬼魂状态）。
+
+    对照 LPC set("title"/"nickname"/"shen"/"rank_info/*"/"PKS"/"MKS"/"class")
+    dbase key（dbase_map.py POSTPONED_KEYS，2.5 激活 title/shen；PKS/MKS/class/
+    rank/dali/rank 本未在 POSTPONED，2.5 新增激活，ADR-0028 决策 5）。
+
+    可序列化（ADR-0022）：字段全基本类型（str/int/bool/None），serialization.py
+    按 dataclasses.fields 自动提取，无需额外适配。
+    [ADR-0028](../../../docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)
+    """
+
+    # 玩家称号（LPC set("title")/set("nickname")/set("shen")）
+    title: str = ""  # LPC "title"：头衔（如"普通百姓"/"华山派弟子"）
+    nickname: str = ""  # LPC "nickname"：绰号（如「老顽童」）
+    shen: int = 0  # LPC "shen"：道德值（正=侠，负=魔，rankd 按阈值分级）
+
+    # rank_info 覆盖（LPC set("rank_info/respect|rude|self|self_rude")）
+    # rankd.c 行 327/411/468/520：stringp 时直接返回，跳过 gender/class 求值
+    rank_info_respect: str | None = None
+    rank_info_rude: str | None = None
+    rank_info_self: str | None = None
+    rank_info_self_rude: str | None = None
+
+    # PKS 称号（LPC "PKS"/"MKS"，09 §五法院系统）
+    pks: int = 0  # 玩家击杀数（PKS>100 且 PKS>MKS -> "土匪"/"土匪婆"）
+    mks: int = 0  # 怪物击杀数（对照用）
+
+    # 门派职位/官职（LPC "class"/"dali/rank"/"rank"）
+    char_class: str = ""  # LPC "class"：职业（bonze/taoist/beggar/eunach/swordsman/...）
+    dali_rank: int = 0  # LPC "dali/rank"：大理官职（1-5，5=王爷/王妃）
+    family_rank: int = 0  # LPC "rank"：丐帮袋数（rankd 行 28/130-145/280-295）
+
+    # 鬼魂状态（LPC is_ghost()，rankd 行 19 最先判定）
+    is_ghost: bool = False

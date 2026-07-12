@@ -8,17 +8,23 @@ from __future__ import annotations
 
 from xkx.combat.context import CombatantSnapshot
 from xkx.combat.result import (
+    KIND_CLEAR_MARK,
     KIND_DAMAGE,
+    KIND_DAMAGE_JING,
     KIND_EXP,
+    KIND_HEAL,
+    KIND_HEAL_JING,
     KIND_JINGLI,
     KIND_POTENTIAL,
     KIND_SKILL_IMPROVE,
     KIND_WOUND,
+    KIND_WOUND_JING,
     Effect,
 )
 from xkx.runtime.components import (
     Attributes,
     CombatState,
+    Equipment,
     Identity,
     Inventory,
     Marks,
@@ -28,6 +34,7 @@ from xkx.runtime.components import (
     QuestLog,
     RoomComp,
     Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.dbase_map import validate_dbase_map
@@ -39,6 +46,7 @@ from xkx.runtime.storage import (
     StorageBackend,
     StorageSystem,
 )
+from xkx.runtime.theme import ThemeConfig
 
 
 def build_world(
@@ -47,6 +55,7 @@ def build_world(
     storage_backend: StorageBackend | None = None,
     persist_interval: int = DEFAULT_PERSIST_INTERVAL,
     checkpoint_interval: int = DEFAULT_CHECKPOINT_INTERVAL,
+    theme_config: ThemeConfig | None = None,
 ) -> tuple[World, dict[str, int], dict[str, dict]]:
     """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
 
@@ -57,6 +66,11 @@ def build_world(
     ADR-0022 T5：可选 ``storage_backend`` 传入时创建 ``StorageSystem`` 并挂到
     ``world.storage_system``（动态属性，不改 World 类）。调用方通过该属性驱动 tick
     persist + mark_dirty。不传则不接入存档（向后兼容现有调用方）。
+
+    ADR-0030 决策 2：可选 ``theme_config`` 传入时挂到 ``world.theme_config``
+    （动态属性，类比 ``storage_system`` 注入模式）。``None`` 时用
+    ``ThemeConfig.default()``（非武侠测试默认配置）。governance/death/cli 通过
+    ``world.theme_config`` 读取房间路径，不硬编码武侠路径字面量。
     """
     schema = SchemaRegistry.with_builtins()
     issues = validate_dbase_map(schema)
@@ -65,6 +79,8 @@ def build_world(
             "DBASE_KEY_MAP 映射校验失败（ADR-0019）:\n" + "\n".join(issues)
         )
     world = World(schema)
+    # ADR-0030 决策 2：注入 ThemeConfig（None 用默认非武侠配置）
+    world.theme_config = theme_config or ThemeConfig.default()  # type: ignore[attr-defined]
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}
@@ -82,6 +98,7 @@ def build_world(
                 items=set(r.get("items", [])),
                 outdoors=r.get("outdoors", False),
                 no_fight=r.get("no_fight", False),
+                no_death=r.get("no_death", False),
             ),
         )
         room_entities[r["id"]] = eid
@@ -129,6 +146,7 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             eff_qi=n.get("max_qi", 100),
             jing=n.get("max_jing", 100),
             max_jing=n.get("max_jing", 100),
+            eff_jing=n.get("max_jing", 100),
             jingli=n.get("max_jingli", 100),
             max_jingli=n.get("max_jingli", 100),
             max_neili=n.get("max_neili", 0),
@@ -144,7 +162,11 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             apply_parry=n.get("apply_parry", 0),
             apply_damage=n.get("apply_damage", 0),
             apply_armor=n.get("apply_armor", 0),
+            apply_speed=n.get("apply_speed", 0),
             weapon=n.get("weapon"),
+            skill_map=n.get("skill_map", {}),
+            skill_prepare=n.get("skill_prepare", {}),
+            learned=n.get("learned", {}),
         ),
     )
     world.add(
@@ -163,6 +185,10 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             inquiry=n.get("inquiry", {}),
         ),
     )
+    # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
+    # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
+    # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
+    world.add(eid, TitleComp())
     return eid
 
 
@@ -192,6 +218,7 @@ def spawn_player(
             eff_qi=200,
             jing=150,
             max_jing=150,
+            eff_jing=150,
             jingli=200,
             max_jingli=200,
         ),
@@ -200,8 +227,10 @@ def spawn_player(
     world.add(eid, Skills(levels={"unarmed": 30, "dodge": 20}))
     world.add(eid, CombatState())
     world.add(eid, Inventory(items=items or set()))
+    world.add(eid, Equipment())  # 2.3：装备组件（默认空槽，wield/wear 填充）
     world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
     world.add(eid, QuestLog())  # S4 ADR-0007：任务状态
+    world.add(eid, TitleComp())  # 2.5 ADR-0028：称谓组件（rankd 求值所需 dbase key）
     return eid
 
 
@@ -237,6 +266,7 @@ def to_snapshot(world: World, eid: int) -> CombatantSnapshot:
         apply_parry=skills.apply_parry,
         apply_damage=skills.apply_damage,
         apply_armor=skills.apply_armor,
+        apply_speed=skills.apply_speed,
         weapon=skills.weapon,
         attack_skill=combat.attack_skill,
         weapon_label=combat.weapon_label,
@@ -263,6 +293,23 @@ def apply_effects(world: World, effects: list[Effect]) -> None:
             vitals.qi = max(0, vitals.qi - e.amount)
         elif e.kind == KIND_WOUND and vitals:
             vitals.eff_qi = max(0, vitals.eff_qi - e.amount)
+        elif e.kind == KIND_HEAL and vitals:
+            # condition 驱动的 qi 恢复（drunk 微醺活血等），clamp eff_qi
+            vitals.qi = min(vitals.eff_qi, vitals.qi + e.amount)
+        elif e.kind == KIND_HEAL_JING and vitals:
+            # condition 驱动的 jing 恢复，clamp eff_jing
+            vitals.jing = min(vitals.eff_jing, vitals.jing + e.amount)
+        elif e.kind == KIND_DAMAGE_JING and vitals:
+            # condition 驱动的 jing 扣减（drunk 扣精等），clamp 0
+            vitals.jing = max(0, vitals.jing - e.amount)
+        elif e.kind == KIND_WOUND_JING and vitals:
+            # condition 驱动的 eff_jing 扣减（snake_poison wound jing），clamp 0
+            vitals.eff_jing = max(0, vitals.eff_jing - e.amount)
+        elif e.kind == KIND_CLEAR_MARK:
+            # Marks.flags 移除（revive 苏醒清 unconscious 等，2.2）
+            marks = world.get(e.target_id, Marks)
+            if marks and e.detail:
+                marks.flags.discard(e.detail)
         elif e.kind == KIND_EXP:
             prog = world.get(e.target_id, Progression)
             if prog:

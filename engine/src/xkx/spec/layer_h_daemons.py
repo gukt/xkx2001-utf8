@@ -14,6 +14,9 @@
   update_day_phase / event_sunrise（自动保存触发）/ event_common（通用定时事件）
 - ``adm/daemons/chinesed.c`` -- CHINESE_D：chinese_number（数字转中文）/
   chinese_date（日期转中文干支）/ chinese（英中翻译查询）
+- ``adm/daemons/rankd.c`` -- RANK_D：query_rank/query_respect/query_rude/
+  query_self/query_self_rude/query_close/query_self_close 7 函数称谓求值
+  （三元组 speaker/viewer/target，query_close/query_self_close 依赖 this_player()）
 
 核心契约要点：
 1. **LOGIN_D 状态机完整性**（logind.c）：
@@ -2743,6 +2746,759 @@ _chinese = FunctionSpec(
 
 
 # ---------------------------------------------------------------------------
+# RANK_D 函数规格（rankd.c，ADR-0028 决策 7）
+# ---------------------------------------------------------------------------
+
+_query_rank = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_rank",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(8, 320),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回等级称谓字符串（非空），如 '【大侠】'/'【天后】'/'【土匪】'",
+            return_value="string: 等级称谓（含 ANSI 颜色修饰，greenfield 去颜色）",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="is_ghost() 最先判定：返回 '【鬼魂】'，跳过所有后续分支",
+            state_change='if(ob->is_ghost()) return "【 鬼  魂 】"',
+            kind="effect",
+        ),
+        Postcondition(
+            description="wizhood 优先于 class/shen：巫师等级（admin/arch/wizard/...）"
+            "直接返回对应仙界称谓，跳过 class/shen 分支",
+            state_change="switch(wizhood(ob)) { case '(admin)': ...; default: PKS/class/shen 分支 }",
+            kind="effect",
+        ),
+        Postcondition(
+            description="PKS>100 且 PKS>MKS 时返回 '【土匪】'（男性）/ '【土匪婆】'（女性）",
+            state_change='if(ob->query("PKS") > 100 && ob->query("PKS") > ob->query("MKS")) return "【 土  匪 】" / "【 土匪婆 】"',
+            kind="effect",
+        ),
+        Postcondition(
+            description="按 gender 二分支：case '女性' 与 default（含男性/无性），"
+            "女性有独立 class 分支表（bonze/taoist/beggar/...）",
+            state_change='switch(ob->query("gender")) { case "女性": ...; default: ... }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="is_ghost 最先（行 19-20）：短路返回，跳过 wizhood/class/shen 全部分支",
+            lpc_expr="if(ob->is_ghost()) return (优先级 1)",
+            scope="function",
+        ),
+        Invariant(
+            description="wizhood 优先于 class/shen（行 60-78/170-188）：巫师等级直接返回仙界称谓",
+            lpc_expr="wizhood(ob) in ('(admin)','(arch)',...) => return 仙界称谓 (优先级 2)",
+            scope="function",
+        ),
+        Invariant(
+            description="query_rank PKS 称号（行 80-82/190-192）：PKS>100 且 PKS>MKS -> '土匪'/'土匪婆'",
+            lpc_expr='(int)ob->query("PKS") > 100 && (int)ob->query("PKS") > (int)ob->query("MKS")',
+            scope="function",
+        ),
+        Invariant(
+            description="query_rank 是单实体属性函数：从 ob 自身求值，无 this_player() 依赖",
+            lpc_expr="no this_player() dependency in query_rank",
+            scope="function",
+        ),
+        Invariant(
+            description="gender 二分支表：女性 class 分支表（bonze/taoist/bandit/dancer/scholar/"
+            "officer/fighter/swordsman/alchemist/shaman/beggar）+ default shen 阈值分级；"
+            "男性 class 分支表（eunach/bonze/lama/taoist/bandit/scholar/officer/fighter/"
+            "swordsman/alchemist/shaman/beggar）+ default shen 阈值分级",
+            lpc_expr='switch(gender) { case "女性": switch(class){...}; default: switch(class){...} }',
+            scope="function",
+        ),
+        Invariant(
+            description="class 分支表数据是武侠题材包资产，核心引擎仅提供查表框架"
+            "（test_theme_neutrality 硬门禁）",
+            scope="system",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="is_ghost() 判定：返回 '【鬼魂】'（最先短路）",
+            lpc_call='if(ob->is_ghost()) return HIB "【 鬼  魂 】" NOR',
+            target="ob.is_ghost",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.STATE_MUTATION,
+            description="无性 + pixie<60 时 ob->delete('class') 清除 eunach（行 55），"
+            "eunach 时 delete rank_info/respect|rank_info/rude（行 51-53）",
+            lpc_call='if(ob->query("class")=="eunach") { ob->delete("rank_info/respect"); ob->delete("rank_info/rude"); } pixie=ob->query_skill("pixie-jian",1); if(pixie<60 && ob->query("class")=="eunach") ob->delete("class")',
+            target="ob.class.rank_info",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.EXTERNAL,
+            description="按 family/family_name 分派技能查询：少林=buddhism/丐帮=rank/"
+            "雪山或血刀=lamaism/峨嵋=mahayana/全真=taoism（行 24-38）",
+            lpc_call='if(family=="少林派") budd=ob->query_skill("buddhism",1); if(family=="丐帮") rank=ob->query("rank"); ...',
+            target="ob.skills",
+        ),
+        SideEffect(
+            order=4,
+            kind=SideEffectType.EXTERNAL,
+            description="dali/employee 时取 dali/rank 官职（行 40-41）",
+            lpc_call='if(ob->query("dali/employee")) dlrank = ob->query("dali/rank")',
+            target="ob.dali",
+        ),
+        SideEffect(
+            order=5,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender 二分支：女性走女性 wizhood/class/shen 表，default 走男性表",
+            lpc_call='switch(ob->query("gender")) { case "女性": switch(wizhood(ob)){...}; default: switch(wizhood(ob)){...} }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_rank 是等级称谓求值（如 '【大侠】'/'【天后】'）。"
+        "求值优先级链：is_ghost（行 19）-> wizhood（行 60/170）-> PKS 称号（行 80/190）"
+        " -> class 分支（行 85/195）-> default shen 阈值分级（行 147/297）。"
+        "greenfield 映射：is_ghost -> TitleComp.is_ghost；wizhood -> CapabilityToken.status；"
+        "PKS/MKS/class/rank/dali -> TitleComp 字段；技能查询委托层 E。"
+        "ADR-0028 决策 7：单实体属性函数（无 viewer 依赖），绿色引擎签名 query_rank(world, target)。"
+        "ADR-0028 简化台账：beauty reduce_age 不在 query_rank（仅 query_respect 等 4 函数有 age 修正）。"
+    ),
+)
+
+
+_query_respect = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_respect",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(322, 404),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回尊敬称谓字符串（非空），如 '壮士'/'姑娘'/'大师'/'师太'",
+            return_value="string: 尊敬称谓",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="rank_info/respect 覆盖优先：stringp 时直接返回，跳过 gender/class 求值",
+            state_change='if(stringp(str = ob->query("rank_info/respect"))) return str',
+            kind="effect",
+        ),
+        Postcondition(
+            description="age 经 SKILL_D('beauty')->reduce_age(ob) 修正（行 330）",
+            state_change='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            kind="effect",
+        ),
+        Postcondition(
+            description="按 gender 二分支：女性（bonze/taoist/officer/default）+ "
+            "男性（bonze/lama/taoist/fighter|swordsman/eunach/officer/default），按 age 段（18/25/50）分级",
+            state_change='switch(gender) { case "女性": switch(class){...}; default: switch(class){...} }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="rank_info/respect 覆盖优先（行 327）：stringp 时直接返回",
+            lpc_expr='stringp(ob->query("rank_info/respect")) => return (优先级 1)',
+            scope="function",
+        ),
+        Invariant(
+            description="age 修正（行 330）：age = ob->query('age') - SKILL_D('beauty')->reduce_age(ob)",
+            lpc_expr='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            scope="function",
+        ),
+        Invariant(
+            description="query_respect 是单实体属性函数：从 ob 自身求值，无 this_player() 依赖",
+            lpc_expr="no this_player() dependency in query_respect",
+            scope="function",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="rank_info/respect 覆盖判定：stringp 时直接返回",
+            lpc_call='if(stringp(str = ob->query("rank_info/respect"))) return str',
+            target="ob.rank_info",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.EXTERNAL,
+            description="age 修正：SKILL_D('beauty')->reduce_age(ob) 减龄（beauty 技能）",
+            lpc_call='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            target="ob.age.ob.skills.beauty",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender/class 二维分支求值：按 age 段（18/25/50）返回尊敬称谓",
+            lpc_call='switch(ob->query("gender")) { case "女性": switch(ob->query("class")){...}; default: switch(ob->query("class")){...} }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_respect 是尊敬称谓求值（如 '壮士'/'姑娘'/'大师'）。"
+        "rank_info/respect 覆盖优先（行 327），age 经 beauty reduce_age 修正（行 330）。"
+        "greenfield 映射：rank_info/respect -> TitleComp.rank_info_respect；"
+        "age -> Attributes.age；beauty -> Skills.levels['beauty']（reduce_age 公式后置 2.3，2.5 接 0）。"
+        "ADR-0028 决策 7：单实体属性函数（无 viewer 依赖）。"
+    ),
+)
+
+
+_query_rude = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_rude",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(406, 461),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回粗鄙称谓字符串（非空），如 '臭贼'/'贼尼'/'老匹夫'/'死秃驴'",
+            return_value="string: 粗鄙称谓",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="rank_info/rude 覆盖优先：stringp 时直接返回，跳过 gender/class 求值",
+            state_change='if(stringp(str = ob->query("rank_info/rude"))) return str',
+            kind="effect",
+        ),
+        Postcondition(
+            description="age 经 SKILL_D('beauty')->reduce_age(ob) 修正（行 414）",
+            state_change='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            kind="effect",
+        ),
+        Postcondition(
+            description="按 gender 二分支：女性（bonze/taoist/default）+ "
+            "男性（bonze/lama/taoist/eunach/officer/default），按 age 段（18/20/50）分级",
+            state_change='switch(gender) { case "女性": switch(class){...}; default: switch(class){...} }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="rank_info/rude 覆盖优先（行 411）：stringp 时直接返回",
+            lpc_expr='stringp(ob->query("rank_info/rude")) => return (优先级 1)',
+            scope="function",
+        ),
+        Invariant(
+            description="age 修正（行 414）：age = ob->query('age') - SKILL_D('beauty')->reduce_age(ob)",
+            lpc_expr='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            scope="function",
+        ),
+        Invariant(
+            description="query_rude 是单实体属性函数：从 ob 自身求值，无 this_player() 依赖",
+            lpc_expr="no this_player() dependency in query_rude",
+            scope="function",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="rank_info/rude 覆盖判定：stringp 时直接返回",
+            lpc_call='if(stringp(str = ob->query("rank_info/rude"))) return str',
+            target="ob.rank_info",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.EXTERNAL,
+            description="age 修正：SKILL_D('beauty')->reduce_age(ob) 减龄",
+            lpc_call='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            target="ob.age.ob.skills.beauty",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender/class 二维分支求值：按 age 段（18/20/50）返回粗鄙称谓",
+            lpc_call='switch(ob->query("gender")) { case "女性": switch(ob->query("class")){...}; default: switch(ob->query("class")){...} }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_rude 是粗鄙称谓求值（如 '臭贼'/'贼尼'/'老匹夫'）。"
+        "rank_info/rude 覆盖优先（行 411），age 经 beauty reduce_age 修正（行 414）。"
+        "greenfield 映射：rank_info/rude -> TitleComp.rank_info_rude。"
+        "ADR-0028 决策 7：单实体属性函数（无 viewer 依赖）。"
+    ),
+)
+
+
+_query_self = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_self",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(463, 513),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回自称字符串（非空），如 '在下'/'小女子'/'贫僧'/'老衲'",
+            return_value="string: 自称",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="rank_info/self 覆盖优先：stringp 时直接返回，跳过 gender/class 求值",
+            state_change='if(stringp(str = ob->query("rank_info/self"))) return str',
+            kind="effect",
+        ),
+        Postcondition(
+            description="age 经 SKILL_D('beauty')->reduce_age(ob) 修正（行 471）",
+            state_change='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            kind="effect",
+        ),
+        Postcondition(
+            description="按 gender 二分支：女性（bonze/default，按 30/50 分级）+ "
+            "男性（bonze/lama/eunach/taoist/officer/default，按 50 分级）",
+            state_change='switch(gender) { case "女性": switch(class){...}; default: switch(class){...} }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="rank_info/self 覆盖优先（行 468）：stringp 时直接返回",
+            lpc_expr='stringp(ob->query("rank_info/self")) => return (优先级 1)',
+            scope="function",
+        ),
+        Invariant(
+            description="age 修正（行 471）：age = ob->query('age') - SKILL_D('beauty')->reduce_age(ob)",
+            lpc_expr='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            scope="function",
+        ),
+        Invariant(
+            description="query_self 是单实体属性函数：从 ob 自身求值，无 this_player() 依赖",
+            lpc_expr="no this_player() dependency in query_self",
+            scope="function",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="rank_info/self 覆盖判定：stringp 时直接返回",
+            lpc_call='if(stringp(str = ob->query("rank_info/self"))) return str',
+            target="ob.rank_info",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.EXTERNAL,
+            description="age 修正：SKILL_D('beauty')->reduce_age(ob) 减龄",
+            lpc_call='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            target="ob.age.ob.skills.beauty",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender/class 二维分支求值：按 age 段（30/50）返回自称",
+            lpc_call='switch(ob->query("gender")) { case "女性": switch(ob->query("class")){...}; default: switch(ob->query("class")){...} }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_self 是自称求值（如 '在下'/'小女子'/'贫僧'）。"
+        "rank_info/self 覆盖优先（行 468），age 经 beauty reduce_age 修正（行 471）。"
+        "greenfield 映射：rank_info/self -> TitleComp.rank_info_self。"
+        "ADR-0028 决策 7：单实体属性函数（无 viewer 依赖）。"
+    ),
+)
+
+
+_query_self_rude = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_self_rude",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(515, 569),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回傲慢自称字符串（非空），如 '老子'/'老娘'/'本王'/'本佛爷'",
+            return_value="string: 傲慢自称",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="rank_info/self_rude 覆盖优先：stringp 时直接返回，跳过 gender/class 求值",
+            state_change='if(stringp(str = ob->query("rank_info/self_rude"))) return str',
+            kind="effect",
+        ),
+        Postcondition(
+            description="age 经 SKILL_D('beauty')->reduce_age(ob) 修正（行 523）",
+            state_change='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            kind="effect",
+        ),
+        Postcondition(
+            description="按 gender 二分支：女性（bonze/default，按 30 分级）+ "
+            "男性（bonze/eunach/lama/taoist/officer/default，按 50 分级）",
+            state_change='switch(gender) { case "女性": switch(class){...}; default: switch(class){...} }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="rank_info/self_rude 覆盖优先（行 520）：stringp 时直接返回",
+            lpc_expr='stringp(ob->query("rank_info/self_rude")) => return (优先级 1)',
+            scope="function",
+        ),
+        Invariant(
+            description="age 修正（行 523）：age = ob->query('age') - SKILL_D('beauty')->reduce_age(ob)",
+            lpc_expr='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            scope="function",
+        ),
+        Invariant(
+            description="query_self_rude 是单实体属性函数：从 ob 自身求值，无 this_player() 依赖",
+            lpc_expr="no this_player() dependency in query_self_rude",
+            scope="function",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="rank_info/self_rude 覆盖判定：stringp 时直接返回",
+            lpc_call='if(stringp(str = ob->query("rank_info/self_rude"))) return str',
+            target="ob.rank_info",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.EXTERNAL,
+            description="age 修正：SKILL_D('beauty')->reduce_age(ob) 减龄",
+            lpc_call='age = ob->query("age") - SKILL_D("beauty")->reduce_age(ob)',
+            target="ob.age.ob.skills.beauty",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender/class 二维分支求值：按 age 段（30/50）返回傲慢自称",
+            lpc_call='switch(ob->query("gender")) { case "女性": switch(ob->query("class")){...}; default: switch(ob->query("class")){...} }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_self_rude 是傲慢自称求值（如 '老子'/'老娘'/'本王'）。"
+        "rank_info/self_rude 覆盖优先（行 520），age 经 beauty reduce_age 修正（行 523）。"
+        "greenfield 映射：rank_info/self_rude -> TitleComp.rank_info_self_rude。"
+        "ADR-0028 决策 7：单实体属性函数（无 viewer 依赖）。"
+    ),
+)
+
+
+_query_close = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_close",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(570, 613),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象（target）",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+        Precondition(
+            description="viewer 有效：this_player() 或 previous_object() 至少一个有效"
+            "（viewer 回退路径）",
+            lpc_expr="objectp(this_player()) || objectp(previous_object())",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回亲近称谓字符串（非空），如 '弟弟'/'妹妹'/'哥哥'/'姐姐'",
+            return_value="string: 亲近称谓（viewer 相对 target 的辈分判定）",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="viewer 年龄 a1 = this_player()->query('mud_age')（target 有 mud_age 时）"
+            "或 this_player()->query('age')（target 无 mud_age 回退 age）",
+            state_change="a1 = this_player()->query('mud_age') || this_player()->query('age')",
+            kind="effect",
+        ),
+        Postcondition(
+            description="target 年龄 a2 = ob->query('mud_age')（有 mud_age 时）"
+            "或 ob->query('age')（无 mud_age 回退 age）",
+            state_change="a2 = ob->query('mud_age') || ob->query('age')",
+            kind="effect",
+        ),
+        Postcondition(
+            description="a1 >= a2 时 viewer 年长（target 是 '弟弟'/'妹妹'），否则 viewer 年幼"
+            "（target 是 '哥哥'/'姐姐'）",
+            state_change="if(a1 >= a2) return '弟弟'/'妹妹'; else return '哥哥'/'姐姐'",
+            kind="effect",
+        ),
+        Postcondition(
+            description="无性 + eunach 时 random(5)==1 返回异性称谓（'妹妹'/'姐姐'），"
+            "否则同性（'弟弟'/'哥哥'）",
+            state_change='if(class=="eunach") { if(random(5)==1) return 异性; else return 同性; }',
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="query_close 是观察者相对的二元关系函数（专家 3 承重论断 2，ADR-0028），"
+            "依赖 this_player()->query('age') 判定辈分",
+            lpc_expr="a1 = this_player()->query('age'); a2 = ob->query('age') (viewer 相对 target)",
+            scope="system",
+        ),
+        Invariant(
+            description="辈分判定（行 592-611）：a1 >= a2 -> viewer 年长（target '弟弟'/'妹妹'），"
+            "a1 < a2 -> viewer 年幼（target '哥哥'/'姐姐'）。无 mud_age 时回退 age",
+            lpc_expr="a1 = viewer.mud_age || viewer.age; a2 = target.mud_age || target.age; if(a1>=a2) return 年长称谓",
+            scope="function",
+        ),
+        Invariant(
+            description="this_player() 依赖（行 574/578/581）：viewer 年龄取自 this_player()，"
+            "this_player() 不存在时回退 previous_object()->query('age')（行 586）",
+            lpc_expr="a1 = objectp(this_player()) ? this_player()->query('mud_age'||'age') : previous_object()->query('age')",
+            scope="function",
+        ),
+        Invariant(
+            description="greenfield 无全局 this_player/previous_object（ADR-0021），viewer 必须显式传参；"
+            "System tick 无 viewer 路径回退 speaker 自身（ADR-0028 决策 4）",
+            lpc_expr="greenfield: query_close(world, viewer, target); System tick: viewer == speaker",
+            scope="system",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="viewer 年龄 a1 取值：this_player()->query('mud_age')（行 578）"
+            "或 this_player()->query('age')（行 581），this_player 不存在时 previous_object()->query('age')（行 586）",
+            lpc_call='if(objectp(this_player())) { if(a2=(int)ob->query("mud_age")) a1=this_player()->query("mud_age"); else { a1=this_player()->query("age"); a2=ob->query("age"); } } else { a1=previous_object()->query("age"); a2=ob->query("age"); }',
+            target="viewer.age",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.STATE_MUTATION,
+            description="target 年龄 a2 取值：ob->query('mud_age')（行 576）或 ob->query('age')（行 582）",
+            lpc_call='a2 = ob->query("mud_age") || ob->query("age")',
+            target="target.age",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender 二分支：女性（a1>=a2 返回 '妹妹'，否则 '姐姐'）；"
+            "无性 + eunach（random(5) 决定同性/异性）；default 男性（'弟弟'/'哥哥'）",
+            lpc_call='switch(ob->query("gender")) { case "女性": if(a1>=a2) return "妹妹"; else return "姐姐"; case "无性": if(class=="eunach") { ...random(5)... }; default: if(a1>=a2) return "弟弟"; else return "哥哥"; }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[
+        RandomSpec(
+            lpc_call="random(5)==1",
+            probability_model="1/5=0.2 概率返回异性称谓，4/5=0.8 概率返回同性称谓",
+            semantic="无性 + eunach 分支的亲近称谓性别随机（行 600/603）",
+            seed_inputs=["无外部 seed"],
+            determinism_note="称谓系统非 combat，用系统 RNG（非 DeterministicRNG）。"
+            "返回值随机非状态变更，ADR-0028 决策 7 + 开放问题 3 裁决。",
+        ),
+    ],
+    notes=(
+        "query_close 是亲近称谓求值（如 '弟弟'/'妹妹'），观察者相对的二元关系函数"
+        "（专家 3 承重论断 2，ADR-0028）。依赖 this_player()->query('age') 判定辈分。"
+        "this_player() 依赖行 574/578/581，previous_object() 回退行 586。"
+        "无性 + eunach 分支含 random(5)（行 600/603），系统 RNG 非确定性。"
+        "greenfield 签名 query_close(world, viewer, target)；System tick 无 viewer 回退 speaker 自身"
+        "（ADR-0028 决策 4，04 §七避坑 5）。"
+    ),
+)
+
+
+_query_self_close = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_self_close",
+        params=[
+            LPCParam(name="ob", lpc_type="object", description="被求值的角色对象（target）"),
+        ],
+        return_type="string",
+        lpc_file="adm/daemons/rankd.c",
+        line_range=(615, 651),
+    ),
+    preconditions=[
+        Precondition(
+            description="ob 是有效的角色对象（target）",
+            lpc_expr="objectp(ob)",
+            kind="require",
+        ),
+        Precondition(
+            description="viewer 有效：this_player() 或 previous_object() 至少一个有效"
+            "（viewer 回退路径，含 gender 取值依赖）",
+            lpc_expr="objectp(this_player()) || objectp(previous_object())",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="返回亲近自称字符串（非空），如 '愚兄我'/'小弟我'/'小妹我'/'姐姐我'",
+            return_value="string: 亲近自称（viewer 性别 + 辈分判定）",
+            kind="ensure",
+        ),
+        Postcondition(
+            description="viewer 年龄 a1 = this_player()->query('mud_age')（行 624，target 有 mud_age 时）"
+            "或 this_player()->query('age')（行 627，target 无 mud_age 回退）",
+            state_change="a1 = this_player()->query('mud_age') || this_player()->query('age')",
+            kind="effect",
+        ),
+        Postcondition(
+            description="target 年龄 a2 = ob->query('mud_age')（行 622）或 ob->query('age')（行 628）",
+            state_change="a2 = ob->query('mud_age') || ob->query('age')",
+            kind="effect",
+        ),
+        Postcondition(
+            description="gender 取自 viewer（this_player()->query('gender')，行 630），非 target",
+            state_change='gender = this_player()->query("gender")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="a1 >= a2 时 viewer 年长（自称 '愚兄我'/'姐姐我'），"
+            "否则 viewer 年幼（自称 '小弟我'/'小妹我'）",
+            state_change="if(a1 >= a2) return '愚兄我'/'姐姐我'; else return '小弟我'/'小妹我'",
+            kind="effect",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="query_self_close 是观察者相对的二元关系函数（专家 3 承重论断 2，ADR-0028），"
+            "依赖 this_player()->query('age') 判定辈分",
+            lpc_expr="a1 = this_player()->query('age'); a2 = ob->query('age') (viewer 相对 target)",
+            scope="system",
+        ),
+        Invariant(
+            description="辈分判定（行 640-649）：a1 >= a2 -> viewer 年长（'愚兄我'/'姐姐我'），"
+            "a1 < a2 -> viewer 年幼（'小弟我'/'小妹我'）",
+            lpc_expr="a1 = viewer.mud_age || viewer.age; a2 = target.mud_age || target.age; if(a1>=a2) return 年长自称",
+            scope="function",
+        ),
+        Invariant(
+            description="gender 取自 viewer（行 630/635）：自称性别跟随说话者（viewer），非 target。"
+            "这是 viewer 依赖的第二个实证（ADR-0028 决策 1）",
+            lpc_expr='gender = this_player()->query("gender") (viewer gender, NOT target)',
+            scope="function",
+        ),
+        Invariant(
+            description="this_player() 依赖（行 620/624/627/630）：viewer 年龄和性别均取自 this_player()，"
+            "this_player() 不存在时回退 previous_object()（行 633/635）",
+            lpc_expr="a1/gender = objectp(this_player()) ? this_player()->query(...) : previous_object()->query(...)",
+            scope="function",
+        ),
+        Invariant(
+            description="greenfield 无全局 this_player/previous_object（ADR-0021），viewer 必须显式传参；"
+            "System tick 无 viewer 路径回退 speaker 自身（ADR-0028 决策 4）",
+            lpc_expr="greenfield: query_self_close(world, viewer, target); System tick: viewer == speaker",
+            scope="system",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="viewer 年龄 a1 取值：this_player()->query('mud_age')（行 624）"
+            "或 this_player()->query('age')（行 627），this_player 不存在时 previous_object()->query('age')（行 633）",
+            lpc_call='if(objectp(this_player())) { if(a2=(int)ob->query("mud_age")) a1=this_player()->query("mud_age"); else { a1=this_player()->query("age"); a2=ob->query("age"); } } else { a1=previous_object()->query("age"); a2=ob->query("age"); }',
+            target="viewer.age",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.STATE_MUTATION,
+            description="target 年龄 a2 取值：ob->query('mud_age')（行 622）或 ob->query('age')（行 628）",
+            lpc_call='a2 = ob->query("mud_age") || ob->query("age")',
+            target="target.age",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender 取自 viewer：this_player()->query('gender')（行 630），"
+            "this_player 不存在时 previous_object()->query('gender')（行 635）",
+            lpc_call='gender = objectp(this_player()) ? this_player()->query("gender") : previous_object()->query("gender")',
+            target="viewer.gender",
+        ),
+        SideEffect(
+            order=4,
+            kind=SideEffectType.STATE_MUTATION,
+            description="gender 二分支：女性（a1>=a2 返回 '姐姐我'，否则 '小妹我'）；"
+            "default 男性（'愚兄我'/'小弟我'）",
+            lpc_call='switch(gender) { case "女性": if(a1>=a2) return "姐姐我"; else return "小妹我"; default: if(a1>=a2) return "愚兄我"; else return "小弟我"; }',
+            target="return_value",
+        ),
+    ],
+    random_specs=[],
+    notes=(
+        "query_self_close 是亲近自称求值（如 '愚兄我'/'小妹我'），观察者相对的二元关系函数"
+        "（专家 3 承重论断 2，ADR-0028）。依赖 this_player()->query('age') 判定辈分。"
+        "this_player() 依赖行 620/624/627/630，previous_object() 回退行 633/635。"
+        "gender 取自 viewer（行 630/635）非 target，是 viewer 依赖的第二个实证。"
+        "greenfield 签名 query_self_close(world, viewer, target)；System tick 无 viewer 回退 speaker 自身"
+        "（ADR-0028 决策 4，04 §七避坑 5）。"
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
 # 层 H 规格集合
 # ---------------------------------------------------------------------------
 
@@ -2788,6 +3544,14 @@ LAYER_SPEC = LayerSpec(
         _chinese_number,
         _chinese_date,
         _chinese,
+        # RANK_D（ADR-0028 决策 7）
+        _query_rank,
+        _query_respect,
+        _query_rude,
+        _query_self,
+        _query_self_rude,
+        _query_close,
+        _query_self_close,
     ],
     cross_layer_refs=[
         "command_hook / find_command / enable_player (层 C: command) -- valid_cmd 被 command_hook 每条命令调用",
@@ -2809,6 +3573,14 @@ LAYER_SPEC = LayerSpec(
         "create_human_body (race daemon) -- init_new_player 中种族初始化",
         "CHINESE_D->chinese_date (本层) -- NATURE_D->game_time 调用",
         "CHINESE_D->chinese_number (本层) -- LOGIN_D confirm_big5 中在线人数显示",
+        "query_skill (层 E: 技能) -- query_rank 按 family 分派查询 buddhism/lamaism/"
+        "mahayana/taoism/pixie-jian 等技能等级；query_respect 查 pixie-jian（eunach 督公）",
+        "SKILL_D('beauty')->reduce_age (层 E: 技能) -- query_respect/query_rude/query_self/"
+        "query_self_rude 的 age 减龄修正（beauty 技能，ADR-0028 简化台账 2.5 接 0）",
+        "this_player() / previous_object() (层 A: driver) -- query_close/query_self_close 的 "
+        "viewer 依赖（专家 3 承重论断 2，greenfield 无全局 this_player，viewer 显式传参 ADR-0021）",
+        "wizhood (本层 SECURITY_D) -- query_rank 巫师等级优先于 class/shen 求仙界称谓",
+        "is_ghost (层 I: F_DBASE / TitleComp.is_ghost) -- query_rank 最先短路判定返回 '【鬼魂】'",
     ],
     notes=(
         "层 H 覆盖 5 个核心守护进程的函数级规格契约：\n"
@@ -2842,7 +3614,8 @@ LAYER_SPEC = LayerSpec(
         "- LOGIN_D 状态机完整性：从连接到进入游戏的完整流程\n"
         "- SECURITY_D 权限模型：exclude 优先于 trusted，ROOT_UID 放行\n"
         "\n"
-        "边界：CHANNEL_D/MONEY_D/UPDATE_D/RANK_D 属第二梯队，任务 1 完成后按需提取。"
+        "边界：CHANNEL_D/MONEY_D/UPDATE_D 属第二梯队，任务 1 完成后按需提取。"
+        "RANK_D 7 函数已提取（ADR-0028 决策 7，rankd.c:8-651）。"
         "ANSI/TELNET 协议细节后置。securityd.c 的权限表不逐条提取，仅提取权限模型契约。"
     ),
 )

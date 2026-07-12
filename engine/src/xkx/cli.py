@@ -30,7 +30,6 @@ from xkx.runtime.commands import (
 from xkx.runtime.world import build_world, spawn_player
 
 SCENE_DIR = Path(__file__).resolve().parent.parent.parent / "scenes" / "xueshan_micro"
-START_ROOM = "xueshan/shanmen"
 
 # 方向简写映射（对齐 LPC go.c default_dirs + 常见缩写）
 DIR_ALIASES = {
@@ -61,22 +60,29 @@ HELP_TEXT = """\
 
 
 def load_game() -> tuple[Game, int]:
-    """加载 xueshan_micro 场景 + 创建玩家，返回 (game, player_id)。"""
+    """加载 xueshan_micro 场景 + 创建玩家，返回 (game, player_id)。
+
+    注入 ``ThemeConfig.wuxia()``（武侠题材配置，ADR-0030 决策 2），起始房间从
+    ``world.theme_config.start_room`` 读取（cli.py 源码不硬编码武侠路径字面量）。
+    """
+    from xkx.runtime.theme import ThemeConfig
+
     rooms = load_rooms(SCENE_DIR / "rooms.yaml")
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
     items = load_items(SCENE_DIR / "items.yaml")
     ir = compile_scene(rooms, npcs, quests, items)
-    world, room_idx, quest_idx = build_world(ir)
+    world, room_idx, quest_idx = build_world(ir, theme_config=ThemeConfig.wuxia())
     item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
-    pid = spawn_player(world, "行者", START_ROOM)
+    start_room = world.theme_config.start_room  # type: ignore[attr-defined]
+    pid = spawn_player(world, "行者", start_room)
     game = Game(
         world,
         room_idx,
         rules,
         quests=quest_idx,
-        spawn_room=START_ROOM,
+        spawn_room=start_room,
         item_registry=item_registry,
     )
     return game, pid

@@ -105,9 +105,9 @@ def test_on_tick_decay_duration() -> None:
     """duration 衰减：duration=3 -> 2。"""
     w = World()
     t = _target(w)
-    _effect(w, t, duration=3, next_tick=0)
+    eff_eid = _effect(w, t, duration=3, next_tick=0)
     r = ConditionHandler().on_tick(w, tick=0)
-    assert r.condition_deltas == {"e1": 2}
+    assert r.condition_deltas == {eff_eid: 2}
     assert r.completed == []
 
 
@@ -115,10 +115,10 @@ def test_on_tick_completed() -> None:
     """duration 到 0 -> completed。"""
     w = World()
     t = _target(w)
-    _effect(w, t, duration=1, next_tick=0)
+    eff_eid = _effect(w, t, duration=1, next_tick=0)
     r = ConditionHandler().on_tick(w, tick=0)
-    assert r.condition_deltas == {"e1": 0}
-    assert r.completed == ["e1"]
+    assert r.condition_deltas == {eff_eid: 0}
+    assert r.completed == [eff_eid]
 
 
 def test_on_tick_permanent_no_decay() -> None:
@@ -153,15 +153,15 @@ def test_on_tick_pure_function() -> None:
 
 
 def test_on_tick_multiple_conditions_same_target() -> None:
-    """一个实体多个 condition（独立 effect 实体，target_id 相同）。"""
+    """一个实体多个 condition（独立 effect 实体，target_id 相同，2.2 用 effect_eid 作 key）。"""
     w = World()
     t = _target(w)
-    _effect(w, t, effect_id="poison", amount=5, next_tick=0)
-    _effect(w, t, effect_id="drunk", amount=0, duration=2, next_tick=0)
+    a_eid = _effect(w, t, effect_id="cond_a", amount=5, next_tick=0)
+    b_eid = _effect(w, t, effect_id="cond_b", amount=0, duration=2, next_tick=0)
     r = ConditionHandler().on_tick(w, tick=0)
     assert len(r.effects) == 1  # 只有 amount!=0 的生成 Effect
     assert r.effects[0].amount == 5
-    assert set(r.condition_deltas.keys()) == {"poison", "drunk"}
+    assert set(r.condition_deltas.keys()) == {a_eid, b_eid}
 
 
 # ---- ConditionSystem.update ----

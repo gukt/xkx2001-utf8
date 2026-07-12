@@ -142,10 +142,10 @@ def test_lpc_key_mapping_exact_match() -> None:
 def test_lpc_key_mapping_unmapped() -> None:
     """未映射的 key 返回 mapped=False。"""
     insp = EntityInspector(_world_with_entities())
-    m = insp.lpc_key_mapping("equipped")
+    m = insp.lpc_key_mapping("nosuchkey")
     assert m.mapped is False
     assert m.component is None
-    assert "后置" in m.note
+    assert "未映射" in m.note
 
 
 def test_lpc_key_mapping_skill_path() -> None:
@@ -236,7 +236,7 @@ def test_main_map_skill_path(capsys: object) -> None:
 
 def test_main_map_unmapped(capsys: object) -> None:
     """inspect --map <unmapped> 显示 unmapped。"""
-    ret = main(["--map", "equipped"])
+    ret = main(["--map", "nosuchkey"])
     assert ret == 0
     out = capsys.readouterr().out  # type: ignore[attr-defined]
     assert "unmapped" in out.lower() or "False" in out

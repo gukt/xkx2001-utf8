@@ -96,6 +96,7 @@ class SchemaRegistry:
             Attributes,
             CombatState,
             EffectComp,
+            Equipment,
             Identity,
             Inventory,
             Marks,
@@ -105,6 +106,7 @@ class SchemaRegistry:
             QuestLog,
             RoomComp,
             Skills,
+            TitleComp,
             Vitals,
         )
 
@@ -116,6 +118,7 @@ class SchemaRegistry:
             Vitals,
             Progression,
             Skills,
+            Equipment,
             CombatState,
             NpcBehavior,
             Inventory,
@@ -123,6 +126,7 @@ class SchemaRegistry:
             QuestLog,
             EffectComp,
             RoomComp,
+            TitleComp,
         ):
             reg.register(t)
         return reg

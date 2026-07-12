@@ -56,8 +56,8 @@ class TestSmoke:
         assert len(LAYER_SPEC.function_specs) > 0
 
     def test_function_spec_count(self) -> None:
-        """应有 26 个 FunctionSpec。"""
-        assert len(LAYER_SPEC.function_specs) == 26
+        """应有 33 个 FunctionSpec（26 + RANK_D 7，ADR-0028 决策 7）。"""
+        assert len(LAYER_SPEC.function_specs) == 33
 
     def test_cross_layer_refs_nonempty(self) -> None:
         assert len(LAYER_SPEC.cross_layer_refs) > 0
@@ -109,6 +109,14 @@ class TestFunctionSpecStructure:
             "chinese_number",
             "chinese_date",
             "chinese",
+            # RANK_D（ADR-0028 决策 7，rankd.c:8-651）
+            "query_rank",
+            "query_respect",
+            "query_rude",
+            "query_self",
+            "query_self_rude",
+            "query_close",
+            "query_self_close",
         }
         assert names == expected, f"函数名不匹配: {names ^ expected}"
 
@@ -655,7 +663,7 @@ def test_side_effect_subset_order_preserved(
 
 
 # ── 第 3 类：random_specs 完整性 ───────────────────────────────────────────
-# 层 H 有 3 个 random_specs（random_gift 2 个 + event_common 1 个）。
+# 层 H 有 4 个 random_specs（random_gift 2 个 + event_common 1 个 + query_close 1 个）。
 
 @given(idx=st.integers(min_value=0, max_value=_N))
 def test_random_specs_fields_nonempty(idx: int) -> None:
