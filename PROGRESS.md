@@ -5,7 +5,7 @@
 
 **最后更新**：2026-07-13
 **当前阶段**：阶段 2 全部完成（Wave 4 2.7 门派切割完成，1598 tests 全绿），下一步 M3 单题材武侠 demo
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
 
@@ -423,33 +423,13 @@
 
 ## In Progress
 
-**阶段 2 Wave 2 全部完成**（2.2 + 2.3 + 2.5 + 2.6，1421 tests 全绿）。
+**阶段 2 全部完成并合并 master**（merge `fee5dd25`，Wave 1-4 七子系统 2.1-2.7，1598 tests 全绿）。阶段 2 -> M3 决策检查点全部通过。
 
-阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems。
+**无进行中任务**。下一步 M3 单题材武侠完整可玩 demo（见 Next Up）。
 
-**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突），全部完成：
-- [x] **2.2 Vitals/Heal/Condition 编码完成**（1159 tests 全绿）
-- [x] **2.3 Attribute/Skill/Equipment 编码完成**（1196 tests 全绿）
-- [x] **2.5 TitleSystem 编码完成**（1339 tests 全绿，agent teams 3 路并行 + ADR-0016 穿插）
-- [x] **2.6 WorldGovernanceSystem 编码完成**（1421 tests 全绿，agent teams 3 批次：批次 0 governance.py 核心 + 批次 1 并行 conditions/death 衔接 + 批次 2 test_governance 77 tests）
-
-**Wave 2 前置 ADR 全部产出并已提交**：
-- [x] [ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) ModifierStack 三类语义 + 技能三层（2.3 前置）
-- [x] [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md) RANK_D + PronounContext 三元组（2.5 前置）
-- [x] [ADR-0029](docs/adr/ADR-0029-world-governance-system.md) WorldGovernanceSystem + fail-closed（2.6 前置）
-- 2.2 无需新 ADR（T1 ADR-0018 契约已定，2.2 演进 effect_eid key）
-
-**Wave 3 2.4 Combat 编码完成**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 落地，1514 tests 全绿）：
-- combat 迁移行为等价验证 + 文本体验流 diff
-- 依赖 2.1 Query + 2.2 死亡轮回 + 2.3 Attribute/Skill + 2.6 治理（PK 触发通缉衔接）
-- [x] **ADR-0027 已产出并落地**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，2.4 前置）：覆盖 3 项 ADR-0023 未触及的承重决策：call_out -> Effect 翻译（dissent 1/7，2.4 只翻译 combat 核心约 10 处非全库 144 处）+ s_combatd 阵法合击 CombatModifier（dissent 1，关键发现：s_combatd 非阵法是 combatd 带文本副本，阵法入口 attack.c special_attack + kungfu/skill/ 题材脚本，2.4 只定主题无关接口）+ golden trace diff 三层协议（dissent 4，L1 概率分布/L2 文本结构/L3 语义，定位辅助非主线门禁）。**2.4 编码完成**（call_out 翻译 + CombatModifier 接口 + golden trace diff 三层协议，agent teams 2 批次 4 agent，1514 tests 全绿）
-- [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：recorder.py 客户端（登录 10 步 + 引导 follow+register + sample_combat + analyze）+ baseline/（combat_huashan 14 回合 do_attack 七步文本 + 登录会话 + 概率统计 dodge 27%/hit 73% + meta + README）；driver PID 22753 运行中；dissent 4 基线测试路径打通
-
-**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1514 含它，ruff 全过）。
-
-**剩余可选任务**（非阶段 2 前置，可穿插）：
+**剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
-- golden trace 定点辅助（driver PID 22753 运行中）-- 2.4 Combat 前录制 do_attack 七步基线（dissent 4 验证）
+- golden trace 定点辅助（driver PID 22753 运行中）-- do_attack 七步基线已录制（dissent 4 验证），M3 可扩展更多场景
 
 ## Blocked
 
@@ -517,6 +497,10 @@ S2-S4f 简化项（门状态机运行时、riposte 递归、hit_ob/hit_by mappin
 
 **阶段 1**（已完成，全通过）：
 - 1000+100 集成测试达标 ✅（[14 压测报告](docs/xkx-arch/14-T10-压测报告.md)，tick p99 12.6ms < 100ms，kill criteria 3 GO）
+
+**阶段 2**（已完成，全通过）：
+- Combat 迁移行为等价验证 ✅（2.4 golden trace diff 三层全 PASS + ConformanceChecker 8 项全通过）
+- 门派内容包边界干净切割 ✅（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md)，test_theme_neutrality 收官硬门禁全通过，核心引擎无武侠烙印，kill criteria 2 GO）
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 
