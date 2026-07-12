@@ -285,3 +285,114 @@ Loading preload files ...
 Accepting connections on 0.0.0.0:8888.
 Initializations complete.
 
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/li4.c 第 14 行
+物件: /d/xiakedao/npc/li4#28 ("李四")
+呼叫来自：/d/xiakedao/npc/li4.c 的 greeting() 第 14 行，物件： /d/xiakedao/npc/li4#28 ("李四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/mux.c 第 100 行
+物件: /d/xiakedao/npc/mux#37 ("木老四")
+呼叫来自：/d/xiakedao/npc/mux.c 的 greeting() 第 100 行，物件： /d/xiakedao/npc/mux#37 ("木老四")
+
+执行时段错误：*Bad argument 1 to call_other()
+Expected: string or array or object Got: 0.
+
+程式：/d/xiakedao/npc/longx.c 第 118 行
+物件: /d/xiakedao/npc/longx#241 ("龙八")
+呼叫来自：/d/xiakedao/npc/longx.c 的 greeting() 第 118 行，物件： /d/xiakedao/npc/longx#241 ("龙八")
+
+执行时段错误：*Illegal to move or destruct an object (/d/xiakedao/yongdao3) defining actions from a verb function(north) in object(/d/xiakedao/npc/longx#229) which returns zero.
+
+程式：/d/xiakedao/npc/longx.c 第 179 行
+物件: /d/xiakedao/npc/longx#229 ("龙三")
+呼叫来自：/d/xiakedao/npc/longx.c 的 move_next() 第 179 行，物件： /d/xiakedao/npc/longx#229 ("龙三")

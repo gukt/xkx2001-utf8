@@ -1,2 +1,12 @@
 [Mon Jan 01 13:18:40 2001] vice registered as meir@cgol.net from 127.0.0.1.
 [Thu Jun 21 14:29:38 2018] ceshi registered as ceshi@mail.com from 127.0.0.1.
+[Sun Jul 12 21:55:27 2026] goldfolc registered as goldfolc@xkx.local from 127.0.0.1.
+[Sun Jul 12 21:56:01 2026] goldfull registered as goldfull@xkx.local from 127.0.0.1.
+[Sun Jul 12 21:56:28 2026] goldatk registered as goldatk@xkx.local from 127.0.0.1.
+[Sun Jul 12 21:57:13 2026] goldexpa registered as goldexpa@xkx.local from 127.0.0.1.
+[Sun Jul 12 21:58:34 2026] goldyzh registered as goldyzh@xkx.local from 127.0.0.1.
+[Sun Jul 12 21:59:45 2026] goldyzi registered as goldyzi@xkx.local from 127.0.0.1.
+[Sun Jul 12 22:00:59 2026] goldbtb registered as goldbtb@xkx.local from 127.0.0.1.
+[Sun Jul 12 22:10:03 2026] goldtcc registered as goldtcc@xkx.local from 127.0.0.1.
+[Sun Jul 12 22:20:12 2026] goldtcf registered as goldtcf@xkx.local from 127.0.0.1.
+[Sun Jul 12 22:21:33 2026] goldtcg registered as goldtcg@xkx.local from 127.0.0.1.
