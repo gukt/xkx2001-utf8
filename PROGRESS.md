@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 2 全部完成（2.6 WorldGovernanceSystem 完成），下一步 Wave 3 2.4 Combat
+**当前阶段**：阶段 2 Wave 2 全部完成 + golden trace combat 基线录制完成，下一步 Wave 3 2.4 Combat（需 ADR-0027 前置）
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。下一步 Wave 3 2.4 Combat（高风险串行）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
 
 ## Done
@@ -409,8 +409,8 @@
 **下一步：Wave 3 2.4 Combat 启动**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md)，高风险串行）：
 - combat 迁移行为等价验证 + 文本体验流 diff
 - 依赖 2.1 Query + 2.2 死亡轮回 + 2.3 Attribute/Skill + 2.6 治理（PK 触发通缉衔接）
-- 需 ADR-0031（combat 迁移边界，待启动前置产出）
-- golden trace 定点辅助（driver PID 22753 运行中）录制 do_attack 七步基线（dissent 4 验证）
+- **ADR 需求评估完成**：ADR-0023（阶段 1 T6）已覆盖 combat-only 确定性 + CombatSystem + 简化台账 6 项（已实现）；2.4 需新 **ADR-0027**（计划 [15 §五](docs/xkx-arch/15-阶段2-子系统实施计划.md) 预留编号）覆盖 3 项 ADR-0023 未触及的承重决策：call_out 144 处 -> EffectComp 翻译（dissent 1/7）+ s_combatd 阵法合击 CombatModifier（dissent 1）+ golden trace 录制/diff 协议（dissent 4）。原"ADR-0031"为估算笔误，修正为 ADR-0027。
+- [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：recorder.py 客户端（登录 10 步 + 引导 follow+register + sample_combat + analyze）+ baseline/（combat_huashan 14 回合 do_attack 七步文本 + 登录会话 + 概率统计 dodge 27%/hit 73% + meta + README）；driver PID 22753 运行中；dissent 4 基线测试路径打通
 
 **穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1421 含它，ruff 全过）。
 
@@ -443,7 +443,7 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：Wave 3 2.4 Combat（高风险串行，需 ADR-0031 前置）。
+**下一步主线**：Wave 3 2.4 Combat（高风险串行，需 ADR-0027 前置）。golden trace combat 基线已就绪（[engine/tools/golden_trace/](engine/tools/golden_trace/)），ADR-0027（call_out + 阵法 + golden trace 协议）待产出后启动编码。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
@@ -458,7 +458,7 @@
 - [ ] 门派内容包边界干净切割？（2.7）
 
 **可穿插推进**（非阶段 2 前置）：
-- golden trace 定点辅助（[ADR-0009](docs/adr/ADR-0009-original-driver-runnable.md)，driver PID 22753 运行中）：录制 valid_leave 命中行为 + do_attack 七步副作用时序基线（dissent 4 验证）
+- [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：do_attack 七步文本 + 概率统计 dodge 27%/hit 73%（dissent 4 基线测试路径打通）；valid_leave 命中行为基线后置（layer1 已有属性测试）
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）
 - [x] [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 层1 谓词集扩充 8 类（已完成，穿插 2.5 期间）
 
