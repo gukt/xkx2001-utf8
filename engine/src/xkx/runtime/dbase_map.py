@@ -26,6 +26,7 @@ from typing import Literal
 
 from xkx.runtime.components import (
     Attributes,
+    Equipment,
     Identity,
     Marks,
     NpcBehavior,
@@ -50,27 +51,34 @@ DBASE_KEY_MAP: dict[str, tuple[type, str]] = {
     "gender": (Attributes, "gender"),
     "family": (Attributes, "family"),
     "family_name": (Attributes, "family"),  # LPC family/family_name 同义
-    # Vitals（LPC qi/max_qi/eff_qi/jing/max_jing/jingli/max_jingli/neili/max_neili）
+    # Vitals（LPC qi/jing/eff_*/max_*/jingli/neili/water/food，2.2 激活 eff_jing/water/food）
     "qi": (Vitals, "qi"),
     "max_qi": (Vitals, "max_qi"),
     "eff_qi": (Vitals, "eff_qi"),
     "jing": (Vitals, "jing"),
     "max_jing": (Vitals, "max_jing"),
+    "eff_jing": (Vitals, "eff_jing"),  # 2.2 激活（heal_up 恢复上限）
     "jingli": (Vitals, "jingli"),
     "max_jingli": (Vitals, "max_jingli"),
     "neili": (Vitals, "neili"),
     "max_neili": (Vitals, "max_neili"),
+    "water": (Vitals, "water"),  # 2.2 激活（heal_up 脱水门控）
+    "food": (Vitals, "food"),  # 2.2 激活（heal_up 饥饿门控）
     # Progression（LPC combat_exp/potential/max_potential，ADR-0017 从 Vitals 拆出）
     "combat_exp": (Progression, "combat_exp"),
     "potential": (Progression, "potential"),
     "max_potential": (Progression, "max_potential"),
-    # Skills（LPC apply_attack/dodge/parry/damage/armor + weapon）
+    # Skills（LPC apply_attack/dodge/parry/damage/armor/speed + weapon）
     "apply_attack": (Skills, "apply_attack"),
     "apply_dodge": (Skills, "apply_dodge"),
     "apply_parry": (Skills, "apply_parry"),
     "apply_damage": (Skills, "apply_damage"),
     "apply_armor": (Skills, "apply_armor"),
+    "apply_speed": (Skills, "apply_speed"),  # 2.3 激活（fight/riposte 判定）
     "weapon": (Skills, "weapon"),
+    # Equipment（LPC weight/encumbrance，2.3 激活，ADR-0026 §3 F_MOVE 负重）
+    "weight": (Equipment, "encumbrance"),
+    "encumbrance": (Equipment, "encumbrance"),
     # NpcBehavior（LPC attitude/chat_chance_combat/chat_msg_combat/inquiry）
     "attitude": (NpcBehavior, "attitude"),
     "chat_chance_combat": (NpcBehavior, "chat_chance_combat"),
@@ -83,6 +91,7 @@ DBASE_KEY_MAP: dict[str, tuple[type, str]] = {
     "long": (RoomComp, "long"),
     "outdoors": (RoomComp, "outdoors"),
     "no_fight": (RoomComp, "no_fight"),
+    "no_death": (RoomComp, "no_death"),  # 2.2 激活（die no_death 房判定）
 }
 
 # 路径访问 key 前缀 -> (组件类型, 字段名)
@@ -93,6 +102,26 @@ PATH_PREFIX_MAP: dict[str, tuple[type, str]] = {
     "marks": (Marks, "flags"),
 }
 
+# apply/ 子路径 -> Skills.apply_* 标量（ADR-0026 §3 装备 prop 注入）。
+# apply/attack -> Skills.apply_attack 等；未知 apply/{x} 子路径读返回 0（LPC
+# query_temp 未设语义；通用 apply/{skill} 存储后置 M3）。
+APPLY_SUBPATH_MAP: dict[str, str] = {
+    "attack": "apply_attack",
+    "dodge": "apply_dodge",
+    "parry": "apply_parry",
+    "damage": "apply_damage",
+    "armor": "apply_armor",
+    "speed": "apply_speed",
+}
+APPLY_PREFIX = "apply"
+
+# 语义 key（非简单字段映射，走语义函数，ADR-0026 §3 equipped）。
+# query 返回派生值（equipped -> 装备物品集合），set 不支持（装备走 wield/wear）。
+# 不进 DBASE_KEY_MAP（无简单字段，validate_dbase_map 不校验）。
+SEMANTIC_KEY_MAP: dict[str, type] = {
+    "equipped": Equipment,  # is_equipped 语义函数，query 返回装备物品集合
+}
+
 # 后置 key（无对应组件，阶段 2/M3 实现时补，文档 13 §三 标注后置阶段）
 POSTPONED_KEYS: frozenset[str] = frozenset({
     # 战斗/行为状态（T6 combat 扩展 / T6+ NPC AI）
@@ -101,8 +130,8 @@ POSTPONED_KEYS: frozenset[str] = frozenset({
     "looking_for_trouble", "pursuer", "behavior_exp", "thief",
     "last_opponent", "last_damage_from", "last_eff_damage_from",
     "last_fainted_from", "my_killer",
-    # 资源扩展（eff_jing/eff_jingli 后置，Vitals 无字段）
-    "eff_jing", "eff_jingli",
+    # 资源扩展（eff_jingli 后置，Vitals 无字段；eff_jing 2.2 已激活）
+    "eff_jingli",
     # 角色长期状态（阶段 2 TitleSystem/Race/mud_age 时间系统）
     "title", "shen", "race", "mud_age", "mud_age_last", "age_modify",
     "month", "birthday", "combat_exp_last", "death_count", "death_times",
@@ -112,9 +141,9 @@ POSTPONED_KEYS: frozenset[str] = frozenset({
     "channels", "chblk_on", "channel_msg_cnt", "block_msg", "language",
     # 登录/重连（T7 WS 服务器）
     "link_ob", "body_ob", "body", "was_userp", "netdead", "quit",
-    # 对象/房间扩展
-    "startroom", "no_clean_up", "no_death", "cost", "item_desc", "id",
-    "equipped", "env", "apply", "balance", "pending",
+    # 对象/房间扩展（equipped/apply 2.3 激活，见 SEMANTIC_KEY_MAP / apply 前缀）
+    "startroom", "no_clean_up", "cost", "item_desc", "id",
+    "env", "balance", "pending",
 })
 
 
@@ -143,13 +172,19 @@ def validate_dbase_map(schema: SchemaRegistry) -> list[str]:
 def resolve_dbase_key(key: str) -> tuple[type, str] | None:
     """解析 LPC dbase key -> (组件类型, 字段名)。未映射返回 None（后置/未知）。
 
-    支持简单 key（``"combat_exp"``）和路径前缀（``"skill/axe"`` ->
-    ``Skills.levels``）。调用方按返回的字段类型自行处理 dict/set 访问。
+    支持简单 key（``"combat_exp"``）+ 路径前缀（``"skill/axe"`` ->
+    ``Skills.levels``）+ ``apply/`` 子路径分发（``"apply/attack"`` ->
+    ``Skills.apply_attack``，ADR-0026 §3）。调用方按返回的字段类型自行处理
+    dict/set/标量访问。``equipped`` 等语义 key 不在此解析（走 SEMANTIC_KEY_MAP）。
     """
     if key in DBASE_KEY_MAP:
         return DBASE_KEY_MAP[key]
     if "/" in key:
-        prefix = key.split("/", 1)[0]
+        prefix, sub = key.split("/", 1)
+        # apply/ 子路径分发到 Skills.apply_* 标量（已知 6 个；未知返回 None）
+        if prefix == APPLY_PREFIX:
+            field = APPLY_SUBPATH_MAP.get(sub)
+            return (Skills, field) if field is not None else None
         if prefix in PATH_PREFIX_MAP:
             return PATH_PREFIX_MAP[prefix]
     return None
@@ -182,13 +217,20 @@ def is_postponed(key: str) -> bool:
 def classify_key(key: str) -> KeyClass:
     """分类 key 为三类（ADR-0025 决策 1，dissent 2 拼写错误不静默）。
 
-    - ``"mapped"``：已映射（DBASE_KEY_MAP / PATH_PREFIX_MAP），可正常读写
+    - ``"mapped"``：已映射（DBASE_KEY_MAP / PATH_PREFIX_MAP / ``apply/`` 子路径 /
+      SEMANTIC_KEY_MAP），可正常读写（语义 key 读返回派生值，写见 query.py）
     - ``"postponed"``：后置 key（POSTPONED_KEYS），对应子系统未实现
     - ``"unknown"``：未知 key（拼写错误或未枚举），raise 而非静默
 
     路径前缀 key（``"skill/axe"``）按前缀判断：已知前缀 -> mapped，未知前缀 ->
-    unknown（不归 postponed，因未知前缀是拼写错误非后置）。
+    unknown（不归 postponed，因未知前缀是拼写错误非后置）。``apply/`` 是已知前缀
+    （任意子路径 mapped；未知子路径读返回 0 不 raise，对齐 LPC query_temp 未设）。
+    语义 key（``equipped``）非简单字段，走 is_equipped 语义函数。
     """
+    if key in SEMANTIC_KEY_MAP:
+        return "mapped"
+    if "/" in key and key.split("/", 1)[0] == APPLY_PREFIX:
+        return "mapped"  # apply/ 已知前缀（任意子路径 mapped；未知子路径读返回 0）
     if resolve_dbase_key(key) is not None:
         return "mapped"
     if key in POSTPONED_KEYS:

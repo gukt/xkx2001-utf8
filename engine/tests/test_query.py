@@ -387,9 +387,8 @@ def test_classify_key_mapped() -> None:
 
 
 def test_classify_key_postponed() -> None:
-    """后置 key 分类为 postponed。"""
+    """后置 key 分类为 postponed（equipped/apply 2.3 激活为 mapped，见他测）。"""
     assert classify_key("title") == "postponed"
-    assert classify_key("equipped") == "postponed"
     assert classify_key("shen") == "postponed"
 
 
@@ -401,10 +400,10 @@ def test_classify_key_unknown() -> None:
 
 
 def test_is_postponed_true_false() -> None:
-    """is_postponed 判断正确。"""
+    """is_postponed 判断正确（equipped 2.3 激活为语义 key 非 postponed）。"""
     assert is_postponed("title") is True
-    assert is_postponed("equipped") is True
     assert is_postponed("qi") is False
+    assert is_postponed("equipped") is False  # 2.3 激活（语义 key）
     assert is_postponed("cobmat_exp") is False  # 未知非后置
     assert is_postponed("skill/axe") is False
 
@@ -421,6 +420,13 @@ def test_postponed_key_set_raises_dbasekeyerror() -> None:
     """后置 key set raise DbaseKeyError（无组件承接，写无意义）。"""
     world, eid = _make_world_with_player()
     with pytest.raises(DbaseKeyError, match="后置 key"):
+        set(world, eid, "title", "侠客")
+
+
+def test_semantic_key_set_raises_dbasekeyerror() -> None:
+    """语义 key（equipped）set raise（装备走 wield/wear，ADR-0026 §3）。"""
+    world, eid = _make_world_with_player()
+    with pytest.raises(DbaseKeyError, match="语义 key"):
         set(world, eid, "equipped", "sword")
 
 

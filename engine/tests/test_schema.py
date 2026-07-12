@@ -23,6 +23,7 @@ from xkx.runtime.components import (
     Attributes,
     CombatState,
     EffectComp,
+    Equipment,
     Identity,
     Inventory,
     Marks,
@@ -45,6 +46,7 @@ _BUILTIN_TYPES = [
     Vitals,
     Progression,
     Skills,
+    Equipment,
     CombatState,
     NpcBehavior,
     Inventory,
@@ -162,7 +164,7 @@ def test_has_field_unregistered_type() -> None:
 
 
 def test_with_builtins_registers_all() -> None:
-    """with_builtins 注册全部 13 个内置组件。"""
+    """with_builtins 注册全部 14 个内置组件（2.3 加 Equipment）。"""
     reg = SchemaRegistry.with_builtins()
     for t in _BUILTIN_TYPES:
         assert reg.resolve(t) is t

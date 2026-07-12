@@ -106,6 +106,7 @@ class CombatantSnapshot(BaseModel):
     apply_parry: int = 0
     apply_damage: int = 0
     apply_armor: int = 0
+    apply_speed: int = 0  # 2.3：apply/speed（fight/riposte 判定，ADR-0026 §1）
 
     # 武器类型（None = 空手）；题材无关，内核不解释具体武器名
     weapon: str | None = None

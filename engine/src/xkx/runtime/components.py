@@ -40,10 +40,13 @@ class Vitals:
     eff_qi: int = 100
     jing: int = 100
     max_jing: int = 100
+    eff_jing: int = 100  # 2.2：jing 有效上限（heal_up 恢复上限，对齐 eff_qi）
     jingli: int = 100
     max_jingli: int = 100
     neili: int = 0
     max_neili: int = 0
+    water: int = 200  # 2.2：水度（heal_up 脱水门控，LPC set("water")）
+    food: int = 200  # 2.2：食物度（heal_up 饥饿门控，LPC set("food")）
 
 
 @dataclass
@@ -63,13 +66,58 @@ class Progression:
 
 @dataclass
 class Skills:
+    """技能 + 临时修正（阶段 2.3 扩展，对照 LPC feature/skill.c）。
+
+    - ``levels``：技能等级（永久基础值层，对照 LPC ``skills`` mapping）
+    - ``apply_*``：临时修正标量（对照 LPC ``query_temp("apply/...")``，装备加成
+      在 equip 时注入 + condition 修正由 EffectComp 驱动，三类叠加见 ADR-0026）
+    - ``skill_map``/``skill_prepare``/``learned``：2.3 新增（对照 LPC skill_map/
+      skill_prepare/learned mapping，query_skill 三层叠加 + skill_death_penalty）
+    """
+
     levels: dict[str, int] = field(default_factory=dict)
     apply_attack: int = 0
     apply_dodge: int = 0
     apply_parry: int = 0
     apply_damage: int = 0
     apply_armor: int = 0
+    apply_speed: int = 0  # 2.3：apply/speed（fight/riposte 判定，ADR-0026 §1）
     weapon: str | None = None
+    # 2.3 新增（ADR-0026 §2 技能三层）：skill_map 映射 + skill_prepare 准备 +
+    # learned 进度（skill_death_penalty 真实公式用，对照 skill.c:121-147）
+    skill_map: dict[str, str] = field(default_factory=dict)
+    skill_prepare: dict[str, str] = field(default_factory=dict)
+    learned: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class Equipment:
+    """装备组件（阶段 2.3，对照 LPC feature/equip.c wield/wear/unequip）。
+
+    装备槽 + per-slot prop 副本（unequip 反向扣减 apply_* 用，对照 LPC
+    ``applied_prop``）。可序列化（字段全基本类型 + dict 容器，ADR-0022 存档崩溃
+    安全）。
+
+    prop 副本按槽位存（weapon_props/secondary_weapon_props/armor_props），unequip
+    单个物品时按该槽 prop 副本扣减 Skills.apply_*，不依赖 apply_* 当前值（避免
+    LPC "中途 condition 改了同 key 导致扣减出错"的隐性 bug，ADR-0026 §1）。
+
+    [ADR-0026](../../../docs/adr/ADR-0026-modifier-stack-and-skill-layers.md)
+    """
+
+    # 装备槽（物品 id，None=空）
+    weapon: str | None = None
+    secondary_weapon: str | None = None
+    armors: dict[str, str] = field(default_factory=dict)  # armor_type -> item_id
+
+    # per-slot prop 副本（key: apply_* 路径名如 "attack"/"dodge"；unequip 扣减用）
+    weapon_props: dict[str, int] = field(default_factory=dict)
+    secondary_weapon_props: dict[str, int] = field(default_factory=dict)
+    armor_props: dict[str, dict[str, int]] = field(default_factory=dict)  # type -> prop
+
+    # 负重（对照 LPC F_MOVE weight/encumbrance，ADR-0025 后置 2.3 衔接）
+    encumbrance: int = 0  # 当前负重（物品重量总和）
+    max_encumbrance: int = 0  # 最大负重（由 str 决定，LPC set_max_encumbrance）
 
 
 @dataclass
@@ -173,3 +221,4 @@ class RoomComp:
     items: set[str] = field(default_factory=set)  # S5a：房间地面物品（take 命令拾取）
     outdoors: bool = False
     no_fight: bool = False
+    no_death: bool = False  # 2.2：no_death 房玩家死亡转 unconcious（LPC query("no_death")）

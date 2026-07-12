@@ -26,12 +26,17 @@ from typing import Any
 
 from xkx.runtime.components import (
     Attributes,
+    Equipment,
     Identity,
     Inventory,
     Marks,
     Position,
+    Skills,
 )
 from xkx.runtime.dbase_map import (
+    APPLY_PREFIX,
+    APPLY_SUBPATH_MAP,
+    SEMANTIC_KEY_MAP,
     DbaseKeyError,
     classify_key,
     resolve_dbase_key,
@@ -185,10 +190,35 @@ def delete_temp(world: World, eid: int, key: str) -> int:
 # ──────────────────────── 内部：字段读写 ────────────────────────
 
 
+def _equipped_items(equipment: Equipment) -> frozenset[str]:
+    """当前装备物品 id 集合（weapon + secondary_weapon + armors 值，排除 None）。
+
+    ``equipped`` 语义 key 的读派生值（ADR-0026 §3，非简单字段）。
+    """
+    items: builtins.set[str] = builtins.set()
+    if equipment.weapon:
+        items.add(equipment.weapon)
+    if equipment.secondary_weapon:
+        items.add(equipment.secondary_weapon)
+    items.update(equipment.armors.values())
+    return frozenset(items)
+
+
 def _read_field(world: World, eid: int, key: str) -> Any:
-    """读已映射 key 的组件字段（简单 key + 路径前缀，ADR-0025 决策 1）。"""
+    """读已映射 key 的组件字段（简单 key + 路径前缀 + 语义 key，ADR-0025/0026）。"""
+    # 语义 key（equipped）：返回装备物品集合（is_equipped 派生，ADR-0026 §3）
+    if key in SEMANTIC_KEY_MAP:
+        comp = world.get(eid, SEMANTIC_KEY_MAP[key])
+        if comp is None:
+            return frozenset()
+        if isinstance(comp, Equipment):
+            return _equipped_items(comp)
+        return None
     mapping = resolve_dbase_key(key)
     if mapping is None:
+        # apply/ 已知前缀但未知子路径（通用 apply/{skill}，无存储）-> 返回 0
+        if "/" in key and key.split("/", 1)[0] == APPLY_PREFIX:
+            return _UNSET_DEFAULT
         return None
     comp_type, field_name = mapping
     comp = world.get(eid, comp_type)
@@ -208,8 +238,19 @@ def _read_field(world: World, eid: int, key: str) -> Any:
 
 def _write_field(world: World, eid: int, key: str, val: Any) -> None:
     """写已映射 key 的组件字段（简单 key + 路径前缀，ADR-0025 决策 1）。"""
+    # 语义 key（equipped）：不支持 set（装备走 wield/wear，ADR-0026 §3）
+    if key in SEMANTIC_KEY_MAP:
+        raise DbaseKeyError(
+            f"set 语义 key {key!r} 不支持直接 set（装备走 wield/wear）"
+        )
     mapping = resolve_dbase_key(key)
     if mapping is None:
+        # apply/ 已知前缀但未知子路径（无存储）-> raise（通用 apply 修正后置 M3）
+        if "/" in key and key.split("/", 1)[0] == APPLY_PREFIX:
+            raise DbaseKeyError(
+                f"set apply/ 未知子路径 {key!r} 无存储"
+                "（通用 apply 修正后置 M3）"
+            )
         return
     comp_type, field_name = mapping
     if "/" in key:
@@ -234,6 +275,9 @@ def _write_field(world: World, eid: int, key: str, val: Any) -> None:
                 attr.add(sub_key)
             else:
                 attr.discard(sub_key)
+        else:
+            # apply/ 前缀分发到标量字段（apply/attack -> apply_attack）
+            setattr(comp, field_name, val)
         return
     comp = world.get(eid, comp_type)
     if comp is None:
@@ -368,3 +412,58 @@ def all_inventory(world: World, eid: int) -> set[str]:
     """
     inv = world.get(eid, Inventory)
     return builtins.set(inv.items) if inv else builtins.set()
+
+
+# ──────────────────────── ModifierStack 求值（ADR-0026） ────────────────────────
+
+
+def query_skill(world: World, eid: int, skill_id: str, raw: bool = False) -> int:
+    """技能有效等级（对照 LPC feature/skill.c:94-109 query_skill，ADR-0026 §2）。
+
+    三层叠加（非 raw 模式）：
+    1. ``apply/{skill}`` 修正：已知 6 个标量（attack/dodge/parry/damage/armor/
+       speed）读 Skills.apply_*；其他 skill 无对应标量，apply 修正=0
+    2. 永久基础值：``levels[skill] // 2``（半值计入有效等级）
+    3. 映射技能全值：``levels[skill_map[skill]]``（skill_map 映射）
+
+    raw 模式返回 ``levels[skill]`` 原值。无 Skills 组件返回 0。通用
+    ``apply/{skill}`` 开放存储后置 M3（greenfield 只 6 个标量，简化台账）。
+    """
+    skills = world.get(eid, Skills)
+    if skills is None:
+        return 0
+    if raw:
+        return skills.levels.get(skill_id, 0)
+    # 1. apply/{skill} 修正（已知 6 个标量；其他 skill 无对应标量 -> 0）
+    apply_field = APPLY_SUBPATH_MAP.get(skill_id)
+    apply_val = getattr(skills, apply_field) if apply_field else 0
+    # 2. 永久基础值（半值）+ 3. 映射技能全值（skill_map）
+    base = skills.levels.get(skill_id, 0) // 2
+    mapped = skills.levels.get(skills.skill_map.get(skill_id, ""), 0)
+    return apply_val + base + mapped
+
+
+def effective_apply(world: World, eid: int, apply_key: str) -> int:
+    """apply_* 有效值（装备加成 + condition 修正叠加，ADR-0026 §1）。
+
+    apply_key 为已知 6 个（attack/dodge/parry/damage/armor/speed）之一，返回
+    对应 Skills.apply_* 标量（equip 已注入装备加成，condition 由 EffectComp 驱动
+    修正）。未知 apply_key 返回 0（无对应标量）。
+    """
+    skills = world.get(eid, Skills)
+    if skills is None:
+        return 0
+    field = APPLY_SUBPATH_MAP.get(apply_key)
+    return getattr(skills, field) if field else 0
+
+
+def effective_skill_level(
+    world: World, eid: int, skill_id: str, raw: bool = False
+) -> int:
+    """技能有效等级（ModifierStack 求值入口，ADR-0026 §4）。
+
+    委托 ``query_skill``。combat 走 CombatantSnapshot 标量（ADR-0023 第 4 项
+    定稿，resolve_attack 不调本函数）；本函数供运行时非 combat 路径查询
+    （NPC AI / 命令 / 调试）。
+    """
+    return query_skill(world, eid, skill_id, raw=raw)

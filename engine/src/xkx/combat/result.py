@@ -30,6 +30,11 @@ KIND_EXP = "exp"  # combat_exp 增加
 KIND_POTENTIAL = "potential"  # 潜能增加
 KIND_JINGLI = "jingli"  # 精力变化（正=恢复，负=消耗）
 KIND_SKILL_IMPROVE = "skill_improve"  # 技能熟练度提升
+KIND_HEAL = "heal"  # qi 恢复（condition 驱动，clamp eff_qi，2.2）
+KIND_HEAL_JING = "heal_jing"  # jing 恢复（condition 驱动，clamp eff_jing，2.2）
+KIND_DAMAGE_JING = "damage_jing"  # jing 减少（condition 驱动，clamp 0，2.2）
+KIND_WOUND_JING = "wound_jing"  # eff_jing 减少（condition 驱动，clamp 0，2.2）
+KIND_CLEAR_MARK = "clear_mark"  # Marks.flags 移除（detail=flag 名，2.2 revive 苏醒）
 
 LEDGER_MESSAGE = "message"
 LEDGER_EFFECT = "effect"

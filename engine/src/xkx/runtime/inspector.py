@@ -15,6 +15,7 @@ from xkx.runtime import dbase_map
 from xkx.runtime.components import (
     Attributes,
     CombatState,
+    Equipment,
     Identity,
     Inventory,
     Marks,
@@ -74,16 +75,15 @@ class LPCKeyMapping:
 _PATH_PREFIX_INFO: dict[str, tuple[str, str, str]] = {
     "skill": ("dbase", 'levels["<id>"]', "路径：skill/<id> -> levels[<id>]"),
     "marks": ("temp", "flags", "路径：marks/<flag> -> flags 含 <flag>"),
+    "apply": ("temp", "apply_*", "路径：apply/<key> -> Skills.apply_* 标量"),
 }
 
 # 代表性后置 key 的 note（仅 inspector 列出的代表性条目进 LPC_KEY_MAP，
 # 其余 POSTPONED_KEYS 由 lpc_key_mapping 经 classify_key 动态判断）
+# 2.3 激活 equipped/weight/encumbrance（Equipment 组件），从后置移除
 _POSTPONED_NOTES: dict[str, str] = {
     "title": "后置：阶段 2 称谓系统",
     "nickname": "后置",
-    "equipped": "后置：阶段 2 装备系统",
-    "weight": "后置：阶段 2 F_MOVE",
-    "encumbrance": "后置：阶段 2 F_MOVE",
     "channels": "后置：阶段 2 F_MESSAGE",
 }
 
@@ -126,8 +126,9 @@ _PATH_PREFIXES = tuple(f"{prefix}/" for prefix in dbase_map.PATH_PREFIX_MAP)
 def _resolve_lpc_key_mapping(key: str) -> LPCKeyMapping:
     """解析 LPC dbase key -> LPCKeyMapping（模块级静态，无需 world）。
 
-    复用 dbase_map.classify_key + resolve_dbase_key（ADR-0025 决策 1/6）：
-    - mapped：从 DBASE_KEY_MAP / PATH_PREFIX_MAP 取 component/field_path
+    复用 dbase_map.classify_key + resolve_dbase_key（ADR-0025/0026）：
+    - mapped：从 DBASE_KEY_MAP / PATH_PREFIX_MAP / apply 子路径 / SEMANTIC_KEY_MAP
+      取 component/field_path
     - postponed：mapped=False，note 标注后置原因
     - unknown：mapped=False，note="未映射"
 
@@ -135,7 +136,20 @@ def _resolve_lpc_key_mapping(key: str) -> LPCKeyMapping:
     """
     cls = dbase_map.classify_key(key)
     if cls == "mapped":
-        comp_type, field_name = dbase_map.resolve_dbase_key(key)  # type: ignore[misc]
+        # 语义 key（equipped）：非简单字段，走 is_equipped 语义函数
+        if key in dbase_map.SEMANTIC_KEY_MAP:
+            comp_type = dbase_map.SEMANTIC_KEY_MAP[key]
+            return LPCKeyMapping(
+                key, "dbase", comp_type, "(semantic)", True,
+                "语义函数（is_equipped），非简单字段",
+            )
+        mapping = dbase_map.resolve_dbase_key(key)
+        # apply/ 未知子路径（resolve None 但 classify mapped；通用 apply 后置 M3）
+        if mapping is None:
+            prefix = key.split("/", 1)[0]
+            scope, field_path, note = _PATH_PREFIX_INFO[prefix]
+            return LPCKeyMapping(key, scope, Skills, field_path, True, note)
+        comp_type, field_name = mapping
         # 路径前缀 key（含 "/"）用描述格式展示，简单 key 用字段名
         if "/" in key:
             prefix = key.split("/", 1)[0]
@@ -161,6 +175,7 @@ COMPONENT_NAMES: dict[str, type] = {
     "vitals": Vitals,
     "progression": Progression,
     "skills": Skills,
+    "equipment": Equipment,
     "combat": CombatState,
     "npc": NpcBehavior,
     "inventory": Inventory,

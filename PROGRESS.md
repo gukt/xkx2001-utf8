@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 1 编码中（2.1 Query/索引层完成，待启动 Wave 2）
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)），ADR-0025（Wave 1 前置）已产出。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 1 2.1 Query/索引层完成**（ADR-0025 + query.py + dbase_map 扩展 + inspector 重构 + 66 tests，1101 tests 全绿）。下一步启动 Wave 2（2.2/2.3/2.5/2.6 并行）。
+**当前阶段**：阶段 2 Wave 2 编码中（2.3 Attribute/Skill/Equipment 完成，下一步 2.5）
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 2.3 Attribute/Skill/Equipment 完成**（Equipment 组件 + wield/wear/unequip + ModifierStack 三类叠加 + query_skill 三层 + skill_death_penalty learned 公式 + ADR-0026 实现期细化 6 项，1196 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出未提交。下一步 2.5 TitleSystem（ADR-0028 已就绪）。Wave 2 采用**逐个串行**（用户裁决，避免共享文件合并冲突）。
 
 ## Done
 
@@ -314,6 +314,38 @@
   - agent teams 并行：2 agent（inspector 重构 + test_query 编写），inspector 重构无回归，test_query 发现 set 覆盖 bug 后修复
   - 关联 dissent 2（query 语义不偏离 LPC F_DBASE）+ dissent 8（不新增组件，无序列化需求）
 
+- [x] **阶段 2 Wave 2 2.2 Vitals/Heal/Condition 完成**（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.2 / [ADR-0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md) 契约演进）：
+  - Vitals 扩展 eff_jing/water/food 字段（heal_up 恢复上限 + 饥饿/脱水门控，对照 feature/damage.c:270-331）+ dbase_map 激活（POSTPONED 移除 eff_jing/no_death，加 water/food）
+  - [heal.py](engine/src/xkx/runtime/heal.py) HealSystem + heal_up 完整语义（jing/qi/eff_jing/eff_qi/jingli/neili 恢复 + 战斗 1/3 速率 + water/food 门控 + 三层不变量 0<=qi<=eff_qi<=max_qi + eff_jing 达上限后才涨 + 完全确定性无 random）
+  - [death.py](engine/src/xkx/runtime/death.py) 死亡轮回 9 函数（die/unconcious/revive/reincarnate/death_penalty/killer_reward/make_corpse/announce/check_death，对照 layer_f 规格 + LPC 原文精确公式）：
+    - check_death 双层触发（eff_qi<0 直接 die / qi<0 先 unconcious 昏迷中再触发 die）
+    - die 主流程（no_death 房转 unconcious / 玩家 ghost=1 move DEATH_ROOM / NPC destruct）
+    - death_penalty 三段扣减（combat_exp>5000 扣 amount+potential 半 / 20<exp<=5000 扣 20 / <=20 不扣，确定性）
+    - killer_reward（killer condition 100 tick 城区 + pker +120 双玩家，PKS/MKS/shen 后置 2.5）
+    - make_corpse（ghost 物品掉环境 / 正常生成尸体实体 + 物品转移，装备重穿后置 2.3）
+  - [conditions.py](engine/src/xkx/runtime/conditions.py) 扩展：apply_condition/query_condition/clear_condition/clear_one_condition 运行时函数（对齐 LPC F_CONDITION，直接覆盖语义，叠加由调用方 query+delta）+ condition handler 注册机制 + 7 个具体类型（poisoned 壳/snake_poison DoT/drunk 分档 debuff/blind 静默/killer 计时器/pker 叠加/revive 苏醒）
+    - **ADR-0018 契约演进**：condition_deltas/completed 改用 EffectComp 实体 eid（int）作 key（支持多 target 同名 condition 独立衰减，原 effect_id 假设全局唯一被 apply_condition 打破）
+  - combat/result.py 加 5 个 Effect kind（KIND_HEAL/KIND_HEAL_JING/KIND_DAMAGE_JING/KIND_WOUND_JING/KIND_CLEAR_MARK，condition 驱动的恢复/扣减/标记清除）+ world.apply_effects 扩展
+  - **2.2 范围控制**（收敛）：阴间剧情后置 2.6（die 玩家 ghost=1 move DEATH_ROOM 为止）/ break_marriage/log_file/谣言后置 M3 / skill_death_penalty 简化 stub（所有技能 -1，真实 learned 公式后置 2.3）/ PKS/MKS/shen 后置 2.5 TitleComp / winner_reward stub / make_corpse 装备重穿后置 2.3
+  - **确定性**：death_penalty/killer_reward 无 random（对齐 LPC）；unconcious 的 revive 延时 random(100-con)+30 用系统 RNG（非 combat 确定性范围）
+  - 测试：[test_heal.py](engine/tests/test_heal.py) 16 + [test_condition_types.py](engine/tests/test_condition_types.py) 21 + [test_death.py](engine/tests/test_death.py) 21（含 hypothesis 三层不变量 + 多 target 同名 condition 独立衰减 + death_penalty 确定性）
+  - **1159 tests 全绿（+58），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 8（新组件可序列化，Vitals 扩展字段全基本类型）+ dissent 7（condition handler 交织账本，ConditionTickResult ledger）+ ADR-0018 契约演进（effect_eid key）
+
+- [x] **阶段 2 Wave 2 2.3 Attribute/Skill/Equipment 完成**（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.3 / [ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) + 实现期细化 6 项）：
+  - [equipment.py](engine/src/xkx/runtime/equipment.py) 新建：wield/wear/unequip（对照 [equip.c](feature/equip.c)，prop 注入/反向扣减 + 槽位 flag TWO_HANDED/SECONDARY + reset_action 更新 CombatState）+ is_equipped/total_weight/add_encumbrance
+  - Equipment 组件（weapon/secondary_weapon/armors + per-slot prop 副本 weapon_props/secondary_weapon_props/armor_props + encumbrance/max_encumbrance，可序列化）
+  - Skills 扩展 apply_speed/skill_map/skill_prepare/learned（learned 衔接 skill_death_penalty 真实公式）
+  - [query.py](engine/src/xkx/runtime/query.py) query_skill 三层叠加（apply/{skill} + levels/2 + skill_map，对照 [skill.c:94-109](feature/skill.c)）+ effective_apply/effective_skill_level
+  - dbase_map 激活 apply_speed/weight/encumbrance + apply/ 前缀分发（APPLY_SUBPATH_MAP）+ equipped 语义 key（SEMANTIC_KEY_MAP）+ POSTPONED 移除 equipped/apply
+  - ModifierStack 三类叠加（永久基础值 levels + 临时修正 apply_* + 装备加成注入 apply_* 标量，对照 LPC query 链）
+  - [death.py](engine/src/xkx/runtime/death.py) 衔接 2.2 stub：make_corpse 装备重穿（unequip 所有 + 装备物品转移尸体）+ skill_death_penalty 真实 learned 公式（[skill.c:121-147](feature/skill.c)，修正 LPC learned 覆盖 bug）
+  - CombatantSnapshot 加 apply_speed（快照边界，resolve_attack 不变，ADR-0023 第 4 项定稿）
+  - **ADR-0026 实现期细化 6 项**：Skills 加 learned / Equipment per-slot prop 副本 / equipped 语义 key（非 DBASE_KEY_MAP）/ apply 未知子路径读返回 0 / skill_death_penalty 修正 LPC 覆盖 bug / wield 不自动算重量
+  - 测试 [test_modifier_stack.py](engine/tests/test_modifier_stack.py) 36 tests（Equipment + ModifierStack + query_skill + apply 前缀 + equipped 语义 + death 衔接 + hypothesis 三类叠加交换律/unequip 回归 condition-only + 主题无关性）
+  - **1196 tests 全绿（+37），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 3（三类叠加语义明确 + apply_* 不落入层1 DSL）+ 专家 3 承重（技能三层 levels+skill_map）+ dissent 8（Equipment 可序列化）+ dissent 7（per-slot prop 副本来源可追溯）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -324,29 +356,33 @@
 
 ## In Progress
 
-**阶段 2 Wave 1 2.1 Query/索引层已完成**（[ADR-0025](docs/adr/ADR-0025-query-index-layer.md)）。
+**阶段 2 Wave 2 2.3 Attribute/Skill/Equipment 已完成**（[ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) + 实现期细化 6 项）。
 
 阶段 1 已合并 master（merge `bffce2c3`），分支 feat/stage-2-subsystems 已创建。
 
-**阶段 2 启动前置**（[15 §九](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
-- [x] 阶段 1 全部完成（T1-T10，1035 tests，kill criteria 3 GO）
-- [x] feat/stage-1-core-loop 合并到 master（merge `bffce2c3`）
-- [x] 分支 feat/stage-2-subsystems 已创建（从 master）
-- [x] **ADR-0025** Query/索引层设计（Wave 1 前置）
-- [x] **2.1 Query/索引层编码完成**（1101 tests 全绿）
-- [ ] 用户确认启动 Wave 2 编码
+**Wave 2 采用逐个串行**（用户裁决，避免 2.2/2.3/2.5/2.6 共享 components.py/dbase_map.py/query.py 等文件的合并冲突）：
+- [x] **2.2 Vitals/Heal/Condition 编码完成**（1159 tests 全绿）
+- [x] **2.3 Attribute/Skill/Equipment 编码完成**（1196 tests 全绿）
+- [ ] 2.5 TitleSystem（前置 ADR-0028 已就绪）
+- [ ] 2.6 WorldGovernanceSystem（前置 ADR-0029 已就绪）
 
-**下一步：Wave 2 启动**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
-- ADR-0026 ModifierStack 三类语义 + 技能三层划分（2.3 前置，Agent B 启动前写）
-- ADR-0028 RANK_D 规格提取 + PronounContext 三元组完整求值（2.5 前置，Agent C 启动前写）
-- ADR-0029 WorldGovernanceSystem 代表性元素 + fail-closed 边界（2.6 前置，Agent D 启动前写）
-- 2.2 Vitals/Heal/Condition 无需新 ADR（T1 ADR-0018 契约已定，填充实现）
-- 4 路 agent 并行：2.2 / 2.3 / 2.5 / 2.6
+**Wave 2 前置 ADR 已产出（未提交，git untracked，用户要求编码完成后一起 commit）**：
+- [x] [ADR-0026](docs/adr/ADR-0026-modifier-stack-and-skill-layers.md) ModifierStack 三类语义 + 技能三层（2.3 前置）
+- [x] [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md) RANK_D + PronounContext 三元组（2.5 前置）
+- [x] [ADR-0029](docs/adr/ADR-0029-world-governance-system.md) WorldGovernanceSystem + fail-closed（2.6 前置）
+- 2.2 无需新 ADR（T1 ADR-0018 契约已定，2.2 演进 effect_eid key）
+
+**下一步：2.5 TitleSystem 启动**（[15 §三 2.5](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)）：
+- RANK_D 7 函数称谓求值（三元组 speaker/viewer/target -> 称谓字符串，对照 rankd.c）
+- TitleComp 组件（玩家称号 + 门派职位 + PKS 称号，后置 key title/shen 激活）
+- PronounContext 三元组完整求值（10 变量占位符 $N/$n/$w/$l 等，衔接 T4 PronounService）
+- 2.2 留的 stub 衔接：PKS/MKS/shen 计数（killer_reward 后置 2.5 补）+ apply 状态修饰 short()
+- 后置 key 激活：title/shen/race/mud_age（从 POSTPONED_KEYS 移除）
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
 - golden trace 定点辅助（driver PID 22753 运行中）-- 2.4 Combat 前录制 do_attack 七步基线（dissent 4 验证）
-- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 2.2/2.3 落地时自然带入
+- [ADR-0016](docs/adr/ADR-0016-layer1-predicate-expansion-batch2.md) 实现（层1 谓词集扩充 8 类）-- 2.3 落地时自然带入
 
 ## Blocked
 
@@ -364,7 +400,7 @@
 
 ## Next Up
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿），阶段 2 待启动**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 进行中（2.2/2.3 完成，下一步 2.5）**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
@@ -373,11 +409,11 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：用户确认启动 Wave 2 -> 产出 ADR-0026/0028/0029（Wave 2 前置）-> 4 路 agent 并行启动 2.2/2.3/2.5/2.6。
+**下一步主线**：2.5 TitleSystem（ADR-0028）-> 2.6 WorldGovernanceSystem（ADR-0029）-> Wave 3 2.4 Combat。
 
-**阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)）：
+**阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
-- Wave 2：2.2/2.3/2.5/2.6 并行（4 路，4-6 周）
+- Wave 2：2.2 ✅ / 2.3 ✅ / 2.5 / 2.6 逐个串行（用户裁决避免共享文件合并冲突，4-6 周）
 - Wave 3：2.4 Combat（高风险，3-5 周）
 - Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
 
