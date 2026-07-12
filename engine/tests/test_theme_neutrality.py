@@ -110,3 +110,22 @@ def test_neili_not_in_core_snapshot() -> None:
     fields = CombatantSnapshot.model_fields
     assert "neili" not in fields
     assert "max_neili" not in fields
+
+
+def test_combat_kernel_extensions_have_no_formation_literals() -> None:
+    """防回归硬门禁：2.4 扩展不得含阵法/合击/anubis/武侠武器字面量（ADR-0027 §2.4）。
+
+    协同攻击修正是题材内容（题材包武学脚本），内核只做分发；call_out 翻译的
+    EffectComp 字段主题无关。集中扫描 combat/modifier.py + combat/system.py +
+    runtime/auto_fight.py，确保 2.4 扩展不把武侠阵法语义锁进内核。
+    """
+    from xkx.combat import modifier as modifier_mod
+    from xkx.combat import system as system_mod
+    from xkx.runtime import auto_fight as auto_fight_mod
+
+    # ADR-0027 §2.4 黑名单：阵法/合击/anubis（阵法标记）+ sword/blade（武侠武器）
+    forbidden = ("阵法", "合击", "anubis", "sword", "blade")
+    for mod in (modifier_mod, system_mod, auto_fight_mod):
+        src = inspect.getsource(mod)
+        for lit in forbidden:
+            assert lit not in src, f"{mod.__name__} 源码含禁止字面量 {lit!r}"

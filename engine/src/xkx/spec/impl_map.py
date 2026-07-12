@@ -166,6 +166,54 @@ DO_ATTACK_IMPL_MAP: dict[str, ImplEntry] = {
 }
 
 
+# ──────────────────────── 2.4 扩展条目（ADR-0027，非 do_attack 七步） ────────────────────────
+# 以下条目记录 2.4 Combat 迁移的扩展实现状态（call_out 翻译 + 协同修正接口），
+# 供审计查阅。ConformanceChecker 不消费（_CHECKS 只检查 do_attack 七步 8 项）。
+COMBAT_EXTENSION_IMPL_MAP: dict[str, ImplEntry] = {
+    "callout_revive_translation": ImplEntry(
+        check_name="callout_revive_translation",
+        status=ImplStatus.IMPLEMENTED,
+        spec_ref=(
+            "feature/damage.c:134 call_out('revive', random(100-con)+30) "
+            "+ :139,174 remove_call_out"
+        ),
+        adr_ref="ADR-0027",
+        note=(
+            "revive call_out -> EffectComp（2.2 death.py apply_condition + "
+            "conditions.py _revive_trigger）；remove_call_out -> "
+            "clear_one_condition（death.py:134，die 中 revive(quiet=True) "
+            "中断 EffectComp）"
+        ),
+    ),
+    "callout_start_translation": ImplEntry(
+        check_name="callout_start_translation",
+        status=ImplStatus.IMPLEMENTED,
+        spec_ref=(
+            "adm/daemons/combatd.c:866 call_out('start_'+type, 0, me, obj) "
+            "+ :869-962 start_*"
+        ),
+        adr_ref="ADR-0027",
+        note=(
+            "start_* 同步执行 + 5 防御检查（runtime/auto_fight.py，"
+            "ADR-0027 §1.2 决策同步执行非 duration=0 EffectComp）；"
+            "具体 fight 逻辑 kill_ob/fight_ob 后置 M3 NPC AI"
+        ),
+    ),
+    "formation_modifier_interface": ImplEntry(
+        check_name="formation_modifier_interface",
+        status=ImplStatus.IMPLEMENTED,
+        spec_ref="ADR-0027 §2.2 CombatModifier 声明式载体 + §2.3 special_attack 调用点",
+        adr_ref="ADR-0027",
+        note=(
+            "CombatModifier frozen dataclass（combat/modifier.py）+ "
+            "CombatantSnapshot.formation_modifier 字段 + CombatSystem.tick "
+            "注入快照（ap/dp 修正 + message + post_action 透传）；"
+            "具体阵法逻辑（pozhen/buzhen/heji）后置 2.7 门派切割 / M3"
+        ),
+    ),
+}
+
+
 def get_status(check_name: str) -> ImplStatus:
     """查询检查项的实现状态。未注册的检查项视为 postponed。"""
     entry = DO_ATTACK_IMPL_MAP.get(check_name)

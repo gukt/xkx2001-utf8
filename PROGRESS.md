@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 3 2.4 Combat 前置 ADR-0027 已产出（待评审），评审通过启动 2.4 编码
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。**Wave 3 2.4 Combat 前置 ADR-0027 已产出**（call_out -> Effect 翻译 + 阵法合击 CombatModifier + golden trace diff 协议，关联 dissent 1/4/7），待用户评审后启动 2.4 编码。golden trace combat 基线已录制（[engine/tools/golden_trace/](engine/tools/golden_trace/)）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
+**当前阶段**：阶段 2 Wave 3 2.4 Combat 编码完成（ADR-0027 落地，1514 tests 全绿），下一步 Wave 4 2.7 门派切割
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。**Wave 3 2.4 Combat 编码完成**（ADR-0027 落地：call_out -> Effect 翻译 start_* 同步执行 + 5 防御检查 + CombatModifier 协同修正接口 + special_attack 调用点 + golden trace diff 三层协议，agent teams 2 批次 4 agent，1514 tests 全绿，关联 dissent 1/4/7）。golden trace diff CLI 端到端三层全 PASS（L1 卡方 p>0.05 / L2 七步结构 / L3 占位符渲染）。下一步 Wave 4 2.7 门派切割（主题无关性硬门禁收官）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
 
 ## Done
 
@@ -389,6 +389,17 @@
   - LPC 源码勘察：combatd.c call_out 1 处（行 866 start_ 延迟）+ damage.c call_out 3 处（revive 延迟 + remove_call_out）+ attack.c special_attack 阵法入口 + kungfu/skill/ 阵法脚本
   - 待用户评审，评审通过启动 2.4 编码
 
+- [x] **阶段 2 Wave 3 2.4 Combat 编码完成**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 落地 / [15](docs/xkx-arch/15-阶段2-子系统实施计划.md) §三 2.4）：
+  - **call_out -> Effect 翻译**（ADR-0027 §1）：revive + remove_call_out 2.2 已完成（EffectComp 化），2.4 补测试 + 文档化中断契约；start_* 同步执行 + 5 防御检查（[auto_fight.py](engine/src/xkx/runtime/auto_fight.py) 新建，§1.2 决策同步执行非 duration=0 EffectComp；具体 fight 逻辑 kill_ob/fight_ob 后置 M3 NPC AI）。实现期细化：start_* 放 runtime/auto_fight.py（非 conditions.py，因同步执行不用 EffectComp）
+  - **CombatModifier 协同修正接口**（ADR-0027 §2）：[modifier.py](engine/src/xkx/combat/modifier.py) 新建 frozen dataclass 主题无关字段 + CombatantSnapshot 加 formation_modifier 字段（快照边界注入）+ [system.py](engine/src/xkx/combat/system.py) CombatSystem.tick special_attack 调用点（只读 formation_modifier，ap/dp 修正 + message + post_action 透传）。实现期细化：阵法标记检查移到快照构建边界（combat 包自包含不查 Marks，runtime 层 CombatBridge 后置整合）；具体阵法逻辑（pozhen/buzhen/heji）后置 2.7/M3
+  - **golden trace diff 三层协议**（ADR-0027 §3）：[diff.py](engine/tools/golden_trace/diff.py) 新建 L1 概率分布 diff（边际概率链 + 卡方检验）+ L2 文本结构 diff（七步结构 + ANSI 剥离 + 伤害分类映射）+ L3 语义 diff（占位符 PronounContext 渲染）+ CLI + DiffReport；非侵入设计（只消费 ledger + baseline）
+  - **关键发现**：LPC 概率模型 `parry_p=pp/(ap+pp)` 是理论公式，resolve_attack 顺序判定（dodge 成功则 return）需用边际概率链 `P(parry)=(1-dodge_p)*pp/(ap+pp)` 匹配实际行为，卡方 p=0.069>0.05 通过
+  - **主题无关硬门禁**：test_theme_neutrality 扩展阵法/合击/anubis/sword/blade 字面量黑名单（扫描 modifier.py + system.py + auto_fight.py）；impl_map 加 COMBAT_EXTENSION_IMPL_MAP 3 条 implemented 标注（callout_revive/start_translation + formation_modifier_interface）
+  - agent teams 2 批次 4 agent：批次 1 三路并行（A modifier.py + 13 tests / B auto_fight.py + 23 tests / C diff.py + 49 tests，改不同文件无冲突）+ 批次 2 串行（D system.py special_attack + 7 tests / E theme_neutrality 扩展 + impl_map 标注自做）
+  - 测试：[test_combat_modifier.py](engine/tests/test_combat_modifier.py) 20（13 接口 + 7 special_attack）+ [test_callout_translation.py](engine/tests/test_callout_translation.py) 23 + [test_golden_trace_diff.py](engine/tests/test_golden_trace_diff.py) 49 = 92 新测试
+  - **1514 tests 全绿（+93），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过；golden trace diff CLI 端到端三层全 PASS
+  - 关联 dissent 1（CombatKernel 主题无关，阵法合击题材内容不进内核）+ dissent 4（golden trace diff 定位辅助验证非主线门禁）+ dissent 7（call_out 翻译 EffectComp 审计轨迹）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -415,13 +426,13 @@
 - [x] [ADR-0029](docs/adr/ADR-0029-world-governance-system.md) WorldGovernanceSystem + fail-closed（2.6 前置）
 - 2.2 无需新 ADR（T1 ADR-0018 契约已定，2.2 演进 effect_eid key）
 
-**下一步：Wave 3 2.4 Combat 启动**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md)，高风险串行）：
+**Wave 3 2.4 Combat 编码完成**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md) / [ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 落地，1514 tests 全绿）：
 - combat 迁移行为等价验证 + 文本体验流 diff
 - 依赖 2.1 Query + 2.2 死亡轮回 + 2.3 Attribute/Skill + 2.6 治理（PK 触发通缉衔接）
-- [x] **ADR-0027 已产出**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，2.4 前置）：覆盖 3 项 ADR-0023 未触及的承重决策：call_out -> Effect 翻译（dissent 1/7，2.4 只翻译 combat 核心约 10 处非全库 144 处）+ s_combatd 阵法合击 CombatModifier（dissent 1，关键发现：s_combatd 非阵法是 combatd 带文本副本，阵法入口 attack.c special_attack + kungfu/skill/ 题材脚本，2.4 只定主题无关接口）+ golden trace diff 三层协议（dissent 4，L1 概率分布/L2 文本结构/L3 语义，定位辅助非主线门禁）。**待用户评审，评审通过启动 2.4 编码**
+- [x] **ADR-0027 已产出并落地**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，2.4 前置）：覆盖 3 项 ADR-0023 未触及的承重决策：call_out -> Effect 翻译（dissent 1/7，2.4 只翻译 combat 核心约 10 处非全库 144 处）+ s_combatd 阵法合击 CombatModifier（dissent 1，关键发现：s_combatd 非阵法是 combatd 带文本副本，阵法入口 attack.c special_attack + kungfu/skill/ 题材脚本，2.4 只定主题无关接口）+ golden trace diff 三层协议（dissent 4，L1 概率分布/L2 文本结构/L3 语义，定位辅助非主线门禁）。**2.4 编码完成**（call_out 翻译 + CombatModifier 接口 + golden trace diff 三层协议，agent teams 2 批次 4 agent，1514 tests 全绿）
 - [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：recorder.py 客户端（登录 10 步 + 引导 follow+register + sample_combat + analyze）+ baseline/（combat_huashan 14 回合 do_attack 七步文本 + 登录会话 + 概率统计 dodge 27%/hit 73% + meta + README）；driver PID 22753 运行中；dissent 4 基线测试路径打通
 
-**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1421 含它，ruff 全过）。
+**穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1514 含它，ruff 全过）。
 
 **剩余可选任务**（非阶段 2 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -443,7 +454,7 @@
 
 ## Next Up
 
-**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 全部完成（2.2/2.3/2.5/2.6，1421 tests 全绿）。下一步 Wave 3 2.4 Combat**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**阶段 1 全部完成（T1-T10，1035 tests 全绿）。阶段 2 Wave 2 全部完成（2.2/2.3/2.5/2.6，1421 tests 全绿）。Wave 3 2.4 Combat 编码完成（1514 tests 全绿）。下一步 Wave 4 2.7 门派切割**（[04 §三阶段 2](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
@@ -452,16 +463,16 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：Wave 3 2.4 Combat（高风险串行）。golden trace combat 基线已就绪（[engine/tools/golden_trace/](engine/tools/golden_trace/)），**ADR-0027 已产出**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，call_out -> Effect 翻译 + 阵法合击 CombatModifier + golden trace diff 三层协议），待用户评审通过后启动 2.4 编码。
+**下一步主线**：Wave 4 2.7 门派切割（主题无关性硬门禁收官，2-3 周）。2.4 Combat 已完成（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 落地，call_out 翻译 + CombatModifier 接口 + golden trace diff 三层协议，1514 tests 全绿）。2.7 依赖 2.4（CombatKernel 主题无关性），需 ADR-0030 门派内容包边界切割 + race 层剥离。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
 - Wave 2：2.2 ✅ / 2.3 ✅ / 2.5 ✅ / 2.6 ✅ 全部完成（逐个串行，用户裁决避免共享文件合并冲突）
-- Wave 3：2.4 Combat（高风险，3-5 周）
+- Wave 3：2.4 Combat ✅ 完成（高风险，ADR-0027 落地，1514 tests）
 - Wave 4：2.7 门派切割（2-3 周，主题无关性硬门禁）
 
 **阶段 2 -> M3 决策检查点**（04 §八，待阶段 2 完成）：
-- [ ] Combat 迁移行为等价验证 + 文本体验流 diff？（2.4）
+- [x] Combat 迁移行为等价验证 + 文本体验流 diff？（2.4 ✅，golden trace diff 三层全 PASS + ConformanceChecker 8 项全通过）
 - [x] 技能三层明确？（2.3 ✅）
 - [x] 称谓系统、世界观治理层落地？（2.5 ✅ / 2.6 ✅）
 - [ ] 门派内容包边界干净切割？（2.7）
