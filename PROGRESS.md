@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-12
-**当前阶段**：阶段 2 Wave 2 全部完成 + golden trace combat 基线录制完成，下一步 Wave 3 2.4 Combat（需 ADR-0027 前置）
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。下一步 Wave 3 2.4 Combat（高风险串行）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
+**当前阶段**：阶段 2 Wave 3 2.4 Combat 前置 ADR-0027 已产出（待评审），评审通过启动 2.4 编码
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前分支 feat/stage-2-subsystems。**阶段 2 Wave 2 全部完成**（2.2 Vitals/Heal/Condition + 2.3 Attribute/Skill/Equipment + 2.5 TitleSystem + 2.6 WorldGovernanceSystem，逐个串行；2.6 GovernanceSystem 平台级 fail-closed + 阴间死亡轮回完整闭环 + 法院 PK 通缉/审判/受贿/监狱 + 累犯加重 bug 修复，agent teams 3 批次，1421 tests 全绿）。Wave 2 三个前置 ADR（0026/0028/0029）已产出并提交。**Wave 3 2.4 Combat 前置 ADR-0027 已产出**（call_out -> Effect 翻译 + 阵法合击 CombatModifier + golden trace diff 协议，关联 dissent 1/4/7），待用户评审后启动 2.4 编码。golden trace combat 基线已录制（[engine/tools/golden_trace/](engine/tools/golden_trace/)）。Wave 2 采用**逐个串行**（用户裁决），2.5/2.6 内部 agent teams 并行（不同文件无冲突）。
 
 ## Done
 
@@ -380,6 +380,15 @@
   - **1421 tests 全绿（+82：test_governance 77 + test_death +5 衔接），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
   - 关联 dissent 5（themed 治理平台级 fail-closed Python 不入 UGC 规则层）+ dissent 10（5 灵魂系统只含 2 代表性元素，276 文件武林大会/vote/intermud 后置 M3）+ dissent 5 延伸（call_out 翻译为 EffectComp，GovernanceSystem 自有 handler）
 
+- [x] **ADR-0027 产出（2.4 Combat 前置）**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)）：
+  - 覆盖 ADR-0023 未触及的 3 项承重决策：call_out -> Effect 翻译（dissent 1/7）+ s_combatd 阵法合击 CombatModifier（dissent 1）+ golden trace 录制/diff 协议（dissent 4）
+  - **call_out 翻译**：2.4 只翻译 combat 核心路径（revive + start_ + remove_call_out 约 10 处），非全库 144 处穷尽；闭包型 call_out -> EffectComp（duration + 可中断 + 崩溃恢复 + 参数载荷），复用 ADR-0017 EffectComp + ADR-0022 崩溃恢复 + ADR-0018 ledger；revive 的 `random(100-con)+30` 用系统 RNG（非 combat 确定性范围）；start_ 延迟 0 秒倾向同步执行 + 防御检查
+  - **阵法合击关键发现**：`s_combatd.c` 是 combatd 的"带 damage_msg 文本"副本（**非阵法**）；真正阵法入口是 [feature/attack.c:197](feature/attack.c#L197) `special_attack` 检查 `stand/anubis` 标记 -> `S_COMBAT_D->fight`，具体阵法在 [kungfu/skill/](kungfu/skill/) 题材脚本（pozhen/buzhen/heji）
+  - **CombatModifier 主题无关接口**：阵法合击是题材内容（kungfu/skill/），走 SkillData/FormationData 声明不进内核；CombatModifier 声明式载体（modifier_type/participants/attack_modifier/defense_modifier/message/post_action）内核只做分发；2.4 只定接口 + special_attack 调用点，具体阵法后置 2.7/M3
+  - **golden trace diff 三层协议**：L1 概率分布 diff（多次采样对照 layer_e 31 处 random 概率模型，卡方检验非逐字）+ L2 文本结构 diff（七步结构 + ANSI 剥离 + 伤害描述分类映射）+ L3 语义 diff（占位符对照 PronounContext）；定位辅助验证非主线门禁（主线是单元级行为规约 + ConformanceChecker + combat-sim）；diff 工具 [engine/tools/golden_trace/diff.py](engine/tools/golden_trace/diff.py) 新建
+  - LPC 源码勘察：combatd.c call_out 1 处（行 866 start_ 延迟）+ damage.c call_out 3 处（revive 延迟 + remove_call_out）+ attack.c special_attack 阵法入口 + kungfu/skill/ 阵法脚本
+  - 待用户评审，评审通过启动 2.4 编码
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -409,7 +418,7 @@
 **下一步：Wave 3 2.4 Combat 启动**（[15 §三 2.4](docs/xkx-arch/15-阶段2-子系统实施计划.md)，高风险串行）：
 - combat 迁移行为等价验证 + 文本体验流 diff
 - 依赖 2.1 Query + 2.2 死亡轮回 + 2.3 Attribute/Skill + 2.6 治理（PK 触发通缉衔接）
-- **ADR 需求评估完成**：ADR-0023（阶段 1 T6）已覆盖 combat-only 确定性 + CombatSystem + 简化台账 6 项（已实现）；2.4 需新 **ADR-0027**（计划 [15 §五](docs/xkx-arch/15-阶段2-子系统实施计划.md) 预留编号）覆盖 3 项 ADR-0023 未触及的承重决策：call_out 144 处 -> EffectComp 翻译（dissent 1/7）+ s_combatd 阵法合击 CombatModifier（dissent 1）+ golden trace 录制/diff 协议（dissent 4）。原"ADR-0031"为估算笔误，修正为 ADR-0027。
+- [x] **ADR-0027 已产出**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，2.4 前置）：覆盖 3 项 ADR-0023 未触及的承重决策：call_out -> Effect 翻译（dissent 1/7，2.4 只翻译 combat 核心约 10 处非全库 144 处）+ s_combatd 阵法合击 CombatModifier（dissent 1，关键发现：s_combatd 非阵法是 combatd 带文本副本，阵法入口 attack.c special_attack + kungfu/skill/ 题材脚本，2.4 只定主题无关接口）+ golden trace diff 三层协议（dissent 4，L1 概率分布/L2 文本结构/L3 语义，定位辅助非主线门禁）。**待用户评审，评审通过启动 2.4 编码**
 - [x] **golden trace combat 基线录制完成**（[engine/tools/golden_trace/](engine/tools/golden_trace/)）：recorder.py 客户端（登录 10 步 + 引导 follow+register + sample_combat + analyze）+ baseline/（combat_huashan 14 回合 do_attack 七步文本 + 登录会话 + 概率统计 dodge 27%/hit 73% + meta + README）；driver PID 22753 运行中；dissent 4 基线测试路径打通
 
 **穿插完成**：ADR-0016 层1 谓词扩充 8 类（独立 dsl 层，[layer1.py](engine/src/xkx/dsl/layer1.py) 8 类谓词 + [spec/layer_c_command.py](engine/src/xkx/spec/layer_c_command.py) 命令 deny 规格 + [test_layer1_predicates_batch2.py](engine/tests/test_layer1_predicates_batch2.py) 24 tests；全量 1421 含它，ruff 全过）。
@@ -443,7 +452,7 @@
 - [x] Effect/ConditionHandler 契约落定？（T1 ✅ [ADR-0017](docs/adr/ADR-0017-ecs-sparse-set-effect-component.md)/[0018](docs/adr/ADR-0018-conditionhandler-on-tick-contract.md)）
 - [x] 内存权威 + JSON 存档稳定？（T5 ✅ [ADR-0022](docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)，原子写 + offload + 崩溃恢复）
 
-**下一步主线**：Wave 3 2.4 Combat（高风险串行，需 ADR-0027 前置）。golden trace combat 基线已就绪（[engine/tools/golden_trace/](engine/tools/golden_trace/)），ADR-0027（call_out + 阵法 + golden trace 协议）待产出后启动编码。
+**下一步主线**：Wave 3 2.4 Combat（高风险串行）。golden trace combat 基线已就绪（[engine/tools/golden_trace/](engine/tools/golden_trace/)），**ADR-0027 已产出**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)，call_out -> Effect 翻译 + 阵法合击 CombatModifier + golden trace diff 三层协议），待用户评审通过后启动 2.4 编码。
 
 **阶段 2 Wave 划分**（[15 §四](docs/xkx-arch/15-阶段2-子系统实施计划.md)，Wave 2 改串行）：
 - Wave 1：2.1 Query/索引层 ✅ 完成（基础，1101 tests）
