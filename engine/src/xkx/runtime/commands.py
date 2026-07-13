@@ -31,6 +31,7 @@ from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
+    FamilyComp,
     Identity,
     Inventory,
     Marks,
@@ -39,6 +40,8 @@ from xkx.runtime.components import (
     Progression,
     QuestLog,
     RoomComp,
+    Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.ecs import World
@@ -470,6 +473,266 @@ def hp(game: Game, actor_id: int) -> list[str]:
 
 
 # ============================================================================
+# M3-1 ADR-0032 决策 1：拜师命令组（bai/kneel/recruit/betrayer）
+# 对照 LPC cmds/skill/apprentice.c + feature/apprentice.c + gongcang.c
+# ============================================================================
+
+
+def _is_apprentice_of(world: World, player_eid: int, master_eid: int) -> bool:
+    """玩家是否是 master 的徒弟（对照 apprentice.c:8 is_apprentice_of）。
+
+    master_id + master_name 同时匹配 master 的 prototype_id + name。
+    """
+    player_family = world.get(player_eid, FamilyComp)
+    master_ident = world.get(master_eid, Identity)
+    if not player_family or not master_ident:
+        return False
+    return (
+        player_family.master_id == master_ident.prototype_id
+        and player_family.master_name == master_ident.name
+    )
+
+
+def _eval_apprentice_conditions(
+    world: World, player_eid: int, conditions: dict, master_name: str
+) -> tuple[bool, str]:
+    """求值拜师入门条件（对照 LPC attempt_apprentice 钩子，声明式）。
+
+    返回 (通过, 拒绝消息)。通过时拒绝消息为空。按 ADR-0032 决策 1 实施期
+    细化：独立结构化条件模型（非层1 谓词，因 ADR-0016 护栏不引入 attr_ge）。
+    """
+    attrs = world.get(player_eid, Attributes)
+    prog = world.get(player_eid, Progression)
+    player_family = world.get(player_eid, FamilyComp)
+    marks = world.get(player_eid, Marks)
+    combat_exp = prog.combat_exp if prog else 0
+    player_fn = player_family.family_name if player_family else ""
+    # 1. reject_gender（对照 gongcang.c:66 拒女徒）
+    reject_gender = conditions.get("reject_gender", "")
+    if reject_gender and attrs and attrs.gender == reject_gender:
+        return False, f"{master_name}说道：本门不收{reject_gender}徒，请回吧。"
+    # 2. allow_families + other_family_max_combat_exp（对照 gongcang.c:75-81 外派高手）
+    allow_families = conditions.get("allow_families", [])
+    other_max_exp = conditions.get("other_family_max_combat_exp", 0)
+    if (
+        allow_families
+        and player_fn
+        and player_fn not in allow_families
+        and other_max_exp
+        and combat_exp >= other_max_exp
+    ):
+        return False, f"{master_name}说道：{player_fn}高手，本派可不敢收留！"
+    # 3. min_combat_exp
+    min_exp = conditions.get("min_combat_exp", 0)
+    if min_exp and combat_exp < min_exp:
+        return False, f"{master_name}说道：你的经验还浅，再历练历练吧。"
+    # 4. min_skills
+    min_skills = conditions.get("min_skills", {})
+    if min_skills:
+        skills = world.get(player_eid, Skills)
+        for sk, lvl in min_skills.items():
+            cur = skills.levels.get(sk, 0) if skills else 0
+            if cur < lvl:
+                return False, f"{master_name}说道：你的{sk}还不够纯熟。"
+    # 5. require_flags（对照 darba 打赢设标记解锁拜师，决策 3）
+    require_flags = conditions.get("require_flags", [])
+    if require_flags:
+        flags = marks.flags if marks else set()
+        for f in require_flags:
+            if f not in flags:
+                return False, f"{master_name}说道：你还未证明自己的实力。"
+    return True, ""
+
+
+def _assign_apprentice(
+    world: World, player_eid: int, family_name: str, generation: int, title: str
+) -> None:
+    """设玩家门派头衔（对照 apprentice.c:21-37 assign_apprentice）。
+
+    LPC: sprintf("%s第%s代%s", family_name, chinese_number(generation), title)。
+    greenfield 用阿拉伯数字（chinese_number 后置）。
+    """
+    title_comp = world.get(player_eid, TitleComp)
+    if title_comp is None:
+        title_comp = TitleComp()
+        world.add(player_eid, title_comp)
+    title_comp.title = f"{family_name}第{generation}代{title}"
+
+
+def _recruit_apprentice(
+    world: World, master_eid: int, player_eid: int, app_config: dict
+) -> list[str]:
+    """收徒核心逻辑（对照 apprentice.c:55 recruit_apprentice）。
+
+    含叛师检查（玩家已有不同门派 -> betrayer+1，对照 apprentice.c:63-70）。
+    写玩家 FamilyComp + assign_apprentice 设头衔 + 同步 Attributes.family。
+    技能减半公式后置（LPC apprentice.c help：所有技能减半 + 评价降到零）。
+    """
+    master_ident = world.get(master_eid, Identity)
+    family_name = app_config["family_name"]
+    generation = app_config["generation"] + 1  # 玩家 = 师傅 generation + 1
+    enter_title = "弟子"  # LPC recruit_apprentice -> assign_apprentice("弟子", 0)
+    msgs: list[str] = []
+    player_family = world.get(player_eid, FamilyComp)
+    # 叛师检查（玩家已有不同门派）
+    if player_family and player_family.family_name and player_family.family_name != family_name:
+        player_family.betrayer += 1
+        msgs.append(f"你决定背叛师门，改投入{family_name}门下！")
+    if player_family is None:
+        player_family = FamilyComp()
+        world.add(player_eid, player_family)
+    # 写玩家 FamilyComp（对照 recruit_apprentice 行 63-67）
+    player_family.family_name = family_name
+    player_family.generation = generation
+    player_family.master_id = master_ident.prototype_id if master_ident else ""
+    player_family.master_name = master_ident.name if master_ident else ""
+    player_family.title = enter_title
+    player_family.privs = 0
+    # 同步 Attributes.family（兼容 family_eq 谓词 + FamilyBonus 分发）
+    attrs = world.get(player_eid, Attributes)
+    if attrs:
+        attrs.family = family_name
+    # assign_apprentice 设 TitleComp.title
+    _assign_apprentice(world, player_eid, family_name, generation, enter_title)
+    success_msg = app_config.get("success_message", "")
+    if success_msg:
+        msgs.append(success_msg)
+    msgs.append(f"恭喜您成为{family_name}的第{generation}代弟子。")
+    return msgs
+
+
+def bai(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """拜师命令（M3-1 ADR-0032 决策 1，对照 cmds/skill/apprentice.c）。
+
+    玩家拜 NPC 为师。流程：找 NPC -> 已是徒弟则请安 -> 辈分检查 ->
+    求值 attempt_apprentice 入门条件 -> 通过则 recruit。pending 二次确认
+    机制（LPC pending/recruit）简化为直接求值收徒（NPC 拜师路径）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_disp = target_ident.name if target_ident else target_name
+    target_family = world.get(target_eid, FamilyComp)
+    # 师傅须有 family（create_family 设），无则不能收徒
+    if target_family is None or not target_family.family_name:
+        return [f"{target_disp}既不属于任何门派，也没有开山立派，不能拜师。"]
+    # 已是徒弟 -> 请安（对照 apprentice.c:46）
+    if _is_apprentice_of(world, actor_id, target_eid):
+        return [f"你恭恭敬敬地向{target_disp}磕头请安，叫道：「师父！」"]
+    # 辈分检查：同门派 + 师傅 generation >= 玩家 generation -> 不能拜平辈晚辈
+    # （对照 apprentice.c:55-58，special_master 后置）
+    player_family = world.get(actor_id, FamilyComp)
+    if (
+        player_family
+        and player_family.family_name == target_family.family_name
+        and target_family.generation >= player_family.generation
+    ):
+        return [f"{target_disp}的辈分不对，你不能拜平辈或晚辈为师。"]
+    behavior = world.get(target_eid, NpcBehavior)
+    app_config = behavior.apprentice_config if behavior else None
+    if app_config is None:
+        return [f"{target_disp}似乎不想收徒。"]
+    # 求值 attempt_apprentice 入门条件
+    ok, reject_msg = _eval_apprentice_conditions(
+        world, actor_id, app_config.get("conditions", {}), target_disp
+    )
+    if not ok:
+        return [reject_msg]
+    # 通过 -> recruit（含叛师检查）
+    return _recruit_apprentice(world, target_eid, actor_id, app_config)
+
+
+def kneel(game: Game, actor_id: int) -> list[str]:
+    """剃度命令（M3-1 ADR-0032 决策 1，对照 gongcang.c:114 do_kneel）。
+
+    在房间内有 apprentice_config.kneel 的师傅 NPC 时触发剃度：检查
+    require_flag（pending 标记）-> 设 class -> 清标记 -> 输出 message。
+    gongcang 专属行为通过声明式配置驱动，源码无硬编码。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    master_eid = None
+    kneel_def = None
+    for eid in world.entities_in_room(pos.room_id):
+        ident = world.get(eid, Identity)
+        if not ident or ident.is_player:
+            continue
+        behavior = world.get(eid, NpcBehavior)
+        if behavior and behavior.apprentice_config:
+            kd = behavior.apprentice_config.get("kneel")
+            if kd:
+                master_eid = eid
+                kneel_def = kd
+                break
+    if master_eid is None or kneel_def is None:
+        return ["你跪了下来，但似乎没人理会。"]
+    # 检查 require_flag（pending 标记，对照 gongcang do_kneel:117）
+    require_flag = kneel_def.get("require_flag", "")
+    marks = world.get(actor_id, Marks)
+    if require_flag and (not marks or require_flag not in marks.flags):
+        return ["你还没有得到受戒的许可。"]
+    # 设 class（对照 gongcang do_kneel:127 set("class","lama")）
+    set_class = kneel_def.get("set_class", "")
+    if set_class:
+        title_comp = world.get(actor_id, TitleComp)
+        if title_comp is None:
+            title_comp = TitleComp()
+            world.add(actor_id, title_comp)
+        title_comp.char_class = set_class
+    # 清除标记
+    clear_flag = kneel_def.get("clear_flag", "") or require_flag
+    if clear_flag and marks:
+        marks.flags.discard(clear_flag)
+    message = kneel_def.get("message", "")
+    return [message] if message else ["你双手合十，恭恭敬敬地跪了下来。"]
+
+
+def recruit(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """收徒命令（M3-1 ADR-0032 决策 1，对照 cmds/skill/recruit.c）。
+
+    NPC 收徒的 PrivilegedAction 入口（NPC AI force_me 调用，ADR-0020）。
+    M3-1 NPC AI 后置，玩家路径返回提示；bai 命令内部已实现 recruit 逻辑
+    （_recruit_apprentice）。NPC AI 落地后由 force_me 走完整 8 段管线。
+    """
+    return ["收徒需由师傅 NPC 发起（NPC AI 后置），玩家请用 bai 拜师。"]
+
+
+def betrayer(game: Game, actor_id: int) -> list[str]:
+    """叛师命令（M3-1 ADR-0032 决策 1，最小实现）。
+
+    betrayer+1 + family 清空（FamilyComp 重置 + Attributes.family="" +
+    TitleComp.title 清）。技能减半公式 + score=0 后置（LPC apprentice.c help：
+    所有技能减半 + 评价降到零）。
+    """
+    world = game.world
+    family = world.get(actor_id, FamilyComp)
+    if family is None or not family.family_name:
+        return ["你还没有加入任何门派。"]
+    family.betrayer += 1
+    family_name = family.family_name
+    family.family_name = ""
+    family.generation = 0
+    family.master_id = ""
+    family.master_name = ""
+    family.title = ""
+    family.privs = 0
+    attrs = world.get(actor_id, Attributes)
+    if attrs:
+        attrs.family = ""
+    title_comp = world.get(actor_id, TitleComp)
+    if title_comp:
+        title_comp.title = ""
+    return [f"你背叛了{family_name}，从此沦为弃徒。"]
+
+
+# ============================================================================
 # 阶段 1 Wave 2 T4：8 段中间件管线集成（ADR-0020）
 # ============================================================================
 
@@ -550,6 +813,32 @@ def _adapter_hp(game: Game, ctx: ActionContext) -> list[str]:
     return hp(game, ctx.actor)
 
 
+def _adapter_bai(game: Game, ctx: ActionContext) -> list[str]:
+    """bai 命令适配器：bai <NPC>（NPC 名可含空格，取 raw_args）。"""
+    target_name = ctx.raw_args.strip()
+    if not target_name:
+        return ["如：bai 贡藏"]
+    return bai(game, ctx.actor, target_name)
+
+
+def _adapter_kneel(game: Game, ctx: ActionContext) -> list[str]:
+    """kneel 命令适配器（无参，剃度当前房间师傅）。"""
+    return kneel(game, ctx.actor)
+
+
+def _adapter_recruit(game: Game, ctx: ActionContext) -> list[str]:
+    """recruit 命令适配器：recruit <player>（PrivilegedAction，玩家路径提示）。"""
+    target_name = ctx.raw_args.strip()
+    if not target_name:
+        return ["如：recruit 玩家名"]
+    return recruit(game, ctx.actor, target_name)
+
+
+def _adapter_betrayer(game: Game, ctx: ActionContext) -> list[str]:
+    """betrayer 命令适配器（无参，叛师）。"""
+    return betrayer(game, ctx.actor)
+
+
 # 命令注册表：verb -> adapter (game, ctx) -> list[str]
 # 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
 COMMAND_REGISTRY: dict[str, Any] = {
@@ -563,6 +852,10 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,
+    "bai": _adapter_bai,
+    "kneel": _adapter_kneel,
+    "recruit": _adapter_recruit,
+    "betrayer": _adapter_betrayer,
 }
 
 

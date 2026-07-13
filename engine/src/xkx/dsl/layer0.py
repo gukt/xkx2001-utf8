@@ -29,6 +29,63 @@ class RoomDef(BaseModel):
     no_fight: bool = False
 
 
+class ApprenticeConditions(BaseModel):
+    """拜师入门条件（M3-1 ADR-0032 决策 1，声明式）。
+
+    对照 LPC attempt_apprentice 钩子入门检查（如 gongcang.c:64-84）。引擎
+    求值（bai 命令），非层1 谓词：ADR-0016 护栏不引入 attr_gt/le/ge，
+    combat_exp >= N 阈值无法用层1 谓词表达，且入门条件有领域语义，用结构化
+    字段更清晰（ADR-0032 决策 1「复用层1 谓词」实施期细化为独立条件模型）。
+
+    求值规则（bai 命令按序检查，首项不满足即拒绝）：
+    1. reject_gender：玩家性别 == 此值 -> 拒绝（对照 gongcang 拒女徒）
+    2. allow_families + other_family_max_combat_exp：玩家已有门派且不在
+       allow_families + combat_exp >= other_family_max_combat_exp -> 拒绝
+       （对照 gongcang「外派高手」检查；allow_families 空=不限门派）
+    3. min_combat_exp：玩家 combat_exp < 此值 -> 拒绝
+    4. min_skills：任一技能等级 < 阈值 -> 拒绝
+    5. require_flags：玩家缺任一标记 -> 拒绝（darba 打赢设标记解锁拜师）
+    全部通过 -> recruit。
+    """
+
+    min_combat_exp: int = 0
+    reject_gender: str = ""
+    allow_families: list[str] = Field(default_factory=list)
+    other_family_max_combat_exp: int = 0
+    min_skills: dict[str, int] = Field(default_factory=dict)
+    require_flags: list[str] = Field(default_factory=list)
+
+
+class KneelDef(BaseModel):
+    """剃度动作配置（M3-1 ADR-0032 决策 1，对照 gongcang.c:114 do_kneel）。
+
+    kneel 命令在房间内有 apprentice_config.kneel 的师傅 NPC 时触发剃度：
+    检查 require_flag（pending 标记）-> 设 class（TitleComp.char_class）->
+    清除标记 -> 输出 message。gongcang 专属行为通过声明式配置驱动，非硬编码。
+    """
+
+    set_class: str = ""  # 剃度后设的职业（LPC set("class","lama")）
+    require_flag: str = ""  # 需要的 pending 标记（LPC pending/join_lama，空=不需要）
+    clear_flag: str = ""  # 剃度后清除的标记（默认=require_flag，空=不清除）
+    message: str = ""  # 剃度文本（LPC message_vision）
+
+
+class ApprenticeDef(BaseModel):
+    """师傅收徒配置（M3-1 ADR-0032 决策 1，对照 LPC create_family + attempt_apprentice）。
+
+    NpcDef.apprentice 非空表示该 NPC 是师傅（可收徒）。师傅自己的 family
+    信息（family_name/generation/title）对应 LPC create_family，拜师时
+    recruit 写入玩家 FamilyComp（generation = 师傅 generation + 1）。
+    """
+
+    family_name: str  # 师傅门派（LPC create_family 第 1 参）
+    generation: int  # 师傅辈分（LPC create_family 第 2 参，如 gongcang=12）
+    title: str  # 师傅称号（LPC create_family 第 3 参，如「弟子」/「喇嘛」/「法王」）
+    conditions: ApprenticeConditions = Field(default_factory=ApprenticeConditions)
+    kneel: KneelDef | None = None  # 剃度配置（gongcang 专属，None=无剃度）
+    success_message: str = ""  # 收徒成功消息（对照 gongcang「好吧，我就收下你了...」）
+
+
 class NpcDef(BaseModel):
     """NPC 定义（映射 LPC ``inherit NPC`` + ``set_name`` / ``set`` / ``set_skill``）。"""
 
@@ -70,6 +127,9 @@ class NpcDef(BaseModel):
 
     # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串
     inquiry: dict[str, str] = Field(default_factory=dict)
+
+    # M3-1 ADR-0032 决策 1：拜师配置（None=该 NPC 不收徒）
+    apprentice: ApprenticeDef | None = None
 
 
 # S4 ADR-0007：最小任务定义

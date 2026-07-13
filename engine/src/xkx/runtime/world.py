@@ -25,6 +25,7 @@ from xkx.runtime.components import (
     Attributes,
     CombatState,
     Equipment,
+    FamilyComp,
     Identity,
     Inventory,
     Marks,
@@ -183,12 +184,28 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             chat_chance_combat=n.get("chat_chance_combat", 0),
             chat_msg_combat=n.get("chat_msg_combat", []),
             inquiry=n.get("inquiry", {}),
+            apprentice_config=n.get("apprentice"),  # M3-1 ADR-0032 决策 1
         ),
     )
     # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
     # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
     # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
     world.add(eid, TitleComp())
+    # M3-1 ADR-0032 决策 1：师傅 NPC 的 FamilyComp（LPC create_family 语义）。
+    # apprentice_config 非空 = 该 NPC 是师傅，写师傅自己的 family（privs=-1 全部
+    # 权限，对照 apprentice.c:52 assign_apprentice(title, -1)）。玩家拜师时
+    # recruit 写玩家的 FamilyComp（generation = 师傅 generation + 1）。
+    app = n.get("apprentice")
+    if app:
+        world.add(
+            eid,
+            FamilyComp(
+                family_name=app["family_name"],
+                generation=app["generation"],
+                title=app["title"],
+                privs=-1,
+            ),
+        )
     return eid
 
 
@@ -231,6 +248,7 @@ def spawn_player(
     world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
     world.add(eid, QuestLog())  # S4 ADR-0007：任务状态
     world.add(eid, TitleComp())  # 2.5 ADR-0028：称谓组件（rankd 求值所需 dbase key）
+    world.add(eid, FamilyComp())  # M3-1 ADR-0032：门派归属（拜师 recruit 写入）
     return eid
 
 

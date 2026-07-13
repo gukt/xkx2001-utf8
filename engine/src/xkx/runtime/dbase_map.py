@@ -27,6 +27,7 @@ from typing import Literal
 from xkx.runtime.components import (
     Attributes,
     Equipment,
+    FamilyComp,
     Identity,
     Marks,
     NpcBehavior,
@@ -102,6 +103,10 @@ DBASE_KEY_MAP: dict[str, tuple[type, str]] = {
     "MKS": (TitleComp, "mks"),  # LPC "MKS"：怪物击杀数
     "class": (TitleComp, "char_class"),  # LPC "class"：职业（字段名避 Python 保留字）
     "rank": (TitleComp, "family_rank"),  # LPC "rank"：丐帮袋数
+    # FamilyComp（LPC betrayer，M3-1 ADR-0032 决策 1）
+    # family/family_name 仍映射 Attributes.family（str，兼容 family_eq 谓词 +
+    # FamilyBonus 分发）；FamilyComp 7 字段通过组件直接访问，不引入 family/ 路径
+    "betrayer": (FamilyComp, "betrayer"),  # LPC add("betrayer",1) 叛师计数
 }
 
 # 路径访问 key 前缀 -> (组件类型, 字段名)

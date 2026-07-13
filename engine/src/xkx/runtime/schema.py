@@ -97,6 +97,7 @@ class SchemaRegistry:
             CombatState,
             EffectComp,
             Equipment,
+            FamilyComp,
             Identity,
             Inventory,
             Marks,
@@ -127,6 +128,7 @@ class SchemaRegistry:
             EffectComp,
             RoomComp,
             TitleComp,
+            FamilyComp,
         ):
             reg.register(t)
         return reg

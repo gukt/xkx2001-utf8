@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：M3 Wave 1 完成（M3-2 CPK 格式化 + StdLib CPK 骨架，1628 tests 全绿）。下一步 Wave 2 M3-1 门派完整核心循环
+**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 1 拜师机制完成，1651 tests 全绿，下一步练功机制）
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
@@ -429,6 +429,16 @@
   - **1628 tests 全绿（+30），ruff 全过**；test_theme_neutrality（主题无关性，themes/ 分离）+ test_load_test（tick p99 < 100ms）硬门禁持续通过
   - 关联 dissent 5（themed 治理，CPK 题材包资产载体）+ dissent 10（平台特性范围过载，M3 只 StdLib CPK 骨架，UGC 沙箱/市场后置）+ dissent 3（层1 原语护栏，capabilities_required 衔接层1 词汇表）
 
+- [x] **M3-1 拜师机制完成**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 决策 1 落地 / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 子任务 1）：
+  - FamilyComp 组件（第 15 组件，对照 LPC family mapping 7 字段 + betrayer）+ schema 注册 + dbase_map 激活 betrayer key（family/family_name 保持 Attributes.family 兼容 family_eq 谓词 + FamilyBonus 分发）
+  - NpcDef.apprentice 声明式配置（ApprenticeDef/Conditions/KneelDef，对照 LPC create_family + attempt_apprentice + do_kneel）
+  - bai/kneel/recruit/betrayer 命令组 + 8 段管线 adapter + COMMAND_REGISTRY 注册：bai（找 NPC->请安->辈分检查->求值条件->recruit 含叛师+assign_apprentice 头衔+同步 Attributes.family）/ kneel（声明式剃度设 class+清 pending 标记）/ recruit（PrivilegedAction 接口，NPC AI 后置）/ betrayer（叛师最小 betrayer+1+family 清空）
+  - **实施期细化**（ADR-0032 决策 1）：attempt_apprentice 入门条件用独立结构化 ApprenticeConditions（非层1 谓词），因 ADR-0016 护栏不引入 attr_gt/le/ge，combat_exp>=10000 无法用层1 谓词表达
+  - 行为等价对照 LPC：gongcang 拒女徒/外派高手 combat_exp>=10000 拒绝/allow_families 雪山派+血刀门/辈分检查（同门派师傅 generation>=玩家 -> 拒绝）/ 叛师 betrayer+1/is_apprentice_of/assign_apprentice 头衔 sprintf
+  - 测试 [test_apprentice.py](engine/tests/test_apprentice.py) 23 tests（FamilyComp 序列化 + IR 编译衔接 + bai 成功/5 类条件拒绝/请安/辈分/叛师 + kneel 剃度/许可/无师傅 + recruit 提示 + betrayer 最小）
+  - **1651 tests 全绿（+23），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 6（attempt_apprentice 钩子 + recruit PrivilegedAction）+ dissent 5（拜师题材内容走声明式配置）+ dissent 10（1 门派完整 + 全量后置）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -439,9 +449,11 @@
 
 ## In Progress
 
-**阶段 2 全部完成并合并 master**（merge `fee5dd25`，Wave 1-4 七子系统 2.1-2.7，1598 tests 全绿）。阶段 2 -> M3 决策检查点全部通过。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师机制完成**（1651 tests 全绿）。
 
-**无进行中任务**。下一步 M3 单题材武侠完整可玩 demo（见 Next Up）。
+**当前子任务**：M3-1 子任务 2 练功机制（improve_skill + learn/practice/dazuo/tuna/enable 命令 + busy condition，ADR-0032 决策 2）。
+
+**下一步具体动作**：实现 improve_skill 运行时函数（runtime/skill.py，对照 skill.c:149 learned > (lvl+1)²: lvl++）+ 5 练功命令（learn/practice/dazuo/tuna/enable）+ busy condition（EffectComp kind="busy" 复用 ADR-0027 call_out 翻译）。**busy 检查位置已裁决**（2026-07-13 用户"按倾向"）：命令内部 is_busy helper（不改 s2 签名，与 LPC bai.c:15 一致，实施期细化 ADR-0032 决策 2，同类于 attempt_apprentice 条件模型细化）。s2_permission 补 learn/dazuo/tuna（CAP_CMD_SKILL，practice/enable 已在）。SkillData 载体用最小 stub，正式数据后置内容生产子任务（ADR-0032 决策 2）。
 
 **剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -463,7 +475,7 @@
 
 ## Next Up
 
-**M3-2 Wave 1 完成**：[ADR-0031](docs/adr/ADR-0031-cpk-format-and-themeregistry-static-loading.md) 落地（CpkManifest + ThemeRegistry 静态加载 + load_cpk + 5 微场景重整 + cli.py 改造，1628 tests 全绿）。**下一步 Wave 2 M3-1 门派完整核心循环**（拜师/练功/战斗/任务/死亡轮回，需 ADR-0032 前置 + 独立 LLM 接入准备）。
+**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 落地。**子任务 1 拜师机制完成**（FamilyComp + bai/kneel/recruit/betrayer + attempt_apprentice 声明式条件，1651 tests 全绿）。**下一步子任务 2 练功机制**（improve_skill + learn/practice/dazuo/tuna/enable + busy condition，ADR-0032 决策 2）-> 子任务 3 任务链扩展 -> 子任务 4 内容生产（独立 LLM + Langfuse）-> 子任务 5 可玩 demo 整合。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）

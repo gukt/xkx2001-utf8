@@ -24,6 +24,7 @@ from xkx.runtime.components import (
     CombatState,
     EffectComp,
     Equipment,
+    FamilyComp,
     Identity,
     Inventory,
     Marks,
@@ -56,6 +57,7 @@ _BUILTIN_TYPES = [
     EffectComp,
     RoomComp,
     TitleComp,
+    FamilyComp,
 ]
 
 
@@ -166,7 +168,7 @@ def test_has_field_unregistered_type() -> None:
 
 
 def test_with_builtins_registers_all() -> None:
-    """with_builtins 注册全部 15 个内置组件（2.5 加 TitleComp，ADR-0028）。"""
+    """with_builtins 注册全部 16 个内置组件（2.5 TitleComp / M3-1 FamilyComp）。"""
     reg = SchemaRegistry.with_builtins()
     for t in _BUILTIN_TYPES:
         assert reg.resolve(t) is t
