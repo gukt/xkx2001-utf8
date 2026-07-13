@@ -241,12 +241,10 @@ def test_go_to_jingang() -> None:
     assert any("走去" in m for m in msgs)
 
 
-def test_go_no_exit_from_jingang_north() -> None:
-    """jingang 只有 south exit，north 无出口。"""
-    game, pid = _game(family="雪山派")
-    for _ in range(5):
-        go(game, pid, "north")  # -> ... -> jingang
-    msgs = go(game, pid, "north")
+def test_go_no_exit_from_jingang_east() -> None:
+    """jingang 有 south+north exit（子任务 4 加 north->houyuan），east 无出口 -> '没有'。"""
+    game, pid = _game(family="雪山派", start_room="xueshan/jingang")
+    msgs = go(game, pid, "east")
     assert game.world.get(pid, Position).room_id == "xueshan/jingang"
     assert any("没有" in m for m in msgs)
 

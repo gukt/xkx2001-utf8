@@ -1,12 +1,11 @@
-# v1 专家修订（2026-07-10）：基于 d/xueshan/dshanlu.c + shanmen.c + guangchang.c
-# S5a：dshanlu 放 suyou_guan（玩家拾取后 give 葛伦布完成任务闭环）
 - id: xueshan/dshanlu
   short: 大雪山山路
   long: 一条陡峭的青石板山路蜿蜒向上，寒风凛冽，远处隐约可见大轮寺的山门。路边散落着一罐酥油。
   exits:
     westup: xueshan/shanmen
+    north: xueshan/beilu
   items:
-    - suyou_guan
+  - suyou_guan
   outdoors: true
 - id: xueshan/shanmen
   short: 山门
@@ -26,7 +25,6 @@
   objects:
     xueshan/npc/gongcang: 1
   outdoors: true
-# S4 扩展（5-10 房间全量验证）：从 guangchang 往北深入寺院，对照 LPC frontyard/yanwu/zoulang/jingang/chufang
 - id: xueshan/frontyard
   short: 前院
   long: 前院面阔七间，正中供奉着松赞干布像。这里是观看大活佛主持法会和观看法舞之地。前院四周立有大型明柱一百四十根，上面尽是彩绘佛传故事图。北面是演武场，南方是大广场。
@@ -40,6 +38,9 @@
   exits:
     south: xueshan/frontyard
     north: xueshan/zoulang
+    east: xueshan/songjing
+    west: xueshan/jingtang
+    northup: xueshan/dumudian
   objects:
     xueshan/npc/darba: 1
   outdoors: true
@@ -50,12 +51,14 @@
     south: xueshan/yanwu
     north: xueshan/jingang
     east: xueshan/chufang
+    northup: xueshan/hongdian
   outdoors: true
 - id: xueshan/jingang
   short: 金刚院
   long: 这里是习武的葛伦布们常来的地方，护寺的萨木活佛就在这里授艺。前方壁上有一钜形框，内刻梵文：十大自在相，壁上还点缀得有山水、楼台壁画。南面是走廊。
   exits:
     south: xueshan/zoulang
+    north: xueshan/houyuan
   objects:
     xueshan/npc/samu: 1
   outdoors: true
@@ -66,3 +69,89 @@
     west: xueshan/zoulang
   objects:
     xueshan/npc/xlama2: 1
+- id: xueshan/dumudian
+  short: 度母殿
+  long: 这里是大轮寺的度母殿，正中五尊大座佛，均为高肉髻、外披袒右袈裟、结跏趺坐、执手印须弭坐各异。殿内对称排列四根大柱，上雕忍冬纹，下刻连珠纹。北壁上供有两尊金刚像：马头明王和阎魔护法。
+  exits:
+    north: xueshan/changlang
+    southdown: xueshan/yanwu
+- id: xueshan/changlang
+  short: 长廊
+  long: 一条略显阴暗的长廊，长廊一侧是一溜排开的转经轮，另一侧顺序点着一排酥油灯。昏黄的灯光在影子里摇弋，发出温暖的香气，几个喇嘛来回逡迅着往灯里加着酥油，再往北走就是大殿了。
+  exits:
+    north: xueshan/dadian
+    south: xueshan/dumudian
+- id: xueshan/dadian
+  short: 大殿
+  long: 大殿内光线昏暗，烟雾缭绕，隐约可见华丽的柱子上，横梁上，佛像上都积了厚厚一层酥油。许多喇嘛和信徒们对着大大小小的佛像叩拜，祈祷，添酥油。殿内供奉的释迦牟尼像相传是文成公主下嫁时带来的，由于年久失修，像上的金漆以剥脱了许多，斑斑驳驳的。
+  exits:
+    south: xueshan/changlang
+  objects:
+    xueshan/npc/jiumo: 1
+- id: xueshan/hongdian
+  short: 红殿
+  long: 这里是大轮寺的红殿，殿内光线暗淡，壁上画像色暗。殿正中供着密集金刚。金刚三面，戴宝冠，主面三睛，耳饰大环，上身裸，下着长裙，结跏趺坐，六臂，两主臂拥明妃，其余两臂分张两侧各执法器，明妃亦六臂，与金刚相向而拥，两腿盘腰後。金刚座下有石莲花、海石榴花、太平花和十字花。
+  exits:
+    southdown: xueshan/zoulang
+  objects:
+    xueshan/npc/ling-zhi: 1
+- id: xueshan/songjing
+  short: 诵经堂
+  long: 这里是僧人们读诵经书的地方，满地的菩团。正前方是集密、怖畏、胜乐三大金刚的雕像，地上则散放了一些经书。
+  exits:
+    west: xueshan/yanwu
+  objects:
+    xueshan/npc/lazhangfo: 1
+- id: xueshan/jingtang
+  short: 经堂
+  long: 俗称大经堂，可容纳四千余人。经堂正中设有活佛和寺院总法台的法座，法座两侧贡奉着宗喀巴、八大圣者、和各代嘉木大师像。殿内满挂五彩缤纷的帜幡，宝盖，四周的木柱上裹着色彩绚丽的毡毯。
+  exits:
+    east: xueshan/yanwu
+    north: xueshan/sengshe
+  objects:
+    xueshan/npc/fsgelun: 1
+- id: xueshan/sengshe
+  short: 僧舍
+  long: 这里是一般僧侣居住的地方，一律为木构平顶小屋组成的小院。僧侣大多集中在一处。小院内洁净朴素，清静幽雅。小院之间有小巷相通，每座僧舍通常有三、五僧侣。北面是时轮院。
+  exits:
+    east: xueshan/zoulang
+    south: xueshan/jingtang
+  no_fight: true
+- id: xueshan/luyeyuan
+  short: 鹿野苑
+  long: 一团团雾气，从神秘莫测的路的深处涌出来。小路豁然开朗，你的眼前出现一块长满吉祥草和缠枝什花的密林，几只鹿跳跃於其中。走进密林，花叶及膝深。一株双娑罗树间，安有一莲座，座上有幡盖、璎珞。座下供着石钵，钵中盛着香花、香木。
+  exits:
+    east: xueshan/wangyou
+    west: xueshan/beilu
+  outdoors: true
+  objects:
+    xueshan/npc/jinlun: 1
+  items:
+  - xueshan/obj/lx-jing
+- id: xueshan/wangyou
+  short: 忘忧谷
+  long: 这里乃是大轮寺外一处僻静所在，四下绝无人迹。前前後後，大大小小几百座佛塔，被白得耀眼的雪被披盖着。银白色的山野、雪地里闪耀着红色和蓝色的光带，五彩缤纷，迷宫一样的琼楼仙阁在你眼前出现。西边一条小径不知通往何处。
+  exits:
+    west: xueshan/luyeyuan
+  outdoors: true
+- id: xueshan/beilu
+  short: 大雪山北麓
+  long: 这里山势比大雪山东面稍缓，也不是十分的严寒。山道两旁长得有稀稀拉拉的一些野草。四下毫无人迹，只有几只秃鹰在高处盘旋，俯视着茫茫雪山。
+  exits:
+    south: xueshan/dshanlu
+    eastdown: xueshan/luyeyuan
+  outdoors: true
+- id: xueshan/houyuan
+  short: 后院
+  long: 这里是后院，墙边上放着一个鸠摩智从少林寺偷来研习少林武功用的木人。北面是活佛居住的昂欠楼，西边是天龙殿，南面是金刚院。
+  exits:
+    south: xueshan/jingang
+    north: xueshan/angqian
+  outdoors: true
+- id: xueshan/angqian
+  short: 昂欠一楼
+  long: 这里是各代活佛的居所，正中是嘉木活佛的宝座，殿内悬挂着别致精巧的宫灯及各种色彩艳丽的唐卡，显得庄严豪华。楼上是法王的寝宫，寻常僧侣不得准许，是不能上去的。出了昂欠就是后院了。
+  exits:
+    south: xueshan/houyuan
+  objects:
+    xueshan/npc/jiamu: 1

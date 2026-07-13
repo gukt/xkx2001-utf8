@@ -21,6 +21,8 @@ from xkx.runtime.commands import (
     dazuo,
     enable,
     fight,
+    give,
+    go,
     kill,
     kneel,
     learn,
@@ -287,3 +289,190 @@ def test_bai_samu_reject_low_skill() -> None:
     msgs = bai(game, pid, "萨木活佛")
     assert any("还不够纯熟" in m for m in msgs)
     assert game.world.get(pid, FamilyComp).family_name == ""  # 未拜师
+
+
+# --- M3-1 子任务 4：3 师傅拜师（ling-zhi/jinlun/jiumo）+ 3 任务链（jiamu/fsgelun/lazhangfo）---
+# 对照 LPC kungfu/class/xueshan/{ling-zhi,jinlun,jiumo}.c + d/xueshan/npc/{jiamu,fsgelun,lazhangfo}.c。
+# ApprenticeConditions 的 class/con/max_neili/或关系是 GAP（后置），e2e 测 min_skills/require_flags。
+
+
+def test_bai_lingzhi_skill_threshold() -> None:
+    """longxiang-banruo>=45 -> bai ling-zhi 收徒（gen10 -> 玩家 gen11）。"""
+    game, pid, engine = _game(start_room="xueshan/hongdian")
+    _set_skills(game, pid, {"longxiang-banruo": 45})
+    bai(game, pid, "灵智上人")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 11  # ling-zhi gen10 + 1
+
+
+def test_bai_lingzhi_reject_low_skill() -> None:
+    """longxiang-banruo 不足 45 -> bai ling-zhi 拒绝（min_skills 门槛）。"""
+    game, pid, engine = _game(start_room="xueshan/hongdian")
+    _set_skills(game, pid, {"longxiang-banruo": 40})
+    msgs = bai(game, pid, "灵智上人")
+    assert any("还不够纯熟" in m for m in msgs)
+    assert game.world.get(pid, FamilyComp).family_name == ""
+
+
+def test_bai_jinlun_requires_jlfw() -> None:
+    """jinlun 需 require_flags [jlfw]；无 jlfw 拒绝，有 + longxiang-banruo>=60 收徒（gen9->10）。"""
+    game, pid, engine = _game(start_room="xueshan/luyeyuan")
+    _set_skills(game, pid, {"longxiang-banruo": 60})
+    bai(game, pid, "金轮法王")
+    assert game.world.get(pid, FamilyComp).family_name == ""  # 无 jlfw 拒绝
+    game.world.get(pid, Marks).flags.add("jlfw")  # darba fight_win 解锁标记
+    bai(game, pid, "金轮法王")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 10  # jinlun gen9 + 1
+
+
+def test_bai_jiumo_skill_threshold() -> None:
+    """longxiang-banruo>=60 -> bai jiumo 收徒（gen6 掌门 -> 玩家 gen7）。"""
+    game, pid, engine = _game(start_room="xueshan/dadian")
+    _set_skills(game, pid, {"longxiang-banruo": 60})
+    bai(game, pid, "鸠摩智")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 7  # jiumo gen6 + 1
+
+
+def test_jiamu_wage_quest() -> None:
+    """jiamu 工资任务：ask 供奉 -> reach_room dumudian -> 完成 + flag 工资（time-gate 可重复）。"""
+    game, pid, engine = _game(start_room="xueshan/angqian")
+    msgs = ask(game, pid, "嘉木活佛", "供奉")
+    assert any("接下任务" in m for m in msgs)
+    # angqian -> south houyuan -> south jingang -> south zoulang -> south yanwu -> northup dumudian
+    go(game, pid, "south"); go(game, pid, "south"); go(game, pid, "south")
+    go(game, pid, "south"); go(game, pid, "northup")
+    log = game.world.get(pid, QuestLog)
+    assert log.statuses["xueshan/quest/jiamu"] == "completed"
+    assert "工资" in game.world.get(pid, Marks).flags
+
+
+def test_fsgelun_quest_multi_step() -> None:
+    """fsgelun 法事多步：ask 准备法事 -> reach_room dumudian -> give fsgelun suyou_guan。"""
+    game, pid, engine = _game(start_room="xueshan/jingtang", items={"suyou_guan"})
+    ask(game, pid, "葛伦布", "准备法事")
+    # jingtang -> east yanwu -> northup dumudian（reach_room 完成第一步）
+    go(game, pid, "east"); go(game, pid, "northup")
+    # 回 jingtang give fsgelun：dumudian southdown yanwu -> west jingtang
+    go(game, pid, "southdown"); go(game, pid, "west")
+    give(game, pid, "葛伦布", "suyou_guan")
+    log = game.world.get(pid, QuestLog)
+    assert log.statuses["xueshan/quest/fsgelun"] == "completed"
+    assert "法事" in game.world.get(pid, Marks).flags
+
+
+def test_lazhangfo_scripture_quest() -> None:
+    """lazhangfo 藏经任务：ask 藏经 -> reach_room jingtang -> 完成 + flag 读经。"""
+    game, pid, engine = _game(start_room="xueshan/songjing")
+    ask(game, pid, "拉章活佛", "藏经")
+    # songjing -> west yanwu -> west jingtang（reach_room 完成）
+    go(game, pid, "west"); go(game, pid, "west")
+    log = game.world.get(pid, QuestLog)
+    assert log.statuses["xueshan/quest/lazhangfo"] == "completed"
+    assert "读经" in game.world.get(pid, Marks).flags
+
+
+# --- M3-1 子任务 4：3 师傅拜师（ling-zhi/jinlun/jiumo 完整拜师链）---
+
+
+def test_bai_lingzhi_skill_threshold() -> None:
+    """ling-zhi（gen10 红殿）min_skills longxiang-banruo 45：设 45 -> bai 成功（gen11）。"""
+    game, pid, engine = _game(start_room="xueshan/hongdian", family="雪山派")
+    _set_skills(game, pid, {"longxiang-banruo": 45})
+    bai(game, pid, "灵智上人")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 11  # ling-zhi gen10 + 1
+
+
+def test_bai_lingzhi_reject_low_skill() -> None:
+    """ling-zhi longxiang-banruo 不足 45 -> 拒绝。"""
+    game, pid, engine = _game(start_room="xueshan/hongdian", family="雪山派")
+    _set_skills(game, pid, {"longxiang-banruo": 30})
+    bai(game, pid, "灵智上人")
+    assert game.world.get(pid, FamilyComp).family_name == ""
+
+
+def test_bai_jinlun_requires_jlfw() -> None:
+    """jinlun（gen9 鹿野苑）需 require_flags jlfw：无 -> 拒绝；有 + 技能 60 -> 成功（gen10）。"""
+    game, pid, engine = _game(start_room="xueshan/luyeyuan", family="雪山派")
+    _set_skills(game, pid, {"longxiang-banruo": 60})
+    bai(game, pid, "金轮法王")
+    assert game.world.get(pid, FamilyComp).family_name == ""  # 无 jlfw 拒绝
+    game.world.get(pid, Marks).flags.add("jlfw")
+    bai(game, pid, "金轮法王")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 10  # jinlun gen9 + 1
+
+
+def test_bai_jiumo_skill_threshold() -> None:
+    """jiumo（gen6 掌门 大殿）min_skills longxiang-banruo 60：设 60 -> bai 成功（gen7）。"""
+    game, pid, engine = _game(start_room="xueshan/dadian", family="雪山派")
+    _set_skills(game, pid, {"longxiang-banruo": 60})
+    bai(game, pid, "鸠摩智")
+    fam = game.world.get(pid, FamilyComp)
+    assert fam.family_name == "雪山派"
+    assert fam.generation == 7  # jiumo gen6 + 1
+
+
+# --- M3-1 子任务 4：3 任务链 giver 接任务（jiamu/fsgelun/lazhangfo）---
+
+
+def test_jiamu_wage_quest_accept() -> None:
+    """jiamu（angqian）ask 供奉 -> 接工资任务（time_gate 86400 可重复）。"""
+    game, pid, engine = _game(start_room="xueshan/angqian", family="雪山派")
+    msgs = ask(game, pid, "嘉木活佛", "供奉")
+    assert any("接下任务" in m for m in msgs)
+    assert (
+        game.world.get(pid, QuestLog).statuses["xueshan/quest/jiamu"] == "in_progress"
+    )
+
+
+def test_fsgelun_quest_accept() -> None:
+    """fsgelun（jingtang）ask 准备法事 -> 接多步法事任务。"""
+    game, pid, engine = _game(start_room="xueshan/jingtang", family="雪山派")
+    msgs = ask(game, pid, "葛伦布", "准备法事")
+    assert any("接下任务" in m for m in msgs)
+    assert (
+        game.world.get(pid, QuestLog).statuses["xueshan/quest/fsgelun"] == "in_progress"
+    )
+
+
+def test_lazhangfo_quest_accept() -> None:
+    """lazhangfo（songjing）ask 藏经 -> 接藏经任务。"""
+    game, pid, engine = _game(start_room="xueshan/songjing", family="雪山派")
+    msgs = ask(game, pid, "拉章活佛", "藏经")
+    assert any("接下任务" in m for m in msgs)
+    assert (
+        game.world.get(pid, QuestLog).statuses["xueshan/quest/lazhangfo"]
+        == "in_progress"
+    )
+
+
+# --- M3-1 子任务 4：房间连通（shanmen -> 各师傅所在可达）---
+
+
+def test_rooms_reachable_to_masters() -> None:
+    """从 yanwu 出发可达 3 师傅所在（songjing/dadian/hongdian），验证子任务 4 新房间连通。"""
+    game, pid, engine = _game(start_room="xueshan/yanwu")
+    # yanwu -> east -> songjing（lazhangfo）
+    go(game, pid, "east")
+    assert game.world.get(pid, Position).room_id == "xueshan/songjing"
+    # 回 yanwu -> northup -> dumudian -> changlang -> dadian（jiumo）
+    go(game, pid, "west")  # songjing -> yanwu
+    go(game, pid, "northup")  # yanwu -> dumudian
+    go(game, pid, "north")  # dumudian -> changlang
+    go(game, pid, "north")  # changlang -> dadian（jiumo）
+    assert game.world.get(pid, Position).room_id == "xueshan/dadian"
+    # dadian 回 -> yanwu -> zoulang -> northup -> hongdian（ling-zhi）
+    go(game, pid, "south")  # dadian -> changlang
+    go(game, pid, "south")  # changlang -> dumudian
+    go(game, pid, "southdown")  # dumudian -> yanwu
+    go(game, pid, "north")  # yanwu -> zoulang
+    go(game, pid, "northup")  # zoulang -> hongdian（ling-zhi）
+    assert game.world.get(pid, Position).room_id == "xueshan/hongdian"
