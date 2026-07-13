@@ -12,9 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
-from xkx.dsl.layer1 import load_rules
+from xkx.dsl.cpk_loader import load_cpk
 from xkx.runtime.commands import (
     Game,
     ask,
@@ -29,7 +27,7 @@ from xkx.runtime.commands import (
 )
 from xkx.runtime.world import build_world, spawn_player
 
-SCENE_DIR = Path(__file__).resolve().parent.parent.parent / "scenes" / "xueshan_micro"
+SCENES_DIR = Path(__file__).resolve().parent.parent.parent / "scenes"
 
 # 方向简写映射（对齐 LPC go.c default_dirs + 常见缩写）
 DIR_ALIASES = {
@@ -59,21 +57,25 @@ HELP_TEXT = """\
 """
 
 
-def load_game() -> tuple[Game, int]:
-    """加载 xueshan_micro 场景 + 创建玩家，返回 (game, player_id)。
+def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
+    """加载场景 CPK + 创建玩家，返回 (game, player_id)。
 
-    注入 ``ThemeConfig.wuxia()``（武侠题材配置，ADR-0030 决策 2），起始房间从
-    ``world.theme_config.start_room`` 读取（cli.py 源码不硬编码武侠路径字面量）。
+    M3-2 ADR-0031：通过 ThemeRegistry + ``load_cpk`` 加载 CPK。``theme_config`` 从
+    ``registry[manifest.theme].theme_config`` 读取（cli.py 不硬编码
+    ``ThemeConfig.wuxia()``，题材配置由 ThemeRegistry 注入）。起始房间从
+    ``world.theme_config.start_room`` 读取。
+
+    Args:
+        scene: CPK 目录名（``scenes/`` 下，默认 ``xueshan_micro`` 武侠旗舰）。
     """
-    from xkx.runtime.theme import ThemeConfig
+    from xkx.themes import default_registry
 
-    rooms = load_rooms(SCENE_DIR / "rooms.yaml")
-    npcs = load_npcs(SCENE_DIR / "npcs.yaml")
-    quests = load_quests(SCENE_DIR / "quests.yaml")
-    rules = load_rules(SCENE_DIR / "rules.yaml")
-    items = load_items(SCENE_DIR / "items.yaml")
-    ir = compile_scene(rooms, npcs, quests, items)
-    world, room_idx, quest_idx = build_world(ir, theme_config=ThemeConfig.wuxia())
+    registry = default_registry()
+    manifest, ir, rules = load_cpk(SCENES_DIR / scene, registry=registry)
+    descriptor = registry.require(manifest.theme)
+    world, room_idx, quest_idx = build_world(
+        ir, theme_config=descriptor.theme_config
+    )
     item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)

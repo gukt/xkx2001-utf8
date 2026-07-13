@@ -1,0 +1,13 @@
+# CPK manifest（M3-2，ADR-0031）：终南山微场景 StdLib CPK
+# 题材：wuxia（武侠）。S2-S4f 基线微场景。
+cpk_id: wuxia_zhongnan_micro
+schema_version: 1
+theme: wuxia
+pack_type: module_pack
+version: 0.1.0
+license: CC-BY-SA-4.0
+author: xkx-core
+dependencies: []
+capabilities_required: []
+entry_points:
+  main_scene: zhongnan/dajiaochang
