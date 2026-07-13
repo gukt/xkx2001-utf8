@@ -12,7 +12,7 @@
 - **分支**：feat/stage-3-m3
 - **tests**：1744 全绿，ruff 全过
 - **关键 ADR**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md)（核心循环）/ [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md)（LLM 内容）/ [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md)（demo 集成）
-- **下一步**：kill criteria 5 第 3 轮（改进 prompt 后再跑，看 ratio 是否 <40%）
+- **下一步**：kill criteria 5 达标（30.3% < 40%），M3-1 Wave 2 收尾进 Wave 3（M3-3 审核 + M3-4 版权）
 - **可玩 demo**：CLI `python -m xkx.cli` 闭环已打通
 
 ## Done
@@ -27,6 +27,7 @@
 - [x] M3-1 内容生产子集（[ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md)，子任务 4）- 火山方舟 LLM 客户端 + 生成管线 + SkillData CPK 加载 + kill criteria 5 前 2 轮数据（37.0% / 56.9%）- 1724 tests
 - [x] M3-1 子任务 5 可玩 demo 整合（[ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md)）- CLI 接 Engine 自动推进 + 消息缓冲 + 死亡轮回 die() + ConditionSystem 跳过 death_stage - 1733 tests
 - [x] M3-1 子任务 4 完整内容扩展（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md)）- 3 师傅 + 8 武学 + 3 任务链 + ~12 房间 + 测试 bug 修复收尾 - 1744 tests
+- [x] kill criteria 5 达标（第 4 轮 semantic_ratio 30.3% < 40% 走弱线）- 方向 A：rooms 注入 known ids（20 房间+11 NPC）消除幻觉引用 + quests 改人工；第 3 轮 prompt 强化 4 点使结构错误 70->0；累积 4 轮 37.0%/56.9%/44.6%/30.3% - 1744 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
@@ -39,11 +40,11 @@
 
 ## In Progress
 
-**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。子任务 1-5 + 子任务 4 内容扩展 + kill criteria 5 前 2 轮数据全部落地（1744 tests 全绿）。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。子任务 1-5 + 内容扩展 + kill criteria 5 第 4 轮达标全部落地（1744 tests 全绿）。
 
-**当前子任务**：kill criteria 5 第 3 轮。累积 2 轮数据：第 1 轮 37.0%（<40% 走弱线）、第 2 轮 56.9%（>40% 走弱线）。
+**kill criteria 5 已达标**：第 4 轮 semantic_ratio 30.3% < 40% 走弱线。方向 A 落地：rooms 注入 known ids（20 房间 + 11 NPC）消除幻觉引用 + quests 改人工（LLM 仅生成 NPC/skill/room）。累积 4 轮：37.0%/56.9%/44.6%/30.3%。结构错误 70（第 2 轮）-> 0（第 4 轮）。
 
-**卡点/下一步动作**：第 3 轮需改进 prompt（强调 id 规范 `xueshan/npc/xxx` + quest 结构 trigger/objectives + exits 引用规范 + 单行文本）再跑看 ratio 是否 <40%。主要错误是 LLM 不遵守 id 规范（giver/exit 用 name/缺前缀）+ quest 结构化生成弱点，**非 DSL 表达力不足**，改进 prompt 优先。若仍 >40%，按 kill criteria 5 裁决"先扩 DSL 层1-2 表达力"或"quests 改人工 LLM 仅生成 NPC/skill/room"。
+**下一步动作**：M3-1 Wave 2 收尾，进 Wave 3（M3-3 内容审核 pipeline MVP + M3-4 版权清洗并行）。剩余 ratio 主要是内容性差异（NPC 属性值 + rooms long 文本精简，LLM 忠实转译 LPC vs v1 人工调整），非结构错误，不阻塞。
 
 **可穿插推进**（非 M3 前置）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑
@@ -57,9 +58,9 @@ driver UE 问题已于 2026-07-11 解除（用户重启电脑，PID 22753 监听
 
 ## Next Up
 
-**kill criteria 5 第 3 轮后的分支**：
-- 若 ratio <40%（3 轮累积达标）：M3-1 Wave 2 收尾，进 Wave 3
-- 若仍 >40%：裁决方向（扩 DSL 层1-2 表达力 / quests 改人工 LLM 仅生成 NPC/skill/room）
+**M3-1 Wave 2 收尾 -> Wave 3**（kill criteria 5 已达标 30.3% < 40%）：
+- Wave 3：M3-3 内容审核 pipeline MVP + M3-4 版权清洗（金庸衍生 71 文件，并行）
+- Wave 4：M3-5 全仿真确定性评估收官（M3 后评估）
 
 **M3 剩余里程碑**（[16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md)）：
 - Wave 3：M3-3 内容审核 pipeline MVP + M3-4 版权清洗（金庸衍生 71 文件，并行）
@@ -89,6 +90,9 @@ S2-S4f 简化项按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md)~[
 **阶段 2**（已完成，全通过）：
 - Combat 迁移行为等价验证 ✅（2.4 golden trace diff 三层全 PASS + ConformanceChecker 8 项全通过）
 - 门派内容包边界干净切割 ✅（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md)，test_theme_neutrality 收官硬门禁全通过，核心引擎无武侠烙印，kill criteria 2 GO）
+
+**M3**（进行中）：
+- kill criteria 5 Agent 修订量 ✅（第 4 轮 semantic_ratio 30.3% < 40% 走弱线达标；方向 A：rooms 注入 known ids 消除幻觉 + quests 改人工；累积 4 轮 37.0%/56.9%/44.6%/30.3%；结构错误 70->0）
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 

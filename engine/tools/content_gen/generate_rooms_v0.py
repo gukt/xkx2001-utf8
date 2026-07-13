@@ -1,24 +1,10 @@
-"""M3-1 完整雪山派房间 v0 生成（ADR-0036，kill criteria 5 第 2 轮）。
+"""M3-1 完整雪山派房间 v0 生成（ADR-0036，kill criteria 5 第 4 轮）。
 
 单独脚本：生成全部 20 房间 v0（对照 LPC d/xueshan/*.c）。
-第 2 轮扩展到完整雪山派（子任务 1-3 的 8 房间 + 子任务 4 的 12 新房间），
-v0/v1 范围一致，公平修订口径。
 
-房间设计（基于 LPC 已读 + 调研）：
-- 子任务 1-3（8 房间）：dshanlu/shanmen/guangchang/frontyard/yanwu/zoulang/jingang/chufang
-- 子任务 4 新增（12 房间）：
-  - dumudian（度母殿）：southdown->yanwu + north->changlang，放 jiamu + zrlama + tonggang
-  - changlang（长廊）：north->dadian + south->dumudian，放 jlseng
-  - dadian（大殿）：south->changlang，放 jiumo + zhirilama + xiang
-  - hongdian（红殿）：southdown->zoulang，放 ling-zhi
-  - songjing（诵经堂）：west->yanwu，放 lazhangfo（藏经阁主管）
-  - jingtang（经堂）：east->yanwu + north->sengshe，放 fsgelun
-  - sengshe（僧舍）：south->jingtang
-  - luyeyuan（鹿野苑）：east->wangyou，放 jinlun + lx-jing
-  - wangyou（忘忧）：west->luyeyuan
-  - beilu（大雪山北麓）：south->dshanlu，放 hua（血刀门跨界）
-  - houyuan（后院）：south->jingang + north->angqian
-  - angqian（ Ang前）：south->houyuan
+第 4 轮强化（方向 A）：注入已知 20 房间 id + 11 NPC id 列表，让 LLM 只保留
+范围内的 exits/objects，消除幻觉引用（第 3 轮 rooms 63.1% 主因是 LPC 源码
+exits/objects 指向范围外房间/NPC，v1 人工裁剪了）。
 
 用法：PYTHONPATH=src python tools/content_gen/generate_rooms_v0.py
 """
@@ -31,8 +17,13 @@ from pathlib import Path
 
 import yaml
 
-from xkx.content_gen.generate import generate_room
-from xkx.content_gen.llm_client import VolcanoArkClient
+# 让 import generate_v0 可用（取 NPCS 列表）
+sys.path.insert(0, str(Path(__file__).parent))
+
+from generate_v0 import NPCS  # noqa: E402
+
+from xkx.content_gen.generate import generate_room  # noqa: E402
+from xkx.content_gen.llm_client import VolcanoArkClient  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = ROOT.parent
@@ -63,17 +54,28 @@ ROOMS: list[tuple[str, Path]] = [
     ("xueshan/angqian", REPO / "d/xueshan/angqian.c"),
 ]
 
+# 第 4 轮强化（方向 A）：已知 id 列表，注入 prompt 做范围裁剪
+ROOM_IDS = [rid for rid, _ in ROOMS]
+NPC_IDS = [nid for nid, _ in NPCS]
+
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     client = VolcanoArkClient()
     print(f"[generate_rooms_v0] model={client.model} out={OUT}")
+    print(f"  已知房间 id ({len(ROOM_IDS)}) + NPC id ({len(NPC_IDS)}) 注入范围裁剪")
     rooms: list[dict] = []
     for room_id, lpc in ROOMS:
-        print(f"  ROOM {room_id} ...")
+        print(f"  ROOM {room_id} ...", flush=True)
         try:
             rooms.append(
-                generate_room(client, lpc.read_text(encoding="utf-8", errors="replace"), room_id)
+                generate_room(
+                    client,
+                    lpc.read_text(encoding="utf-8", errors="replace"),
+                    room_id,
+                    ROOM_IDS,
+                    NPC_IDS,
+                )
             )
         except Exception as e:  # noqa: BLE001
             print(f"    ERR {room_id}: {e}")

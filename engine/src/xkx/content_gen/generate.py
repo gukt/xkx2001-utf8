@@ -81,9 +81,18 @@ def generate_quest(llm: LLMClient, lpc_source: str, quest_id: str) -> dict[str, 
     return data
 
 
-def generate_room(llm: LLMClient, lpc_source: str, room_id: str) -> dict[str, Any]:
-    """生成 RoomDef v0 dict。"""
-    raw = llm.chat(build_room_prompt(lpc_source, room_id))
+def generate_room(
+    llm: LLMClient,
+    lpc_source: str,
+    room_id: str,
+    known_room_ids: list[str] | None = None,
+    known_npc_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """生成 RoomDef v0 dict。
+
+    known_room_ids / known_npc_ids：注入范围裁剪指令，消除幻觉引用（第 4 轮）。
+    """
+    raw = llm.chat(build_room_prompt(lpc_source, room_id, known_room_ids, known_npc_ids))
     data = _parse(raw)
     if not isinstance(data, dict):
         raise ValueError(f"generate_room({room_id}) 期望 dict，得到 {type(data).__name__}")
