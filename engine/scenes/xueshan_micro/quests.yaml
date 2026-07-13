@@ -13,3 +13,23 @@
     exp: 100
     flag: 酥
     message: 葛伦布双手合什：佛爷会保佑施主的。
+
+# M3-1 ADR-0032 决策 3：多步 chain 任务（reach_room + give_item）
+# 对照 LPC 多步任务模式（fsgelun kill->give corpse 多步）。此处用 reach_room 替代
+# 战斗步骤，避免 xueshan_micro 强 NPC gelun1 不可击杀；真实雪山派多步任务（含
+# kill_npc/fight_win）后置子任务 4 独立 LLM 内容生产。
+- id: xueshan/pilgrimage
+  name: 朝山跑腿
+  giver: xueshan/npc/gelun1
+  trigger: 跑腿
+  description: 先去山路看看，再回来供奉酥油。
+  objectives:
+    - kind: reach_room
+      room_id: xueshan/dshanlu
+    - kind: give_item
+      npc_id: xueshan/npc/gelun1
+      item_id: suyou_guan
+  reward:
+    exp: 150
+    flag: 跑腿
+    message: 葛伦布点头：施主诚心可嘉。

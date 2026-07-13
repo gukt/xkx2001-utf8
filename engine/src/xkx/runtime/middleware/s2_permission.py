@@ -38,6 +38,7 @@ COMMAND_REQUIRED_CAPABILITY: dict[str, str] = {
     # cmds/std 目录（PLAYER 开放）
     "go": CAP_CMD_STD,
     "kill": CAP_CMD_STD,
+    "fight": CAP_CMD_STD,  # M3-1 ADR-0032 决策 3：切磋（cmds/std/fight.c）
     "take": CAP_CMD_STD,
     "get": CAP_CMD_STD,
     # cmds/usr 目录（PLAYER 开放）

@@ -132,6 +132,8 @@ class Engine:
         """
         self._tick_no += 1
         self._profiler.next_tick()
+        # M3-1 ADR-0032 决策 3：暴露当前 tick 给命令层（time-gate 冷却判定时间源）
+        self._world.current_tick = self._tick_no  # type: ignore[attr-defined]
         for system in self._systems:
             with self._profiler.measure_system(system.name):
                 system.update(self._world, self._tick_no)

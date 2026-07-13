@@ -87,6 +87,8 @@ def build_world(
     world = World(schema)
     # ADR-0030 决策 2：注入 ThemeConfig（None 用默认非武侠配置）
     world.theme_config = theme_config or ThemeConfig.default()  # type: ignore[attr-defined]
+    # M3-1 ADR-0032 决策 3：当前 tick（time-gate 冷却判定时间源，Engine.tick 更新）
+    world.current_tick = 0  # type: ignore[attr-defined]
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}

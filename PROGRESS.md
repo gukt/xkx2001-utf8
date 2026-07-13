@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 2 练功机制完成，1680 tests 全绿，下一步任务链扩展）
+**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 3 任务链扩展完成，1692 tests 全绿，下一步内容生产子任务 4）
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
@@ -451,6 +451,18 @@
   - **1680 tests 全绿（+29），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
   - 关联 dissent 7（call_out->EffectComp busy condition 翻译，复用 ADR-0027 模式）+ dissent 1（CombatKernel 主题无关，门派武学走 SkillData 声明不进内核）+ dissent 5（练功题材内容走 SkillData stub）+ dissent 10（练功机制新引擎能力 + 全量后置）
 
+- [x] **M3-1 任务链扩展完成**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 决策 3 落地 / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 子任务 3）：
+  - [layer0.py](engine/src/xkx/dsl/layer0.py) 数据模型：QuestObjective 加 room_id（reach_room）+ win_threshold（fight_win 默认 50，对照 darba.c:109）+ kind 注释扩 4 种（give_item/kill_npc/reach_room/fight_win）/ QuestDef 加 objectives list（model_validator 合并旧 objective 单数，向后兼容）/ QuestReward 加 time_gate（可重复任务冷却 tick 数，0=一次性）
+  - [components.py](engine/src/xkx/runtime/components.py) QuestLog 加 current_step（多步 chain 当前步骤）+ claimed_at（time-gate 上次领奖 tick，对照 jiamu lama_wage mud_age）
+  - [commands.py](engine/src/xkx/runtime/commands.py) 核心：_current_tick helper（读 world.current_tick 动态属性）+ _advance_objective（推进当前步骤，全完成调 _complete_quest）+ _complete_quest（发奖 + `time_gate>0` 记 claimed_at 重置 not_started / `time_gate==0` 设 completed）+ ask（接任务初始化 current_step + time-gate 冷却判定 + 多步进度显示）+ give（改调 _advance_objective）+ kill（NPC 死亡触发 kill_npc）+ go（移动触发 reach_room）+ 新 fight 命令（切磋点到为止，任一方 qi<=win_threshold% 判赢，玩家赢完成 fight_win + 设标记，NPC 不死 qi clamp 1，对照 cmds/std/fight.c + darba checking）+ quest（显示 current_step/total 进度）
+  - [world.py](engine/src/xkx/runtime/world.py) + [engine.py](engine/src/xkx/runtime/engine.py) 时间源：world.current_tick 动态属性注入（类比 theme_config，build_world 初始化 0）+ Engine.tick 更新（time-gate 冷却判定时间源，mud_age 后置用 tick_no 替代）
+  - [s2_permission.py](engine/src/xkx/runtime/middleware/s2_permission.py) fight -> CAP_CMD_STD（cmds/std/fight.c 范畴）
+  - [validator.py](engine/src/xkx/dsl/validator.py) DependencyResolver 适配 objectives list（向后兼容旧 objective 单数）+ 加 room_id 引用校验（reach_room 目标房间存在性）
+  - 行为等价对照 LPC：fight_win darba fight+checking（qi*100/max_qi<=50 判赢不杀死，设 marks/引解锁拜师）/ kill_npc fsgelun kill corpse / reach_room shanmen go north+marks/酥 / time-gate jiamu lama_wage 冷却（age<25 间隔 86400 / age>=25 间隔 259200，分档奖励后置内容生产，引擎只提供 time_gate+claimed_at 机制）
+  - 测试 [test_quest_chain.py](engine/tests/test_quest_chain.py) 11 tests（kill_npc/reach_room/fight_win 玩家赢 NPC 存活/fight_win 玩家输不完成/多步 chain/quest 进度显示/time-gate 冷却+可重复领奖/QuestLog 序列化往返/旧 IR 兼容/give_item 多步）+ [test_xueshan_e2e.py](engine/tests/test_xueshan_e2e.py) +1 多步 e2e（reach_room dshanlu -> give_item 闭环）+ xueshan_micro 加 xueshan/pilgrimage 多步任务 YAML
+  - **1692 tests 全绿（+12），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 6（fight 切磋命令 + previous_object 命令衔接）+ dissent 7（time-gate 复用 Condition tick 时间源）+ dissent 5（任务链题材内容走 YAML 声明）+ dissent 10（任务链新引擎能力 + 全量后置）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -461,11 +473,11 @@
 
 ## In Progress
 
-**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师机制 + 子任务 2 练功机制完成**（1680 tests 全绿）。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师机制 + 子任务 2 练功机制 + 子任务 3 任务链扩展完成**（1692 tests 全绿）。
 
-**当前子任务**：M3-1 子任务 3 任务链扩展（QuestObjective kill_npc/reach_room/fight_win + 多步 chain + time-gate，ADR-0032 决策 3）。
+**当前子任务**：M3-1 子任务 4 内容生产（独立 LLM + Langfuse，ADR-0032 决策 6）。
 
-**下一步具体动作**：扩展 QuestObjective.kind（[layer0.py](engine/src/xkx/dsl/layer0.py)，give_item S4 已有 + kill_npc/reach_room/fight_win，对照 ADR-0007 S4 后置项补全）+ QuestDef.objectives 单 objective 扩为 list 多步 chain（QuestLog.current_step 跟踪当前步骤，全完成才 reward）+ QuestReward.time_gate 字段（mud_age 间隔，对照 jiamu lama_wage 工资，复用 Condition tick ADR-0018 判时间门控）+ 命令衔接（kill 击杀 NPC 触发 kill_npc objective / go 移动触发 reach_room / fight_win 打赢设标记解锁，对照 darba.c:118 chat 设 jlfw）。任务数据 YAML 后置内容生产子任务（ADR-0032 决策 3）。
+**下一步具体动作**：独立 LLM 生成雪山派完整内容（5 级拜师链 gongcang->samu->ling-zhi->jinlun->jiumo + 练功 SkillData valid_learn/practice_skill/query_action + 任务链多步 objective/分档奖励 + 死亡轮回 YAML），measure_revision.py 度量人工修订量（kill criteria 5，<40%），Langfuse 追踪。然后子任务 5 可玩 demo 整合（CLI REPL 完整闭环：拜师 -> 练功 -> 战斗 -> 任务 -> 死亡轮回 -> 还阳）。
 
 **剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -487,7 +499,7 @@
 
 ## Next Up
 
-**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 落地。**子任务 1 拜师机制 + 子任务 2 练功机制完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition，1680 tests 全绿）。**下一步子任务 3 任务链扩展**（kill_npc/reach_room/fight_win + 多步 chain + time-gate，ADR-0032 决策 3）-> 子任务 4 内容生产（独立 LLM + Langfuse）-> 子任务 5 可玩 demo 整合。
+**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 落地。**子任务 1 拜师机制 + 子任务 2 练功机制 + 子任务 3 任务链扩展完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition + kill_npc/reach_room/fight_win + 多步 chain + time-gate + fight 命令，1692 tests 全绿）。**下一步子任务 4 内容生产**（独立 LLM + Langfuse，ADR-0032 决策 6）-> 子任务 5 可玩 demo 整合。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）

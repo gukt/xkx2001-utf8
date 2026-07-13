@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RoomDef(BaseModel):
@@ -134,26 +134,45 @@ class NpcDef(BaseModel):
 
 # S4 ADR-0007：最小任务定义
 class QuestReward(BaseModel):
-    """任务奖励（S4 最小集：经验 + 标记 + 消息）。"""
+    """任务奖励（S4 最小集 + M3-1 ADR-0032 决策 3 time_gate）。
+
+    ``time_gate > 0``：任务可重复，发奖后记 ``claimed_at``，冷却期内（tick 差
+    < time_gate）ask 拒绝再接（对照 jiamu lama_wage 工资冷却，jiamu.c:51-56）。
+    ``time_gate == 0``（默认）：一次性任务（S4 行为，向后兼容）。
+    """
 
     exp: int = 0
     flag: str = ""  # 完成后设置的标记（LPC set_temp("marks/X")）
     message: str = ""  # 完成时给玩家的消息
+    time_gate: int = 0  # M3-1：可重复任务冷却 tick 数（0=一次性）
 
 
 class QuestObjective(BaseModel):
-    """任务目标（S4 最小集：给物品）。"""
+    """任务目标（S4 give_item + M3-1 ADR-0032 决策 3 扩 kill_npc/reach_room/fight_win）。
 
-    kind: str = "give_item"  # S4 仅支持 give_item；kill_npc/reach_room 后置
-    npc_id: str = ""  # give_item 目标 NPC prototype_id
+    kind 取值：
+    - ``give_item``（S4）：给指定 NPC 指定物品。匹配 npc_id + item_id
+    - ``kill_npc``（M3-1）：击杀指定 NPC。匹配 npc_id（对照 fsgelun kill corpse）
+    - ``reach_room``（M3-1）：到达指定房间。匹配 room_id
+    - ``fight_win``（M3-1）：切磋击败指定 NPC（不杀死）。匹配 npc_id，
+      NPC qi 降到 win_threshold% 判赢（对照 darba fight + checking，darba.c:109）
+    """
+
+    kind: str = "give_item"
+    npc_id: str = ""  # give_item/kill_npc/fight_win 目标 NPC prototype_id
     item_id: str = ""  # give_item 物品 id
+    room_id: str = ""  # reach_room 目标房间 id
+    win_threshold: int = 50  # fight_win 判赢阈值（NPC qi*100/max_qi <= 此值）
 
 
 class QuestDef(BaseModel):
-    """任务定义（S4 ADR-0007）。
+    """任务定义（S4 ADR-0007 + M3-1 ADR-0032 决策 3 多步 chain）。
 
-    最小垂直切片：ask giver about trigger -> 接任务 -> give item to npc -> 完成 -> reward。
-    对照 LPC NPC 任务交互（如 xueshan gelun1.c 的 ask 还愿 + accept_object 酥油罐）。
+    S4 单 objective -> M3-1 扩为 ``objectives`` list（多步 chain，按序完成）。
+    向后兼容：``objective`` 单数字段保留，model_validator 合并到 objectives[0]，
+    旧 YAML（如 xueshan_micro/quests.yaml）不破坏。QuestLog.current_step
+    跟踪当前步骤，全部完成才 reward。对照 LPC 多步任务（fsgelun kill->give
+    corpse 多步 + darba fight->flag->unlock 拜师）。
     """
 
     id: str
@@ -161,8 +180,18 @@ class QuestDef(BaseModel):
     giver: str  # NPC prototype_id（接任务的 NPC）
     trigger: str  # ask 话题
     description: str = ""  # 接任务时显示给玩家的描述
-    objective: QuestObjective = Field(default_factory=QuestObjective)
+    objective: QuestObjective | None = None  # S4 单 objective（兼容，合并到 objectives）
+    objectives: list[QuestObjective] = Field(default_factory=list)  # M3-1 多步 chain
     reward: QuestReward = Field(default_factory=QuestReward)
+
+    @model_validator(mode="after")
+    def _merge_objective(self) -> QuestDef:
+        """S4 ``objective`` 单数合并到 ``objectives`` list（向后兼容旧 YAML）。"""
+        if self.objective is not None and not self.objectives:
+            self.objectives = [self.objective]
+        if not self.objectives:
+            self.objectives = [QuestObjective()]  # 兜底默认 give_item
+        return self
 
 
 class ItemDef(BaseModel):

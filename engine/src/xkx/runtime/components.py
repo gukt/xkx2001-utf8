@@ -182,12 +182,17 @@ class Marks:
 
 @dataclass
 class QuestLog:
-    """玩家任务日志（S4 ADR-0007）。
+    """玩家任务日志（S4 ADR-0007 + M3-1 ADR-0032 决策 3 多步 chain）。
 
     ``statuses``: {quest_id -> "not_started" | "in_progress" | "completed"}
+    ``current_step``: {quest_id -> 当前步骤索引}（多步 chain，M3-1）
+    ``claimed_at``: {quest_id -> 上次领奖 tick}（time-gate 可重复任务，M3-1；
+        对照 jiamu lama_wage 记录 mud_age，冷却判定 current_tick - claimed_at < time_gate）
     """
 
     statuses: dict[str, str] = field(default_factory=dict)
+    current_step: dict[str, int] = field(default_factory=dict)
+    claimed_at: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass

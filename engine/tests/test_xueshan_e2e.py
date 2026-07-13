@@ -13,7 +13,7 @@ from pathlib import Path
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, ask, give, go, kill
+from xkx.runtime.commands import Game, ask, give, go, kill, take
 from xkx.runtime.components import (
     Identity,
     Inventory,
@@ -273,3 +273,31 @@ def test_kill_xlama2_combat_runs() -> None:
     _walk_to_chufang(game, pid)
     msgs = kill(game, pid, "小喇嘛")
     assert len(msgs) >= 2
+
+
+def test_multi_step_quest_chain() -> None:
+    """M3-1 ADR-0032 决策 3：多步任务 chain e2e（reach_room -> give_item）。
+
+    ask 葛伦布跑腿 -> go eastdown 到 dshanlu（步骤1 reach_room 完成）-> get 酥油罐
+    -> go westup 回 shanmen -> give 葛伦布酥油罐（步骤2 give_item 完成 + 发奖）。
+    对照 LPC 多步任务（fsgelun kill->give corpse 多步）。
+    """
+    game, pid = _game()
+    msgs = ask(game, pid, "葛伦布", "跑腿")
+    assert any("接下任务「朝山跑腿」" in m for m in msgs)
+    log = game.world.get(pid, QuestLog)
+    assert log.current_step["xueshan/pilgrimage"] == 0
+    # go eastdown -> dshanlu（reach_room 步骤1完成）
+    msgs = go(game, pid, "eastdown")
+    assert any("完成一步" in m for m in msgs)
+    assert log.current_step["xueshan/pilgrimage"] == 1
+    assert log.statuses["xueshan/pilgrimage"] == "in_progress"
+    # get suyou_guan -> go westup 回 shanmen -> give（用 id，item_registry 未加载）
+    take(game, pid, "suyou_guan")
+    go(game, pid, "westup")
+    before = game.world.get(pid, Progression).combat_exp
+    msgs = give(game, pid, "葛伦布", "suyou_guan")
+    assert any("完成" in m for m in msgs)
+    assert game.world.get(pid, Progression).combat_exp >= before + 150
+    assert log.statuses["xueshan/pilgrimage"] == "completed"
+    assert "跑腿" in game.world.get(pid, Marks).flags

@@ -143,6 +143,15 @@ def _eval_ctx(world: World, actor_id: int, **extra):  # type: ignore[no-untyped-
     )
 
 
+def _current_tick(game: Game) -> int:
+    """M3-1 ADR-0032 决策 3：取当前 tick（world.current_tick 动态属性，Engine.tick 更新）。
+
+    build_world 初始化为 0；Engine.tick 每次推进。time-gate 冷却判定时间源
+    （对照 jiamu lama_wage 的 mud_age）。getattr 健壮处理未注入的测试 World。
+    """
+    return getattr(game.world, "current_tick", 0)
+
+
 def _quest_status(world: World, actor_id: int, quest_id: str) -> str:
     """S4 ADR-0007：获取玩家某任务状态。"""
     log = world.get(actor_id, QuestLog)
@@ -156,6 +165,116 @@ def _set_quest_status(world: World, actor_id: int, quest_id: str, status: str) -
         log = QuestLog()
         world.add(actor_id, log)
     log.statuses[quest_id] = status
+
+
+def _quest_current_step(world: World, actor_id: int, quest_id: str) -> int:
+    """M3-1 ADR-0032 决策 3：获取多步任务当前步骤索引。"""
+    log = world.get(actor_id, QuestLog)
+    return log.current_step.get(quest_id, 0) if log else 0
+
+
+def _set_quest_current_step(world: World, actor_id: int, quest_id: str, step: int) -> None:
+    """M3-1 ADR-0032 决策 3：设置多步任务当前步骤索引。"""
+    log = world.get(actor_id, QuestLog)
+    if log is None:
+        log = QuestLog()
+        world.add(actor_id, log)
+    log.current_step[quest_id] = step
+
+
+def _quest_objectives(q: dict) -> list[dict]:
+    """取任务 objectives list（M3-1；向后兼容旧 IR objective 单数）。"""
+    objs = q.get("objectives") or []
+    if objs:
+        return objs
+    old = q.get("objective")
+    return [old] if old else []
+
+
+def _advance_objective(
+    game: Game,
+    actor_id: int,
+    kind: str,
+    *,
+    npc_id: str = "",
+    room_id: str = "",
+    item_id: str = "",
+) -> list[str]:
+    """推进匹配当前步骤的 in_progress 任务（M3-1 ADR-0032 决策 3）。
+
+    检查所有 in_progress 任务的当前步骤 objective，kind + 字段匹配则 current_step++。
+    全部步骤完成 -> ``_complete_quest`` 发奖。返回推进/完成产生的消息。一次动作只
+    推进一个任务（与 S4 give「一次 give 只完成一个任务」一致）。
+    """
+    world = game.world
+    msgs: list[str] = []
+    for qid, q in game.quests.items():
+        if _quest_status(world, actor_id, qid) != "in_progress":
+            continue
+        objectives = _quest_objectives(q)
+        step = _quest_current_step(world, actor_id, qid)
+        if step >= len(objectives):
+            continue
+        obj = objectives[step]
+        if obj.get("kind") != kind:
+            continue
+        if kind == "give_item" and not (
+            obj.get("npc_id") == npc_id and obj.get("item_id") == item_id
+        ):
+            continue
+        if kind in ("kill_npc", "fight_win") and obj.get("npc_id") != npc_id:
+            continue
+        if kind == "reach_room" and obj.get("room_id") != room_id:
+            continue
+        # 匹配 -> 推进
+        _set_quest_current_step(world, actor_id, qid, step + 1)
+        if step + 1 >= len(objectives):
+            msgs.extend(_complete_quest(game, actor_id, qid))
+        else:
+            msgs.append(f"任务「{q['name']}」完成一步，继续努力。")
+        break
+    return msgs
+
+
+def _complete_quest(game: Game, actor_id: int, qid: str) -> list[str]:
+    """完成任务发奖（S4 + M3-1 ADR-0032 决策 3 time_gate 可重复）。
+
+    time_gate > 0：记 claimed_at = current_tick + 重置 not_started（可再接，ask
+    冷却门控，对照 jiamu lama_wage）。time_gate == 0：设 completed（S4 一次性）。
+    """
+    world = game.world
+    q = game.quests.get(qid, {})
+    reward = q.get("reward", {})
+    msgs: list[str] = []
+    exp = reward.get("exp", 0)
+    if exp:
+        prog = world.get(actor_id, Progression)
+        if prog:
+            prog.combat_exp += exp
+    flag = reward.get("flag", "")
+    if flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(flag)
+    msg = reward.get("message", "")
+    if msg:
+        msgs.append(msg)
+    time_gate = reward.get("time_gate", 0)
+    if time_gate > 0:
+        log = world.get(actor_id, QuestLog)
+        if log is None:
+            log = QuestLog()
+            world.add(actor_id, log)
+        log.claimed_at[qid] = _current_tick(game)
+        log.statuses[qid] = "not_started"
+        log.current_step[qid] = 0
+        msgs.append(f"任务「{q['name']}」完成，{time_gate} tick 后可再次接取。")
+    else:
+        _set_quest_status(world, actor_id, qid, "completed")
+        msgs.append(f"任务「{q['name']}」完成。")
+    return msgs
 
 
 def go(game: Game, actor_id: int, direction: str) -> list[str]:
@@ -177,6 +296,8 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     pos.room_id = target
     msgs = [f"你向{direction}走去。"]
     msgs.extend(look(game, actor_id))
+    # M3-1 ADR-0032 决策 3：go 移动触发 reach_room objective（对照 shanmen go north）
+    msgs.extend(_advance_objective(game, actor_id, "reach_room", room_id=target))
     return msgs
 
 
@@ -206,6 +327,12 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         if _is_dead(world, target_eid):
             messages.append(f"{target_name}倒在地上，死了。")
             _handle_npc_death(world, target_eid, actor_id)
+            # M3-1 ADR-0032 决策 3：kill 击杀 NPC 触发 kill_npc objective（对照 fsgelun）
+            dead_ident = world.get(target_eid, Identity)
+            dead_pid = dead_ident.prototype_id if dead_ident else ""
+            messages.extend(
+                _advance_objective(game, actor_id, "kill_npc", npc_id=dead_pid)
+            )
             break
         ctx = CombatContext(
             attacker=to_snapshot(world, target_eid),
@@ -249,6 +376,79 @@ def _handle_player_death(world: World, game: Game, player_id: int) -> None:
         vitals.jingli = vitals.max_jingli
 
 
+def _qi_ratio(world: World, eid: int) -> int:
+    """qi*100/max_qi 百分比（对照 darba.c:109 checking 判定）。"""
+    vitals = world.get(eid, Vitals)
+    if not vitals or vitals.max_qi <= 0:
+        return 100
+    return vitals.qi * 100 // vitals.max_qi
+
+
+def fight(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
+    """切磋命令（M3-1 ADR-0032 决策 3 fight_win）：点到为止，不杀死。
+
+    对照 cmds/std/fight.c（accept_fight + fight_ob 点到为止）+ darba.c checking
+    （NPC qi*100/max_qi <= win_threshold 判赢）。多回合循环，任一方 qi 降到
+    win_threshold% 即停。玩家赢 -> 推进 fight_win objective + 设标记；玩家输 ->
+    战斗结束不完成。NPC 不死（qi clamp 不降到 0，不触发 _handle_npc_death）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_pid = target_ident.prototype_id if target_ident else ""
+    # 取匹配 fight_win objective 的 win_threshold（默认 50%，对照 darba.c:109）
+    win_threshold = 50
+    for qid, q in game.quests.items():
+        if _quest_status(world, actor_id, qid) != "in_progress":
+            continue
+        objectives = _quest_objectives(q)
+        step = _quest_current_step(world, actor_id, qid)
+        if step < len(objectives):
+            obj = objectives[step]
+            if obj.get("kind") == "fight_win" and obj.get("npc_id") == target_pid:
+                win_threshold = obj.get("win_threshold", 50)
+                break
+    messages: list[str] = [f"你向{target_name}请教武艺，切磋开始！"]
+    for _ in range(max_rounds):
+        ctx = CombatContext(
+            attacker=to_snapshot(world, actor_id),
+            victim=to_snapshot(world, target_eid),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _qi_ratio(world, target_eid) <= win_threshold:
+            # 点到为止：NPC 认输，qi 不降到 0（不致死，对照 fight 点到为止）
+            vitals = world.get(target_eid, Vitals)
+            if vitals and vitals.qi <= 0:
+                vitals.qi = 1
+            messages.append(f"{target_name}拱手认输：阁下武功了得，在下佩服。")
+            messages.extend(
+                _advance_objective(game, actor_id, "fight_win", npc_id=target_pid)
+            )
+            break
+        ctx = CombatContext(
+            attacker=to_snapshot(world, target_eid),
+            victim=to_snapshot(world, actor_id),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _qi_ratio(world, actor_id) <= win_threshold:
+            messages.append("你气喘吁吁，不得不认输。")
+            break
+    else:
+        messages.append(f"切磋持续了{max_rounds}回合，双方点到为止。")
+    return messages
+
+
 def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     """对话命令（S4 ADR-0006 + ADR-0007）。
 
@@ -264,12 +464,24 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     target_ident = world.get(target_eid, Identity)
     target_pid = target_ident.prototype_id if target_ident else ""
 
-    # S4 ADR-0007：quest trigger 优先于普通 inquiry
+    # S4 ADR-0007 + M3-1 ADR-0032 决策 3：quest trigger 优先于普通 inquiry
     for qid, q in game.quests.items():
         if q.get("giver") == target_pid and q.get("trigger") == topic:
             status = _quest_status(world, actor_id, qid)
             if status == "not_started":
+                # M3-1 time-gate：可重复任务冷却门控（对照 jiamu lama_wage）
+                reward = q.get("reward", {})
+                time_gate = reward.get("time_gate", 0)
+                if time_gate > 0:
+                    log = world.get(actor_id, QuestLog)
+                    last = log.claimed_at.get(qid) if log else None
+                    if last is not None and _current_tick(game) - last < time_gate:
+                        remain = time_gate - (_current_tick(game) - last)
+                        return [
+                            f"任务「{q['name']}」冷却中，约 {remain} tick 后可再次接取。"
+                        ]
                 _set_quest_status(world, actor_id, qid, "in_progress")
+                _set_quest_current_step(world, actor_id, qid, 0)
                 desc = q.get("description", "")
                 return (
                     [f"你接下任务「{q['name']}」。{desc}"]
@@ -277,7 +489,9 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
                     else [f"你接下任务「{q['name']}」。"]
                 )
             if status == "in_progress":
-                return [f"任务「{q['name']}」进行中。"]
+                step = _quest_current_step(world, actor_id, qid)
+                total = len(_quest_objectives(q)) or 1
+                return [f"任务「{q['name']}」进行中（{step}/{total}）。"]
             return [f"任务「{q['name']}」已完成。"]
 
     # 普通 inquiry
@@ -333,43 +547,21 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
             world.add(actor_id, marks)
         marks.flags.add(result.set_flag)
 
-    # S4 ADR-0007：检查并完成任务
-    for qid, q in game.quests.items():
-        if _quest_status(world, actor_id, qid) != "in_progress":
-            continue
-        obj = q.get("objective", {})
-        if (
-            obj.get("kind") == "give_item"
-            and obj.get("npc_id") == target_pid
-            and obj.get("item_id") == item_id
-        ):
-            reward = q.get("reward", {})
-            exp = reward.get("exp", 0)
-            if exp:
-                prog = world.get(actor_id, Progression)
-                if prog:
-                    prog.combat_exp += exp
-            flag = reward.get("flag", "")
-            if flag:
-                marks = world.get(actor_id, Marks)
-                if marks is None:
-                    marks = Marks()
-                    world.add(actor_id, marks)
-                marks.flags.add(flag)
-            _set_quest_status(world, actor_id, qid, "completed")
-            msg = reward.get("message", "")
-            if msg:
-                msgs.append(msg)
-            msgs.append(f"任务「{q['name']}」完成。")
-            break  # 一次 give 只完成一个任务
+    # S4 ADR-0007 + M3-1 ADR-0032 决策 3：give_item 推进当前步骤（多步 chain）
+    msgs.extend(
+        _advance_objective(
+            game, actor_id, "give_item", npc_id=target_pid, item_id=item_id
+        )
+    )
 
     return msgs
 
 
 def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
-    """任务查询命令（S4 ADR-0007）：quest / quest <id>。
+    """任务查询命令（S4 ADR-0007 + M3-1 多步进度）：quest / quest <id>。
 
-    ``quest`` 列出所有任务状态；``quest <id>`` 查单个任务状态。
+    ``quest`` 列出所有任务状态（in_progress 显示 current_step/total）；``quest <id>``
+    查单个任务状态。
     """
     world = game.world
     log = world.get(actor_id, QuestLog)
@@ -379,14 +571,24 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
         if not q:
             return [f"没有任务「{arg}」。"]
         status = statuses.get(arg, "not_started")
-        return [f"「{q['name']}」：{status}"]
+        return [_quest_brief(q, arg, status, log)]
     if not game.quests:
         return ["当前没有可接任务。"]
     lines = []
     for qid, q in game.quests.items():
         status = statuses.get(qid, "not_started")
-        lines.append(f"「{q['name']}」[{status}]：{q.get('description', '')}")
+        lines.append(_quest_brief(q, qid, status, log))
     return lines
+
+
+def _quest_brief(q: dict, qid: str, status: str, log: QuestLog | None) -> str:
+    """任务简要描述（M3-1：in_progress 显示多步进度 current_step/total）。"""
+    total = len(_quest_objectives(q)) or 1
+    desc = q.get("description", "")
+    if status == "in_progress" and log:
+        step = log.current_step.get(qid, 0)
+        return f"「{q['name']}」[{status} {step}/{total}]：{desc}"
+    return f"「{q['name']}」[{status}]：{desc}"
 
 
 def _item_name(game: Game, item_id: str) -> str:
@@ -1028,6 +1230,12 @@ def _adapter_kill(game: Game, ctx: ActionContext) -> list[str]:
     return kill(game, ctx.actor, target_name)
 
 
+def _adapter_fight(game: Game, ctx: ActionContext) -> list[str]:
+    """fight 命令适配器（M3-1 ADR-0032 决策 3）：fight <NPC> 切磋。"""
+    target_name = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return fight(game, ctx.actor, target_name)
+
+
 def _adapter_ask(game: Game, ctx: ActionContext) -> list[str]:
     """ask 命令适配器：ask <NPC> about <话题> 或 ask <NPC> <话题>。
 
@@ -1183,6 +1391,7 @@ def _adapter_enable(game: Game, ctx: ActionContext) -> list[str]:
 COMMAND_REGISTRY: dict[str, Any] = {
     "go": _adapter_go,
     "kill": _adapter_kill,
+    "fight": _adapter_fight,
     "ask": _adapter_ask,
     "give": _adapter_give,
     "quest": _adapter_quest,
