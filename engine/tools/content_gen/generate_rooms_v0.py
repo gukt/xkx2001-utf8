@@ -1,21 +1,24 @@
-"""M3-1 子任务 4 房间 v0 生成（ADR-0036）。
+"""M3-1 完整雪山派房间 v0 生成（ADR-0036，kill criteria 5 第 2 轮）。
 
-单独脚本：只生成房间 v0（不重跑 NPC/武学/任务，避免覆盖已生成的 v0）。
-对照 LPC d/xueshan/*.c，~12 新房间衔接现有 8 房间 + 放置 3 师傅 + 3 任务 giver。
+单独脚本：生成全部 20 房间 v0（对照 LPC d/xueshan/*.c）。
+第 2 轮扩展到完整雪山派（子任务 1-3 的 8 房间 + 子任务 4 的 12 新房间），
+v0/v1 范围一致，公平修订口径。
 
 房间设计（基于 LPC 已读 + 调研）：
-- dumudian（度母殿）：southdown->yanwu + north->changlang，放 jiamu + zrlama + tonggang
-- changlang（长廊）：north->dadian + south->dumudian，放 jlseng
-- dadian（大殿）：south->changlang，放 jiumo + zhirilama + xiang
-- hongdian（红殿）：southdown->zoulang，放 ling-zhi
-- songjing（诵经堂）：west->yanwu，放 lazhangfo（藏经阁主管）
-- jingtang（经堂）：east->yanwu + north->sengshe，放 fsgelun
-- sengshe（僧舍）：south->jingtang
-- luyeyuan（鹿野苑）：east->wangyou，放 jinlun + lx-jing
-- wangyou（忘忧）：west->luyeyuan
-- beilu（大雪山北麓）：south->dshanlu，放 hua（血刀门跨界）
-- houyuan（后院）：south->jingang + north->angqian
-- angqian（ Ang前）：south->houyuan
+- 子任务 1-3（8 房间）：dshanlu/shanmen/guangchang/frontyard/yanwu/zoulang/jingang/chufang
+- 子任务 4 新增（12 房间）：
+  - dumudian（度母殿）：southdown->yanwu + north->changlang，放 jiamu + zrlama + tonggang
+  - changlang（长廊）：north->dadian + south->dumudian，放 jlseng
+  - dadian（大殿）：south->changlang，放 jiumo + zhirilama + xiang
+  - hongdian（红殿）：southdown->zoulang，放 ling-zhi
+  - songjing（诵经堂）：west->yanwu，放 lazhangfo（藏经阁主管）
+  - jingtang（经堂）：east->yanwu + north->sengshe，放 fsgelun
+  - sengshe（僧舍）：south->jingtang
+  - luyeyuan（鹿野苑）：east->wangyou，放 jinlun + lx-jing
+  - wangyou（忘忧）：west->luyeyuan
+  - beilu（大雪山北麓）：south->dshanlu，放 hua（血刀门跨界）
+  - houyuan（后院）：south->jingang + north->angqian
+  - angqian（ Ang前）：south->houyuan
 
 用法：PYTHONPATH=src python tools/content_gen/generate_rooms_v0.py
 """
@@ -36,6 +39,16 @@ REPO = ROOT.parent
 OUT = ROOT / "tools/content_gen/output/xueshan_full_v0"
 
 ROOMS: list[tuple[str, Path]] = [
+    # 子任务 1-3 子集（8 房间，第 1 轮已生成 v0，第 2 轮完整覆盖重生成）
+    ("xueshan/dshanlu", REPO / "d/xueshan/dshanlu.c"),
+    ("xueshan/shanmen", REPO / "d/xueshan/shanmen.c"),
+    ("xueshan/guangchang", REPO / "d/xueshan/guangchang.c"),
+    ("xueshan/frontyard", REPO / "d/xueshan/frontyard.c"),
+    ("xueshan/yanwu", REPO / "d/xueshan/yanwu.c"),
+    ("xueshan/zoulang", REPO / "d/xueshan/zoulang.c"),
+    ("xueshan/jingang", REPO / "d/xueshan/jingang.c"),
+    ("xueshan/chufang", REPO / "d/xueshan/chufang.c"),
+    # 子任务 4 新增（12 房间）
     ("xueshan/dumudian", REPO / "d/xueshan/dumudian.c"),
     ("xueshan/changlang", REPO / "d/xueshan/changlang.c"),
     ("xueshan/dadian", REPO / "d/xueshan/dadian.c"),

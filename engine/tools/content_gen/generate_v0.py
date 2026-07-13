@@ -1,20 +1,24 @@
-"""M3-1 子任务 4 批量 v0 生成脚本（ADR-0036）。
+"""M3-1 完整雪山派 v0 生成脚本（ADR-0036，kill criteria 5 第 2 轮）。
 
 调火山方舟 deepseek-v4-flash 从 LPC 源生成雪山派完整内容的 v0 草稿，落盘到
-``tools/content_gen/output/xueshan_full_v0/``。人工修订为 v1（落盘
-``xueshan_full_v1/``）后用 ``measure_revision`` 度量 semantic_ratio（kill
-criteria 5 第 2 轮数据）。
+``tools/content_gen/output/xueshan_full_v0/``。人工修订的 v1 已入库
+``scenes/xueshan_micro/``，用 ``measure_revision`` 度量 semantic_ratio
+（kill criteria 5 第 2 轮数据）。
 
-本轮内容清单（对照 LPC）：
-- 6 NPC：3 师傅（ling-zhi/jinlun/jiumo）+ 3 任务 giver（jiamu/fsgelun/lazhangfo）
-- 8 武学：dashou-yin/shenkongxing/necromancy/riyue-lun/huoyan-dao/
-          mingwang-jian/xiaowuxiang/yujiamu-quan
-- 3 任务链：jiamu 工资（time-gate）/ fsgelun 法事（多步）/ lazhangfo 藏经（reach_room）
-- ~12 新房间（rooms 列表，对照 LPC d/xueshan/*.c）
+第 2 轮扩展到完整雪山派内容（v0/v1 范围一致，公平修订口径，对照第 1 轮子集 37.0%）：
+- 11 NPC：5 子任务 1-3（gelun1/xlama2/gongcang/samu/darba）
+         + 6 子任务 4（3 师傅 ling-zhi/jinlun/jiumo + 3 giver jiamu/fsgelun/lazhangfo）
+- 11 武学：3 子任务 1-3（longxiang-banruo/lamaism/xueshan-jian）
+          + 8 子任务 4（dashou-yin/shenkongxing/necromancy/riyue-lun/huoyan-dao/
+                       mingwang-jian/xiaowuxiang/yujiamu-quan）
+- 6 任务链：3 子任务 1-3（tribute/pilgrimage/darba）
+          + 3 子任务 4（jiamu 工资 time-gate / fsgelun 法事多步 / lazhangfo 藏经 reach_room）
+- 20 房间：由 generate_rooms_v0.py 单独生成（本脚本 ROOMS 列表空）
 
 用法::
 
     PYTHONPATH=src python tools/content_gen/generate_v0.py
+    PYTHONPATH=src python tools/content_gen/generate_rooms_v0.py
 """
 
 from __future__ import annotations
@@ -39,8 +43,16 @@ ROOT = Path(__file__).resolve().parents[2]
 REPO = ROOT.parent  # 仓库根（LPC 规格源）
 OUT = ROOT / "tools/content_gen/output/xueshan_full_v0"
 
-# NPC：(目标 id, LPC 源路径)。师傅在 kungfu/class/xueshan/，任务 giver 在 d/xueshan/npc/
+# NPC：(目标 id, LPC 源路径)。师傅在 kungfu/class/xueshan/，giver/普通 NPC 在 d/xueshan/npc/
+# 第 2 轮完整覆盖：子任务 1-3 子集（5）+ 子任务 4 新增（6）
 NPCS: list[tuple[str, Path]] = [
+    # 子任务 1-3 子集（第 1 轮已生成 v0，第 2 轮完整覆盖重生成）
+    ("xueshan/npc/gelun1", REPO / "d/xueshan/npc/gelun1.c"),
+    ("xueshan/npc/xlama2", REPO / "d/xueshan/npc/xlama2.c"),
+    ("xueshan/npc/gongcang", REPO / "kungfu/class/xueshan/gongcang.c"),
+    ("xueshan/npc/samu", REPO / "kungfu/class/xueshan/samu.c"),
+    ("xueshan/npc/darba", REPO / "d/xueshan/npc/darba.c"),
+    # 子任务 4 新增（3 师傅 + 3 任务 giver）
     ("xueshan/npc/ling-zhi", REPO / "kungfu/class/xueshan/ling-zhi.c"),
     ("xueshan/npc/jinlun", REPO / "kungfu/class/xueshan/jinlun.c"),
     ("xueshan/npc/jiumo", REPO / "kungfu/class/xueshan/jiumo.c"),
@@ -49,8 +61,13 @@ NPCS: list[tuple[str, Path]] = [
     ("xueshan/npc/lazhangfo", REPO / "d/xueshan/npc/lazhangfo.c"),
 ]
 
-# 武学：(skill_id, LPC 源路径)
+# 武学：(skill_id, LPC 源路径)。第 2 轮完整覆盖：子任务 1-3（3）+ 子任务 4（8）
 SKILLS: list[tuple[str, Path]] = [
+    # 子任务 1-3 子集
+    ("longxiang-banruo", REPO / "kungfu/skill/longxiang-banruo.c"),
+    ("lamaism", REPO / "kungfu/skill/lamaism.c"),
+    ("xueshan-jian", REPO / "kungfu/skill/xueshan-jian.c"),
+    # 子任务 4 新增（8 武学）
     ("dashou-yin", REPO / "kungfu/skill/dashou-yin.c"),
     ("shenkongxing", REPO / "kungfu/skill/shenkongxing.c"),
     ("necromancy", REPO / "kungfu/skill/necromancy.c"),
@@ -61,8 +78,13 @@ SKILLS: list[tuple[str, Path]] = [
     ("yujiamu-quan", REPO / "kungfu/skill/yujiamu-quan.c"),
 ]
 
-# 任务链：(quest_id, LPC giver NPC 源路径)
+# 任务链：(quest_id, LPC giver NPC 源路径)。第 2 轮完整覆盖：子任务 1-3（3）+ 子任务 4（3）
 QUESTS: list[tuple[str, Path]] = [
+    # 子任务 1-3 子集（giver = gelun1 / darba）
+    ("xueshan/tribute", REPO / "d/xueshan/npc/gelun1.c"),
+    ("xueshan/pilgrimage", REPO / "d/xueshan/npc/gelun1.c"),
+    ("xueshan/quest/darba", REPO / "d/xueshan/npc/darba.c"),
+    # 子任务 4 新增（giver = jiamu / fsgelun / lazhangfo）
     ("xueshan/quest/jiamu", REPO / "d/xueshan/npc/jiamu.c"),
     ("xueshan/quest/fsgelun", REPO / "d/xueshan/npc/fsgelun.c"),
     ("xueshan/quest/lazhangfo", REPO / "d/xueshan/npc/lazhangfo.c"),

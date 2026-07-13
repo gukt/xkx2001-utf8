@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 4 完整内容扩展落地，1744 tests 全绿，下一步 kill criteria 5 第 2 轮数据）
+**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 4 完整内容扩展 + kill criteria 5 第 2 轮数据落地，1744 tests 全绿，下一步第 3 轮改进 prompt）
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。**M3-1 子任务 1-5 全部完成**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 决策 1-4 + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) + [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地：拜师/练功/任务链/内容生产子集/可玩 demo 整合，1733 tests 全绿，可玩 demo 闭环打通：拜师 gongcang 剃度 -> 练功 -> darba fight_win -> 战斗 -> 死亡轮回 -> 还阳 -> samu 拜师）。**子任务 4 完整内容扩展落地**（3 师傅 ling-zhi/jinlun/jiumo + 8 武学 + 3 任务链 jiamu/fsgelun/lazhangfo + ~12 新房间，1744 tests 全绿，测试 bug 修复收尾）。下一步 kill criteria 5 第 2 轮数据（跑 LLM v0 生成 + 修订度量，工具已就绪）。
 
 ## Done
@@ -469,6 +469,7 @@
   - **SkillData CPK 加载管线**：[layer0.py](engine/src/xkx/dsl/layer0.py) SkillDef（dsl 层 5 字段，保持 dsl 纯净不依赖 combat）+ [cpk_loader.py](engine/src/xkx/dsl/cpk_loader.py) 扩展加载 skills.yaml（4-tuple 返回 `(manifest,ir,rules,skills)`）+ [skill.py](engine/src/xkx/runtime/skill.py) `register_skill_defs`（dsl SkillDef -> combat SkillData 转换，runtime 边界）+ [cli.py](engine/src/xkx/cli.py) load_game 接线。SkillData 保持 bool stub（决策 2），rich LPC 条件记 GAP 后置。
   - **子集内容生成**（独立 LLM deepseek-v4-flash，9 个 v0）：2 师傅 NPC（gongcang gen12 剃度 + samu gen11，含 ApprenticeDef rich 条件）+ darba 门槛 NPC + 3 武学 SkillData（longxiang-banruo/lamaism/xueshan-jian）+ darba fight_win 任务链 + 2 房间（guangchang/jingang 补 objects）+ lx-jing 经书物品。v0 人工修订 v1 入 CPK（gongcang gender male->男性 / samu 补 GAP class=lama+max_neili>=300 / darba trigger list->str + giver/npc_id 归一 / rooms exits 裁剪 + objects 归一）。
   - **kill criteria 5 首个数据点**：measure_revision.semantic_ratio v0->v1 公平最小修订 = **37.0%**（rooms 100% 多行文本+exits / npcs 32% gender+inquiry 清理 / quests 67% trigger+ids / skills 0% / items 0%）。真实 LLM 错误约 5%（gender/trigger 类型/id 格式/悬空 exits），其余为 YAML 多行文本清理噪声。本轮 1 轮（< 40% 走弱线），累积 3 轮后判定。LLM v0 在 skills/items 零错误，NPC 属性/skills/attack_skill 推断/apprentice 条件精确对齐 LPC（07 映射 prompt 生效）。
+  - **kill criteria 5 第 2 轮数据点**：完整雪山派 v0（扩展 [generate_v0.py](engine/tools/content_gen/generate_v0.py) + [generate_rooms_v0.py](engine/tools/content_gen/generate_rooms_v0.py) 列表到 11 NPC + 11 skill + 6 quest + 20 room，v0/v1 范围一致公平修订口径）-> v1（xueshan_micro）semantic_ratio 公平最小修订 = **56.9%**（rooms 114.6% 多行文本+16 悬空 exits / npcs 31.7% gender+inquiry / quests 119.5% giver id 4/6 不规范+trigger 误解+objectives 缺失 / skills 5.6% 2 skill_type 分类歧义）。真实 LLM 错误约 25%（rooms exits 幻觉+id 前缀缺失 16 处 / quests giver id 用 name 非 id+objectives 漏 reach_room+item_id 中文 / npcs gender male vs 男性 / skills skill_type force vs martial），其余为 YAML 多行文本噪声。第 2 轮 >40% 走弱线（第 1 轮 37.0% < 40%），累积 2 轮，3 轮后判定。主要问题：LLM 不遵守 id 规范（giver/exit 引用用 name/缺 xueshan/ 前缀）+ quest 结构化生成弱点。LLM v0 在 NPC 属性/skills/apprentice rich 条件精确对齐 LPC，skills 5.6% 接近零错误，npcs 31.7% 与第 1 轮 32% 持平。
   - measure_revision.py 扩展 SCENE_FILES 加 items.yaml + skills.yaml
   - 测试：[test_llm_client.py](engine/tests/test_llm_client.py) 14（mock urllib：.env override/请求构建/429重试/4xx不重试/响应解析）+ [test_content_gen.py](engine/tests/test_content_gen.py) 17（FakeLLMClient：generate_*/extract_yaml/prompt 含 07 规则）+ test_cpk_loader test_skills_yaml_loaded + test_skill_practice test_register_skill_defs = 32 新测试
   - **1724 tests 全绿（+32），ruff 全过**；test_theme_neutrality（门派武学走 SkillData 声明不进内核）+ test_load_test 硬门禁持续通过；cli.load_game 端到端验证（skills 注册 + 师傅 NPC 在场）
@@ -504,11 +505,11 @@
 
 ## In Progress
 
-**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1-5 + 子任务 4 内容扩展全部落地**（1744 tests 全绿）。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1-5 + 子任务 4 内容扩展 + kill criteria 5 第 2 轮数据全部落地**（1744 tests 全绿）。
 
-**当前子任务**：M3-1 子任务 4 完整内容扩展已落地（3 师傅 + 8 武学 + 3 任务链 + ~12 房间，直接人工写 v1 入 CPK）。下一步 kill criteria 5 第 2 轮数据（跑 generate_v0.py LLM 批量生成 v0 -> 人工修订 v1 -> measure_revision 度量累积修订量）。
+**当前子任务**：kill criteria 5 第 2 轮数据已产出（完整雪山派 v0 vs v1，semantic_ratio 56.9%，>40% 走弱线）。下一步第 3 轮或裁决方向。
 
-**下一步具体动作**：kill criteria 5 第 2 轮数据（当前 1 轮 37.0%，需累积 3 轮后判定）。工具就绪（[generate_v0.py](engine/tools/content_gen/generate_v0.py)），待跑 ARK_API_KEY 火山方舟 LLM 生成 v0。可玩 demo 闭环已打通（拜师 gongcang 剃度 -> 练功 -> darba fight_win -> 战斗 -> 死亡轮回 -> 还阳 -> samu 拜师，CLI `python -m xkx.cli` 可玩）。
+**下一步具体动作**：kill criteria 5 第 3 轮。累积 2 轮（37.0% + 56.9%），第 2 轮 >40% 走弱线。第 3 轮需改进 prompt（强调 id 规范 xueshan/npc/xxx + quest 结构 trigger/objectives + exits 引用规范 + 单行文本）再跑看 ratio 是否 <40%；若仍 >40%，按 kill criteria 5 裁决"先扩 DSL 层1-2 表达力"或"quests 改人工 LLM 仅生成 NPC/skill/room"。主要错误：LLM 不遵守 id 规范（giver/exit 用 name/缺前缀）+ quest 结构化生成弱点，非 DSL 表达力不足，改进 prompt 优先。可玩 demo 闭环已打通（CLI `python -m xkx.cli` 可玩）。
 
 **剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -530,7 +531,7 @@
 
 ## Next Up
 
-**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) + [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地。**子任务 1-5 全部完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition + kill_npc/reach_room/fight_win + 多步 chain + time-gate + fight 命令 + 火山方舟 LLM 内容生产管线 + SkillData CPK 加载 + 雪山派子集内容 + CLI 接 Engine 自动推进 + 消息缓冲 + 死亡轮回接入 die()，1733 tests 全绿，可玩 demo 闭环打通，kill criteria 5 首个数据点 37.0%）。**子任务 4 完整内容扩展已落地**（3 师傅 + 8 武学 + 3 任务链 + ~12 房间，1744 tests 全绿）。**下一步 kill criteria 5 第 2 轮数据**（跑 LLM v0 生成 + 修订度量，工具就绪）。
+**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) + [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地。**子任务 1-5 全部完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition + kill_npc/reach_room/fight_win + 多步 chain + time-gate + fight 命令 + 火山方舟 LLM 内容生产管线 + SkillData CPK 加载 + 雪山派子集内容 + CLI 接 Engine 自动推进 + 消息缓冲 + 死亡轮回接入 die()，1733 tests 全绿，可玩 demo 闭环打通，kill criteria 5 首个数据点 37.0%）。**子任务 4 完整内容扩展已落地**（3 师傅 + 8 武学 + 3 任务链 + ~12 房间，1744 tests 全绿）。**kill criteria 5 第 2 轮数据已产出**（完整雪山派 v0 vs v1，semantic_ratio 56.9%，>40% 走弱线，真实错误约 25%：LLM 不遵守 id 规范 + quest 结构化弱点）。**下一步 kill criteria 5 第 3 轮**（改进 prompt 后再跑，看 ratio 是否 <40%；若仍 >40% 裁决扩 DSL 或 quests 改人工）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
