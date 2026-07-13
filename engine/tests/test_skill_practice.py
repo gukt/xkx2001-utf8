@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from xkx.combat.context import SkillData
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import NpcDef, RoomDef
+from xkx.dsl.layer0 import NpcDef, RoomDef, SkillDef
 from xkx.runtime.commands import (
     Game,
     dazuo,
@@ -39,6 +39,7 @@ from xkx.runtime.skill import (
     improve_skill,
     is_busy,
     register_skill_data,
+    register_skill_defs,
 )
 from xkx.runtime.world import build_world, spawn_player
 
@@ -487,3 +488,33 @@ def test_get_skill_data_default_stub() -> None:
     assert data.practice_skill is True
     assert data.valid_enable == []
     assert data.skill_type == ""
+
+
+def test_register_skill_defs_compiles_dsl_to_combat() -> None:
+    """register_skill_defs：dsl SkillDef -> combat SkillData 转换 + 注册（ADR-0036）。"""
+    defs = [
+        SkillDef(
+            skill_id="longxiang-banruo",
+            skill_type="martial",
+            valid_learn=True,
+            practice_skill=True,
+            valid_enable=["force"],
+        ),
+        SkillDef(
+            skill_id="lamaism",
+            skill_type="knowledge",
+            valid_learn=True,
+            practice_skill=False,
+            valid_enable=[],
+        ),
+    ]
+    register_skill_defs(defs)
+    lxb = get_skill_data("longxiang-banruo")
+    assert lxb.skill_type == "martial"
+    assert lxb.valid_learn is True
+    assert lxb.valid_enable == ["force"]
+    # combat 招式字段用 SkillData 默认值（query_action 后置）
+    assert lxb.damage == 20
+    lam = get_skill_data("lamaism")
+    assert lam.practice_skill is False
+    assert lam.skill_type == "knowledge"

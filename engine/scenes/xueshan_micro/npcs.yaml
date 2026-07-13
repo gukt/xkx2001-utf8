@@ -63,3 +63,130 @@
     strike: 20
   inquiry:
     酥油茶: 小喇嘛一脸不耐烦：酥油那麽贵，想喝茶那能说有就有，等着！
+
+# M3-1 ADR-0032 决策 1 + ADR-0036：拜师链师傅 + 门槛 NPC（独立 LLM 内容生产子集）
+# 对照 LPC kungfu/class/xueshan/{gongcang,samu,darba}.c，LLM v0 + 人工 v1 修订。
+# gongcang(gen12 剃度) -> samu(gen11) 拜师链；darba 是 jinlun 拜师门槛（fight_win 解锁）。
+- id: xueshan/npc/gongcang
+  name: 昌齐大喇嘛
+  aliases: ["changqi lama", "changqi", "lama"]
+  gender: 男性
+  age: 60
+  attitude: peaceful
+  str_: 25
+  dex_: 25
+  int_: 27
+  con_: 26
+  max_qi: 600
+  max_jing: 450
+  max_neili: 600
+  combat_exp: 50000
+  skills:
+    force: 50
+    dodge: 60
+    parry: 50
+    staff: 45
+    lamaism: 80
+    cuff: 40
+    necromancy: 60
+    jingang-chu: 55
+    yujiamu-quan: 50
+    shenkongxing: 60
+    longxiang-banruo: 50
+  weapon: staff
+  attack_skill: jingang-chu
+  weapon_label: 钢杖
+  inquiry:
+    剃度: 阿弥陀佛！善哉！善哉！施主若真心皈依我佛，请跪下(kneel)受戒。
+    出家: 阿弥陀佛！善哉！善哉！施主若真心皈依我佛，请跪下(kneel)受戒。
+  apprentice:
+    family_name: 雪山派
+    generation: 12
+    title: 弟子
+    conditions:
+      min_combat_exp: 0
+      reject_gender: 女性
+      allow_families: ["雪山派", "血刀门"]
+      other_family_max_combat_exp: 10000
+    kneel:
+      set_class: lama
+      require_flag: pending/join_lama
+      clear_flag: pending/join_lama
+      message: $N双手合十，恭恭敬敬地跪了下来。$n伸出手掌，在$N头顶轻轻地摩挲了几下，将$N的头发尽数剃去。
+    success_message: 好吧，我就收下你了，可不要忘了去度母殿敬奉酥油。
+- id: xueshan/npc/samu
+  name: 萨木活佛
+  aliases: ["samu huofo", "samu", "huofo"]
+  gender: 男性
+  age: 45
+  attitude: heroism
+  str_: 27
+  dex_: 30
+  int_: 33
+  con_: 27
+  max_qi: 700
+  max_jing: 700
+  max_neili: 1200
+  combat_exp: 250000
+  skills:
+    force: 70
+    dodge: 75
+    parry: 70
+    staff: 70
+    cuff: 70
+    jingang-chu: 80
+    lamaism: 140
+    shenkongxing: 80
+    longxiang-banruo: 80
+    necromancy: 80
+  weapon: staff
+  attack_skill: jingang-chu
+  weapon_label: 钢杖
+  inquiry:
+    出家: 找昌齐大喇嘛为你剃度吧。
+  apprentice:
+    family_name: 雪山派
+    generation: 11
+    title: 喇嘛
+    conditions:
+      min_combat_exp: 0
+      reject_gender: ""
+      allow_families: ["雪山派", "血刀门"]
+      other_family_max_combat_exp: 10000
+      min_skills:
+        longxiang-banruo: 30
+      require_flags: []
+    # GAP: LPC samu 另检查 class==lama + max_neili>=300，ApprenticeConditions 无此字段，后置。
+    success_message: 好吧，我就收下你了。
+- id: xueshan/npc/darba
+  name: 达尔巴
+  aliases: ["darba", "dar", "ba"]
+  gender: 男性
+  age: 35
+  attitude: heroism
+  str_: 25
+  dex_: 25
+  int_: 27
+  con_: 26
+  max_qi: 1500
+  max_jing: 2000
+  max_neili: 2000
+  combat_exp: 250000
+  skills:
+    force: 130
+    dodge: 130
+    parry: 130
+    staff: 130
+    hand: 130
+    jingang-chu: 130
+    dashou-yin: 130
+    shenkongxing: 130
+    longxiang-banruo: 130
+  weapon: staff
+  attack_skill: jingang-chu
+  weapon_label: 降魔杵
+  chat_chance_combat: 50
+  inquiry:
+    引见: 达尔巴看了你一眼不屑地说：想找我师父，得先过我这一关，这位是不是先和我切搓一下？
+    金轮法王: 达尔巴看了你一眼不屑地说：想找我师父，得先过我这一关，这位是不是先和我切搓一下？
+  # darba 非师傅（LPC attempt_apprentice 拒收），无 apprentice 配置；是 jinlun 拜师门槛。

@@ -1,0 +1,26 @@
+# M3-1 ADR-0032 决策 5 + ADR-0036：雪山派武学 SkillData（独立 LLM 内容生产子集）
+# 对照 LPC kungfu/skill/{longxiang-banruo,lamaism,xueshan-jian}.c，LLM v0 + 人工 v1。
+# 练功 bool stub（ADR-0032 决策 2）；rich LPC 条件记 GAP 后置（ApprenticeConditions/SkillData 扩展）。
+- skill_id: longxiang-banruo
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - force
+  # GAP: LPC valid_learn 检查 class==lama + lamaism>=120 + force>=10 + >99 级禁双修。
+  # GAP: LPC practice_skill 须 >=200 级 + 持 longxiang jing 经书 + qi/jingli/neili>=150。
+- skill_id: lamaism
+  skill_type: knowledge
+  valid_learn: true
+  practice_skill: false
+  valid_enable: []
+  # GAP: LPC valid_learn 检查 class==lama。knowledge 类只能 learn（practice_skill=false 已表达）。
+- skill_id: xueshan-jian
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - sword
+  - parry
+  # GAP: LPC valid_learn 检查 max_neili>=100 + sword>=30。
+  # GAP: LPC practice_skill 须持剑 + jingli>50。query_action 13 招招式表后置。

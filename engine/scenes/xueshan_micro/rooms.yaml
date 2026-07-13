@@ -23,6 +23,8 @@
   exits:
     south: xueshan/shanmen
     north: xueshan/frontyard
+  objects:
+    xueshan/npc/gongcang: 1
   outdoors: true
 # S4 扩展（5-10 房间全量验证）：从 guangchang 往北深入寺院，对照 LPC frontyard/yanwu/zoulang/jingang/chufang
 - id: xueshan/frontyard
@@ -52,6 +54,8 @@
   long: 这里是习武的葛伦布们常来的地方，护寺的萨木活佛就在这里授艺。前方壁上有一钜形框，内刻梵文：十大自在相，壁上还点缀得有山水、楼台壁画。南面是走廊。
   exits:
     south: xueshan/zoulang
+  objects:
+    xueshan/npc/samu: 1
   outdoors: true
 - id: xueshan/chufang
   short: 厨房

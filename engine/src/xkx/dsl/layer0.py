@@ -205,6 +205,22 @@ class ItemDef(BaseModel):
     aliases: list[str] = Field(default_factory=list)
 
 
+class SkillDef(BaseModel):
+    """武学数据定义（M3-1 ADR-0032 决策 5，CPK 资产）。
+
+    dsl 层声明，runtime 边界编译到 ``combat.context.SkillData``（招式载体）。
+    本字段集是 M3-1 练功 stub（``valid_learn``/``practice_skill`` 简化 bool，
+    rich LPC 条件记 GAP 后置）。combat 招式字段（action/dodge/parry/damage/
+    force/damage_type/query_action 招式表）后置内容生产扩展时再加。
+    """
+
+    skill_id: str  # 武学 id（注册表 key，对照 LPC SKILL_D(skill)）
+    skill_type: str = ""  # LPC type()：martial/knowledge/dodge 等
+    valid_learn: bool = True  # LPC valid_learn(me) 简化布尔（能否向 NPC 学习）
+    practice_skill: bool = True  # LPC practice_skill(me) 简化布尔（能否自行练习）
+    valid_enable: list[str] = Field(default_factory=list)  # 可 enable 种类（空=不限）
+
+
 def load_rooms(path: Path | str) -> list[RoomDef]:
     """从 YAML 加载房间列表（顶层为房间 dict 的 list）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -227,3 +243,12 @@ def load_items(path: Path | str) -> list[ItemDef]:
     """从 YAML 加载物品列表（S5a）。"""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return [ItemDef(**i) for i in (data or [])]
+
+
+def load_skills(path: Path | str) -> list[SkillDef]:
+    """从 YAML 加载武学数据列表（M3-1 ADR-0032 决策 5，CPK 资产）。
+
+    skills.yaml 顶层为 SkillDef dict 的 list。runtime 边界编译到 SkillData。
+    """
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return [SkillDef(**s) for s in (data or [])]

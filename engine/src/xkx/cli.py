@@ -71,11 +71,15 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     from xkx.themes import default_registry
 
     registry = default_registry()
-    manifest, ir, rules = load_cpk(SCENES_DIR / scene, registry=registry)
+    manifest, ir, rules, skills = load_cpk(SCENES_DIR / scene, registry=registry)
     descriptor = registry.require(manifest.theme)
     world, room_idx, quest_idx = build_world(
         ir, theme_config=descriptor.theme_config
     )
+    # ADR-0036：CPK skills.yaml -> SkillData 注册表（武学内容注入运行时）
+    from xkx.runtime.skill import register_skill_defs
+
+    register_skill_defs(skills)
     item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)

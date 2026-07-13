@@ -33,3 +33,20 @@
     exp: 150
     flag: 跑腿
     message: 葛伦布点头：施主诚心可嘉。
+
+# M3-1 ADR-0032 决策 3 + ADR-0036：darba fight_win 任务（独立 LLM 内容生产子集）
+# 对照 LPC kungfu/class/xueshan/darba.c accept_fight + chat，LLM v0 + 人工 v1 修订。
+# darba 是 jinlun 拜师门槛：ask 引见 -> fight 切磋 -> 玩家赢设 flag jlfw -> 解锁 jinlun 拜师。
+- id: xueshan/quest/darba
+  name: 引见金轮法王
+  giver: xueshan/npc/darba
+  trigger: 引见
+  description: 达尔巴看了你一眼不屑地说：想找我师父，得先过我这一关，这位大侠是不是先和我切搓一下？
+  objectives:
+  - kind: fight_win
+    npc_id: xueshan/npc/darba
+  reward:
+    flag: jlfw
+    message: 达尔巴说：阁下武功确是不一般，在下十分佩服。我师父金轮法王在草原上授猎，你去寻他吧。
+    time_gate: 0
+  # GAP: LPC darba 另设 marks/引（引见标记）。jlfw 是 jinlun 拜师解锁标记（reward.flag）。
