@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：阶段 2 全部完成（Wave 4 2.7 门派切割完成，1598 tests 全绿），下一步 M3 单题材武侠 demo
+**当前阶段**：M3 启动（Wave 1 M3-2 CPK 格式化可启动）。阶段 2 全部完成（1598 tests 全绿），ADR-0031 评审通过 + 16-M3 实施计划产出
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
@@ -413,6 +413,12 @@
   - **1598 tests 全绿（+84：80 test_race_family + 41 test_spec_race + 4 test_theme_neutrality 扩展 - 适配调整），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
   - 关联 dissent 1（CombatKernel 主题无关性延伸：race 层 + 门派加成是 combat 之外的主题无关性收官）+ dissent 5（themed 治理，门派内容是题材包资产非治理逻辑）+ dissent 10（平台特性范围过载，只切割不全量迁移）
 
+- [x] **M3 启动前置完成**（[ADR-0031](docs/adr/ADR-0031-cpk-format-and-themeregistry-static-loading.md) 评审通过 + [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) 实施计划产出）：
+  - ADR-0031 CPK 格式固化 + ThemeRegistry 静态加载（M3-2 Wave 1 前置）：7 决策（CpkManifest 数据模型对齐 03 §四 M3 简化 + CPK 目录扁平加 manifest + ThemeRegistry 静态加载 wuxia/default + CPK 加载器 load_cpk 复用 compile_scene + 5 微场景重整为 StdLib CPK + cli.py 改读 ThemeRegistry + 范围边界 module_pack only）+ 5 开放问题倾向裁决（扁平目录/2 题材/线性依赖/独立 schema_version/class_tables 落地）+ kill criteria（CPK 过度设计/ThemeRegistry 滑向热插拔/主题无关性回归）
+  - 16-M3 M3 实施计划（上个 session 提交 30a2ea1d 产出，本 session 更新开放问题为已裁决）：5 Wave 分解（Wave 1 M3-2 CPK 格式化 / Wave 2 M3-1 门派核心循环★主线 / Wave 3 M3-3+M3-4 审核+版权并行 / Wave 4 M3-5 全仿真确定性评估收官）+ ADR 编号映射（ADR-0031 已通过 / ADR-0032~0034 待写）+ 依赖图 + 5 开放问题裁决（M2 独立 LLM 兼顾 Wave 2/雪山派旗舰/CLI REPL 内部验证/版权方案+1-2 示范/provenance 后置门3）+ kill criteria（5 Agent 修订量/7 项目级 18 月/8 PG 硬止损 + M3-2/1 内部）+ 时间预估 8-12 周（04 估计 6-8 月吻合）
+  - **分支修正**：上个 session 16-M3 在 feat/stage-3-m3 分支提交（30a2ea1d），本 session 初在 master 误判为"未落盘"并重写，已切换到 feat/stage-3-m3 以远端版本为基础，更新开放问题为已裁决 + 加 ADR-0031
+  - 关联 dissent 5/10/3（ADR-0031）+ dissent 1/5/7/10（16-M3 M3-1 映射）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -447,7 +453,7 @@
 
 ## Next Up
 
-**阶段 2 全部完成**（Wave 1 2.1 + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割，1598 tests 全绿）。**阶段 2 -> M3 决策检查点全部通过**。下一步 M3 单题材武侠完整可玩 demo（[04 §三 M3](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+**M3 启动前置完成**：[ADR-0031](docs/adr/ADR-0031-cpk-format-and-themeregistry-static-loading.md) 评审通过 + [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) 实施计划产出。阶段 2 全部完成（1598 tests 全绿），阶段 2 -> M3 决策检查点全部通过。**Wave 1 M3-2（CPK 格式化 + StdLib CPK 骨架）立即可启动**（按 ADR-0031 验收标准落地）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
