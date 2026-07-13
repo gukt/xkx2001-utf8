@@ -4,8 +4,8 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 4 内容生产子集完成，1724 tests 全绿，下一步子任务 5 可玩 demo 整合）
-**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
+**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 5 可玩 demo 整合完成，1733 tests 全绿，下一步子任务 4 完整内容扩展）
+**当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。**M3-1 子任务 1-5 全部完成**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 决策 1-4 + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) + [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地：拜师/练功/任务链/内容生产子集/可玩 demo 整合，1733 tests 全绿，可玩 demo 闭环打通：拜师 gongcang 剃度 -> 练功 -> darba fight_win -> 战斗 -> 死亡轮回 -> 还阳 -> samu 拜师）。下一步子任务 4 完整内容扩展（剩余 3 师傅 + 8 武学 + 3 任务链 + ~20 房间）。
 
 ## Done
 
@@ -474,6 +474,17 @@
   - **1724 tests 全绿（+32），ruff 全过**；test_theme_neutrality（门派武学走 SkillData 声明不进内核）+ test_load_test 硬门禁持续通过；cli.load_game 端到端验证（skills 注册 + 师傅 NPC 在场）
   - 关联 03 §六 技术选型（Claude API 主 -> 火山方舟，可插拔 + 符合部署环境）+ ADR-0032 决策 6（内容生产方式实施期细化）+ ADR-0004（measure_revision 修订量度量，kill criteria 5 数据源）+ ADR-0031（CPK skills.yaml 资产）
 
+- [x] **M3-1 子任务 5 可玩 demo 整合完成**（[ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地 / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 子任务 5）：
+  - **CLI 接 Engine + 自动推进**（决策 1，用户裁决）：[cli.py](engine/src/xkx/cli.py) load_game 创建 Engine 注册 HealSystem/ConditionSystem/GovernanceSystem；parse_and_run 每命令后 heartbeat tick + _auto_advance（dazuo/tuna 后推进到 busy 完成，kill 玩家死亡后推进阴间到还阳），玩家无需手动 wait（对比 wait 命令/命令内部同步推进/仅 e2e 接 tick）
+  - **world 最小消息缓冲**（决策 2）：build_world 初始化 world.pending_messages；_tell（death/governance）+ ConditionSystem.update 写缓冲；CLI _drain_pending 打印（消息系统后置 M3 的渐进最小版，非完整 WS 推送，getattr 健壮未注入测试 World）
+  - **kill 玩家死亡接入 die()**（决策 3，ADR-0032 决策 4 落地）：_handle_player_death 改调 die() 替代 S5a 简化传送；die() 进阴间（ghost + death_room + death_stage），还阳由 GovernanceSystem 推进到 stage 4 reincarnate_at；test_s5_playtest 适配验证阴间路径
+  - **ConditionSystem 跳过 death_stage**（决策 4，ADR-0029 开放问题 1 落地遗漏修复）：on_tick + update 跳过 effect_id="death_stage"，避免 _default_trigger 衰减 + next_tick 修改干扰 GovernanceSystem（阶段 2 test_governance 未暴露，因子任务 5 首次同时注册 ConditionSystem + GovernanceSystem 才触发）
+  - **内容修补**（决策 5）：darba 放 yanwu 演武场 + bai gongcang 收徒后设 pending/join_lama 让 kneel 剃度闭环可用（对照 LPC attempt_apprentice set pending）
+  - **内容平衡**（决策 6，用户裁决）：darba/samu 保持 LPC 强度不弱化，e2e 用直接设属性测完整逻辑闭环，CLI demo 体验流程不强求通关
+  - e2e 完整闭环 [test_m3_playtest.py](engine/tests/test_m3_playtest.py) 9 tests：拜师 gongcang 剃度 + dazuo/tuna max 提升 + learn 技能提升 + darba fight_win + 死亡轮回还阳 + samu 拜师 min_skills 门槛 + darba 放置
+  - **1733 tests 全绿（+9），ruff 全过**；test_theme_neutrality（cli 源码无武侠路径/门派名）+ test_load_test 硬门禁持续通过
+  - 关联 ADR-0032 决策 4（死亡整合落地）+ ADR-0029 开放问题 1（death_stage 归 GovernanceSystem 遗漏修复）+ dissent 7（call_out->Effect tick 推进）+ dissent 8（消息系统渐进最小缓冲）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -481,14 +492,15 @@
 - **xlama2 交互闭环未完成**（S4e GAP）：ask_tea 的 set_flag 茶 + accept_object 酥油的 clear_flag + 物品生成需 ask->action 机制 / clear_flag action / 物品系统（阶段 0）
 - **门状态机运行时未实装**（S3 GAP）：do_knock / call_out 定时关 / 跨房间 exits 同步（阶段 0）
 - **LPC 规格提取跳过部分**：本次 9 层覆盖核心循环约 7000 行，跳过 condition 具体类型 / 第二梯队守护进程 / 后置系统 / kungfu+d/ 内容。补充计划见 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md)（3 类分阶段补充，"实现到时才补"原则，不提前批量提取）
+- **kneel/拜师 message PronounContext 渲染未接入**（M3-1 子任务 1 GAP，子任务 5 闭环暴露）：gongcang kneel message 含 `$N`/`$n` 占位符，[kneel 命令](engine/src/xkx/runtime/commands.py)直接返回原文未过 `PronounService.render`（bai `success_message` 无占位符不受影响）。功能正确（剃度设 `class=lama` + 清 pending），占位符渲染体验打磨后置（需 PronounContext speaker=玩家/viewer=玩家/target=师傅 集成）。
 
 ## In Progress
 
-**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师 + 子任务 2 练功 + 子任务 3 任务链 + 子任务 4 内容生产子集完成**（1724 tests 全绿）。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1-5 全部完成**（1733 tests 全绿）。
 
-**当前子任务**：M3-1 子任务 4 内容生产子集已完成（[ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) 火山方舟 + deepseek-v4-flash，Langfuse 后置）。下一步子任务 5 可玩 demo 整合。
+**当前子任务**：M3-1 子任务 5 可玩 demo 整合已完成（[ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) CLI 接 Engine 自动推进 + 消息缓冲 + 死亡轮回接入 die()）。下一步子任务 4 完整内容扩展。
 
-**下一步具体动作**：子任务 5 可玩 demo 整合（CLI REPL 完整闭环：拜师 gongcang 剃度 -> 拜师 samu -> 练功 learn/practice/dazuo/tuna -> darba fight_win 任务 -> 战斗 -> 死亡轮回 -> 还阳）。子任务 4 完整内容扩展（剩余 3 师傅 ling-zhi/jinlun/jiumo + 8 武学 + 3 任务链 + ~20 房间）下一 session 推进，累积 kill criteria 5 修订量数据（当前 1 轮 37.0%）。
+**下一步具体动作**：子任务 4 完整内容扩展（剩余 3 师傅 ling-zhi/jinlun/jiumo + 8 武学 + 3 任务链 + ~20 房间），累积 kill criteria 5 修订量数据（当前 1 轮 37.0%）。可玩 demo 闭环已打通（拜师 gongcang 剃度 -> 练功 -> darba fight_win -> 战斗 -> 死亡轮回 -> 还阳 -> samu 拜师，CLI `python -m xkx.cli` 可玩）。
 
 **剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -510,7 +522,7 @@
 
 ## Next Up
 
-**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) 落地。**子任务 1 拜师 + 子任务 2 练功 + 子任务 3 任务链 + 子任务 4 内容生产子集完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition + kill_npc/reach_room/fight_win + 多步 chain + time-gate + fight 命令 + 火山方舟 LLM 内容生产管线 + SkillData CPK 加载 + 雪山派子集内容，1724 tests 全绿，kill criteria 5 首个数据点 37.0%）。**下一步子任务 5 可玩 demo 整合**（CLI REPL 完整闭环）+ 子任务 4 完整内容扩展（剩余 3 师傅 + 8 武学 + 3 任务链 + ~20 房间，下一 session）。
+**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) + [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md) + [ADR-0037](docs/adr/ADR-0037-m3-1-subtask5-playtest-demo-integration.md) 落地。**子任务 1-5 全部完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition + kill_npc/reach_room/fight_win + 多步 chain + time-gate + fight 命令 + 火山方舟 LLM 内容生产管线 + SkillData CPK 加载 + 雪山派子集内容 + CLI 接 Engine 自动推进 + 消息缓冲 + 死亡轮回接入 die()，1733 tests 全绿，可玩 demo 闭环打通，kill criteria 5 首个数据点 37.0%）。**下一步子任务 4 完整内容扩展**（剩余 3 师傅 + 8 武学 + 3 任务链 + ~20 房间，累积 kill criteria 5 修订量数据）。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）

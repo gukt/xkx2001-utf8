@@ -472,6 +472,11 @@ class ConditionHandler:
             eff = world.get(effect_eid, EffectComp)
             if eff is None or eff.next_tick > tick:
                 continue
+            # ADR-0029 开放问题 1：death_stage 归 GovernanceSystem 独立遍历
+            #（阴间 5 段剧情），ConditionSystem 跳过避免 _default_trigger 衰减
+            # duration 干扰 GovernanceSystem 推进到还阳
+            if eff.effect_id == "death_stage":
+                continue
             handler = CONDITION_HANDLERS.get(eff.effect_id, _default_trigger)
             trig = handler(world, eff, tick)
             self._merge(result, trig, effect_eid)
@@ -519,6 +524,11 @@ class ConditionSystem(System):
             eff = world.get(effect_eid, EffectComp)
             if eff is None:
                 continue
+            # ADR-0029 开放问题 1：death_stage 归 GovernanceSystem 独立遍历，
+            # ConditionSystem 不衰减 duration / 不更新 next_tick（否则 GovernanceSystem
+            # 看不到 next_tick<=tick，阴间剧情无法推进到还阳）
+            if eff.effect_id == "death_stage":
+                continue
             if effect_eid in result.completed:
                 # jail 到期衔接 governance.release_from_jail（ADR-0029 §决策 5 +
                 # 开放问题 2 裁决：jail 到期 move 由 ConditionSystem 触发）。move 出
@@ -546,6 +556,11 @@ class ConditionSystem(System):
                 storage.mark_dirty(e.target_id)
             for effect_eid in world.entities_with(EffectComp):
                 storage.mark_dirty(effect_eid)
+        # M3-1 子任务 5：收集 condition 触发消息（练功 busy 完成/毒发/苏醒等）到
+        # world 缓冲，供 CLI 自动推进时打印（消息系统后置 M3）
+        pending = getattr(world, "pending_messages", None)
+        if pending is not None:
+            pending.extend(result.messages)
 
 
 # ──────────────────────── LPC F_CONDITION 运行时函数（2.2） ────────────────────────

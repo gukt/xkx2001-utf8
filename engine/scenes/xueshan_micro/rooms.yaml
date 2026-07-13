@@ -40,6 +40,8 @@
   exits:
     south: xueshan/frontyard
     north: xueshan/zoulang
+  objects:
+    xueshan/npc/darba: 1
   outdoors: true
 - id: xueshan/zoulang
   short: 走廊

@@ -344,8 +344,9 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         messages.extend(result.messages)
         if _is_dead(world, actor_id):
             messages.append("你的眼前一黑，接著什么也不知道了....")
-            _handle_player_death(world, game, actor_id)
-            messages.append("慢慢地你终于又有了知觉....")
+            _handle_player_death(world, game, actor_id, target_eid)
+            # 还阳由 GovernanceSystem 推进 death_stage 到 stage 4 触发
+            #（reincarnate_at 恢复 + move revive_room），不在 kill 命令内完成
             break
     else:
         messages.append(f"战斗持续了{max_rounds}回合，双方暂时停手。")
@@ -365,15 +366,20 @@ def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
         prog.combat_exp += 50
 
 
-def _handle_player_death(world: World, game: Game, player_id: int) -> None:
-    """玩家死亡：传送回 spawn_room + 恢复 qi/jingli。"""
-    pos = world.get(player_id, Position)
-    if pos and game.spawn_room:
-        pos.room_id = game.spawn_room
-    vitals = world.get(player_id, Vitals)
-    if vitals:
-        vitals.qi = vitals.max_qi
-        vitals.jingli = vitals.max_jingli
+def _handle_player_death(
+    world: World, game: Game, player_id: int, killer_id: int
+) -> None:
+    """玩家死亡：调 die() 走完整死亡轮回（M3-1 ADR-0032 决策 4）。
+
+    die() 设 ghost=1 + move ``theme_config.death_room`` + enter_underworld 启动
+    death_stage EffectComp（阴间 5 段剧情，GovernanceSystem tick 推进到还阳）。
+    替代 S5a 简化版（传送 spawn_room + 恢复），接入阶段 2 死亡系统。还阳由
+    GovernanceSystem 推进 death_stage 到 stage 4 调 reincarnate_at（恢复 +
+    move revive_room），不在本函数内完成（CLI 自动推进 / e2e engine.tick）。
+    """
+    from xkx.runtime.death import die
+
+    die(world, player_id, killer_id, tick=_current_tick(game))
 
 
 def _qi_ratio(world: World, eid: int) -> int:
@@ -851,7 +857,20 @@ def bai(game: Game, actor_id: int, target_name: str) -> list[str]:
     if not ok:
         return [reject_msg]
     # 通过 -> recruit（含叛师检查）
-    return _recruit_apprentice(world, target_eid, actor_id, app_config)
+    msgs = _recruit_apprentice(world, target_eid, actor_id, app_config)
+    # gongcang 剃度闭环（M3-1 子任务 5）：收徒后若师傅有 kneel 配置，设 pending
+    # 标记让玩家可 kneel 剃度（对照 LPC attempt_apprentice 通过后 set pending/join_lama，
+    # do_kneel 检查 pending 后剃度设 class）。samu 无 kneel 配置不触发。
+    kneel_def = app_config.get("kneel") or {}
+    require_flag = kneel_def.get("require_flag", "")
+    if require_flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(require_flag)
+        msgs.append(f"你得到了{target_disp}的受戒许可，可以跪下(kneel)受戒了。")
+    return msgs
 
 
 def kneel(game: Game, actor_id: int) -> list[str]:

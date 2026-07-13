@@ -89,6 +89,9 @@ def build_world(
     world.theme_config = theme_config or ThemeConfig.default()  # type: ignore[attr-defined]
     # M3-1 ADR-0032 决策 3：当前 tick（time-gate 冷却判定时间源，Engine.tick 更新）
     world.current_tick = 0  # type: ignore[attr-defined]
+    # M3-1 子任务 5：最小消息缓冲（CLI 自动推进时收集 System/_tell 产生的消息，
+    # 完整 WS 推送后置 M3；单玩家 demo 全量打印，多实体分发后置）
+    world.pending_messages = []  # type: ignore[attr-defined]
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}

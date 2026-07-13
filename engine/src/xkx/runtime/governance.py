@@ -576,11 +576,14 @@ def _transfer_exp(
 
 
 def _tell(world: World, eid: int, msg: str) -> None:
-    """向实体输出消息（LPC tell_object，2.6 最小不推送，消息系统后置 M3）。
+    """向实体输出消息（LPC tell_object）。
 
-    对齐 death._tell：消息推送由 connection/ws_server 后置，本函数仅占位。
+    M3-1 子任务 5：最小消息缓冲--写到 ``world.pending_messages`` 供 CLI 自动推进
+    时收集（对齐 death._tell；完整 WS 推送由 connection/ws_server 后置 M3）。
     """
-    return None
+    pending = getattr(world, "pending_messages", None)
+    if pending is not None:
+        pending.append(msg)
 
 
 def _mark_dirty(world: World, eid: int) -> None:
