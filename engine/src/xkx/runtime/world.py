@@ -11,11 +11,16 @@ from xkx.combat.result import (
     KIND_CLEAR_MARK,
     KIND_DAMAGE,
     KIND_DAMAGE_JING,
+    KIND_EFF_JINGLI,
     KIND_EXP,
     KIND_HEAL,
     KIND_HEAL_JING,
     KIND_JINGLI,
+    KIND_MAX_JINGLI,
+    KIND_MAX_NEILI,
+    KIND_NEILI,
     KIND_POTENTIAL,
+    KIND_RESPIRATE,
     KIND_SKILL_IMPROVE,
     KIND_WOUND,
     KIND_WOUND_JING,
@@ -342,3 +347,22 @@ def apply_effects(world: World, effects: list[Effect]) -> None:
             skills = world.get(e.target_id, Skills)
             if skills and e.detail:
                 skills.levels[e.detail] = skills.levels.get(e.detail, 0) + 1
+        elif e.kind == KIND_NEILI and vitals:
+            # dazuo neili 增长（clamp max_neili*2，对照 LPC dazuo.c:59-62 启动钳制）
+            vitals.neili = max(0, min(vitals.max_neili * 2, vitals.neili + e.amount))
+        elif e.kind == KIND_RESPIRATE and vitals:
+            # tuna jingli 增长（clamp max_jingli*2，对照 LPC respirating 不钳制 +
+            # 结束判定 jingli>=max_jingli*2 涨上限；区别于 KIND_JINGLI clamp max_jingli）
+            vitals.jingli = max(0, min(vitals.max_jingli * 2, vitals.jingli + e.amount))
+        elif e.kind == KIND_MAX_NEILI and vitals:
+            # max_neili += amount（amount=0 瓶颈只重置）+ neili 重置为 max_neili
+            # （对照 LPC dazuo.c:98/102 set("neili", max_neili)）
+            vitals.max_neili += e.amount
+            vitals.neili = vitals.max_neili
+        elif e.kind == KIND_MAX_JINGLI and vitals:
+            # max_jingli += amount + jingli 重置（对照 LPC tuna.c:87/91 set jingli=max_jingli）
+            vitals.max_jingli += e.amount
+            vitals.jingli = vitals.max_jingli
+        elif e.kind == KIND_EFF_JINGLI and vitals:
+            # eff_jingli += amount（tuna 瓶颈增长，对照 LPC tuna.c:87 eff_jingli += 1）
+            vitals.eff_jingli += e.amount

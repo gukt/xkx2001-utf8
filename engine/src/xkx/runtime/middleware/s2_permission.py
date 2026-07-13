@@ -49,7 +49,15 @@ COMMAND_REQUIRED_CAPABILITY: dict[str, str] = {
     "give": CAP_CMD_USR,
     # cmds/skill 目录（PLAYER 开放）
     "enable": CAP_CMD_SKILL,
+    "jifa": CAP_CMD_SKILL,
     "practice": CAP_CMD_SKILL,
+    "lian": CAP_CMD_SKILL,
+    "learn": CAP_CMD_SKILL,
+    "xue": CAP_CMD_SKILL,
+    "dazuo": CAP_CMD_SKILL,
+    "exercise": CAP_CMD_SKILL,
+    "tuna": CAP_CMD_SKILL,
+    "respirate": CAP_CMD_SKILL,
     # cmds/imm 目录（IMMORTAL+）
     "goto": CAP_CMD_IMM,
     # cmds/wiz 目录（WIZARD+）

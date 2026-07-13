@@ -43,8 +43,13 @@ from xkx.combat.result import (
     KIND_CLEAR_MARK,
     KIND_DAMAGE,
     KIND_DAMAGE_JING,
+    KIND_EFF_JINGLI,
     KIND_HEAL,
     KIND_HEAL_JING,
+    KIND_MAX_JINGLI,
+    KIND_MAX_NEILI,
+    KIND_NEILI,
+    KIND_RESPIRATE,
     KIND_WOUND_JING,
     LEDGER_EFFECT,
     LEDGER_MESSAGE,
@@ -53,6 +58,7 @@ from xkx.combat.result import (
 )
 from xkx.runtime.components import Attributes, EffectComp, Vitals
 from xkx.runtime.ecs import World
+from xkx.runtime.query import query_skill
 from xkx.runtime.systems import System
 
 # LPC include/condition.h
@@ -314,6 +320,115 @@ def _jail_trigger(world: World, eff: EffectComp, tick: int) -> ConditionTriggerR
     return r
 
 
+def _exercise_trigger(world: World, eff: EffectComp, tick: int) -> ConditionTriggerResult:
+    """exercise（打坐练内力 busy，对照 cmds/skill/dazuo.c:74-105 exercising）。
+
+    dazuo 命令启动本 condition（effect_id="exercise"，duration=ceil(cost/gain) tick）。
+    每 tick：neili += 1+force/10（**有效** force raw=0），qi -= 同值（receive_damage）。
+    结束（duration<=1）判定 max_neili 提升：projected neili 达 max_neili*2 且
+    max_neili<=force*con*2/3 则 max_neili++，否则瓶颈；两种情况都重置 neili=max_neili
+    （对照 LPC set neili=max_neili）。清 pending/exercise mark。无 random。
+    """
+    r = ConditionTriggerResult(flags=CND_NO_HEAL_UP)
+    vitals = world.get(eff.target_id, Vitals)
+    if vitals is None:
+        r.new_duration = 0
+        return r
+    force_level = query_skill(world, eff.target_id, "force")  # 有效 force（dazuo.c:77）
+    neili_gain = 1 + force_level // 10
+    if neili_gain < 1:
+        neili_gain = 1
+    # 每 tick：neili += gain, qi -= gain（对照 dazuo.c:80-83）
+    r.effects.append(Effect(kind=KIND_NEILI, target_id=eff.target_id, amount=neili_gain))
+    r.effects.append(Effect(kind=KIND_DAMAGE, target_id=eff.target_id, amount=neili_gain))
+    if eff.duration <= 1:
+        # 结束：判定 max_neili 提升（对照 dazuo.c:89-104）
+        # projected neili = 当前 neili + 本 tick gain（本 tick KIND_NEILI 还未 apply）
+        projected = vitals.neili + neili_gain
+        attrs = world.get(eff.target_id, Attributes)
+        con = attrs.con_ if attrs else 20
+        threshold = force_level * con * 2 // 3  # LPC dazuo.c:94 force*con*2/3
+        if projected >= vitals.max_neili * 2:
+            if vitals.max_neili > threshold:
+                # 瓶颈：只重置 neili=max_neili，不涨（对照 dazuo.c:95-98）
+                r.messages.append("你的内力似乎到了瓶颈，再也无法提升了。")
+                r.effects.append(
+                    Effect(kind=KIND_MAX_NEILI, target_id=eff.target_id, amount=0)
+                )
+            else:
+                # 涨 max_neili + 重置（对照 dazuo.c:99-103）
+                r.messages.append("你的内力增加了！")
+                r.effects.append(
+                    Effect(kind=KIND_MAX_NEILI, target_id=eff.target_id, amount=1)
+                )
+        # 清 pending/exercise mark（对照 dazuo.c:89 set_temp("pending/exercise", 0)）
+        r.effects.append(
+            Effect(kind=KIND_CLEAR_MARK, target_id=eff.target_id, detail="pending/exercise")
+        )
+        r.new_duration = 0
+    else:
+        r.new_duration = eff.duration - 1
+    return r
+
+
+def _respirate_trigger(world: World, eff: EffectComp, tick: int) -> ConditionTriggerResult:
+    """respirate（吐纳炼精力 busy，对照 cmds/skill/tuna.c:60-93 respirating）。
+
+    tuna 命令启动本 condition（effect_id="respirate"，duration=ceil(cost/gain) tick）。
+    每 tick：jingli += 1+force/10（**原始** force raw=1，与 dazuo 有效 force 不对称），
+    jing -= 同值。结束判定 max_jingli/eff_jingli 提升：projected jingli 达 max_jingli*2
+    且 max_jingli<=force*con/2 且 eff_jingli<=force*con/2 则 eff_jingli++ & max_jingli++，
+    否则瓶颈；都重置 jingli=max_jingli。无 random。
+    """
+    r = ConditionTriggerResult(flags=CND_NO_HEAL_UP)
+    vitals = world.get(eff.target_id, Vitals)
+    if vitals is None:
+        r.new_duration = 0
+        return r
+    force_raw = query_skill(world, eff.target_id, "force", raw=True)  # 原始 force（tuna.c:63）
+    jingli_gain = 1 + force_raw // 10
+    if jingli_gain < 1:
+        jingli_gain = 1
+    # 每 tick：jingli += gain, jing -= gain（对照 tuna.c:65-68）
+    r.effects.append(
+        Effect(kind=KIND_RESPIRATE, target_id=eff.target_id, amount=jingli_gain)
+    )
+    r.effects.append(
+        Effect(kind=KIND_DAMAGE_JING, target_id=eff.target_id, amount=jingli_gain)
+    )
+    if eff.duration <= 1:
+        # 结束判定 max_jingli/eff_jingli 提升（对照 tuna.c:75-92）
+        projected = vitals.jingli + jingli_gain
+        attrs = world.get(eff.target_id, Attributes)
+        con = attrs.con_ if attrs else 20
+        force_eff = query_skill(world, eff.target_id, "force")  # 有效 force（tuna.c:80 瓶颈用）
+        threshold = force_eff * con // 2  # LPC tuna.c:80 force*con/2
+        if projected >= vitals.max_jingli * 2:
+            if vitals.max_jingli > threshold or vitals.eff_jingli > threshold:
+                # 瓶颈：只重置 jingli=max_jingli（对照 tuna.c:81-84）
+                r.messages.append("你的精力似乎到了瓶颈，再也无法提升了。")
+                r.effects.append(
+                    Effect(kind=KIND_MAX_JINGLI, target_id=eff.target_id, amount=0)
+                )
+            else:
+                # 涨 eff_jingli & max_jingli + 重置（对照 tuna.c:85-89）
+                r.messages.append("你的精力增加了！")
+                r.effects.append(
+                    Effect(kind=KIND_MAX_JINGLI, target_id=eff.target_id, amount=1)
+                )
+                r.effects.append(
+                    Effect(kind=KIND_EFF_JINGLI, target_id=eff.target_id, amount=1)
+                )
+        # 清 pending/respirate mark（对照 tuna.c:75 set_temp("pending/respirate", 0)）
+        r.effects.append(
+            Effect(kind=KIND_CLEAR_MARK, target_id=eff.target_id, detail="pending/respirate")
+        )
+        r.new_duration = 0
+    else:
+        r.new_duration = eff.duration - 1
+    return r
+
+
 # 模块加载时注册具体 condition 类型
 register_condition("poisoned", _poisoned_trigger)
 register_condition("snake_poison", _snake_poison_trigger)
@@ -326,6 +441,9 @@ register_condition("revive", _revive_trigger)
 register_condition("city_jail", _jail_trigger)
 register_condition("dali_jail", _jail_trigger)
 register_condition("bonze_jail", _jail_trigger)
+# M3-1 练功 busy condition（ADR-0032 决策 2，dazuo/tuna 启动，对照 dazuo.c/tuna.c）
+register_condition("exercise", _exercise_trigger)
+register_condition("respirate", _respirate_trigger)
 
 
 # ──────────────────────── ConditionHandler（纯函数 on_tick） ────────────────────────

@@ -17,6 +17,7 @@ Command 仅覆盖玩家外部意图；System tick 派生变更不经 Command（0
 
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from xkx.combat.context import CombatContext
@@ -31,6 +32,7 @@ from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
+    CombatState,
     FamilyComp,
     Identity,
     Inventory,
@@ -44,6 +46,7 @@ from xkx.runtime.components import (
     TitleComp,
     Vitals,
 )
+from xkx.runtime.conditions import apply_condition
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -54,6 +57,8 @@ from xkx.runtime.middleware.s5_parse_args import parse_args
 from xkx.runtime.middleware.s6_inject_context import inject_context
 from xkx.runtime.middleware.s7_execute_audit import AuditLog, execute_audit
 from xkx.runtime.privileged import PrivilegedActionLog
+from xkx.runtime.query import query_skill
+from xkx.runtime.skill import get_skill_data, improve_skill, is_busy
 from xkx.runtime.world import apply_effects, to_snapshot
 
 
@@ -733,6 +738,278 @@ def betrayer(game: Game, actor_id: int) -> list[str]:
 
 
 # ============================================================================
+# M3-1 ADR-0032 决策 2：练功命令组（learn/practice/dazuo/tuna/enable）
+# 对照 cmds/skill/learn.c / practice.c / dazuo.c / tuna.c / enable.c
+# ============================================================================
+
+# LPC enable.c:8-38 valid_types（技能种类集合）
+_VALID_SKILL_TYPES: frozenset[str] = frozenset({
+    "unarmed", "sword", "blade", "stick", "staff", "club", "force",
+    "parry", "dodge", "magic", "whip", "hammer", "kick", "hook",
+    "pike", "finger", "hand", "cuff", "claw", "strike",
+})
+
+
+def learn(
+    game: Game, actor_id: int, teacher_name: str, skill_id: str, times: int = 1
+) -> list[str]:
+    """learn|xue 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/learn.c:16-151）。
+
+    请教 NPC 学习技能。消耗 potential + jing，improve_skill(skill, gain)。
+    combat_exp 门控：martial 技能 my_skill³/10 > combat_exp 阻止提升（仍消耗 jing）。
+    gain = Σ random(int) for times 次（系统 RNG，非 combat 确定性范围）。
+
+    简化（后置）：峨嵋减速 / spouse 检查 / recognize_apprentice 付费副作用 /
+    prevent_learn 师傅侧门控后置（M3-1 雪山派无峨嵋/spouse，recognize 后置）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    if times < 1:
+        return ["你要请教几次？"]
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, teacher_name)
+    if target_eid is None:
+        return [f"这里没有「{teacher_name}」。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["临阵磨枪？来不及啦。"]
+    prog = world.get(actor_id, Progression)
+    if prog is None or prog.potential < times:
+        return ["你的潜能不够。"]
+    # 拜师/认可检查（对照 learn.c:52-56，spouse/recognize_apprentice 后置）
+    if not _is_apprentice_of(world, actor_id, target_eid):
+        return [f"你不是「{teacher_name}」的弟子，不能请教。"]
+    master_skill = query_skill(world, target_eid, skill_id, raw=True)
+    if master_skill <= 0:
+        return [f"「{teacher_name}」似乎不会这个。"]
+    my_skill = query_skill(world, actor_id, skill_id, raw=True)
+    if my_skill >= master_skill:
+        return ["你的程度已经不输师父了。"]
+    skill_data = get_skill_data(skill_id)
+    if not skill_data.valid_learn:
+        return [f"你无法学习「{skill_id}」。"]
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    # gin_cost = 150/int（对照 learn.c:95），初学加倍（learn.c:97-100）
+    gin_cost = 150 // int_val if int_val > 0 else 150
+    if not my_skill:
+        gin_cost *= 2
+    gin_cost = times * gin_cost * 3 // 2  # 玩家总消耗（learn.c:117）
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    # combat_exp 门控：martial 且 my_skill³/10 > combat_exp -> 不提升（learn.c:120-122）
+    blocked_by_exp = (
+        skill_data.skill_type == "martial"
+        and my_skill ** 3 // 10 > (prog.combat_exp if prog else 0)
+    )
+    if vitals.jing <= gin_cost:
+        # jing 不足：不提升，仍消耗剩余 jing（learn.c:143-146 + :148 无条件消耗）
+        vitals.jing = 0
+        return ["你今天太累了，什么也没学到。"]
+    # gain = Σ random(int) for times 次（learn.c:137-138，系统 RNG）
+    gain = sum(random.randint(0, max(0, int_val - 1)) for _ in range(times))
+    prog.potential -= times  # 扣潜能（learn.c:135）
+    vitals.jing -= gin_cost  # 扣 jing（learn.c:148 receive_damage）
+    msgs = [f"你向「{teacher_name}」请教了「{skill_id}」。"]
+    if blocked_by_exp:
+        msgs.append("你缺乏实战经验，无法领会这种武功。")
+        return msgs
+    if improve_skill(world, actor_id, skill_id, gain):
+        msgs.append(f"你的「{skill_id}」进步了！")
+    return msgs
+
+
+def practice(
+    game: Game, actor_id: int, skill_arg: str, times: int = 1
+) -> list[str]:
+    """practice|lian 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/practice.c:9-81）。
+
+    练习特殊技能（须先 enable）。improve_skill(skillname, skill_basic/5+1, weak_mode)。
+    weak_mode = skill_basic > skill ? 0 : 1（基础>特殊可升级，否则弱模式只攒点）。
+    无 random（amount 固定）。practice_skill 武器检查用 SkillData stub（后置内容生产）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    if not skill_arg:
+        return ["你要练什么？"]
+    if skill_arg == "parry":
+        return ["你不能通过练习招架来提高。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["你已经在战斗中了。"]
+    skills = world.get(actor_id, Skills)
+    if skills is None:
+        return ["你什么都不会。"]
+    # 必须先 enable（query_skill_mapped，对照 practice.c:49-50）
+    skillname = skills.skill_map.get(skill_arg, "")
+    if not skillname:
+        return [f"你还没有 enable 任何「{skill_arg}」方面的特殊技能。"]
+    skill_basic = skills.levels.get(skill_arg, 0)  # 基础技能原始等级
+    skill = skills.levels.get(skillname, 0)  # 特殊技能原始等级
+    if skill < 1:
+        return [f"你的「{skillname}」还不够熟练，无法练习。"]
+    if skill_basic < 1:
+        return [f"你的「{skill_arg}」基本功还不够，无法练习。"]
+    # 基础门槛：skill_basic/2 > skill/3（对照 practice.c:59-60）
+    if skill_basic // 2 <= skill // 3:
+        return ["你的基本功火候未到，无法继续练习。"]
+    skill_data = get_skill_data(skillname)
+    if not skill_data.valid_learn:
+        return [f"你无法练习「{skillname}」。"]
+    # weak_mode + amount 循环外算（对照 practice.c:69-73，循环内不重查 skill）
+    weak_mode = 0 if skill_basic > skill else 1
+    amount = skill_basic // 5 + 1
+    msgs = [f"你反复练习「{skillname}」。"]
+    for _ in range(times):
+        if not skill_data.practice_skill:
+            msgs.append("你无法继续练习了。")
+            break
+        if improve_skill(world, actor_id, skillname, amount, weak_mode=weak_mode):
+            msgs.append(f"你的「{skillname}」进步了！")
+    return msgs
+
+
+def dazuo(game: Game, actor_id: int, exercise_cost: int) -> list[str]:
+    """dazuo|exercise 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/dazuo.c:12-72）。
+
+    打坐练 neili/max_neili。须先 enable force。消耗 qi（exercise_cost），启动 busy
+    EffectComp（exercise condition），每 tick neili 增长，结束判定 max_neili 提升。
+    duration = ceil(exercise_cost / neili_gain) tick（neili_gain = 1+有效force/10）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["战斗中不能练内功，会走火入魔。"]
+    skills = world.get(actor_id, Skills)
+    if skills is None or not skills.skill_map.get("force"):
+        return ["你必须先用 enable 选择你要用的内功心法。"]
+    if exercise_cost < 10:
+        return ["你的内功还没有达到那个境界！"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if vitals.qi < exercise_cost:
+        return ["你现在的气太少了，无法产生内息运行全身经脉。"]
+    if vitals.max_jing > 0 and vitals.jing * 100 // vitals.max_jing < 70:
+        return ["你现在精不够，无法控制内息的流动！"]
+    # neili 钳制 max_neili*2（对照 dazuo.c:59-62）
+    if vitals.max_neili > 0 and vitals.neili > vitals.max_neili * 2:
+        vitals.neili = vitals.max_neili * 2
+    # duration = ceil(exercise_cost / neili_gain) tick
+    force_level = query_skill(world, actor_id, "force")  # 有效 force（dazuo.c:77）
+    neili_gain = 1 + force_level // 10
+    if neili_gain < 1:
+        neili_gain = 1
+    duration = (exercise_cost + neili_gain - 1) // neili_gain  # ceil
+    # 设 pending/exercise mark（对照 dazuo.c:66 set_temp("pending/exercise", 1)）
+    marks = world.get(actor_id, Marks)
+    if marks is None:
+        marks = Marks()
+        world.add(actor_id, marks)
+    marks.flags.add("pending/exercise")
+    apply_condition(world, actor_id, "exercise", duration, detail="force")
+    return ["你盘膝坐下，开始修炼内力，一股内息开始在体内流动。"]
+
+
+def tuna(game: Game, actor_id: int, respirate_cost: int) -> list[str]:
+    """tuna|respirate 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/tuna.c:11-58）。
+
+    吐纳炼 jingli/max_jingli/eff_jingli。消耗 jing（respirate_cost），启动 busy
+    EffectComp（respirate condition），每 tick jingli 增长，结束判定 max_jingli/
+    eff_jingli 提升。不要求 enable force（与 dazuo 不同，对照 tuna.c）。
+    jingli_gain = 1+原始force/10（与 dazuo 有效 force 不对称，tuna.c:63）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["战斗中不能吐纳，会走火入魔。"]
+    if respirate_cost < 10:
+        return ["你的内功还没有达到那个境界！"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if vitals.jing < respirate_cost:
+        return ["你现在的精太少了，无法产生精力运行全身经脉。"]
+    if vitals.max_qi > 0 and vitals.qi * 100 // vitals.max_qi < 70:
+        return ["你现在气不够，无法控制精力的流动！"]
+    # jingli 钳制 max_jingli*2（对照 tuna 启动前）
+    if vitals.max_jingli > 0 and vitals.jingli > vitals.max_jingli * 2:
+        vitals.jingli = vitals.max_jingli * 2
+    # duration = ceil(respirate_cost / jingli_gain)，gain 用原始 force（tuna.c:63）
+    force_raw = query_skill(world, actor_id, "force", raw=True)
+    jingli_gain = 1 + force_raw // 10
+    if jingli_gain < 1:
+        jingli_gain = 1
+    duration = (respirate_cost + jingli_gain - 1) // jingli_gain
+    marks = world.get(actor_id, Marks)
+    if marks is None:
+        marks = Marks()
+        world.add(actor_id, marks)
+    marks.flags.add("pending/respirate")
+    apply_condition(world, actor_id, "respirate", duration, detail="force")
+    return ["你盘膝坐下，开始吐故纳新，一股精力开始在体内流动。"]
+
+
+def enable(
+    game: Game, actor_id: int, skill_type: str = "", map_to: str = ""
+) -> list[str]:
+    """enable|jifa 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/enable.c:40-128）。
+
+    无参：列当前 skill_map。``<type> <map_to>``：设置映射。map_to=="none" 取消。
+    切换 force 清 neili（对照 enable.c:116-119）。valid_enable 用 SkillData stub。
+    """
+    world = game.world
+    skills = world.get(actor_id, Skills)
+    if skills is None:
+        return ["你什么技能都不会。"]
+    if not skill_type:
+        # 无参：列 skill_map（对照 enable.c:48-69）
+        msgs = ["你目前启用以下特殊技能："]
+        has = False
+        for st in _VALID_SKILL_TYPES:
+            mapped = skills.skill_map.get(st)
+            if mapped:
+                eff = query_skill(world, actor_id, st)
+                msgs.append(f"  {st}（有效等级 {eff}）：{mapped}")
+                has = True
+        if not has:
+            msgs.append("  （暂无）")
+        return msgs
+    if skill_type not in _VALID_SKILL_TYPES:
+        return [f"「{skill_type}」不是有效的技能种类。"]
+    if not map_to:
+        return ["指令格式：enable <技能种类> <技能名称>（如 enable sword 雪山剑法）"]
+    if map_to == "none":
+        skills.skill_map.pop(skill_type, None)
+        return ["好吧，你以后只用基本功夫了。"]
+    if map_to == skill_type:
+        return [f"「{map_to}」是基础技能，不需要 enable。"]
+    # 须会该特殊技能（raw 等级 > 0，对照 enable.c:96-97）
+    if skills.levels.get(map_to, 0) <= 0:
+        return [f"你不会「{map_to}」这种技能。"]
+    # valid_enable 检查（SkillData stub，对照 enable.c:103-104；空列表=不限制）
+    skill_data = get_skill_data(map_to)
+    if skill_data.valid_enable and skill_type not in skill_data.valid_enable:
+        return [f"「{map_to}」不能作为「{skill_type}」方面的特殊技能。"]
+    skills.skill_map[skill_type] = map_to
+    # 切换 force 清 neili（对照 enable.c:116-119）
+    if skill_type == "force":
+        vitals = world.get(actor_id, Vitals)
+        if vitals:
+            vitals.neili = 0
+    return [f"你从现在起用「{map_to}」作为「{skill_type}」方面的特殊技能。"]
+
+
+# ============================================================================
 # 阶段 1 Wave 2 T4：8 段中间件管线集成（ADR-0020）
 # ============================================================================
 
@@ -839,6 +1116,68 @@ def _adapter_betrayer(game: Game, ctx: ActionContext) -> list[str]:
     return betrayer(game, ctx.actor)
 
 
+def _adapter_learn(game: Game, ctx: ActionContext) -> list[str]:
+    """learn|xue 命令适配器：learn <师傅> <技能> [次数]。"""
+    args = ctx.raw_args.strip().split()
+    if len(args) < 2:
+        return ["指令格式：learn|xue <师傅> <技能> [次数]"]
+    times = 1
+    if len(args) >= 3:
+        try:
+            times = int(args[2])
+        except ValueError:
+            return ["请教次数必须是数字。"]
+    return learn(game, ctx.actor, args[0], args[1], times)
+
+
+def _adapter_practice(game: Game, ctx: ActionContext) -> list[str]:
+    """practice|lian 命令适配器：practice <技能> [次数]。"""
+    args = ctx.raw_args.strip().split()
+    if not args or not args[0]:
+        return ["指令格式：practice|lian <技能> [次数]"]
+    times = 1
+    if len(args) >= 2:
+        try:
+            times = int(args[1])
+        except ValueError:
+            return ["练习次数必须是数字。"]
+    return practice(game, ctx.actor, args[0], times)
+
+
+def _adapter_dazuo(game: Game, ctx: ActionContext) -> list[str]:
+    """dazuo|exercise 命令适配器：dazuo <气量>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要花多少气练功？（如：dazuo 100）"]
+    try:
+        cost = int(raw)
+    except ValueError:
+        return ["你要花多少气练功？"]
+    return dazuo(game, ctx.actor, cost)
+
+
+def _adapter_tuna(game: Game, ctx: ActionContext) -> list[str]:
+    """tuna|respirate 命令适配器：tuna <精量>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要花多少精练功？（如：tuna 100）"]
+    try:
+        cost = int(raw)
+    except ValueError:
+        return ["你要花多少精练功？"]
+    return tuna(game, ctx.actor, cost)
+
+
+def _adapter_enable(game: Game, ctx: ActionContext) -> list[str]:
+    """enable|jifa 命令适配器：enable [种类] [技能名]。"""
+    args = ctx.raw_args.strip().split()
+    if not args or not args[0]:
+        return enable(game, ctx.actor)  # 无参：列 skill_map
+    if len(args) == 1:
+        return enable(game, ctx.actor, args[0])
+    return enable(game, ctx.actor, args[0], args[1])
+
+
 # 命令注册表：verb -> adapter (game, ctx) -> list[str]
 # 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
 COMMAND_REGISTRY: dict[str, Any] = {
@@ -856,6 +1195,16 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "kneel": _adapter_kneel,
     "recruit": _adapter_recruit,
     "betrayer": _adapter_betrayer,
+    "learn": _adapter_learn,
+    "xue": _adapter_learn,
+    "practice": _adapter_practice,
+    "lian": _adapter_practice,
+    "dazuo": _adapter_dazuo,
+    "exercise": _adapter_dazuo,
+    "tuna": _adapter_tuna,
+    "respirate": _adapter_tuna,
+    "enable": _adapter_enable,
+    "jifa": _adapter_enable,
 }
 
 

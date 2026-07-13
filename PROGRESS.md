@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 
 **最后更新**：2026-07-13
-**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 1 拜师机制完成，1651 tests 全绿，下一步练功机制）
+**当前阶段**：M3 Wave 2 进行中（M3-1 门派核心循环：子任务 2 练功机制完成，1680 tests 全绿，下一步任务链扩展）
 **当前状态**：阶段 1 全部完成并合并 master（merge `bffce2c3`，T1-T10，1035 tests，kill criteria 3 GO）。阶段 2 实施计划文档已产出（[15](docs/xkx-arch/15-阶段2-子系统实施计划.md)）。当前在 master 分支（阶段 2 已合并 master，merge `fee5dd25`）。**阶段 2 全部完成**（Wave 1 2.1 Query + Wave 2 2.2/2.3/2.5/2.6 + Wave 3 2.4 Combat + Wave 4 2.7 门派切割）。**Wave 4 2.7 门派切割完成**（[ADR-0030](docs/adr/ADR-0030-family-content-pack-boundary-race-extraction.md) 落地：RaceProfile + FamilyBonus 声明式载体（race 层剥离，setup_race 纯函数 + apply_family_bonuses 分发不认识门派名）+ ThemeConfig 房间路径外提（governance/death/cli 改读 world.theme_config，源码无武侠房间路径字面量）+ test_theme_neutrality 扩展收官硬门禁（扫描 governance/death/cli/race/family 无门派名+武侠路径，dbase key 兼容层保真让步豁免）+ 非武侠微场景验证（海盗帮派 FamilyBonus + 武当派标准加成）+ Vitals 补 eff_jingli（2.2 遗漏）+ spec 层 layer_h_race.py（setup_race + apply_family_bonuses 最小契约），1598 tests 全绿，关联 dissent 1/5/10）。**阶段 2 -> M3 决策检查点全部通过**（门派内容包边界干净切割 ✅）。下一步 M3 单题材武侠完整可玩 demo。
 
 ## Done
@@ -439,6 +439,18 @@
   - **1651 tests 全绿（+23），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
   - 关联 dissent 6（attempt_apprentice 钩子 + recruit PrivilegedAction）+ dissent 5（拜师题材内容走声明式配置）+ dissent 10（1 门派完整 + 全量后置）
 
+- [x] **M3-1 练功机制完成**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 决策 2 落地 / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 子任务 2）：
+  - [skill.py](engine/src/xkx/runtime/skill.py) 新建：improve_skill 运行时函数（对照 skill.c:149-182，`learned > (lvl+1)²` 严格大于升级 + 升级清零溢出丢失 + 多技能惩罚 >30 种类整除衰减 + amount 下限 1 + weak_mode 只攒点不升级 + 仅玩家生效 `!userp`）+ is_busy helper（BUSY_CONDITIONS={exercise,respirate}，命令内检查不改 s2 签名，2026-07-13 实施期裁决对照 bai.c:15）+ get_skill_data stub（注册表后置内容生产，默认实例全允许）
+  - 5 练功命令（[commands.py](engine/src/xkx/runtime/commands.py)）：learn（请教消耗 potential+jing，gain=Σrandom(int) 系统_rng，combat_exp 门控 martial `my_skill³/10>exp` 阻止提升仍消耗 jing）/ practice（须先 enable，`skill_basic/2>skill/3` 门槛，improve_skill(`skill_basic/5+1`, weak_mode=`skill_basic>skill?0:1`)）/ dazuo（须 enable force，启动 exercise busy，每 tick `neili+=1+有效force/10` + qi 消耗，结束 max_neili 瓶颈判定 `force*con*2/3`）/ tuna（启动 respirate busy，每 tick `jingli+=1+原始force/10` + jing 消耗，结束 max_jingli/eff_jingli 瓶颈 `force*con/2`，不要求 enable force）/ enable（无参列表/设映射/none 取消/切换 force 清 neili）
+  - busy condition（[conditions.py](engine/src/xkx/runtime/conditions.py) _exercise_trigger/_respirate_trigger）：EffectComp effect_id=exercise/respirate，handler 纯函数产出 Effect（ADR-0018 契约），duration=ceil(cost/gain) tick，per-tick neili/jingli 增长 + qi/jing 消耗，结束 projected 达 max*2 判定涨/瓶颈 + KIND_CLEAR_MARK 清 pending mark + CND_NO_HEAL_UP（打坐/吐纳禁自然恢复）
+  - 5 新 Effect kind（[result.py](engine/src/xkx/combat/result.py)）：KIND_NEILI（neili clamp max_neili*2）/ KIND_RESPIRATE（jingli clamp max_jingli*2，区别于 KIND_JINGLI clamp max_jingli）/ KIND_MAX_NEILI（max_neili+=amount + neili 重置为 max，amount=0 瓶颈只重置）/ KIND_MAX_JINGLI / KIND_EFF_JINGLI；[world.py](engine/src/xkx/runtime/world.py) apply_effects 处理
+  - [context.py](engine/src/xkx/combat/context.py) SkillData 加最小 stub（skill_type/valid_learn/practice_skill/valid_enable，对照 LPC SKILL_D(skill)->method() 简化为声明式布尔，正式武学数据后置内容生产子任务 ADR-0032 决策 5）
+  - [s2_permission.py](engine/src/xkx/runtime/middleware/s2_permission.py) 补 learn/xue/dazuo/exercise/tuna/respirate/jifa/lian -> CAP_CMD_SKILL（practice/enable 已在，PLAYER 默认含 cmd.skill）
+  - 行为等价对照 LPC：dazuo 有效 force（query_skill raw=0）vs tuna 原始 force（raw=1）不对称（dazuo.c:77 vs tuna.c:63）/ max_neili 瓶颈 `force*con*2/3` vs max_jingli/eff_jingli `force*con/2` / learn gain=Σrandom(int) 系统_rng（非 combat 确定性范围，CLAUDE.md 不变量）/ practice weak_mode=`skill_basic>skill?0:1`（基础>特殊可升级否则弱模式，practice.c:71）/ enable valid_types 20 种 + valid_enable stub
+  - 测试 [test_skill_practice.py](engine/tests/test_skill_practice.py) 29 tests（improve_skill 阈值/weak_mode/非玩家/多技能惩罚 + learn 成功升级/busy阻止/非弟子/combat_exp门控 + practice 须enable/门槛/weak_mode/升级 + dazuo 须enable/cost过低/启动busy/per-tick neili增长/max_neili涨/瓶颈不涨 + tuna per-tick jingli增长/max_jingli涨 + enable 映射/未知技能/force清neili/none取消/无效种类/列表 + busy 阻止所有练功命令 + BUSY_CONDITIONS + get_skill_data stub）
+  - **1680 tests 全绿（+29），ruff 全过**；test_theme_neutrality + test_load_test 硬门禁持续通过
+  - 关联 dissent 7（call_out->EffectComp busy condition 翻译，复用 ADR-0027 模式）+ dissent 1（CombatKernel 主题无关，门派武学走 SkillData 声明不进内核）+ dissent 5（练功题材内容走 SkillData stub）+ dissent 10（练功机制新引擎能力 + 全量后置）
+
 ## 已知技术债（后置，不阻塞阶段 0）
 
 - **CLI 命令解析缺陷**：`cli.py` 用 `line.strip().split()` 解析，NPC/物品名含空格时拆错（如"小 喇嘛"）。需改用引号感知的 tokenizer 或 LPC 风格的 `parse_command`（阶段 0 命令管线 8 段中间件时一并处理）
@@ -449,11 +461,11 @@
 
 ## In Progress
 
-**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师机制完成**（1651 tests 全绿）。
+**M3-1 门派核心循环**（[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) / [16-M3](docs/xkx-arch/16-M3-单题材武侠可玩demo实施计划.md) Wave 2 主线）。**子任务 1 拜师机制 + 子任务 2 练功机制完成**（1680 tests 全绿）。
 
-**当前子任务**：M3-1 子任务 2 练功机制（improve_skill + learn/practice/dazuo/tuna/enable 命令 + busy condition，ADR-0032 决策 2）。
+**当前子任务**：M3-1 子任务 3 任务链扩展（QuestObjective kill_npc/reach_room/fight_win + 多步 chain + time-gate，ADR-0032 决策 3）。
 
-**下一步具体动作**：实现 improve_skill 运行时函数（runtime/skill.py，对照 skill.c:149 learned > (lvl+1)²: lvl++）+ 5 练功命令（learn/practice/dazuo/tuna/enable）+ busy condition（EffectComp kind="busy" 复用 ADR-0027 call_out 翻译）。**busy 检查位置已裁决**（2026-07-13 用户"按倾向"）：命令内部 is_busy helper（不改 s2 签名，与 LPC bai.c:15 一致，实施期细化 ADR-0032 决策 2，同类于 attempt_apprentice 条件模型细化）。s2_permission 补 learn/dazuo/tuna（CAP_CMD_SKILL，practice/enable 已在）。SkillData 载体用最小 stub，正式数据后置内容生产子任务（ADR-0032 决策 2）。
+**下一步具体动作**：扩展 QuestObjective.kind（[layer0.py](engine/src/xkx/dsl/layer0.py)，give_item S4 已有 + kill_npc/reach_room/fight_win，对照 ADR-0007 S4 后置项补全）+ QuestDef.objectives 单 objective 扩为 list 多步 chain（QuestLog.current_step 跟踪当前步骤，全完成才 reward）+ QuestReward.time_gate 字段（mud_age 间隔，对照 jiamu lama_wage 工资，复用 Condition tick ADR-0018 判时间门控）+ 命令衔接（kill 击杀 NPC 触发 kill_npc objective / go 移动触发 reach_room / fight_win 打赢设标记解锁，对照 darba.c:118 chat 设 jlfw）。任务数据 YAML 后置内容生产子任务（ADR-0032 决策 3）。
 
 **剩余可选任务**（非 M3 前置，可穿插）：
 - 任务 6：抽样校准实验（68771 调用点抽 50-100 个实测工时）-- 为工时承诺提供数据支撑，可后置
@@ -475,7 +487,7 @@
 
 ## Next Up
 
-**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 落地。**子任务 1 拜师机制完成**（FamilyComp + bai/kneel/recruit/betrayer + attempt_apprentice 声明式条件，1651 tests 全绿）。**下一步子任务 2 练功机制**（improve_skill + learn/practice/dazuo/tuna/enable + busy condition，ADR-0032 决策 2）-> 子任务 3 任务链扩展 -> 子任务 4 内容生产（独立 LLM + Langfuse）-> 子任务 5 可玩 demo 整合。
+**M3-1 Wave 2 进行中**：[ADR-0032](docs/adr/ADR-0032-family-core-loop-design.md) 落地。**子任务 1 拜师机制 + 子任务 2 练功机制完成**（FamilyComp + bai/kneel/recruit/betrayer + improve_skill + learn/practice/dazuo/tuna/enable + busy condition，1680 tests 全绿）。**下一步子任务 3 任务链扩展**（kill_npc/reach_room/fight_win + 多步 chain + time-gate，ADR-0032 决策 3）-> 子任务 4 内容生产（独立 LLM + Langfuse）-> 子任务 5 可玩 demo 整合。
 
 **阶段 1 -> 2 决策检查点**（04 §八，全通过）：
 - [x] 单进程 asyncio 核心循环跑通？（T1-T9 ✅）
