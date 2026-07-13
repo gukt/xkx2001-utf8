@@ -63,3 +63,4 @@
 - 开工第一件事：读 [PROGRESS.md](PROGRESS.md)（做到哪）+ 本文件（怎么干）+ [04](docs/xkx-arch/04-迁移路径与避坑清单.md) 当前阶段（kill criteria）。
 - 收工前：更新 [PROGRESS.md](PROGRESS.md) 的 Done / In Progress / Blocked / Next Up + 日期。
 - 长任务跨 session：在 PROGRESS.md 的 In Progress 写清"当前子任务 + 卡在哪 + 下一步具体动作"。
+- **PROGRESS.md 体量纪律**（token 经济学）：Done 单条 ≤2 行（摘要 + ADR 链接 + tests 数），细节进 ADR 不重复。每开新阶段把 Done 归档到 [docs/progress-archive/](docs/progress-archive/) `stage-N-done.md`，主文件只留当前阶段滚动窗口 + 活状态（In Progress/Blocked/Next Up/kill criteria）。目标主文件 < 8KB。
