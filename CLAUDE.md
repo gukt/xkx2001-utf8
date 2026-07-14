@@ -65,3 +65,6 @@
 - 收工前：更新 [PROGRESS.md](PROGRESS.md) 的 Done / In Progress / Blocked / Next Up + 日期。
 - 长任务跨 session：在 PROGRESS.md 的 In Progress 写清"当前子任务 + 卡在哪 + 下一步具体动作"。
 - **PROGRESS.md 体量纪律**（token 经济学）：Done 单条 ≤2 行（摘要 + ADR 链接 + tests 数），细节进 ADR 不重复。每开新阶段把 Done 归档到 [docs/progress-archive/](docs/progress-archive/) `stage-N-done.md`，主文件只留当前阶段滚动窗口 + 活状态（In Progress/Blocked/Next Up/kill criteria）。目标主文件 < 8KB。
+
+## 其他注意事项
+- 根目录下是侠客行源码，engine 下是新引擎。所以当你要执行命令时要注意区分到底是在 engine 目录下还是根目录下。这个要牢记，我看到你反复把执行命令的路径层级搞错了。

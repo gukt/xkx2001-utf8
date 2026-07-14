@@ -108,6 +108,10 @@ golden-diff *args:
 gen-rooms *args:
     cd engine && uv run python tools/content_gen/generate_rooms_v0.py "$@"
 
+# 调用点枚举统计（阶段 0 任务 6 抽样校准，ADR-0046）：just scan
+scan *args:
+    cd engine && uv run python -m tools.sampling.scan_callothers "$@"
+
 # ── 逃生口 / 杂项 ───────────────────────────────────────
 
 # 在 engine venv 跑任意 python：just py -c "import xkx; print(xkx.__file__)"
