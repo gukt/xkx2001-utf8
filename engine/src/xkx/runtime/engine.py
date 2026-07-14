@@ -206,6 +206,13 @@ class CombatBridge(System):
             effects = CombatSystem.flatten_effects(result)
             apply_effects(world, effects)
 
+        # ADR-0039：战斗消息走 System 缓冲（pending_messages），不再留在 Command 内
+        # （战斗派生变更经 System tick，消息经 System 缓冲，对齐 LPC heart_beat）
+        pending = getattr(world, "pending_messages", None)
+        if pending is not None:
+            for result in results:
+                pending.extend(CombatSystem.flatten_messages(result))
+
         # ADR-0022 §4：mutation 后 mark_dirty 供 StorageSystem 周期 persist
         # （整合遗留：System mutation 路径显式标记，不依赖 setattr 拦截）
         storage = getattr(world, "storage_system", None)

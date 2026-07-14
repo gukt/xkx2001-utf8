@@ -18,6 +18,7 @@ from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import (
     Game,
     ask,
+    drop,
     give,
     go,
     hp,
@@ -68,6 +69,18 @@ def _game(
         spawn_room=spawn_room,
         item_registry=item_registry,
     )
+    # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
+    from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.engine import CombatBridge, Engine
+    from xkx.runtime.governance import GovernanceSystem
+    from xkx.runtime.heal import HealSystem
+
+    engine = Engine(world)
+    engine.add_system(CombatBridge())
+    engine.add_system(HealSystem())
+    engine.add_system(ConditionSystem())
+    engine.add_system(GovernanceSystem())
+    game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 
 
@@ -99,6 +112,20 @@ def test_take_picks_up_room_item() -> None:
     from xkx.runtime.components import RoomComp
 
     assert "suyou_guan" not in game.world.get(room_eid, RoomComp).items
+
+
+def test_drop_returns_item_to_room() -> None:
+    """drop 命令（C2）：从玩家物品栏丢物品到房间地面（take 的反向）。"""
+    game, pid = _game(start_room="xueshan/dshanlu")
+    take(game, pid, "suyou_guan")  # 先拾取
+    assert "suyou_guan" in game.world.get(pid, Inventory).items
+    msgs = drop(game, pid, "suyou_guan")
+    assert any("丢下" in m for m in msgs)
+    assert "suyou_guan" not in game.world.get(pid, Inventory).items
+    from xkx.runtime.components import RoomComp
+
+    room_eid = game.room_entities["xueshan/dshanlu"]
+    assert "suyou_guan" in game.world.get(room_eid, RoomComp).items
 
 
 def test_take_by_chinese_name() -> None:
@@ -171,10 +198,11 @@ def test_go_auto_look() -> None:
 
 
 def test_kill_multi_round_npc_death() -> None:
-    """多回合战斗打死弱 NPC -> NPC 从房间移除 + 玩家加经验。"""
+    """多回合战斗打死弱 NPC -> NPC 从房间移除 + 玩家加经验（ADR-0039 CombatBridge 驱动）。"""
     game, pid = _game()
     weak = _spawn_weak_npc(game, "xueshan/shanmen", "木桩", max_qi=1)
     before_exp = game.world.get(pid, Progression).combat_exp
+    # ADR-0039：kill 内 _run_combat 推进战斗（CombatBridge 驱动，对齐 LPC heart_beat）
     msgs = kill(game, pid, "木桩")
     assert any("死了" in m for m in msgs)
     assert game.world.get(weak, Position) is None
@@ -193,6 +221,7 @@ def test_kill_player_death_respawn() -> None:
 
     game, pid = _game(spawn_room="xueshan/shanmen")
     game.world.get(pid, Vitals).qi = 1
+    # ADR-0039：kill 内 _run_combat 推进战斗（玩家 qi=1 被打死）
     msgs = kill(game, pid, "葛伦布")
     assert any("眼前一黑" in m for m in msgs)
     # die() 进阴间：ghost 标记 + move death_room（default theme = test/death）
@@ -209,7 +238,7 @@ def test_kill_player_death_respawn() -> None:
 
 
 def test_kill_deterministic_multi_round() -> None:
-    """多回合战斗确定性：同 seed 同结果。"""
+    """战斗确定性（ADR-0039）：同 seed 同 kill 结果（CombatBridge 驱动）。"""
     g1, p1 = _game(seed_base=42)
     g2, p2 = _game(seed_base=42)
     assert kill(g1, p1, "葛伦布") == kill(g2, p2, "葛伦布")
@@ -261,6 +290,17 @@ def test_cli_parse_look() -> None:
     game, pid = load_game()
     assert parse_and_run(game, pid, "look") is True
     assert parse_and_run(game, pid, "l") is True
+
+
+def test_cli_parse_quoted_name(capsys) -> None:
+    """parse_and_run 引号感知分词（C1）：含空格名用引号引用作为单参数传递。"""
+    game, pid = load_game()
+    # 引号引用含空格名 -> 作为单个参数（NPC 不存在则提示「这里没有「小 喇嘛」」）
+    assert parse_and_run(game, pid, 'kill "小 喇嘛"') is True
+    out = capsys.readouterr().out
+    assert "小 喇嘛" in out  # 引号内名完整传递（非拆成"小"+"喇嘛"）
+    # 引号不匹配时 fallback 到简单 split 不崩溃
+    assert parse_and_run(game, pid, 'kill "小 喇嘛') is True
 
 
 def test_cli_parse_unknown() -> None:

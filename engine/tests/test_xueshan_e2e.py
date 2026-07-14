@@ -41,7 +41,20 @@ def _game(
     ir = compile_scene(rooms, npcs, quests)
     world, room_idx, quest_idx = build_world(ir)
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
-    return Game(world, room_idx, rules, quests=quest_idx, seed_base=seed_base), pid
+    game = Game(world, room_idx, rules, quests=quest_idx, seed_base=seed_base)
+    # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
+    from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.engine import CombatBridge, Engine
+    from xkx.runtime.governance import GovernanceSystem
+    from xkx.runtime.heal import HealSystem
+
+    engine = Engine(world)
+    engine.add_system(CombatBridge())
+    engine.add_system(HealSystem())
+    engine.add_system(ConditionSystem())
+    engine.add_system(GovernanceSystem())
+    game.engine = engine  # type: ignore[attr-defined]
+    return game, pid
 
 
 def _gelun_eid(game: Game) -> int:

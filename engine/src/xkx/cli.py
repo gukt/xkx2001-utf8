@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -22,8 +23,10 @@ from xkx.runtime.commands import (
     bai,
     betrayer,
     dazuo,
+    drop,
     enable,
     fight,
+    flee,
     give,
     go,
     hp,
@@ -98,7 +101,7 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
         scene: CPK 目录名（``scenes/`` 下，默认武侠旗舰微场景）。
     """
     from xkx.runtime.conditions import ConditionSystem
-    from xkx.runtime.engine import Engine
+    from xkx.runtime.engine import CombatBridge, Engine
     from xkx.runtime.governance import GovernanceSystem
     from xkx.runtime.heal import HealSystem
     from xkx.runtime.skill import register_skill_defs
@@ -123,7 +126,9 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
         item_registry=item_registry,
     )
     # M3-1 子任务 5：接入 Engine tick 推进（练功 busy + 阴间还阳 + 自然恢复）
+    # ADR-0039：CombatBridge 驱动战斗 tick（kill/fight 建立 CombatState 后由其推进）
     engine = Engine(world)
+    engine.add_system(CombatBridge())
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
@@ -163,11 +168,12 @@ def _advance_heartbeat(game: Game) -> None:
 
 
 def _auto_advance(game: Game, pid: int) -> None:
-    """命令后自动推进 tick：练功 busy 完成 + 阴间还阳。
+    """命令后自动推进 tick：练功 busy + 阴间还阳。
 
-    检测玩家身上的 exercise/respirate/death_stage EffectComp，循环 tick 直到
-    这些 EffectComp 移除（练功完成 / 还阳），打印过程中产生的消息。M3-1 子任务 5：
-    让打坐/吐纳/死亡轮回在 CLI 流畅完成，玩家无需手动 wait。
+    M3-1 子任务 5：检测玩家身上的 exercise/respirate/death_stage EffectComp，循环
+    tick 直到移除（练功完成 / 还阳）。ADR-0039：战斗由 kill/fight 命令内的
+    ``_run_combat`` 推进完（CombatBridge 驱动），本函数只处理战斗后的死亡轮回
+    （玩家死 die() 启动 death_stage -> 自动推进到还阳）+ 练功 busy。
     """
     from xkx.runtime.components import EffectComp
 
@@ -193,8 +199,15 @@ def _auto_advance(game: Game, pid: int) -> None:
 
 
 def parse_and_run(game: Game, pid: int, line: str) -> bool:
-    """解析并执行一行输入，返回 False 表示退出。"""
-    parts = line.strip().split()
+    """解析并执行一行输入，返回 False 表示退出。
+
+    引号感知分词（C1）：``kill "小 喇嘛"`` -> ``["kill", "小 喇嘛"]``，支持含空格的
+    NPC/物品名。无引号时等价空格分词；引号不匹配时 fallback 到简单 split。
+    """
+    try:
+        parts = shlex.split(line)
+    except ValueError:
+        parts = line.strip().split()
     if not parts:
         return True
     cmd, args = parts[0], parts[1:]
@@ -231,20 +244,30 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
             return True
         _print(take(game, pid, " ".join(args)))
         return True
+    if cmd == "drop":
+        if not args:
+            print("要丢弃什么？如：drop suyou_guan")
+            return True
+        _print(drop(game, pid, " ".join(args)))
+        _advance_heartbeat(game)
+        return True
     if cmd == "kill":
         if not args:
             print("要攻击谁？如：kill 葛伦布")
             return True
-        _print_combat(kill(game, pid, " ".join(args)))
-        _advance_heartbeat(game)
-        # 玩家死亡 die() 启动 death_stage -> 自动推进到还阳
+        _print(kill(game, pid, " ".join(args)))
+        # ADR-0039：战斗 + 死亡轮回由 _auto_advance 推进（CombatBridge tick 驱动）
         _auto_advance(game, pid)
         return True
     if cmd == "fight":
         if not args:
             print("要和谁切磋？如：fight 达尔巴")
             return True
-        _print_combat(fight(game, pid, " ".join(args)))
+        _print(fight(game, pid, " ".join(args)))
+        _auto_advance(game, pid)
+        return True
+    if cmd == "flee":
+        _print(flee(game, pid))
         _advance_heartbeat(game)
         return True
     if cmd == "ask":

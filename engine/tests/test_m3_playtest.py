@@ -41,7 +41,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import ConditionSystem
-from xkx.runtime.engine import Engine
+from xkx.runtime.engine import CombatBridge, Engine
 from xkx.runtime.governance import GovernanceSystem
 from xkx.runtime.heal import HealSystem
 from xkx.runtime.skill import register_skill_defs
@@ -77,9 +77,11 @@ def _game(
         item_registry=item_registry,
     )
     engine = Engine(world)
+    engine.add_system(CombatBridge())
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
+    game.engine = engine  # type: ignore[attr-defined]
     return game, pid, engine
 
 
