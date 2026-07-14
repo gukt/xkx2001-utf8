@@ -11,8 +11,8 @@
 - **阶段**：M3 收官后技术债补缺口第 3 轮完成 + CLI 试玩三 bug 修复（合并自 worktree-fix-combat-death-respawn）
 - **分支**：feat/stage-3-techdebt-r3
 - **tests**：1799 全绿，ruff 全过
-- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）
-- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；抽样校准阶段 A 完成（[ADR-0046](docs/adr/ADR-0046-sampling-calibration-methodology.md)，59270 调用点），阶段 B 待裁决；B-2/C5 残留后置
+- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）
+- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；抽样校准阶段 B 设计定稿完成（[ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)，greenfield 工时语义，待迁移面 17.6%），实测执行留后续；B-2/C5 残留后置
 - **工具链**：仓库根新增 [justfile](justfile) task runner（24 recipe 自带 `cd engine && uv run`，agent 在仓库根 `just <recipe>` 即可，`just --list` 自举）；CLAUDE.md/本文件命令行已同步改 `uv run`。ruff format 有 85 文件历史漂移，可单独 `just format` 全量格式化。
 - **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock 门；战斗逐条节奏输出 + 死亡还阳闭环 + learn 链可测）+ `python -m xkx.content_review` 审核 pipeline
 
@@ -29,6 +29,7 @@
 - [x] 技术债补缺口第 3 轮（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）- C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀，非门派世仇) - 1795 tests
 - [x] CLI 试玩三 bug 修复（合并 worktree-fix-combat-death-respawn）- 战斗节奏（`_print_paced` 接入 kill/fight + 死亡对话逐条停顿）/ 死亡还阳 `KeyError: city/wumiao`（rooms.yaml 内置 death/gate+city/wumiao + commands.py 4 处 `room_entities[...]` 改 `.get()` 防御）/ demo 潜能（`load_game` 给 potential=100+force=30 测通 learn 链；help 澄清 `practice <技能种类>`）+4 回归测试 - 1799 tests
 - [x] 抽样校准实验阶段 A（[ADR-0046](docs/adr/ADR-0046-sampling-calibration-methodology.md)）- 59270 调用点枚举（对账粗略 68771）+ 分布（dbase 56%/d+kungfu 82%）+ 抽样方案 80 样本 + 迁移单位建议（函数级）- 1799 tests
+- [x] 抽样校准实验阶段 B 设计定稿（[ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)）- 函数级分布（7991 函数）+ greenfield 工时语义（已实现 82.4%/待迁移 17.6%=10422 调用点/1159 函数）+ 修正抽样面 + 80 样本候选清单 + 实测方法论定稿 - 1799 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
@@ -47,7 +48,7 @@
 
 **可穿插推进**（非主线前置，待主线方向确认后启动）：
 
-- 任务 6 抽样校准实验：**阶段 A 完成**（[ADR-0046](docs/adr/ADR-0046-sampling-calibration-methodology.md) / [报告](engine/tools/sampling/report.md)），59270 调用点枚举 + 分布统计 + 抽样方案 + 迁移单位建议（函数级）。**阶段 B 待裁决**（迁移单位确认 + 80 样本手工实测工时）
+- 任务 6 抽样校准实验：**阶段 B 设计定稿完成**（[ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md) / [报告 §十](engine/tools/sampling/report.md)），函数级分布 + greenfield 工时语义（已实现 82.4%/待迁移 17.6%）+ 80 样本候选清单 + 实测方法论定稿。**实测执行留后续**（基于 [sample_candidates.json](engine/tools/sampling/output/sample_candidates.json) 80 候选）
 - golden trace 定点辅助（driver PID 22753 运行中）-- do_attack 七步基线已录制，扩展绑定 2.4（当前过早）
 
 ## Blocked

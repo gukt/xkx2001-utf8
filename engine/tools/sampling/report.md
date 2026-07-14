@@ -134,8 +134,86 @@ top 文件集中在 NPC（d/dali/npc、d/taohua/npc、clone/npc）+ 复杂系统
 
 - call_other() efun 89 个未纳入（ADR-0046 后置，量少 0.15%）
 - 动态方法名 0（全仓库无 `->"func"()` 形式）
-- 函数级分布统计（阶段 B 启动时扩展脚本，按函数聚合调用点）
+- ~~函数级分布统计（阶段 B 启动时扩展脚本）~~ ✅ 阶段 B 已完成（见第十章）
+- 函数解析边角（lambda `(: :)` / 匿名函数 / 宏 `##`）少量误分类，可接受
 
 ---
 
-*生成：2026-07-14*
+## 十、阶段 B 设计定稿（greenfield 工时语义）
+
+> 阶段 B 本轮：脚本扩展 + 函数级分布 + 已实现/待迁移分类 + 抽样设计 + 实测方法论定稿。**实测执行留后续**，基于本轮产出的 80 样本候选清单启动。方法论见 [ADR-0047](../../../docs/adr/ADR-0047-greenfield-effort-semantics.md)。
+>
+> 生成命令同阶段 A：`cd engine && uv run python -m tools.sampling.scan_callothers`（产出 5 个 JSON）
+
+### 1. 关键修正：greenfield 工时语义
+
+阶段 A §六"对全 59270 调用点抽样"的方案，在 greenfield 重写下会重复计已实现部分。新引擎已实现 C1-C6 系统级等价（[runtime/](../../../engine/src/xkx/runtime/) + `combat/`：`dbase_map`+`components` / `skill` / `combat` / `equipment` / `conditions` / `world`），对应 48848 调用点（82.4%），工时≈0。真正待迁移是 C7/C8（10422 调用点，17.6%）。
+
+**工时三分法**：
+
+| 类别 | 调用点 | 函数 | 工时性质 |
+|---|---|---|---|
+| 框架已实现（C1-C6） | 48848（82.4%） | 6832 | 工时≈0（已完成）|
+| 内容填充（pending/data） | - | 80 | 低工时数据录入，可批量 |
+| 新逻辑实现（pending/logic） | 10422（17.6%） | 1079 | 代码实现，工时变异源（实测主对象）|
+
+### 2. 函数级分布（迁移单位 = 函数）
+
+| 指标 | 值 |
+|---|---|
+| 有调用点的函数 | 7991 |
+| implemented 函数 | 6832（85.5%）|
+| pending 函数 | 1159（14.5%）|
+| 每函数调用点 p50 / p90 / p99 / max | 4 / 18 / 50 / 355 |
+
+pending 函数按子系统：d 584（logic 537 + data 47）/ adm 152 / kungfu 125 / cmds 103 / clone 89 / inherit 62 / feature 42。adm 待迁移比例高（daemon 特有逻辑）。完整交叉表见 [func_dist.json](output/func_dist.json)。
+
+### 3. 已实现/待迁移分类
+
+| 类别 | 调用点 | 状态 |
+|---|---|---|
+| C1 dbase 读写 | 33398 | implemented |
+| C2 技能 | 6509 | implemented |
+| C3 战斗 | 4014 | implemented |
+| C4 装备 | 1864 | implemented |
+| C5 条件 | 1183 | implemented |
+| C6 移动 | 1880 | implemented |
+| C7 其他 top30 | 4179 | pending |
+| C8 长尾 | 6243 | pending |
+
+类别级近似（不逐方法核对新引擎 API）。C8 含少量应归 C2-C7 的变体方法，已实现判定偏保守（高估待迁移面，工时承诺更安全）。
+
+### 4. 修正后抽样设计（80 样本候选）
+
+分层 status × func_kind × subsystem，层内复杂度档（low ≤5 / mid ≤20 / high >20 调用点）高复杂度优先 + 固定种子 `random.Random(42)` 可复现。
+
+| status / kind | 配额 | 说明 |
+|---|---|---|
+| implemented / logic | 8 | 每子系统 1，确认工时≈0 |
+| pending / data | 14 | 每子系统 2，确认内容填充低工时 |
+| pending / logic | 58 | 按子系统比例分剩余，工时变异源（重点）|
+
+实际产出 80 个：子系统覆盖 d 26 / kungfu 17 / clone 9 / adm 8 / cmds 7 / feature 5 / inherit 5 / u 3；复杂度档 low 31 / mid 27 / high 22。高复杂度 pending/logic 候选如 `cmds/skill/xue.c:main`（cc=53）、`d/wizard/center.c:do_check_menpai_job`（cc=45，全 C8 长尾）。完整清单见 [sample_candidates.json](output/sample_candidates.json)。
+
+### 5. 实测方法论定稿（下一轮执行）
+
+- **实测操作**：给定 LPC 函数 + 新引擎已有上下文，实现等价行为（Python 代码 + 单元测试）的工时
+- **工时记录**：读规格 / 写代码 / 写测试 / 调试 / 小计（分钟），逐样本分项
+- **推算**：分层均值 × 层规模 + t 分布置信区间（非 59270 × 单点线性外推）
+- **代码处置**：可集成优先（迁移到 [engine/src/xkx/content/](../../../engine/src/xkx/)），标注一次性测量代码
+- **样本量**：80 候选，实测时按清单选取（可调整，若待迁移面集中可减量）
+
+### 6. 阶段 B 交付物
+
+| 交付物 | 路径 |
+|---|---|
+| 扩展脚本（函数级 + 分类 + 抽样） | [scan_callothers.py](scan_callothers.py) |
+| 调用点清单（含 func/category/status） | [output/callothers.jsonl](output/callothers.jsonl) |
+| 函数级分布 | [output/func_dist.json](output/func_dist.json) |
+| 分类汇总 | [output/classification.json](output/classification.json) |
+| 80 样本候选清单 | [output/sample_candidates.json](output/sample_candidates.json) |
+| 方法论 ADR（greenfield 工时语义） | [ADR-0047](../../../docs/adr/ADR-0047-greenfield-effort-semantics.md) |
+
+---
+
+*生成：2026-07-14（阶段 A）+ 2026-07-14（阶段 B 设计定稿）*
