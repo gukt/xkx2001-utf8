@@ -25,6 +25,7 @@ M3 范围简化（provenance / market / resource_quota 后置）。
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -33,6 +34,22 @@ CPK_MANIFEST_SCHEMA_VERSION = 1
 
 #: CPK 类型（03 §五三层粒度）。M3 全部 module_pack，ugc 后置 Wave 3。
 PackType = Literal["module_pack", "ugc"]
+
+
+class ReviewStatus(StrEnum):
+    """CPK 审核状态（M3-3，ADR-0033 决策 3）。
+
+    预检 / 专家审核后更新（[03 §八] 预检结果与 CPK manifest 关联）。M3 默认
+    ``pending``，预检后按 [review_status](../content_review/review_status.py)
+    推导：有 block -> ``rejected`` / 有 needs_review -> ``needs_review`` /
+    否则 ``passed``。详细 findings 落 ``_review.json``，manifest 只存状态
+    （资产 / 审核元数据分离，避免审核迭代污染资产真相源）。
+    """
+
+    PENDING = "pending"
+    PASSED = "passed"
+    NEEDS_REVIEW = "needs_review"
+    REJECTED = "rejected"
 
 
 class CpkDependency(BaseModel):
@@ -128,6 +145,7 @@ class CpkManifest(BaseModel):
     capabilities_required: list[str] = Field(default_factory=list)
     entry_points: dict[str, str] = Field(default_factory=dict)  # main_scene -> room_id
     market: MarketFields = Field(default_factory=MarketFields)
+    review_status: ReviewStatus = ReviewStatus.PENDING  # M3-3 预检状态
     provenance: Provenance | None = None  # M3 None，门3 强制回填
     resource_quota: ResourceQuota | None = None  # M3 None，UGC 后置
 
@@ -135,6 +153,7 @@ class CpkManifest(BaseModel):
 __all__ = [
     "CPK_MANIFEST_SCHEMA_VERSION",
     "PackType",
+    "ReviewStatus",
     "CpkDependency",
     "MarketFields",
     "Provenance",

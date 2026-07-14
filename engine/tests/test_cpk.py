@@ -14,6 +14,7 @@ from xkx.dsl.cpk import (
     MarketFields,
     Provenance,
     ResourceQuota,
+    ReviewStatus,
 )
 
 
@@ -34,6 +35,7 @@ class TestCpkManifest:
         assert m.dependencies == []
         assert m.capabilities_required == []
         assert m.entry_points == {}
+        assert m.review_status == ReviewStatus.PENDING  # M3-3 预检状态
 
     def test_pack_type_module_pack_vs_ugc(self) -> None:
         """module_pack（M3 全部）vs ugc（后置 Wave 3）。"""
@@ -128,3 +130,33 @@ class TestCpkManifest:
         dumped = m.model_dump()
         m2 = CpkManifest.model_validate(dumped)
         assert m2 == m
+
+
+class TestReviewStatus:
+    """审核状态字段（M3-3，ADR-0033 决策 3）。"""
+
+    def test_default_pending(self) -> None:
+        """新 manifest 默认 pending（未预检）。"""
+        m = CpkManifest(cpk_id="x", theme="wuxia")
+        assert m.review_status == ReviewStatus.PENDING
+        assert m.review_status == "pending"  # StrEnum str 兼容
+
+    def test_four_statuses(self) -> None:
+        """四态（pending / passed / needs_review / rejected）。"""
+        for status in ReviewStatus:
+            m = CpkManifest(cpk_id="x", theme="wuxia", review_status=status)
+            assert m.review_status == status
+
+    def test_review_status_json_roundtrip(self) -> None:
+        """review_status JSON 往返（ADR-0022 可序列化）。"""
+        m = CpkManifest(
+            cpk_id="x", theme="wuxia", review_status=ReviewStatus.NEEDS_REVIEW
+        )
+        dumped = json.loads(json.dumps(m.model_dump(mode="json")))
+        m2 = CpkManifest.model_validate(dumped)
+        assert m2.review_status == ReviewStatus.NEEDS_REVIEW
+
+    def test_review_status_from_string(self) -> None:
+        """从字符串构造（YAML 加载 manifest 场景，[review_status.sync_manifest_status]）。"""
+        m = CpkManifest(cpk_id="x", theme="wuxia", review_status="passed")
+        assert m.review_status == ReviewStatus.PASSED
