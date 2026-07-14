@@ -12,9 +12,11 @@
 combat-only 确定性边界（ADR-0023 决策 1）：只有 ``resolve_attack`` + ``apply_effects``
 链路在确定性范围内；heal/exp/condition 等 System 的 tick mutation 不在此范围。
 
-文件边界：CombatSystem 作为 ``combat/system.py`` 独立实现，不接入 ``runtime/world.py``
-的 System 注册（留给后续整合）。接口对齐 ``runtime.systems.System.update(world, tick)``
-（鸭子类型），但不继承 ``System`` 类（避免 combat -> runtime 依赖，combat 包自包含）。
+文件边界：CombatSystem 作为 ``combat/system.py`` 独立实现，不继承 ``runtime.systems.System``
+类（避免 combat -> runtime 依赖，combat 包自包含），接口对齐 ``System.update(world, tick)``
+（鸭子类型）。运行时通过 ``runtime/engine.py`` 的 ``CombatBridge`` 适配器接入 Engine.tick
+（engine.py:62 注册：从 world 构建 CombatSnapshot + 按 enemy_ids 构建 input_log + 调 replay
++ apply_effects 写回），combat 包不依赖 runtime。
 """
 
 from __future__ import annotations

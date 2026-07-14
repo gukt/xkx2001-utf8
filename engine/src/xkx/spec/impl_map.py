@@ -154,7 +154,9 @@ DO_ATTACK_IMPL_MAP: dict[str, ImplEntry] = {
     #   resolve_attack 产 Effect 不调函数，simplified 已在 three_layer_resource_invariant 覆盖
     # - hit_ob/hit_by 回调链（side_effects order=23/25/26/32/33）：ADR-0002 仅 int 加成/覆盖，
     #   mapping 分支后置，阶段 0 后期补全
-    # - riposte 递归（side_effects order=48/49）：ADR-0002 仅标记不递归，S2 子回合交织后置
+    # - riposte 递归（side_effects order=48/49）：T6 已补全（ADR-0023 决策 4 第 2 项），
+    #   resolve_attack.py:265 递归 + derive_seed 子 seed + LEDGER_SUBRESULT 子回合嵌入
+    #   + _RIPOSTE_MAX_DEPTH=4 硬上限防死循环
     # - reset_action / actions 招式映射（side_effects order=3）：S4 SkillData YAML 后置
     # - post_action 回调（side_effects order=47）：后置
     # - wizard verbose / report_status / interrupt_me / remove_enemy / winner_msg

@@ -323,6 +323,19 @@ def test_kneel_tonsure() -> None:
     assert any("剃去" in m for m in msgs)
 
 
+def test_kneel_message_pronoun_render() -> None:
+    """kneel message 占位符渲染（C6）：$N/$n 经 PronounContext 替换为名。"""
+    game, pid = _game(flags={"pending/join_lama"})
+    # 改师傅 kneel message 含 $N（speaker=玩家）/ $n（target=师傅）占位符
+    master = _master_eid(game)
+    behavior = game.world.get(master, NpcBehavior)
+    behavior.apprentice_config["kneel"]["message"] = "$N跪在$n面前，剃度出家。"
+    msgs = kneel(game, pid)
+    # $N -> 玩家名（"玩家"），$n -> 师傅名（"贡藏"）；占位符已替换
+    assert any("玩家跪在贡藏面前" in m for m in msgs)
+    assert not any("$N" in m or "$n" in m for m in msgs)
+
+
 def test_kneel_no_permission() -> None:
     """kneel（无 pending 标记）-> 拒绝（对照 gongcang.c:117 检查 pending）。"""
     game, pid = _game()

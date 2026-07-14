@@ -25,7 +25,20 @@ def _game(seed_base: int = 0) -> tuple[Game, int]:
     ir = compile_scene(rooms, npcs)
     world, room_idx, _ = build_world(ir)
     pid = spawn_player(world, "书生", "academy/courtyard")
-    return Game(world, room_idx, rules, seed_base=seed_base), pid
+    game = Game(world, room_idx, rules, seed_base=seed_base)
+    # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
+    from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.engine import CombatBridge, Engine
+    from xkx.runtime.governance import GovernanceSystem
+    from xkx.runtime.heal import HealSystem
+
+    engine = Engine(world)
+    engine.add_system(CombatBridge())
+    engine.add_system(HealSystem())
+    engine.add_system(ConditionSystem())
+    engine.add_system(GovernanceSystem())
+    game.engine = engine  # type: ignore[attr-defined]
+    return game, pid
 
 
 def _student_eid(game: Game) -> int:

@@ -20,8 +20,6 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from xkx.combat.context import CombatContext
-from xkx.combat.resolve_attack import resolve_attack
 from xkx.dsl.layer1 import (
     EvalContext,
     EventRule,
@@ -59,7 +57,6 @@ from xkx.runtime.middleware.s7_execute_audit import AuditLog, execute_audit
 from xkx.runtime.privileged import PrivilegedActionLog
 from xkx.runtime.query import query_skill
 from xkx.runtime.skill import get_skill_data, improve_skill, is_busy
-from xkx.runtime.world import apply_effects, to_snapshot
 
 
 class Game:
@@ -301,11 +298,13 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     return msgs
 
 
-def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
-    """战斗命令（S5a 多回合）：循环 resolve_attack 直到一方死亡或回合上限。
+def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """战斗命令（ADR-0039 路径统一）：建立敌对关系，CombatBridge tick 驱动持续战斗。
 
-    每回合 player 攻 npc + npc 反击（若 NPC 存活）。NPC 死亡从房间移除 + 玩家加经验；
-    玩家死亡传送回 spawn_room + 恢复 qi/jingli。
+    对齐 LPC kill.c：kill_ob -> fight_ob -> set_heart_beat(1) + 加入 enemy 数组，
+    命令返回。后续攻击由 CombatBridge.tick 驱动（cli ``_auto_advance`` 调
+    ``advance_combat`` 推进）。战斗结束判定（死亡）+ 死亡处理在 ``advance_combat``，
+    不经 Command（CLAUDE.md 不变量：System tick 派生变更不经 Command）。
     """
     world = game.world
     pos = world.get(actor_id, Position)
@@ -314,48 +313,11 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
         return [f"这里没有「{target_name}」。"]
-    messages: list[str] = [f"你向{target_name}发起了攻击！"]
-    for _ in range(max_rounds):
-        ctx = CombatContext(
-            attacker=to_snapshot(world, actor_id),
-            victim=to_snapshot(world, target_eid),
-            seed=game.next_seed(),
-        )
-        result = resolve_attack(ctx)
-        apply_effects(world, result.effects)
-        messages.extend(result.messages)
-        if _is_dead(world, target_eid):
-            messages.append(f"{target_name}倒在地上，死了。")
-            _handle_npc_death(world, target_eid, actor_id)
-            # M3-1 ADR-0032 决策 3：kill 击杀 NPC 触发 kill_npc objective（对照 fsgelun）
-            dead_ident = world.get(target_eid, Identity)
-            dead_pid = dead_ident.prototype_id if dead_ident else ""
-            messages.extend(
-                _advance_objective(game, actor_id, "kill_npc", npc_id=dead_pid)
-            )
-            break
-        ctx = CombatContext(
-            attacker=to_snapshot(world, target_eid),
-            victim=to_snapshot(world, actor_id),
-            seed=game.next_seed(),
-        )
-        result = resolve_attack(ctx)
-        apply_effects(world, result.effects)
-        messages.extend(result.messages)
-        if _is_dead(world, actor_id):
-            messages.append("你的眼前一黑，接著什么也不知道了....")
-            _handle_player_death(world, game, actor_id, target_eid)
-            # 还阳由 GovernanceSystem 推进 death_stage 到 stage 4 触发
-            #（reincarnate_at 恢复 + move revive_room），不在 kill 命令内完成
-            break
-    else:
-        messages.append(f"战斗持续了{max_rounds}回合，双方暂时停手。")
+    _start_combat(world, actor_id, target_eid, to_death=True)
+    messages = [f"你向{target_name}发起了攻击！"]
+    # ADR-0039：CombatBridge tick 驱动战斗到结束（对齐 LPC heart_beat 持续）
+    messages.extend(_run_combat(game, actor_id))
     return messages
-
-
-def _is_dead(world: World, eid: int) -> bool:
-    vitals = world.get(eid, Vitals)
-    return vitals is not None and vitals.qi <= 0
 
 
 def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
@@ -390,13 +352,124 @@ def _qi_ratio(world: World, eid: int) -> int:
     return vitals.qi * 100 // vitals.max_qi
 
 
-def fight(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
-    """切磋命令（M3-1 ADR-0032 决策 3 fight_win）：点到为止，不杀死。
+def _start_combat(
+    world: World, pid: int, target_id: int, *, to_death: bool, win_threshold: int = 0
+) -> None:
+    """建立双向敌对关系（ADR-0039，对齐 LPC kill_ob/fight_ob + set_heart_beat(1)）。
 
-    对照 cmds/std/fight.c（accept_fight + fight_ob 点到为止）+ darba.c checking
-    （NPC qi*100/max_qi <= win_threshold 判赢）。多回合循环，任一方 qi 降到
-    win_threshold% 即停。玩家赢 -> 推进 fight_win objective + 设标记；玩家输 ->
-    战斗结束不完成。NPC 不死（qi clamp 不降到 0，不触发 _handle_npc_death）。
+    双方 CombatState.enemy_ids 互加 + is_fighting=True。to_death 区分 kill（致死）
+    /fight（点到为止），win_threshold 是 fight 模式 qi% 判赢阈值。
+    """
+    for a, b in ((pid, target_id), (target_id, pid)):
+        cs = world.get(a, CombatState)
+        if cs is None:
+            cs = CombatState()
+            world.add(a, cs)
+        if b not in cs.enemy_ids:
+            cs.enemy_ids.append(b)
+        cs.is_fighting = True
+        cs.to_death = to_death
+        cs.win_threshold = win_threshold
+
+
+def _end_combat(world: World, pid: int, target_id: int) -> None:
+    """清双方敌对关系（ADR-0039，对齐 LPC remove_enemy + set_heart_beat(0)）。"""
+    for a, b in ((pid, target_id), (target_id, pid)):
+        cs = world.get(a, CombatState)
+        if cs is None:
+            continue
+        cs.enemy_ids = [e for e in cs.enemy_ids if e != b]
+        if not cs.enemy_ids:
+            cs.is_fighting = False
+
+
+def advance_combat(
+    game: Game, pid: int, *, combat_round: int = 0
+) -> tuple[list[str], bool]:
+    """推进 1 回合战斗 + 战斗结束判定 + 死亡处理（ADR-0039 路径统一）。
+
+    只调 CombatBridge 驱动战斗（``combat_round`` 做 seed，不调 HealSystem/不推进
+    current_tick），对齐 LPC heart_beat 的 do_attack；heal_up 由命令后
+    ``_advance_heartbeat`` 推进（战斗中不治疗，避免伤害被治疗抵消导致战斗过长）。
+    返回 (messages, finished)；finished=True 表示战斗结束（NPC 死/玩家死/fight
+    认输/无活跃战斗）。战斗派生变更经 System（CombatBridge），不经 Command。
+    """
+    world = game.world
+    cs = world.get(pid, CombatState)
+    if cs is None or not cs.is_fighting or not cs.enemy_ids:
+        return [], True
+    target_id = cs.enemy_ids[0]
+    engine = getattr(game, "engine", None)
+    if engine is not None:
+        bridge = engine.get_system("CombatSystem")
+        if bridge is not None:
+            bridge.update(world, combat_round)
+    # CombatBridge 产生的战斗消息（已收集到 pending_messages）
+    messages = list(getattr(world, "pending_messages", []))
+    if messages:
+        world.pending_messages = []  # type: ignore[attr-defined]
+    target_ident = world.get(target_id, Identity)
+    target_name = target_ident.name if target_ident else "对手"
+    target_pid = target_ident.prototype_id if target_ident else ""
+    target_vitals = world.get(target_id, Vitals)
+    player_vitals = world.get(pid, Vitals)
+    finished = False
+    if cs.to_death:
+        # kill 模式：致死
+        if target_vitals is not None and target_vitals.qi <= 0:
+            messages.append(f"{target_name}倒在地上，死了。")
+            _handle_npc_death(world, target_id, pid)
+            messages.extend(
+                _advance_objective(game, pid, "kill_npc", npc_id=target_pid)
+            )
+            _end_combat(world, pid, target_id)
+            finished = True
+        elif player_vitals is not None and player_vitals.qi <= 0:
+            messages.append("你的眼前一黑，接著什么也不知道了....")
+            _handle_player_death(world, game, pid, target_id)
+            _end_combat(world, pid, target_id)
+            finished = True
+    else:
+        # fight 模式：点到为止（qi 比例判赢，NPC 不死）
+        if _qi_ratio(world, target_id) <= cs.win_threshold:
+            if target_vitals and target_vitals.qi <= 0:
+                target_vitals.qi = 1
+            messages.append(f"{target_name}拱手认输：阁下武功了得，在下佩服。")
+            messages.extend(
+                _advance_objective(game, pid, "fight_win", npc_id=target_pid)
+            )
+            _end_combat(world, pid, target_id)
+            finished = True
+        elif _qi_ratio(world, pid) <= cs.win_threshold:
+            messages.append("你气喘吁吁，不得不认输。")
+            _end_combat(world, pid, target_id)
+            finished = True
+    return messages, finished
+
+
+def _run_combat(game: Game, pid: int) -> list[str]:
+    """推进战斗到结束（CombatBridge 驱动每回合），返回战斗消息。
+
+    循环 ``advance_combat`` 直到战斗结束（死亡/认输/无活跃战斗）。CLI 同步模式
+    下让战斗在命令内完成（对齐 LPC heart_beat 持续，压缩到同步推进）。战斗中
+    不调 HealSystem（heal 由命令后 _advance_heartbeat 推进）。
+    """
+    messages: list[str] = []
+    for round_no in range(60):
+        m, finished = advance_combat(game, pid, combat_round=round_no)
+        messages.extend(m)
+        if finished:
+            break
+    return messages
+
+
+def fight(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """切磋命令（ADR-0039 路径统一）：建立敌对关系（点到为止），CombatBridge tick 驱动。
+
+    对照 cmds/std/fight.c（accept_fight + fight_ob 点到为止）。win_threshold 从匹配
+    的 fight_win objective 取（默认 50%，对照 darba.c checking）。后续攻击由
+    CombatBridge.tick 驱动（``advance_combat`` 推进），fight 模式 qi 比例判赢在
+    ``advance_combat``（NPC 不死，qi clamp 到 1）。
     """
     world = game.world
     pos = world.get(actor_id, Position)
@@ -404,7 +477,7 @@ def fight(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> 
         return ["你没有位置。"]
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
-        return [f"这里没有「{target_name}」。"]
+        return [f"这里没有「{target_name}。"]
     target_ident = world.get(target_eid, Identity)
     target_pid = target_ident.prototype_id if target_ident else ""
     # 取匹配 fight_win objective 的 win_threshold（默认 50%，对照 darba.c:109）
@@ -419,39 +492,12 @@ def fight(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> 
             if obj.get("kind") == "fight_win" and obj.get("npc_id") == target_pid:
                 win_threshold = obj.get("win_threshold", 50)
                 break
-    messages: list[str] = [f"你向{target_name}请教武艺，切磋开始！"]
-    for _ in range(max_rounds):
-        ctx = CombatContext(
-            attacker=to_snapshot(world, actor_id),
-            victim=to_snapshot(world, target_eid),
-            seed=game.next_seed(),
-        )
-        result = resolve_attack(ctx)
-        apply_effects(world, result.effects)
-        messages.extend(result.messages)
-        if _qi_ratio(world, target_eid) <= win_threshold:
-            # 点到为止：NPC 认输，qi 不降到 0（不致死，对照 fight 点到为止）
-            vitals = world.get(target_eid, Vitals)
-            if vitals and vitals.qi <= 0:
-                vitals.qi = 1
-            messages.append(f"{target_name}拱手认输：阁下武功了得，在下佩服。")
-            messages.extend(
-                _advance_objective(game, actor_id, "fight_win", npc_id=target_pid)
-            )
-            break
-        ctx = CombatContext(
-            attacker=to_snapshot(world, target_eid),
-            victim=to_snapshot(world, actor_id),
-            seed=game.next_seed(),
-        )
-        result = resolve_attack(ctx)
-        apply_effects(world, result.effects)
-        messages.extend(result.messages)
-        if _qi_ratio(world, actor_id) <= win_threshold:
-            messages.append("你气喘吁吁，不得不认输。")
-            break
-    else:
-        messages.append(f"切磋持续了{max_rounds}回合，双方点到为止。")
+    _start_combat(
+        world, actor_id, target_eid, to_death=False, win_threshold=win_threshold
+    )
+    messages = [f"你向{target_name}请教武艺，切磋开始！"]
+    # ADR-0039：CombatBridge tick 驱动战斗到结束（fight 模式 qi 比例判赢）
+    messages.extend(_run_combat(game, actor_id))
     return messages
 
 
@@ -634,6 +680,28 @@ def take(game: Game, actor_id: int, item_query: str) -> list[str]:
         world.add(actor_id, inv)
     inv.items.add(item_id)
     return [f"你捡起了{_item_name(game, item_id)}。"]
+
+
+def drop(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """丢弃命令（C2）：从玩家物品栏丢物品到房间地面（take 的反向）。
+
+    支持按 id 或中文名查找（对齐 take）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    inv = world.get(actor_id, Inventory)
+    if inv is None or not inv.items:
+        return ["你没有物品可丢弃。"]
+    item_id = _resolve_item_id(game, item_query, inv.items)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
+    inv.items.discard(item_id)
+    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    if room is not None:
+        room.items.add(item_id)
+    return [f"你丢下{_item_name(game, item_id)}。"]
 
 
 def look(game: Game, actor_id: int) -> list[str]:
@@ -917,7 +985,13 @@ def kneel(game: Game, actor_id: int) -> list[str]:
     if clear_flag and marks:
         marks.flags.discard(clear_flag)
     message = kneel_def.get("message", "")
-    return [message] if message else ["你双手合十，恭恭敬敬地跪了下来。"]
+    if message:
+        # C6：$N/$n 占位符经 PronounContext 渲染（speaker=玩家/viewer=玩家/target=师傅）
+        from xkx.runtime.pronoun import PronounService
+
+        ctx = PronounService.build_context(world, actor_id, master_eid)
+        return [PronounService.render(message, ctx)]
+    return ["你双手合十，恭恭敬敬地跪了下来。"]
 
 
 def recruit(game: Game, actor_id: int, target_name: str) -> list[str]:
@@ -1255,6 +1329,26 @@ def _adapter_fight(game: Game, ctx: ActionContext) -> list[str]:
     return fight(game, ctx.actor, target_name)
 
 
+def flee(game: Game, actor_id: int) -> list[str]:
+    """逃跑命令（ADR-0039）：清敌对关系中断战斗（对齐 LPC remove_enemy）。
+
+    玩家可在战斗 tick 间逃跑（对齐 LPC heart_beat 间的命令窗口）。基础实现：
+    清双方 enemy_ids + is_fighting=False。完整 flee/surrender 语义后置。
+    """
+    world = game.world
+    cs = world.get(actor_id, CombatState)
+    if cs is None or not cs.is_fighting or not cs.enemy_ids:
+        return ["你没有在战斗中。"]
+    for target_id in list(cs.enemy_ids):
+        _end_combat(world, actor_id, target_id)
+    return ["你转身逃走了。"]
+
+
+def _adapter_flee(game: Game, ctx: ActionContext) -> list[str]:
+    """flee 命令适配器：逃跑中断战斗。"""
+    return flee(game, ctx.actor)
+
+
 def _adapter_ask(game: Game, ctx: ActionContext) -> list[str]:
     """ask 命令适配器：ask <NPC> about <话题> 或 ask <NPC> <话题>。
 
@@ -1300,6 +1394,12 @@ def _adapter_get(game: Game, ctx: ActionContext) -> list[str]:
     """get 命令适配器（take 别名）。"""
     item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
     return take(game, ctx.actor, item_query)
+
+
+def _adapter_drop(game: Game, ctx: ActionContext) -> list[str]:
+    """drop 命令适配器（C2）：drop <物品>。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return drop(game, ctx.actor, item_query)
 
 
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
@@ -1411,11 +1511,13 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "go": _adapter_go,
     "kill": _adapter_kill,
     "fight": _adapter_fight,
+    "flee": _adapter_flee,
     "ask": _adapter_ask,
     "give": _adapter_give,
     "quest": _adapter_quest,
     "take": _adapter_take,
     "get": _adapter_get,
+    "drop": _adapter_drop,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,

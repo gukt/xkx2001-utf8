@@ -144,6 +144,10 @@ class CombatState:
     is_fighting: bool = False
     # fight_dodge：LPC set_temp("fight/dodge")，DEFENSE 加成（规格 order=7）
     fight_dodge: int = 0
+    # to_death：kill 模式致死 / fight 模式点到为止（LPC kill_ob vs fight_ob 区分，ADR-0039）
+    to_death: bool = True
+    # win_threshold：fight 模式 qi% 判赢阈值（LPC darba.c checking，0 = kill 模式不判）
+    win_threshold: int = 0
 
 
 @dataclass

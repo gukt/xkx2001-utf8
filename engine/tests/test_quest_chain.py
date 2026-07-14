@@ -72,7 +72,20 @@ def _game(
             vitals.max_qi = player_qi
             vitals.eff_qi = player_qi
     quest_idx = {q["id"]: q for q in quest_dicts}
-    return Game(world, room_idx, [], quests=quest_idx), pid
+    game = Game(world, room_idx, [], quests=quest_idx)
+    # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
+    from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.engine import CombatBridge, Engine
+    from xkx.runtime.governance import GovernanceSystem
+    from xkx.runtime.heal import HealSystem
+
+    engine = Engine(world)
+    engine.add_system(CombatBridge())
+    engine.add_system(HealSystem())
+    engine.add_system(ConditionSystem())
+    engine.add_system(GovernanceSystem())
+    game.engine = engine  # type: ignore[attr-defined]
+    return game, pid
 
 
 def _quest(
