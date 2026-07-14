@@ -226,6 +226,21 @@ class EffectComp:
 
 
 @dataclass
+class DoorEntry:
+    """门状态（C5 ADR-0042，对照 LPC room.c doors mapping + status 位掩码）。
+
+    标准 doors 状态模式：exits 静态声明不变，doors 字段存门定义+开闭状态。
+    ``closed`` 可变（knock 开 / DoorSystem call_out 定时关）。仅开/关状态，
+    LOCKED/SMASHED 位后置。
+    """
+
+    name: str  # 门名（LPC doors[dir]["name"]）
+    other_room: str  # 对面房间 id（LPC doors[dir]["other_side"] room）
+    other_dir: str  # 对面方向（LPC doors[dir]["other_side_dir"]）
+    closed: bool = True  # 开闭状态（LPC status & DOOR_CLOSED）
+
+
+@dataclass
 class RoomComp:
     room_id: str
     short: str
@@ -236,6 +251,7 @@ class RoomComp:
     outdoors: bool = False
     no_fight: bool = False
     no_death: bool = False  # 2.2：no_death 房玩家死亡转 unconcious（LPC query("no_death")）
+    doors: dict[str, DoorEntry] = field(default_factory=dict)  # C5：方向 -> 门
 
 
 @dataclass

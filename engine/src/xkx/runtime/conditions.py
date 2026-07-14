@@ -477,6 +477,10 @@ class ConditionHandler:
             # duration 干扰 GovernanceSystem 推进到还阳
             if eff.effect_id == "death_stage":
                 continue
+            # C5 ADR-0042：door_close 归 DoorSystem 独立遍历（门定时关门），
+            # ConditionSystem 跳过避免 _default_trigger 衰减干扰
+            if eff.effect_id == "door_close":
+                continue
             handler = CONDITION_HANDLERS.get(eff.effect_id, _default_trigger)
             trig = handler(world, eff, tick)
             self._merge(result, trig, effect_eid)
@@ -528,6 +532,10 @@ class ConditionSystem(System):
             # ConditionSystem 不衰减 duration / 不更新 next_tick（否则 GovernanceSystem
             # 看不到 next_tick<=tick，阴间剧情无法推进到还阳）
             if eff.effect_id == "death_stage":
+                continue
+            # C5 ADR-0042：door_close 归 DoorSystem 独立遍历（门定时关门），
+            # ConditionSystem 不推进 next_tick（否则 DoorSystem 看不到到期）
+            if eff.effect_id == "door_close":
                 continue
             if effect_eid in result.completed:
                 # jail 到期衔接 governance.release_from_jail（ADR-0029 §决策 5 +

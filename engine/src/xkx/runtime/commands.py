@@ -47,6 +47,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import apply_condition
+from xkx.runtime.doors import knock_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -286,6 +287,10 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     target = room.exits.get(direction) if room else None
     if not target:
         return [f"这里没有「{direction}」的出口。"]
+    # C5 ADR-0042：门关着挡路（对照 LPC valid_leave doors status 检查）
+    door = room.doors.get(direction) if room else None
+    if door is not None and door.closed:
+        return [f"{door.name}关着，也许敲一敲会开。"]
     ctx = _eval_ctx(
         world, actor_id, dir=direction, npc_ids_in_room=_npc_ids_in_room(world, pos.room_id)
     )
@@ -777,11 +782,41 @@ def look(game: Game, actor_id: int) -> list[str]:
         lines.append(f"  {_item_name(game, item_id)}({item_id})")
     if room.exits:
         dirs = sorted(room.exits.keys())
-        if len(dirs) == 1:
-            lines.append(f"    这里唯一的出口是 {dirs[0]}。")
+        # C5 ADR-0042：出口标注门状态（开/关）
+        labels = [_dir_label(room, d) for d in dirs]
+        if len(labels) == 1:
+            lines.append(f"    这里唯一的出口是 {labels[0]}。")
         else:
-            lines.append(f"    这里明显的出口是 {'、'.join(dirs[:-1])} 和 {dirs[-1]}。")
+            lines.append(f"    这里明显的出口是 {'、'.join(labels[:-1])} 和 {labels[-1]}。")
     return lines
+
+
+def _dir_label(room: RoomComp, direction: str) -> str:
+    """C5 ADR-0042：出口标签，标注门状态（如 west(铁门关)）。"""
+    door = room.doors.get(direction)
+    if door is None:
+        return direction
+    status = "关" if door.closed else "开"
+    return f"{direction}({door.name}{status})"
+
+
+def knock(game: Game, actor_id: int, direction: str) -> list[str]:
+    """敲门命令（C5 ADR-0042，对照 LPC do_knock）。
+
+    敲当前房间指定方向的门：开门（closed=False + 同步对面）+ 触发定时关门
+    （door_close EffectComp，DoorSystem 到期关）。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    msg = knock_door(world, room_eid, direction, _current_tick(game))
+    if msg is None:
+        return ["这个方向没有门。"]
+    return [msg]
 
 
 def inventory(game: Game, actor_id: int) -> list[str]:
@@ -1456,6 +1491,14 @@ def _adapter_drop(game: Game, ctx: ActionContext) -> list[str]:
     return drop(game, ctx.actor, item_query)
 
 
+def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
+    """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return knock(game, ctx.actor, direction)
+
+
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
     """look 命令适配器（无参，查看当前房间）。"""
     return look(game, ctx.actor)
@@ -1572,6 +1615,7 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "take": _adapter_take,
     "get": _adapter_get,
     "drop": _adapter_drop,
+    "knock": _adapter_knock,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,

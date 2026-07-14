@@ -29,6 +29,7 @@ from xkx.combat.result import (
 from xkx.runtime.components import (
     Attributes,
     CombatState,
+    DoorEntry,
     Equipment,
     FamilyComp,
     Identity,
@@ -110,6 +111,15 @@ def build_world(
                 outdoors=r.get("outdoors", False),
                 no_fight=r.get("no_fight", False),
                 no_death=r.get("no_death", False),
+                doors={
+                    d: DoorEntry(
+                        name=spec["name"],
+                        other_room=spec["other_room"],
+                        other_dir=spec["other_dir"],
+                        closed=spec.get("closed", True),
+                    )
+                    for d, spec in r.get("doors", {}).items()
+                },
             ),
         )
         room_entities[r["id"]] = eid

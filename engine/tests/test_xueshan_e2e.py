@@ -50,6 +50,7 @@ def _game(
     )
     # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
     from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.doors import DoorSystem
     from xkx.runtime.engine import CombatBridge, Engine
     from xkx.runtime.governance import GovernanceSystem
     from xkx.runtime.heal import HealSystem
@@ -59,6 +60,7 @@ def _game(
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
+    engine.add_system(DoorSystem())  # C5 ADR-0042 门定时关门
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 
