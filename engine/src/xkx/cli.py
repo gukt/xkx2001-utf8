@@ -132,6 +132,14 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
+    # B-2 ADR-0039 决策 4：注册 AGGRESSIVE handler（NPC 主动攻击接入运行时）
+    from xkx.runtime.auto_fight import (
+        FightType,
+        aggressive_start_fight_handler,
+        register_start_fight_handler,
+    )
+
+    register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 

@@ -28,6 +28,7 @@ from xkx.dsl.layer1 import (
     evaluate_ask,
 )
 from xkx.runtime.action_context import Abort, ActionContext, new_context
+from xkx.runtime.auto_fight import FightType, auto_fight, initiate_combat
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
@@ -296,7 +297,45 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     msgs.extend(look(game, actor_id))
     # M3-1 ADR-0032 决策 3：go 移动触发 reach_room objective（对照 shanmen go north）
     msgs.extend(_advance_objective(game, actor_id, "reach_room", room_id=target))
+    # B-2 ADR-0039 决策 4：room-enter 触发 aggressive NPC 主动攻击（对照 LPC init()）
+    msgs.extend(_trigger_room_enter_fight(game, actor_id))
     return msgs
+
+
+def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
+    """B-2 ADR-0039 决策 4：玩家进房间触发 aggressive NPC 主动攻击（对照 LPC init()）。
+
+    遍历房间内 ``attitude=aggressive`` 的 NPC，调 ``auto_fight(npc, player, AGGRESSIVE)``
+    （对齐 LPC init() 三触发之 aggressive）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御
+    检查 + on_start_fight handler 建敌对关系。若玩家进入战斗（is_fighting），
+    ``_run_combat`` 推进（CLI 同步模式，对齐 kill 命令）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return []
+    # 只玩家进房间触发（对齐 LPC this_player() 是玩家）
+    ident = world.get(actor_id, Identity)
+    if ident is None or not ident.is_player:
+        return []
+    for npc_eid in list(world.entities_in_room(pos.room_id)):
+        if npc_eid == actor_id:
+            continue
+        npc_ident = world.get(npc_eid, Identity)
+        if npc_ident is None or npc_ident.is_player:
+            continue
+        behavior = world.get(npc_eid, NpcBehavior)
+        if behavior is None or behavior.attitude != "aggressive":
+            continue
+        # aggressive NPC -> auto_fight(npc, player, AGGRESSIVE)（对齐 LPC init() aggressive 分支）
+        auto_fight(world, npc_eid, actor_id, FightType.AGGRESSIVE)
+    # 若玩家进入战斗，_run_combat 推进（CLI 同步，对齐 kill 命令 _run_combat）
+    cs = world.get(actor_id, CombatState)
+    if cs is not None and cs.is_fighting:
+        msgs = ["你被攻击了！"]
+        msgs.extend(_run_combat(game, actor_id))
+        return msgs
+    return []
 
 
 def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
@@ -358,19 +397,11 @@ def _start_combat(
 ) -> None:
     """建立双向敌对关系（ADR-0039，对齐 LPC kill_ob/fight_ob + set_heart_beat(1)）。
 
-    双方 CombatState.enemy_ids 互加 + is_fighting=True。to_death 区分 kill（致死）
-    /fight（点到为止），win_threshold 是 fight 模式 qi% 判赢阈值。
+    委托 ``auto_fight.initiate_combat``（B-2 ADR-0039 决策 4，逻辑下移供 NPC 主动
+    攻击 handler 复用，避免循环依赖）。双方 CombatState.enemy_ids 互加 +
+    is_fighting=True。to_death 区分 kill/fight，win_threshold 是 fight 模式 qi% 判赢阈值。
     """
-    for a, b in ((pid, target_id), (target_id, pid)):
-        cs = world.get(a, CombatState)
-        if cs is None:
-            cs = CombatState()
-            world.add(a, cs)
-        if b not in cs.enemy_ids:
-            cs.enemy_ids.append(b)
-        cs.is_fighting = True
-        cs.to_death = to_death
-        cs.win_threshold = win_threshold
+    initiate_combat(world, pid, target_id, to_death=to_death, win_threshold=win_threshold)
 
 
 def _end_combat(world: World, pid: int, target_id: int) -> None:

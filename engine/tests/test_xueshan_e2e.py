@@ -167,6 +167,40 @@ def test_xlama2_loop_take_buttertea() -> None:
     assert "buttertea" in game.world.get(pid, Inventory).items
 
 
+# --- B-2 ADR-0039 决策 4：auto_fight 接入（aggressive NPC 主动攻击）---
+
+
+def test_go_into_aggressive_npc_triggers_auto_fight() -> None:
+    """go 进 aggressive NPC 房间触发 auto_fight（注册 handler 后，对照 LPC init()）。"""
+    import xkx.runtime.auto_fight as auto_fight_mod
+    from xkx.runtime.auto_fight import (
+        FightType,
+        aggressive_start_fight_handler,
+        register_start_fight_handler,
+    )
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
+    try:
+        msgs = go(game, pid, "east")  # luyeyuan -> wangyou（yelang aggressive）
+        # _trigger_room_enter_fight 触发：handler 建敌对关系 -> "你被攻击了！"
+        assert any("被攻击" in m for m in msgs)
+    finally:
+        auto_fight_mod._START_FIGHT_HANDLERS.pop(FightType.AGGRESSIVE, None)
+
+
+def test_aggressive_npc_no_attack_without_handler() -> None:
+    """未注册 handler -> aggressive NPC 不攻击（on_start_fight 默认 no-op）。"""
+    from xkx.runtime.components import CombatState
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    # 不注册 handler（默认 no-op）
+    msgs = go(game, pid, "east")  # luyeyuan -> wangyou
+    assert not any("被攻击" in m for m in msgs)
+    cs = game.world.get(pid, CombatState)
+    assert cs is None or not cs.is_fighting
+
+
 def test_ask_unknown_topic() -> None:
     """ask 未知话题 -> NPC 摇头（无 inquiry 条目）。"""
     game, pid = _game()

@@ -415,3 +415,26 @@
   combat_exp: 50000
   attack_skill: unarmed
   weapon_label: 拳头
+# B-2 ADR-0039 决策 4：aggressive NPC（验证 auto_fight 接入，对照 LPC attitude=aggressive）
+- id: xueshan/npc/yelang
+  name: 野狼
+  aliases:
+  - wolf
+  - lang
+  gender: 雄性
+  age: 5
+  attitude: aggressive
+  str_: 15
+  dex_: 18
+  int_: 5
+  con_: 15
+  max_qi: 40
+  max_jing: 40
+  max_jingli: 0
+  max_neili: 0
+  combat_exp: 200
+  skills:
+    dodge: 15
+    unarmed: 15
+  attack_skill: unarmed
+  weapon_label: 爪
