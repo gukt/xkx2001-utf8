@@ -25,6 +25,7 @@ from xkx.dsl.layer1 import (
     EventRule,
     evaluate,
     evaluate_accept_object,
+    evaluate_ask,
 )
 from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.capability import CapabilityToken, PermissionService
@@ -550,7 +551,18 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     behavior = world.get(target_eid, NpcBehavior)
     if not behavior or topic not in behavior.inquiry:
         return [f"{target_name}摇了摇头。"]
-    return [behavior.inquiry[topic]]
+    # C4 ADR-0040：求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
+    ctx = _eval_ctx(world, actor_id, npc_id=target_pid, ask_topic=topic)
+    ask_result = evaluate_ask(game.rules, ctx)
+    if ask_result.set_flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(ask_result.set_flag)
+    # 消息：规则 message 非空则覆盖 inquiry，否则用 inquiry 字典文本
+    message = ask_result.message if ask_result.message else behavior.inquiry[topic]
+    return [message]
 
 
 def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[str]:
@@ -591,13 +603,24 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
     msgs: list[str] = (
         [result.message] if result.message else [f"你把{item_name}给了{target_name}。"]
     )
-    # set_flag 副作用
-    if result.set_flag:
+    # set_flag / clear_flag 副作用（S4 set_flag + C4 ADR-0040 clear_flag）
+    if result.set_flag or result.clear_flag:
         marks = world.get(actor_id, Marks)
         if marks is None:
             marks = Marks()
             world.add(actor_id, marks)
-        marks.flags.add(result.set_flag)
+        if result.set_flag:
+            marks.flags.add(result.set_flag)
+        if result.clear_flag:
+            marks.flags.discard(result.clear_flag)
+    # C4 ADR-0040：spawn_items 生成物品到房间（对照 LPC new(obj)->move）
+    for spawn in result.spawn_items:
+        room_eid = game.room_entities.get(spawn.room_id)
+        if room_eid is None:
+            continue
+        spawn_room = world.get(room_eid, RoomComp)
+        if spawn_room is not None:
+            spawn_room.items.add(spawn.item_id)
 
     # S4 ADR-0007 + M3-1 ADR-0032 决策 3：give_item 推进当前步骤（多步 chain）
     msgs.extend(
