@@ -45,7 +45,7 @@
 ## 开发规范
 
 - Python >=3.12，包名 `xkx`，代码在 [engine/src/xkx/](engine/src/xkx/)。
-- **Python 命令目录**：所有 `python`/`pytest`/`ruff`/`uv` 命令在 [engine/](engine/) 下执行（`cd engine && ...`）。已配 PreToolUse hook 自动补前缀兜底（见 [.claude/hooks/cd_engine.py](.claude/hooks/cd_engine.py)），但写命令时仍应自觉 cd，hook 只是兜底而非依赖。
+- **Python 命令目录**：所有 `python`/`pytest`/`ruff`/`uv` 命令在 [engine/](engine/) 下执行（`cd engine && ...`）。**优先用 task runner**：仓库根 [justfile](justfile) 把常用命令（test/lint/format/gate/跑场景/tools 脚本）封装成自带 `cd engine && uv run` 的 recipe，在仓库根直接 `just <recipe>` 即可，无需记 cwd/venv；`just`（无参）或 `just --list` 列出全部命令。统一用 `uv run`（.venv 未装 dev 依赖，裸 `pytest`/`ruff` 会 `No module named ...`）。旧的 `cd_engine.py` PreToolUse hook 已于 commit 69a48774 移除，不再有兜底，just recipe 自带 cd 是现行的可靠方式。
 - 测试：pytest + hypothesis（属性测试，架构明确要求）。
 - lint/format：ruff。行长上限 100（`engine/pyproject.toml` 的 `[tool.ruff]`）。E501 无法自动修复、`ruff format` 也不拆字符串字面量，须在写时即控制：
   - 长字符串用括号隐式拼接折行（`s = ("前半" "后半")`），不要指望事后 format 救场。

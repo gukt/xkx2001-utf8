@@ -13,6 +13,7 @@
 - **tests**：1782 全绿，ruff 全过
 - **关键 ADR**：[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)（层1 ask/clear_flag/spawn_items）/ [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md)（auto_fight aggressive 接入）/ [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（门状态机）/ [ADR-0039](docs/adr/ADR-0039-combat-path-unification.md)（战斗路径统一）
 - **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问：单进程容量 80% / 外部玩家测试触发 PG / 第二题材）；B-2 hatred/vendetta/berserk + C5 open/close/锁 + C4 drink 残留后置
+- **工具链**：仓库根新增 [justfile](justfile) task runner（24 recipe 自带 `cd engine && uv run`，agent 在仓库根 `just <recipe>` 即可，`just --list` 自举）；CLAUDE.md/本文件命令行已同步改 `uv run`。ruff format 有 85 文件历史漂移，可单独 `just format` 全量格式化。
 - **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + aggressive NPC + 门）+ `python -m xkx.content_review` 审核 pipeline
 
 ## Done
@@ -80,4 +81,4 @@ driver UE 问题已于 2026-07-11 解除（用户重启电脑，PID 22753 监听
 - 开工读：本文件 + [CLAUDE.md](CLAUDE.md) + [04](docs/xkx-arch/04-迁移路径与避坑清单.md) §三/§四。收工更新 Done/In Progress/Blocked/Next Up + 日期。
 - Done 单条 ≤2 行，细节进 ADR。每开新阶段归档 Done 到 [docs/progress-archive/](docs/progress-archive/) `stage-N-done.md`。
 - 偏离 00-04 基线写 ADR（编号递增），关联 [05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) dissent。
-- 跑测试：`cd engine && PYTHONPATH=src python -m pytest`（无 .venv，用 pyenv python3.12 + PYTHONPATH=src）；lint：`cd engine && ruff check src tests`。
+- 跑测试：`just test`（或 `cd engine && uv run pytest`）；lint：`just lint`（或 `cd engine && uv run ruff check src tests`）。统一用 `uv run`（.venv 未装 dev 依赖，裸 pytest/ruff 不可用）。全部命令见仓库根 [justfile](justfile)，`just --list` 自举。
