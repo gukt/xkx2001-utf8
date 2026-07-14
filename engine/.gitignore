@@ -21,3 +21,14 @@ htmlcov/
 saves/
 *.json.bak
 *.json.tmp
+
+# 密钥 / 环境配置（ADR-0036：ARK_API_KEY 等只准入 .env，绝不入库）
+.env
+.env.*
+!.env.example
+
+# content_gen LLM 生成输出（v0 草稿 + measure 对照，不入库）
+tools/content_gen/output/
+
+# content_review 预检报告（运行时产物，每次预检覆盖，不入库）
+**/_review.json

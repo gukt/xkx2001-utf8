@@ -424,9 +424,14 @@ def _is_city_room(room: RoomComp | None) -> bool:
 
 
 def _tell(world: World, eid: int, msg: str) -> None:
-    """向实体输出消息（LPC tell_object，2.2 最小不推送，消息系统后置 M3）。"""
-    # 消息推送由 connection/ws_server 后置，2.2 仅占位
-    return None
+    """向实体输出消息（LPC tell_object）。
+
+    M3-1 子任务 5：最小消息缓冲--写到 ``world.pending_messages`` 供 CLI 自动推进
+    时收集（完整 WS 推送由 connection/ws_server 后置 M3）。
+    """
+    pending = getattr(world, "pending_messages", None)
+    if pending is not None:
+        pending.append(msg)
 
 
 def _save(world: World, eid: int) -> None:

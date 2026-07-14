@@ -154,6 +154,10 @@ class NpcBehavior:
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = field(default_factory=list)
     inquiry: dict[str, str] = field(default_factory=dict)  # S4 ADR-0006：LPC set("inquiry")
+    # M3-1 ADR-0032 决策 1：拜师配置（师傅 NPC 声明式入门条件 + kneel 剃度）。
+    # None=该 NPC 不收徒。结构对照 ApprenticeDef（layer0.py）model_dump：
+    # {family_name/generation/title/conditions/kneel/success_message}。
+    apprentice_config: dict | None = None
 
 
 @dataclass
@@ -178,12 +182,17 @@ class Marks:
 
 @dataclass
 class QuestLog:
-    """玩家任务日志（S4 ADR-0007）。
+    """玩家任务日志（S4 ADR-0007 + M3-1 ADR-0032 决策 3 多步 chain）。
 
     ``statuses``: {quest_id -> "not_started" | "in_progress" | "completed"}
+    ``current_step``: {quest_id -> 当前步骤索引}（多步 chain，M3-1）
+    ``claimed_at``: {quest_id -> 上次领奖 tick}（time-gate 可重复任务，M3-1；
+        对照 jiamu lama_wage 记录 mud_age，冷却判定 current_tick - claimed_at < time_gate）
     """
 
     statuses: dict[str, str] = field(default_factory=dict)
+    current_step: dict[str, int] = field(default_factory=dict)
+    claimed_at: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -265,3 +274,31 @@ class TitleComp:
 
     # 鬼魂状态（LPC is_ghost()，rankd 行 19 最先判定）
     is_ghost: bool = False
+
+
+@dataclass
+class FamilyComp:
+    """门派归属组件（M3-1 ADR-0032 决策 1，第 15 组件）。
+
+    承载 LPC ``family`` mapping 7 字段 + ``betrayer`` 叛师计数。拜师时
+    ``recruit`` 写入（master_id/master_name/family_name/generation+1/
+    enter_time），``assign_apprentice`` 设 title/privs。
+
+    ``Attributes.family``（str）保留兼容 ``family_eq`` 谓词（ADR-0005）+
+    ``FamilyBonus`` 分发（ADR-0030），拜师后同步
+    ``Attributes.family = family_name``。本组件是 richer 结构（7 字段），
+    ``Attributes.family`` 是其 family_name 的 str 投影。
+
+    对照 LPC feature/apprentice.c family mapping + cmds/skill/apprentice.c
+    betrayer。可序列化（ADR-0022，字段全基本类型）。
+    [ADR-0032](../../../docs/adr/ADR-0032-family-core-loop-design.md)
+    """
+
+    family_name: str = ""  # LPC family["family_name"]（如"雪山派"）
+    generation: int = 0  # LPC family["generation"]（辈分，拜师=师傅 generation+1）
+    master_id: str = ""  # LPC family["master_id"]（师傅 prototype_id）
+    master_name: str = ""  # LPC family["master_name"]
+    title: str = ""  # LPC family["title"]（门派称号，如"弟子"/"喇嘛"/"法王"）
+    privs: int = 0  # LPC family["privs"]（权限：-1=全部，0=无，对照 assign_apprentice）
+    enter_time: int = 0  # LPC family["enter_time"]（入门 mud_age，时间系统后置 M3-1 用 0）
+    betrayer: int = 0  # LPC add("betrayer",1)（叛师计数）

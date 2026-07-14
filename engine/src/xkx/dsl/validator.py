@@ -136,18 +136,28 @@ class SceneValidator:
                         f"[dependency] room `{room_id}`: exit `{direction}` "
                         f"指向未知 room `{target_id}`"
                     )
-        # quest giver / objective.npc_id
+        # quest giver / objectives npc_id + room_id（M3-1 ADR-0032 决策 3 多步 chain）
         for q in self.ir.get("quests", []):
             qid = q.get("id")
             giver = q.get("giver")
             if giver and giver not in self._npc_ids:
                 self.issues.append(f"[dependency] quest `{qid}`: giver `{giver}` 不是已知 npc")
-            obj = q.get("objective", {})
-            npc_id = obj.get("npc_id")
-            if npc_id and npc_id not in self._npc_ids:
-                self.issues.append(
-                    f"[dependency] quest `{qid}`: objective.npc_id `{npc_id}` 不是已知 npc"
-                )
+            # objectives list 优先；向后兼容旧 objective 单数
+            objs = q.get("objectives") or []
+            old = q.get("objective")
+            if old and not objs:
+                objs = [old]
+            for obj in objs:
+                npc_id = obj.get("npc_id")
+                if npc_id and npc_id not in self._npc_ids:
+                    self.issues.append(
+                        f"[dependency] quest `{qid}`: objective.npc_id `{npc_id}` 不是已知 npc"
+                    )
+                room_id = obj.get("room_id")
+                if room_id and room_id not in self._room_ids:
+                    self.issues.append(
+                        f"[dependency] quest `{qid}`: objective.room_id `{room_id}` 不是已知 room"
+                    )
         # rule npc_id
         for rule in self.ir.get("rules", []):
             npc_id = rule.get("npc_id")

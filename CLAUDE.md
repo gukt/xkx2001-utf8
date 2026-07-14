@@ -45,6 +45,7 @@
 ## 开发规范
 
 - Python >=3.12，包名 `xkx`，代码在 [engine/src/xkx/](engine/src/xkx/)。
+- **Python 命令目录**：所有 `python`/`pytest`/`ruff`/`uv` 命令在 [engine/](engine/) 下执行（`cd engine && ...`）。已配 PreToolUse hook 自动补前缀兜底（见 [.claude/hooks/cd_engine.py](.claude/hooks/cd_engine.py)），但写命令时仍应自觉 cd，hook 只是兜底而非依赖。
 - 测试：pytest + hypothesis（属性测试，架构明确要求）。
 - lint/format：ruff。行长上限 100（`engine/pyproject.toml` 的 `[tool.ruff]`）。E501 无法自动修复、`ruff format` 也不拆字符串字面量，须在写时即控制：
   - 长字符串用括号隐式拼接折行（`s = ("前半" "后半")`），不要指望事后 format 救场。
@@ -63,3 +64,4 @@
 - 开工第一件事：读 [PROGRESS.md](PROGRESS.md)（做到哪）+ 本文件（怎么干）+ [04](docs/xkx-arch/04-迁移路径与避坑清单.md) 当前阶段（kill criteria）。
 - 收工前：更新 [PROGRESS.md](PROGRESS.md) 的 Done / In Progress / Blocked / Next Up + 日期。
 - 长任务跨 session：在 PROGRESS.md 的 In Progress 写清"当前子任务 + 卡在哪 + 下一步具体动作"。
+- **PROGRESS.md 体量纪律**（token 经济学）：Done 单条 ≤2 行（摘要 + ADR 链接 + tests 数），细节进 ADR 不重复。每开新阶段把 Done 归档到 [docs/progress-archive/](docs/progress-archive/) `stage-N-done.md`，主文件只留当前阶段滚动窗口 + 活状态（In Progress/Blocked/Next Up/kill criteria）。目标主文件 < 8KB。

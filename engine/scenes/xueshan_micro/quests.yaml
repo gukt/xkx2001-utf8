@@ -1,5 +1,3 @@
-# S4 ADR-0007：xueshan 供奉任务
-# 对照 d/xueshan/npc/gelun1.c ask 还愿 + accept_object 酥油罐 + set marks/酥
 - id: xueshan/tribute
   name: 供奉佛爷
   giver: xueshan/npc/gelun1
@@ -13,3 +11,72 @@
     exp: 100
     flag: 酥
     message: 葛伦布双手合什：佛爷会保佑施主的。
+- id: xueshan/pilgrimage
+  name: 朝山跑腿
+  giver: xueshan/npc/gelun1
+  trigger: 跑腿
+  description: 先去山路看看，再回来供奉酥油。
+  objectives:
+  - kind: reach_room
+    room_id: xueshan/dshanlu
+  - kind: give_item
+    npc_id: xueshan/npc/gelun1
+    item_id: suyou_guan
+  reward:
+    exp: 150
+    flag: 跑腿
+    message: 葛伦布点头：施主诚心可嘉。
+- id: xueshan/quest/darba
+  name: 引见金轮法王
+  giver: xueshan/npc/darba
+  trigger: 引见
+  description: 达尔巴看了你一眼不屑地说：想找我师父，得先过我这一关，这位大侠是不是先和我切搓一下？
+  objectives:
+  - kind: fight_win
+    npc_id: xueshan/npc/darba
+  reward:
+    flag: jlfw
+    message: 达尔巴说：阁下武功确是不一般，在下十分佩服。我师父金轮法王在草原上授猎，你去寻他吧。
+    time_gate: 0
+- id: xueshan/quest/jiamu
+  name: 嘉木供奉
+  giver: xueshan/npc/jiamu
+  trigger: 供奉
+  description: 嘉木活佛说：去度母殿供奉酥油，回来领今年的供奉。
+  objectives:
+  - kind: reach_room
+    room_id: xueshan/dumudian
+  reward:
+    exp: 200
+    flag: 工资
+    message: 嘉木活佛转身拿出一个红包递给你。
+    time_gate: 86400
+- id: xueshan/quest/fsgelun
+  name: 准备法事
+  giver: xueshan/npc/fsgelun
+  trigger: 准备法事
+  description: 葛伦布说：去度母殿取酥油来，为亡灵做法事。
+  objectives:
+  - kind: reach_room
+    room_id: xueshan/dumudian
+  - kind: give_item
+    npc_id: xueshan/npc/fsgelun
+    item_id: suyou_guan
+  reward:
+    exp: 300
+    flag: 法事
+    message: 葛伦布点头：佛爷会保佑施主。
+    time_gate: 0
+- id: xueshan/quest/lazhangfo
+  name: 拉章藏经
+  giver: xueshan/npc/lazhangfo
+  trigger: 藏经
+  description: 拉章活佛说：去经堂取一本经书来，好好钻研。
+  objectives:
+  - kind: reach_room
+    room_id: xueshan/jingtang
+  reward:
+    exp: 150
+    flag: 读经
+    message: 拉章活佛点头：这本经书你拿回去好好钻研。
+    time_gate: 0

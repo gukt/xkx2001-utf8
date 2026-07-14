@@ -1,0 +1,13 @@
+# CPK manifest（M3-2，ADR-0031）：雪山派微场景 StdLib CPK
+# 题材：wuxia（武侠旗舰）。M3-1 Wave 2 扩展为完整门派核心循环。
+cpk_id: wuxia_xueshan_micro
+schema_version: 1
+theme: wuxia
+pack_type: module_pack
+version: 0.1.0
+license: CC-BY-SA-4.0
+author: xkx-core
+dependencies: []
+capabilities_required: []
+entry_points:
+  main_scene: xueshan/dshanlu

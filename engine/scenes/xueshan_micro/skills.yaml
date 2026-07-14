@@ -1,0 +1,71 @@
+- skill_id: longxiang-banruo
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - force
+- skill_id: lamaism
+  skill_type: knowledge
+  valid_learn: true
+  practice_skill: false
+  valid_enable: []
+- skill_id: xueshan-jian
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - sword
+  - parry
+- skill_id: dashou-yin
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - hand
+  - parry
+- skill_id: shenkongxing
+  skill_type: dodge
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - dodge
+  - move
+- skill_id: necromancy
+  skill_type: knowledge
+  valid_learn: true
+  practice_skill: false
+  valid_enable: []
+- skill_id: riyue-lun
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - hammer
+  - parry
+- skill_id: huoyan-dao
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - strike
+  - parry
+- skill_id: mingwang-jian
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - sword
+  - parry
+- skill_id: xiaowuxiang
+  skill_type: martial
+  valid_learn: true
+  practice_skill: false
+  valid_enable:
+  - force
+- skill_id: yujiamu-quan
+  skill_type: martial
+  valid_learn: true
+  practice_skill: true
+  valid_enable:
+  - cuff
+  - parry

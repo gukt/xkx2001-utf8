@@ -57,6 +57,13 @@ class SkillData(BaseModel):
     # post_action 声明式副作用（题材数据声明；内核不解释，只 apply 返回值入 ledger）
     # None = 无 post_action；非空时按规格 side_effects order=47 在七步后处理阶段 apply
     post_action_result: str | None = None
+    # M3-1 练功 stub（ADR-0032 决策 2，正式武学数据后置内容生产子任务）。
+    # LPC SKILL_D(skill)->method() 的声明式简化：valid_learn/practice_skill 简化为
+    # 布尔（LPC 是函数可动态判定，greenfield 内容生产期由题材数据声明）。
+    skill_type: str = ""  # LPC type()：martial/knowledge/...（learn combat_exp 门控用）
+    valid_learn: bool = True  # LPC valid_learn(me) 简化布尔
+    practice_skill: bool = True  # LPC practice_skill(me) 简化布尔（武器检查后置）
+    valid_enable: list[str] = Field(default_factory=list)  # 可 enable 的种类（空=不限制）
 
 
 class HitCallbackResult(BaseModel):

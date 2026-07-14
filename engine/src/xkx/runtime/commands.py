@@ -17,6 +17,7 @@ Command 仅覆盖玩家外部意图；System tick 派生变更不经 Command（0
 
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from xkx.combat.context import CombatContext
@@ -31,6 +32,8 @@ from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
+    CombatState,
+    FamilyComp,
     Identity,
     Inventory,
     Marks,
@@ -39,8 +42,11 @@ from xkx.runtime.components import (
     Progression,
     QuestLog,
     RoomComp,
+    Skills,
+    TitleComp,
     Vitals,
 )
+from xkx.runtime.conditions import apply_condition
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -51,6 +57,8 @@ from xkx.runtime.middleware.s5_parse_args import parse_args
 from xkx.runtime.middleware.s6_inject_context import inject_context
 from xkx.runtime.middleware.s7_execute_audit import AuditLog, execute_audit
 from xkx.runtime.privileged import PrivilegedActionLog
+from xkx.runtime.query import query_skill
+from xkx.runtime.skill import get_skill_data, improve_skill, is_busy
 from xkx.runtime.world import apply_effects, to_snapshot
 
 
@@ -135,6 +143,15 @@ def _eval_ctx(world: World, actor_id: int, **extra):  # type: ignore[no-untyped-
     )
 
 
+def _current_tick(game: Game) -> int:
+    """M3-1 ADR-0032 决策 3：取当前 tick（world.current_tick 动态属性，Engine.tick 更新）。
+
+    build_world 初始化为 0；Engine.tick 每次推进。time-gate 冷却判定时间源
+    （对照 jiamu lama_wage 的 mud_age）。getattr 健壮处理未注入的测试 World。
+    """
+    return getattr(game.world, "current_tick", 0)
+
+
 def _quest_status(world: World, actor_id: int, quest_id: str) -> str:
     """S4 ADR-0007：获取玩家某任务状态。"""
     log = world.get(actor_id, QuestLog)
@@ -148,6 +165,116 @@ def _set_quest_status(world: World, actor_id: int, quest_id: str, status: str) -
         log = QuestLog()
         world.add(actor_id, log)
     log.statuses[quest_id] = status
+
+
+def _quest_current_step(world: World, actor_id: int, quest_id: str) -> int:
+    """M3-1 ADR-0032 决策 3：获取多步任务当前步骤索引。"""
+    log = world.get(actor_id, QuestLog)
+    return log.current_step.get(quest_id, 0) if log else 0
+
+
+def _set_quest_current_step(world: World, actor_id: int, quest_id: str, step: int) -> None:
+    """M3-1 ADR-0032 决策 3：设置多步任务当前步骤索引。"""
+    log = world.get(actor_id, QuestLog)
+    if log is None:
+        log = QuestLog()
+        world.add(actor_id, log)
+    log.current_step[quest_id] = step
+
+
+def _quest_objectives(q: dict) -> list[dict]:
+    """取任务 objectives list（M3-1；向后兼容旧 IR objective 单数）。"""
+    objs = q.get("objectives") or []
+    if objs:
+        return objs
+    old = q.get("objective")
+    return [old] if old else []
+
+
+def _advance_objective(
+    game: Game,
+    actor_id: int,
+    kind: str,
+    *,
+    npc_id: str = "",
+    room_id: str = "",
+    item_id: str = "",
+) -> list[str]:
+    """推进匹配当前步骤的 in_progress 任务（M3-1 ADR-0032 决策 3）。
+
+    检查所有 in_progress 任务的当前步骤 objective，kind + 字段匹配则 current_step++。
+    全部步骤完成 -> ``_complete_quest`` 发奖。返回推进/完成产生的消息。一次动作只
+    推进一个任务（与 S4 give「一次 give 只完成一个任务」一致）。
+    """
+    world = game.world
+    msgs: list[str] = []
+    for qid, q in game.quests.items():
+        if _quest_status(world, actor_id, qid) != "in_progress":
+            continue
+        objectives = _quest_objectives(q)
+        step = _quest_current_step(world, actor_id, qid)
+        if step >= len(objectives):
+            continue
+        obj = objectives[step]
+        if obj.get("kind") != kind:
+            continue
+        if kind == "give_item" and not (
+            obj.get("npc_id") == npc_id and obj.get("item_id") == item_id
+        ):
+            continue
+        if kind in ("kill_npc", "fight_win") and obj.get("npc_id") != npc_id:
+            continue
+        if kind == "reach_room" and obj.get("room_id") != room_id:
+            continue
+        # 匹配 -> 推进
+        _set_quest_current_step(world, actor_id, qid, step + 1)
+        if step + 1 >= len(objectives):
+            msgs.extend(_complete_quest(game, actor_id, qid))
+        else:
+            msgs.append(f"任务「{q['name']}」完成一步，继续努力。")
+        break
+    return msgs
+
+
+def _complete_quest(game: Game, actor_id: int, qid: str) -> list[str]:
+    """完成任务发奖（S4 + M3-1 ADR-0032 决策 3 time_gate 可重复）。
+
+    time_gate > 0：记 claimed_at = current_tick + 重置 not_started（可再接，ask
+    冷却门控，对照 jiamu lama_wage）。time_gate == 0：设 completed（S4 一次性）。
+    """
+    world = game.world
+    q = game.quests.get(qid, {})
+    reward = q.get("reward", {})
+    msgs: list[str] = []
+    exp = reward.get("exp", 0)
+    if exp:
+        prog = world.get(actor_id, Progression)
+        if prog:
+            prog.combat_exp += exp
+    flag = reward.get("flag", "")
+    if flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(flag)
+    msg = reward.get("message", "")
+    if msg:
+        msgs.append(msg)
+    time_gate = reward.get("time_gate", 0)
+    if time_gate > 0:
+        log = world.get(actor_id, QuestLog)
+        if log is None:
+            log = QuestLog()
+            world.add(actor_id, log)
+        log.claimed_at[qid] = _current_tick(game)
+        log.statuses[qid] = "not_started"
+        log.current_step[qid] = 0
+        msgs.append(f"任务「{q['name']}」完成，{time_gate} tick 后可再次接取。")
+    else:
+        _set_quest_status(world, actor_id, qid, "completed")
+        msgs.append(f"任务「{q['name']}」完成。")
+    return msgs
 
 
 def go(game: Game, actor_id: int, direction: str) -> list[str]:
@@ -169,6 +296,8 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     pos.room_id = target
     msgs = [f"你向{direction}走去。"]
     msgs.extend(look(game, actor_id))
+    # M3-1 ADR-0032 决策 3：go 移动触发 reach_room objective（对照 shanmen go north）
+    msgs.extend(_advance_objective(game, actor_id, "reach_room", room_id=target))
     return msgs
 
 
@@ -198,6 +327,12 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         if _is_dead(world, target_eid):
             messages.append(f"{target_name}倒在地上，死了。")
             _handle_npc_death(world, target_eid, actor_id)
+            # M3-1 ADR-0032 决策 3：kill 击杀 NPC 触发 kill_npc objective（对照 fsgelun）
+            dead_ident = world.get(target_eid, Identity)
+            dead_pid = dead_ident.prototype_id if dead_ident else ""
+            messages.extend(
+                _advance_objective(game, actor_id, "kill_npc", npc_id=dead_pid)
+            )
             break
         ctx = CombatContext(
             attacker=to_snapshot(world, target_eid),
@@ -209,8 +344,9 @@ def kill(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> l
         messages.extend(result.messages)
         if _is_dead(world, actor_id):
             messages.append("你的眼前一黑，接著什么也不知道了....")
-            _handle_player_death(world, game, actor_id)
-            messages.append("慢慢地你终于又有了知觉....")
+            _handle_player_death(world, game, actor_id, target_eid)
+            # 还阳由 GovernanceSystem 推进 death_stage 到 stage 4 触发
+            #（reincarnate_at 恢复 + move revive_room），不在 kill 命令内完成
             break
     else:
         messages.append(f"战斗持续了{max_rounds}回合，双方暂时停手。")
@@ -230,15 +366,93 @@ def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
         prog.combat_exp += 50
 
 
-def _handle_player_death(world: World, game: Game, player_id: int) -> None:
-    """玩家死亡：传送回 spawn_room + 恢复 qi/jingli。"""
-    pos = world.get(player_id, Position)
-    if pos and game.spawn_room:
-        pos.room_id = game.spawn_room
-    vitals = world.get(player_id, Vitals)
-    if vitals:
-        vitals.qi = vitals.max_qi
-        vitals.jingli = vitals.max_jingli
+def _handle_player_death(
+    world: World, game: Game, player_id: int, killer_id: int
+) -> None:
+    """玩家死亡：调 die() 走完整死亡轮回（M3-1 ADR-0032 决策 4）。
+
+    die() 设 ghost=1 + move ``theme_config.death_room`` + enter_underworld 启动
+    death_stage EffectComp（阴间 5 段剧情，GovernanceSystem tick 推进到还阳）。
+    替代 S5a 简化版（传送 spawn_room + 恢复），接入阶段 2 死亡系统。还阳由
+    GovernanceSystem 推进 death_stage 到 stage 4 调 reincarnate_at（恢复 +
+    move revive_room），不在本函数内完成（CLI 自动推进 / e2e engine.tick）。
+    """
+    from xkx.runtime.death import die
+
+    die(world, player_id, killer_id, tick=_current_tick(game))
+
+
+def _qi_ratio(world: World, eid: int) -> int:
+    """qi*100/max_qi 百分比（对照 darba.c:109 checking 判定）。"""
+    vitals = world.get(eid, Vitals)
+    if not vitals or vitals.max_qi <= 0:
+        return 100
+    return vitals.qi * 100 // vitals.max_qi
+
+
+def fight(game: Game, actor_id: int, target_name: str, max_rounds: int = 30) -> list[str]:
+    """切磋命令（M3-1 ADR-0032 决策 3 fight_win）：点到为止，不杀死。
+
+    对照 cmds/std/fight.c（accept_fight + fight_ob 点到为止）+ darba.c checking
+    （NPC qi*100/max_qi <= win_threshold 判赢）。多回合循环，任一方 qi 降到
+    win_threshold% 即停。玩家赢 -> 推进 fight_win objective + 设标记；玩家输 ->
+    战斗结束不完成。NPC 不死（qi clamp 不降到 0，不触发 _handle_npc_death）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_pid = target_ident.prototype_id if target_ident else ""
+    # 取匹配 fight_win objective 的 win_threshold（默认 50%，对照 darba.c:109）
+    win_threshold = 50
+    for qid, q in game.quests.items():
+        if _quest_status(world, actor_id, qid) != "in_progress":
+            continue
+        objectives = _quest_objectives(q)
+        step = _quest_current_step(world, actor_id, qid)
+        if step < len(objectives):
+            obj = objectives[step]
+            if obj.get("kind") == "fight_win" and obj.get("npc_id") == target_pid:
+                win_threshold = obj.get("win_threshold", 50)
+                break
+    messages: list[str] = [f"你向{target_name}请教武艺，切磋开始！"]
+    for _ in range(max_rounds):
+        ctx = CombatContext(
+            attacker=to_snapshot(world, actor_id),
+            victim=to_snapshot(world, target_eid),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _qi_ratio(world, target_eid) <= win_threshold:
+            # 点到为止：NPC 认输，qi 不降到 0（不致死，对照 fight 点到为止）
+            vitals = world.get(target_eid, Vitals)
+            if vitals and vitals.qi <= 0:
+                vitals.qi = 1
+            messages.append(f"{target_name}拱手认输：阁下武功了得，在下佩服。")
+            messages.extend(
+                _advance_objective(game, actor_id, "fight_win", npc_id=target_pid)
+            )
+            break
+        ctx = CombatContext(
+            attacker=to_snapshot(world, target_eid),
+            victim=to_snapshot(world, actor_id),
+            seed=game.next_seed(),
+        )
+        result = resolve_attack(ctx)
+        apply_effects(world, result.effects)
+        messages.extend(result.messages)
+        if _qi_ratio(world, actor_id) <= win_threshold:
+            messages.append("你气喘吁吁，不得不认输。")
+            break
+    else:
+        messages.append(f"切磋持续了{max_rounds}回合，双方点到为止。")
+    return messages
 
 
 def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
@@ -256,12 +470,24 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     target_ident = world.get(target_eid, Identity)
     target_pid = target_ident.prototype_id if target_ident else ""
 
-    # S4 ADR-0007：quest trigger 优先于普通 inquiry
+    # S4 ADR-0007 + M3-1 ADR-0032 决策 3：quest trigger 优先于普通 inquiry
     for qid, q in game.quests.items():
         if q.get("giver") == target_pid and q.get("trigger") == topic:
             status = _quest_status(world, actor_id, qid)
             if status == "not_started":
+                # M3-1 time-gate：可重复任务冷却门控（对照 jiamu lama_wage）
+                reward = q.get("reward", {})
+                time_gate = reward.get("time_gate", 0)
+                if time_gate > 0:
+                    log = world.get(actor_id, QuestLog)
+                    last = log.claimed_at.get(qid) if log else None
+                    if last is not None and _current_tick(game) - last < time_gate:
+                        remain = time_gate - (_current_tick(game) - last)
+                        return [
+                            f"任务「{q['name']}」冷却中，约 {remain} tick 后可再次接取。"
+                        ]
                 _set_quest_status(world, actor_id, qid, "in_progress")
+                _set_quest_current_step(world, actor_id, qid, 0)
                 desc = q.get("description", "")
                 return (
                     [f"你接下任务「{q['name']}」。{desc}"]
@@ -269,7 +495,9 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
                     else [f"你接下任务「{q['name']}」。"]
                 )
             if status == "in_progress":
-                return [f"任务「{q['name']}」进行中。"]
+                step = _quest_current_step(world, actor_id, qid)
+                total = len(_quest_objectives(q)) or 1
+                return [f"任务「{q['name']}」进行中（{step}/{total}）。"]
             return [f"任务「{q['name']}」已完成。"]
 
     # 普通 inquiry
@@ -325,43 +553,21 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
             world.add(actor_id, marks)
         marks.flags.add(result.set_flag)
 
-    # S4 ADR-0007：检查并完成任务
-    for qid, q in game.quests.items():
-        if _quest_status(world, actor_id, qid) != "in_progress":
-            continue
-        obj = q.get("objective", {})
-        if (
-            obj.get("kind") == "give_item"
-            and obj.get("npc_id") == target_pid
-            and obj.get("item_id") == item_id
-        ):
-            reward = q.get("reward", {})
-            exp = reward.get("exp", 0)
-            if exp:
-                prog = world.get(actor_id, Progression)
-                if prog:
-                    prog.combat_exp += exp
-            flag = reward.get("flag", "")
-            if flag:
-                marks = world.get(actor_id, Marks)
-                if marks is None:
-                    marks = Marks()
-                    world.add(actor_id, marks)
-                marks.flags.add(flag)
-            _set_quest_status(world, actor_id, qid, "completed")
-            msg = reward.get("message", "")
-            if msg:
-                msgs.append(msg)
-            msgs.append(f"任务「{q['name']}」完成。")
-            break  # 一次 give 只完成一个任务
+    # S4 ADR-0007 + M3-1 ADR-0032 决策 3：give_item 推进当前步骤（多步 chain）
+    msgs.extend(
+        _advance_objective(
+            game, actor_id, "give_item", npc_id=target_pid, item_id=item_id
+        )
+    )
 
     return msgs
 
 
 def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
-    """任务查询命令（S4 ADR-0007）：quest / quest <id>。
+    """任务查询命令（S4 ADR-0007 + M3-1 多步进度）：quest / quest <id>。
 
-    ``quest`` 列出所有任务状态；``quest <id>`` 查单个任务状态。
+    ``quest`` 列出所有任务状态（in_progress 显示 current_step/total）；``quest <id>``
+    查单个任务状态。
     """
     world = game.world
     log = world.get(actor_id, QuestLog)
@@ -371,14 +577,24 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
         if not q:
             return [f"没有任务「{arg}」。"]
         status = statuses.get(arg, "not_started")
-        return [f"「{q['name']}」：{status}"]
+        return [_quest_brief(q, arg, status, log)]
     if not game.quests:
         return ["当前没有可接任务。"]
     lines = []
     for qid, q in game.quests.items():
         status = statuses.get(qid, "not_started")
-        lines.append(f"「{q['name']}」[{status}]：{q.get('description', '')}")
+        lines.append(_quest_brief(q, qid, status, log))
     return lines
+
+
+def _quest_brief(q: dict, qid: str, status: str, log: QuestLog | None) -> str:
+    """任务简要描述（M3-1：in_progress 显示多步进度 current_step/total）。"""
+    total = len(_quest_objectives(q)) or 1
+    desc = q.get("description", "")
+    if status == "in_progress" and log:
+        step = log.current_step.get(qid, 0)
+        return f"「{q['name']}」[{status} {step}/{total}]：{desc}"
+    return f"「{q['name']}」[{status}]：{desc}"
 
 
 def _item_name(game: Game, item_id: str) -> str:
@@ -470,6 +686,551 @@ def hp(game: Game, actor_id: int) -> list[str]:
 
 
 # ============================================================================
+# M3-1 ADR-0032 决策 1：拜师命令组（bai/kneel/recruit/betrayer）
+# 对照 LPC cmds/skill/apprentice.c + feature/apprentice.c + gongcang.c
+# ============================================================================
+
+
+def _is_apprentice_of(world: World, player_eid: int, master_eid: int) -> bool:
+    """玩家是否是 master 的徒弟（对照 apprentice.c:8 is_apprentice_of）。
+
+    master_id + master_name 同时匹配 master 的 prototype_id + name。
+    """
+    player_family = world.get(player_eid, FamilyComp)
+    master_ident = world.get(master_eid, Identity)
+    if not player_family or not master_ident:
+        return False
+    return (
+        player_family.master_id == master_ident.prototype_id
+        and player_family.master_name == master_ident.name
+    )
+
+
+def _eval_apprentice_conditions(
+    world: World, player_eid: int, conditions: dict, master_name: str
+) -> tuple[bool, str]:
+    """求值拜师入门条件（对照 LPC attempt_apprentice 钩子，声明式）。
+
+    返回 (通过, 拒绝消息)。通过时拒绝消息为空。按 ADR-0032 决策 1 实施期
+    细化：独立结构化条件模型（非层1 谓词，因 ADR-0016 护栏不引入 attr_ge）。
+    """
+    attrs = world.get(player_eid, Attributes)
+    prog = world.get(player_eid, Progression)
+    player_family = world.get(player_eid, FamilyComp)
+    marks = world.get(player_eid, Marks)
+    combat_exp = prog.combat_exp if prog else 0
+    player_fn = player_family.family_name if player_family else ""
+    # 1. reject_gender（对照 gongcang.c:66 拒女徒）
+    reject_gender = conditions.get("reject_gender", "")
+    if reject_gender and attrs and attrs.gender == reject_gender:
+        return False, f"{master_name}说道：本门不收{reject_gender}徒，请回吧。"
+    # 2. allow_families + other_family_max_combat_exp（对照 gongcang.c:75-81 外派高手）
+    allow_families = conditions.get("allow_families", [])
+    other_max_exp = conditions.get("other_family_max_combat_exp", 0)
+    if (
+        allow_families
+        and player_fn
+        and player_fn not in allow_families
+        and other_max_exp
+        and combat_exp >= other_max_exp
+    ):
+        return False, f"{master_name}说道：{player_fn}高手，本派可不敢收留！"
+    # 3. min_combat_exp
+    min_exp = conditions.get("min_combat_exp", 0)
+    if min_exp and combat_exp < min_exp:
+        return False, f"{master_name}说道：你的经验还浅，再历练历练吧。"
+    # 4. min_skills
+    min_skills = conditions.get("min_skills", {})
+    if min_skills:
+        skills = world.get(player_eid, Skills)
+        for sk, lvl in min_skills.items():
+            cur = skills.levels.get(sk, 0) if skills else 0
+            if cur < lvl:
+                return False, f"{master_name}说道：你的{sk}还不够纯熟。"
+    # 5. require_flags（对照 darba 打赢设标记解锁拜师，决策 3）
+    require_flags = conditions.get("require_flags", [])
+    if require_flags:
+        flags = marks.flags if marks else set()
+        for f in require_flags:
+            if f not in flags:
+                return False, f"{master_name}说道：你还未证明自己的实力。"
+    return True, ""
+
+
+def _assign_apprentice(
+    world: World, player_eid: int, family_name: str, generation: int, title: str
+) -> None:
+    """设玩家门派头衔（对照 apprentice.c:21-37 assign_apprentice）。
+
+    LPC: sprintf("%s第%s代%s", family_name, chinese_number(generation), title)。
+    greenfield 用阿拉伯数字（chinese_number 后置）。
+    """
+    title_comp = world.get(player_eid, TitleComp)
+    if title_comp is None:
+        title_comp = TitleComp()
+        world.add(player_eid, title_comp)
+    title_comp.title = f"{family_name}第{generation}代{title}"
+
+
+def _recruit_apprentice(
+    world: World, master_eid: int, player_eid: int, app_config: dict
+) -> list[str]:
+    """收徒核心逻辑（对照 apprentice.c:55 recruit_apprentice）。
+
+    含叛师检查（玩家已有不同门派 -> betrayer+1，对照 apprentice.c:63-70）。
+    写玩家 FamilyComp + assign_apprentice 设头衔 + 同步 Attributes.family。
+    技能减半公式后置（LPC apprentice.c help：所有技能减半 + 评价降到零）。
+    """
+    master_ident = world.get(master_eid, Identity)
+    family_name = app_config["family_name"]
+    generation = app_config["generation"] + 1  # 玩家 = 师傅 generation + 1
+    enter_title = "弟子"  # LPC recruit_apprentice -> assign_apprentice("弟子", 0)
+    msgs: list[str] = []
+    player_family = world.get(player_eid, FamilyComp)
+    # 叛师检查（玩家已有不同门派）
+    if player_family and player_family.family_name and player_family.family_name != family_name:
+        player_family.betrayer += 1
+        msgs.append(f"你决定背叛师门，改投入{family_name}门下！")
+    if player_family is None:
+        player_family = FamilyComp()
+        world.add(player_eid, player_family)
+    # 写玩家 FamilyComp（对照 recruit_apprentice 行 63-67）
+    player_family.family_name = family_name
+    player_family.generation = generation
+    player_family.master_id = master_ident.prototype_id if master_ident else ""
+    player_family.master_name = master_ident.name if master_ident else ""
+    player_family.title = enter_title
+    player_family.privs = 0
+    # 同步 Attributes.family（兼容 family_eq 谓词 + FamilyBonus 分发）
+    attrs = world.get(player_eid, Attributes)
+    if attrs:
+        attrs.family = family_name
+    # assign_apprentice 设 TitleComp.title
+    _assign_apprentice(world, player_eid, family_name, generation, enter_title)
+    success_msg = app_config.get("success_message", "")
+    if success_msg:
+        msgs.append(success_msg)
+    msgs.append(f"恭喜您成为{family_name}的第{generation}代弟子。")
+    return msgs
+
+
+def bai(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """拜师命令（M3-1 ADR-0032 决策 1，对照 cmds/skill/apprentice.c）。
+
+    玩家拜 NPC 为师。流程：找 NPC -> 已是徒弟则请安 -> 辈分检查 ->
+    求值 attempt_apprentice 入门条件 -> 通过则 recruit。pending 二次确认
+    机制（LPC pending/recruit）简化为直接求值收徒（NPC 拜师路径）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_disp = target_ident.name if target_ident else target_name
+    target_family = world.get(target_eid, FamilyComp)
+    # 师傅须有 family（create_family 设），无则不能收徒
+    if target_family is None or not target_family.family_name:
+        return [f"{target_disp}既不属于任何门派，也没有开山立派，不能拜师。"]
+    # 已是徒弟 -> 请安（对照 apprentice.c:46）
+    if _is_apprentice_of(world, actor_id, target_eid):
+        return [f"你恭恭敬敬地向{target_disp}磕头请安，叫道：「师父！」"]
+    # 辈分检查：同门派 + 师傅 generation >= 玩家 generation -> 不能拜平辈晚辈
+    # （对照 apprentice.c:55-58，special_master 后置）
+    player_family = world.get(actor_id, FamilyComp)
+    if (
+        player_family
+        and player_family.family_name == target_family.family_name
+        and target_family.generation >= player_family.generation
+    ):
+        return [f"{target_disp}的辈分不对，你不能拜平辈或晚辈为师。"]
+    behavior = world.get(target_eid, NpcBehavior)
+    app_config = behavior.apprentice_config if behavior else None
+    if app_config is None:
+        return [f"{target_disp}似乎不想收徒。"]
+    # 求值 attempt_apprentice 入门条件
+    ok, reject_msg = _eval_apprentice_conditions(
+        world, actor_id, app_config.get("conditions", {}), target_disp
+    )
+    if not ok:
+        return [reject_msg]
+    # 通过 -> recruit（含叛师检查）
+    msgs = _recruit_apprentice(world, target_eid, actor_id, app_config)
+    # gongcang 剃度闭环（M3-1 子任务 5）：收徒后若师傅有 kneel 配置，设 pending
+    # 标记让玩家可 kneel 剃度（对照 LPC attempt_apprentice 通过后 set pending/join_lama，
+    # do_kneel 检查 pending 后剃度设 class）。samu 无 kneel 配置不触发。
+    kneel_def = app_config.get("kneel") or {}
+    require_flag = kneel_def.get("require_flag", "")
+    if require_flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(require_flag)
+        msgs.append(f"你得到了{target_disp}的受戒许可，可以跪下(kneel)受戒了。")
+    return msgs
+
+
+def kneel(game: Game, actor_id: int) -> list[str]:
+    """剃度命令（M3-1 ADR-0032 决策 1，对照 gongcang.c:114 do_kneel）。
+
+    在房间内有 apprentice_config.kneel 的师傅 NPC 时触发剃度：检查
+    require_flag（pending 标记）-> 设 class -> 清标记 -> 输出 message。
+    gongcang 专属行为通过声明式配置驱动，源码无硬编码。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    master_eid = None
+    kneel_def = None
+    for eid in world.entities_in_room(pos.room_id):
+        ident = world.get(eid, Identity)
+        if not ident or ident.is_player:
+            continue
+        behavior = world.get(eid, NpcBehavior)
+        if behavior and behavior.apprentice_config:
+            kd = behavior.apprentice_config.get("kneel")
+            if kd:
+                master_eid = eid
+                kneel_def = kd
+                break
+    if master_eid is None or kneel_def is None:
+        return ["你跪了下来，但似乎没人理会。"]
+    # 检查 require_flag（pending 标记，对照 gongcang do_kneel:117）
+    require_flag = kneel_def.get("require_flag", "")
+    marks = world.get(actor_id, Marks)
+    if require_flag and (not marks or require_flag not in marks.flags):
+        return ["你还没有得到受戒的许可。"]
+    # 设 class（对照 gongcang do_kneel:127 set("class","lama")）
+    set_class = kneel_def.get("set_class", "")
+    if set_class:
+        title_comp = world.get(actor_id, TitleComp)
+        if title_comp is None:
+            title_comp = TitleComp()
+            world.add(actor_id, title_comp)
+        title_comp.char_class = set_class
+    # 清除标记
+    clear_flag = kneel_def.get("clear_flag", "") or require_flag
+    if clear_flag and marks:
+        marks.flags.discard(clear_flag)
+    message = kneel_def.get("message", "")
+    return [message] if message else ["你双手合十，恭恭敬敬地跪了下来。"]
+
+
+def recruit(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """收徒命令（M3-1 ADR-0032 决策 1，对照 cmds/skill/recruit.c）。
+
+    NPC 收徒的 PrivilegedAction 入口（NPC AI force_me 调用，ADR-0020）。
+    M3-1 NPC AI 后置，玩家路径返回提示；bai 命令内部已实现 recruit 逻辑
+    （_recruit_apprentice）。NPC AI 落地后由 force_me 走完整 8 段管线。
+    """
+    return ["收徒需由师傅 NPC 发起（NPC AI 后置），玩家请用 bai 拜师。"]
+
+
+def betrayer(game: Game, actor_id: int) -> list[str]:
+    """叛师命令（M3-1 ADR-0032 决策 1，最小实现）。
+
+    betrayer+1 + family 清空（FamilyComp 重置 + Attributes.family="" +
+    TitleComp.title 清）。技能减半公式 + score=0 后置（LPC apprentice.c help：
+    所有技能减半 + 评价降到零）。
+    """
+    world = game.world
+    family = world.get(actor_id, FamilyComp)
+    if family is None or not family.family_name:
+        return ["你还没有加入任何门派。"]
+    family.betrayer += 1
+    family_name = family.family_name
+    family.family_name = ""
+    family.generation = 0
+    family.master_id = ""
+    family.master_name = ""
+    family.title = ""
+    family.privs = 0
+    attrs = world.get(actor_id, Attributes)
+    if attrs:
+        attrs.family = ""
+    title_comp = world.get(actor_id, TitleComp)
+    if title_comp:
+        title_comp.title = ""
+    return [f"你背叛了{family_name}，从此沦为弃徒。"]
+
+
+# ============================================================================
+# M3-1 ADR-0032 决策 2：练功命令组（learn/practice/dazuo/tuna/enable）
+# 对照 cmds/skill/learn.c / practice.c / dazuo.c / tuna.c / enable.c
+# ============================================================================
+
+# LPC enable.c:8-38 valid_types（技能种类集合）
+_VALID_SKILL_TYPES: frozenset[str] = frozenset({
+    "unarmed", "sword", "blade", "stick", "staff", "club", "force",
+    "parry", "dodge", "magic", "whip", "hammer", "kick", "hook",
+    "pike", "finger", "hand", "cuff", "claw", "strike",
+})
+
+
+def learn(
+    game: Game, actor_id: int, teacher_name: str, skill_id: str, times: int = 1
+) -> list[str]:
+    """learn|xue 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/learn.c:16-151）。
+
+    请教 NPC 学习技能。消耗 potential + jing，improve_skill(skill, gain)。
+    combat_exp 门控：martial 技能 my_skill³/10 > combat_exp 阻止提升（仍消耗 jing）。
+    gain = Σ random(int) for times 次（系统 RNG，非 combat 确定性范围）。
+
+    简化（后置）：峨嵋减速 / spouse 检查 / recognize_apprentice 付费副作用 /
+    prevent_learn 师傅侧门控后置（M3-1 雪山派无峨嵋/spouse，recognize 后置）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    if times < 1:
+        return ["你要请教几次？"]
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, teacher_name)
+    if target_eid is None:
+        return [f"这里没有「{teacher_name}」。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["临阵磨枪？来不及啦。"]
+    prog = world.get(actor_id, Progression)
+    if prog is None or prog.potential < times:
+        return ["你的潜能不够。"]
+    # 拜师/认可检查（对照 learn.c:52-56，spouse/recognize_apprentice 后置）
+    if not _is_apprentice_of(world, actor_id, target_eid):
+        return [f"你不是「{teacher_name}」的弟子，不能请教。"]
+    master_skill = query_skill(world, target_eid, skill_id, raw=True)
+    if master_skill <= 0:
+        return [f"「{teacher_name}」似乎不会这个。"]
+    my_skill = query_skill(world, actor_id, skill_id, raw=True)
+    if my_skill >= master_skill:
+        return ["你的程度已经不输师父了。"]
+    skill_data = get_skill_data(skill_id)
+    if not skill_data.valid_learn:
+        return [f"你无法学习「{skill_id}」。"]
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    # gin_cost = 150/int（对照 learn.c:95），初学加倍（learn.c:97-100）
+    gin_cost = 150 // int_val if int_val > 0 else 150
+    if not my_skill:
+        gin_cost *= 2
+    gin_cost = times * gin_cost * 3 // 2  # 玩家总消耗（learn.c:117）
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    # combat_exp 门控：martial 且 my_skill³/10 > combat_exp -> 不提升（learn.c:120-122）
+    blocked_by_exp = (
+        skill_data.skill_type == "martial"
+        and my_skill ** 3 // 10 > (prog.combat_exp if prog else 0)
+    )
+    if vitals.jing <= gin_cost:
+        # jing 不足：不提升，仍消耗剩余 jing（learn.c:143-146 + :148 无条件消耗）
+        vitals.jing = 0
+        return ["你今天太累了，什么也没学到。"]
+    # gain = Σ random(int) for times 次（learn.c:137-138，系统 RNG）
+    gain = sum(random.randint(0, max(0, int_val - 1)) for _ in range(times))
+    prog.potential -= times  # 扣潜能（learn.c:135）
+    vitals.jing -= gin_cost  # 扣 jing（learn.c:148 receive_damage）
+    msgs = [f"你向「{teacher_name}」请教了「{skill_id}」。"]
+    if blocked_by_exp:
+        msgs.append("你缺乏实战经验，无法领会这种武功。")
+        return msgs
+    if improve_skill(world, actor_id, skill_id, gain):
+        msgs.append(f"你的「{skill_id}」进步了！")
+    return msgs
+
+
+def practice(
+    game: Game, actor_id: int, skill_arg: str, times: int = 1
+) -> list[str]:
+    """practice|lian 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/practice.c:9-81）。
+
+    练习特殊技能（须先 enable）。improve_skill(skillname, skill_basic/5+1, weak_mode)。
+    weak_mode = skill_basic > skill ? 0 : 1（基础>特殊可升级，否则弱模式只攒点）。
+    无 random（amount 固定）。practice_skill 武器检查用 SkillData stub（后置内容生产）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    if not skill_arg:
+        return ["你要练什么？"]
+    if skill_arg == "parry":
+        return ["你不能通过练习招架来提高。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["你已经在战斗中了。"]
+    skills = world.get(actor_id, Skills)
+    if skills is None:
+        return ["你什么都不会。"]
+    # 必须先 enable（query_skill_mapped，对照 practice.c:49-50）
+    skillname = skills.skill_map.get(skill_arg, "")
+    if not skillname:
+        return [f"你还没有 enable 任何「{skill_arg}」方面的特殊技能。"]
+    skill_basic = skills.levels.get(skill_arg, 0)  # 基础技能原始等级
+    skill = skills.levels.get(skillname, 0)  # 特殊技能原始等级
+    if skill < 1:
+        return [f"你的「{skillname}」还不够熟练，无法练习。"]
+    if skill_basic < 1:
+        return [f"你的「{skill_arg}」基本功还不够，无法练习。"]
+    # 基础门槛：skill_basic/2 > skill/3（对照 practice.c:59-60）
+    if skill_basic // 2 <= skill // 3:
+        return ["你的基本功火候未到，无法继续练习。"]
+    skill_data = get_skill_data(skillname)
+    if not skill_data.valid_learn:
+        return [f"你无法练习「{skillname}」。"]
+    # weak_mode + amount 循环外算（对照 practice.c:69-73，循环内不重查 skill）
+    weak_mode = 0 if skill_basic > skill else 1
+    amount = skill_basic // 5 + 1
+    msgs = [f"你反复练习「{skillname}」。"]
+    for _ in range(times):
+        if not skill_data.practice_skill:
+            msgs.append("你无法继续练习了。")
+            break
+        if improve_skill(world, actor_id, skillname, amount, weak_mode=weak_mode):
+            msgs.append(f"你的「{skillname}」进步了！")
+    return msgs
+
+
+def dazuo(game: Game, actor_id: int, exercise_cost: int) -> list[str]:
+    """dazuo|exercise 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/dazuo.c:12-72）。
+
+    打坐练 neili/max_neili。须先 enable force。消耗 qi（exercise_cost），启动 busy
+    EffectComp（exercise condition），每 tick neili 增长，结束判定 max_neili 提升。
+    duration = ceil(exercise_cost / neili_gain) tick（neili_gain = 1+有效force/10）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["战斗中不能练内功，会走火入魔。"]
+    skills = world.get(actor_id, Skills)
+    if skills is None or not skills.skill_map.get("force"):
+        return ["你必须先用 enable 选择你要用的内功心法。"]
+    if exercise_cost < 10:
+        return ["你的内功还没有达到那个境界！"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if vitals.qi < exercise_cost:
+        return ["你现在的气太少了，无法产生内息运行全身经脉。"]
+    if vitals.max_jing > 0 and vitals.jing * 100 // vitals.max_jing < 70:
+        return ["你现在精不够，无法控制内息的流动！"]
+    # neili 钳制 max_neili*2（对照 dazuo.c:59-62）
+    if vitals.max_neili > 0 and vitals.neili > vitals.max_neili * 2:
+        vitals.neili = vitals.max_neili * 2
+    # duration = ceil(exercise_cost / neili_gain) tick
+    force_level = query_skill(world, actor_id, "force")  # 有效 force（dazuo.c:77）
+    neili_gain = 1 + force_level // 10
+    if neili_gain < 1:
+        neili_gain = 1
+    duration = (exercise_cost + neili_gain - 1) // neili_gain  # ceil
+    # 设 pending/exercise mark（对照 dazuo.c:66 set_temp("pending/exercise", 1)）
+    marks = world.get(actor_id, Marks)
+    if marks is None:
+        marks = Marks()
+        world.add(actor_id, marks)
+    marks.flags.add("pending/exercise")
+    apply_condition(world, actor_id, "exercise", duration, detail="force")
+    return ["你盘膝坐下，开始修炼内力，一股内息开始在体内流动。"]
+
+
+def tuna(game: Game, actor_id: int, respirate_cost: int) -> list[str]:
+    """tuna|respirate 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/tuna.c:11-58）。
+
+    吐纳炼 jingli/max_jingli/eff_jingli。消耗 jing（respirate_cost），启动 busy
+    EffectComp（respirate condition），每 tick jingli 增长，结束判定 max_jingli/
+    eff_jingli 提升。不要求 enable force（与 dazuo 不同，对照 tuna.c）。
+    jingli_gain = 1+原始force/10（与 dazuo 有效 force 不对称，tuna.c:63）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["战斗中不能吐纳，会走火入魔。"]
+    if respirate_cost < 10:
+        return ["你的内功还没有达到那个境界！"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if vitals.jing < respirate_cost:
+        return ["你现在的精太少了，无法产生精力运行全身经脉。"]
+    if vitals.max_qi > 0 and vitals.qi * 100 // vitals.max_qi < 70:
+        return ["你现在气不够，无法控制精力的流动！"]
+    # jingli 钳制 max_jingli*2（对照 tuna 启动前）
+    if vitals.max_jingli > 0 and vitals.jingli > vitals.max_jingli * 2:
+        vitals.jingli = vitals.max_jingli * 2
+    # duration = ceil(respirate_cost / jingli_gain)，gain 用原始 force（tuna.c:63）
+    force_raw = query_skill(world, actor_id, "force", raw=True)
+    jingli_gain = 1 + force_raw // 10
+    if jingli_gain < 1:
+        jingli_gain = 1
+    duration = (respirate_cost + jingli_gain - 1) // jingli_gain
+    marks = world.get(actor_id, Marks)
+    if marks is None:
+        marks = Marks()
+        world.add(actor_id, marks)
+    marks.flags.add("pending/respirate")
+    apply_condition(world, actor_id, "respirate", duration, detail="force")
+    return ["你盘膝坐下，开始吐故纳新，一股精力开始在体内流动。"]
+
+
+def enable(
+    game: Game, actor_id: int, skill_type: str = "", map_to: str = ""
+) -> list[str]:
+    """enable|jifa 命令（M3-1 ADR-0032 决策 2，对照 cmds/skill/enable.c:40-128）。
+
+    无参：列当前 skill_map。``<type> <map_to>``：设置映射。map_to=="none" 取消。
+    切换 force 清 neili（对照 enable.c:116-119）。valid_enable 用 SkillData stub。
+    """
+    world = game.world
+    skills = world.get(actor_id, Skills)
+    if skills is None:
+        return ["你什么技能都不会。"]
+    if not skill_type:
+        # 无参：列 skill_map（对照 enable.c:48-69）
+        msgs = ["你目前启用以下特殊技能："]
+        has = False
+        for st in _VALID_SKILL_TYPES:
+            mapped = skills.skill_map.get(st)
+            if mapped:
+                eff = query_skill(world, actor_id, st)
+                msgs.append(f"  {st}（有效等级 {eff}）：{mapped}")
+                has = True
+        if not has:
+            msgs.append("  （暂无）")
+        return msgs
+    if skill_type not in _VALID_SKILL_TYPES:
+        return [f"「{skill_type}」不是有效的技能种类。"]
+    if not map_to:
+        return ["指令格式：enable <技能种类> <技能名称>（如 enable sword 雪山剑法）"]
+    if map_to == "none":
+        skills.skill_map.pop(skill_type, None)
+        return ["好吧，你以后只用基本功夫了。"]
+    if map_to == skill_type:
+        return [f"「{map_to}」是基础技能，不需要 enable。"]
+    # 须会该特殊技能（raw 等级 > 0，对照 enable.c:96-97）
+    if skills.levels.get(map_to, 0) <= 0:
+        return [f"你不会「{map_to}」这种技能。"]
+    # valid_enable 检查（SkillData stub，对照 enable.c:103-104；空列表=不限制）
+    skill_data = get_skill_data(map_to)
+    if skill_data.valid_enable and skill_type not in skill_data.valid_enable:
+        return [f"「{map_to}」不能作为「{skill_type}」方面的特殊技能。"]
+    skills.skill_map[skill_type] = map_to
+    # 切换 force 清 neili（对照 enable.c:116-119）
+    if skill_type == "force":
+        vitals = world.get(actor_id, Vitals)
+        if vitals:
+            vitals.neili = 0
+    return [f"你从现在起用「{map_to}」作为「{skill_type}」方面的特殊技能。"]
+
+
+# ============================================================================
 # 阶段 1 Wave 2 T4：8 段中间件管线集成（ADR-0020）
 # ============================================================================
 
@@ -486,6 +1247,12 @@ def _adapter_kill(game: Game, ctx: ActionContext) -> list[str]:
     """kill 命令适配器：target_name = parsed_args[0]（或 raw_args）。"""
     target_name = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
     return kill(game, ctx.actor, target_name)
+
+
+def _adapter_fight(game: Game, ctx: ActionContext) -> list[str]:
+    """fight 命令适配器（M3-1 ADR-0032 决策 3）：fight <NPC> 切磋。"""
+    target_name = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return fight(game, ctx.actor, target_name)
 
 
 def _adapter_ask(game: Game, ctx: ActionContext) -> list[str]:
@@ -550,11 +1317,100 @@ def _adapter_hp(game: Game, ctx: ActionContext) -> list[str]:
     return hp(game, ctx.actor)
 
 
+def _adapter_bai(game: Game, ctx: ActionContext) -> list[str]:
+    """bai 命令适配器：bai <NPC>（NPC 名可含空格，取 raw_args）。"""
+    target_name = ctx.raw_args.strip()
+    if not target_name:
+        return ["如：bai 贡藏"]
+    return bai(game, ctx.actor, target_name)
+
+
+def _adapter_kneel(game: Game, ctx: ActionContext) -> list[str]:
+    """kneel 命令适配器（无参，剃度当前房间师傅）。"""
+    return kneel(game, ctx.actor)
+
+
+def _adapter_recruit(game: Game, ctx: ActionContext) -> list[str]:
+    """recruit 命令适配器：recruit <player>（PrivilegedAction，玩家路径提示）。"""
+    target_name = ctx.raw_args.strip()
+    if not target_name:
+        return ["如：recruit 玩家名"]
+    return recruit(game, ctx.actor, target_name)
+
+
+def _adapter_betrayer(game: Game, ctx: ActionContext) -> list[str]:
+    """betrayer 命令适配器（无参，叛师）。"""
+    return betrayer(game, ctx.actor)
+
+
+def _adapter_learn(game: Game, ctx: ActionContext) -> list[str]:
+    """learn|xue 命令适配器：learn <师傅> <技能> [次数]。"""
+    args = ctx.raw_args.strip().split()
+    if len(args) < 2:
+        return ["指令格式：learn|xue <师傅> <技能> [次数]"]
+    times = 1
+    if len(args) >= 3:
+        try:
+            times = int(args[2])
+        except ValueError:
+            return ["请教次数必须是数字。"]
+    return learn(game, ctx.actor, args[0], args[1], times)
+
+
+def _adapter_practice(game: Game, ctx: ActionContext) -> list[str]:
+    """practice|lian 命令适配器：practice <技能> [次数]。"""
+    args = ctx.raw_args.strip().split()
+    if not args or not args[0]:
+        return ["指令格式：practice|lian <技能> [次数]"]
+    times = 1
+    if len(args) >= 2:
+        try:
+            times = int(args[1])
+        except ValueError:
+            return ["练习次数必须是数字。"]
+    return practice(game, ctx.actor, args[0], times)
+
+
+def _adapter_dazuo(game: Game, ctx: ActionContext) -> list[str]:
+    """dazuo|exercise 命令适配器：dazuo <气量>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要花多少气练功？（如：dazuo 100）"]
+    try:
+        cost = int(raw)
+    except ValueError:
+        return ["你要花多少气练功？"]
+    return dazuo(game, ctx.actor, cost)
+
+
+def _adapter_tuna(game: Game, ctx: ActionContext) -> list[str]:
+    """tuna|respirate 命令适配器：tuna <精量>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要花多少精练功？（如：tuna 100）"]
+    try:
+        cost = int(raw)
+    except ValueError:
+        return ["你要花多少精练功？"]
+    return tuna(game, ctx.actor, cost)
+
+
+def _adapter_enable(game: Game, ctx: ActionContext) -> list[str]:
+    """enable|jifa 命令适配器：enable [种类] [技能名]。"""
+    args = ctx.raw_args.strip().split()
+    if not args or not args[0]:
+        return enable(game, ctx.actor)  # 无参：列 skill_map
+    if len(args) == 1:
+        return enable(game, ctx.actor, args[0])
+    return enable(game, ctx.actor, args[0], args[1])
+
+
 # 命令注册表：verb -> adapter (game, ctx) -> list[str]
 # 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
 COMMAND_REGISTRY: dict[str, Any] = {
     "go": _adapter_go,
     "kill": _adapter_kill,
+    "fight": _adapter_fight,
     "ask": _adapter_ask,
     "give": _adapter_give,
     "quest": _adapter_quest,
@@ -563,6 +1419,20 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,
+    "bai": _adapter_bai,
+    "kneel": _adapter_kneel,
+    "recruit": _adapter_recruit,
+    "betrayer": _adapter_betrayer,
+    "learn": _adapter_learn,
+    "xue": _adapter_learn,
+    "practice": _adapter_practice,
+    "lian": _adapter_practice,
+    "dazuo": _adapter_dazuo,
+    "exercise": _adapter_dazuo,
+    "tuna": _adapter_tuna,
+    "respirate": _adapter_tuna,
+    "enable": _adapter_enable,
+    "jifa": _adapter_enable,
 }
 
 

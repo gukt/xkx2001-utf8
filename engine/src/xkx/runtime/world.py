@@ -11,11 +11,16 @@ from xkx.combat.result import (
     KIND_CLEAR_MARK,
     KIND_DAMAGE,
     KIND_DAMAGE_JING,
+    KIND_EFF_JINGLI,
     KIND_EXP,
     KIND_HEAL,
     KIND_HEAL_JING,
     KIND_JINGLI,
+    KIND_MAX_JINGLI,
+    KIND_MAX_NEILI,
+    KIND_NEILI,
     KIND_POTENTIAL,
+    KIND_RESPIRATE,
     KIND_SKILL_IMPROVE,
     KIND_WOUND,
     KIND_WOUND_JING,
@@ -25,6 +30,7 @@ from xkx.runtime.components import (
     Attributes,
     CombatState,
     Equipment,
+    FamilyComp,
     Identity,
     Inventory,
     Marks,
@@ -81,6 +87,11 @@ def build_world(
     world = World(schema)
     # ADR-0030 决策 2：注入 ThemeConfig（None 用默认非武侠配置）
     world.theme_config = theme_config or ThemeConfig.default()  # type: ignore[attr-defined]
+    # M3-1 ADR-0032 决策 3：当前 tick（time-gate 冷却判定时间源，Engine.tick 更新）
+    world.current_tick = 0  # type: ignore[attr-defined]
+    # M3-1 子任务 5：最小消息缓冲（CLI 自动推进时收集 System/_tell 产生的消息，
+    # 完整 WS 推送后置 M3；单玩家 demo 全量打印，多实体分发后置）
+    world.pending_messages = []  # type: ignore[attr-defined]
     npc_defs = {n["id"]: n for n in ir["npcs"]}
     room_entities: dict[str, int] = {}
     quest_idx: dict[str, dict] = {q["id"]: q for q in ir.get("quests", [])}
@@ -183,12 +194,28 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             chat_chance_combat=n.get("chat_chance_combat", 0),
             chat_msg_combat=n.get("chat_msg_combat", []),
             inquiry=n.get("inquiry", {}),
+            apprentice_config=n.get("apprentice"),  # M3-1 ADR-0032 决策 1
         ),
     )
     # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
     # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
     # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
     world.add(eid, TitleComp())
+    # M3-1 ADR-0032 决策 1：师傅 NPC 的 FamilyComp（LPC create_family 语义）。
+    # apprentice_config 非空 = 该 NPC 是师傅，写师傅自己的 family（privs=-1 全部
+    # 权限，对照 apprentice.c:52 assign_apprentice(title, -1)）。玩家拜师时
+    # recruit 写玩家的 FamilyComp（generation = 师傅 generation + 1）。
+    app = n.get("apprentice")
+    if app:
+        world.add(
+            eid,
+            FamilyComp(
+                family_name=app["family_name"],
+                generation=app["generation"],
+                title=app["title"],
+                privs=-1,
+            ),
+        )
     return eid
 
 
@@ -231,6 +258,7 @@ def spawn_player(
     world.add(eid, Marks())  # S4 ADR-0006：set_flag 副作用 / has_flag 谓词
     world.add(eid, QuestLog())  # S4 ADR-0007：任务状态
     world.add(eid, TitleComp())  # 2.5 ADR-0028：称谓组件（rankd 求值所需 dbase key）
+    world.add(eid, FamilyComp())  # M3-1 ADR-0032：门派归属（拜师 recruit 写入）
     return eid
 
 
@@ -324,3 +352,22 @@ def apply_effects(world: World, effects: list[Effect]) -> None:
             skills = world.get(e.target_id, Skills)
             if skills and e.detail:
                 skills.levels[e.detail] = skills.levels.get(e.detail, 0) + 1
+        elif e.kind == KIND_NEILI and vitals:
+            # dazuo neili 增长（clamp max_neili*2，对照 LPC dazuo.c:59-62 启动钳制）
+            vitals.neili = max(0, min(vitals.max_neili * 2, vitals.neili + e.amount))
+        elif e.kind == KIND_RESPIRATE and vitals:
+            # tuna jingli 增长（clamp max_jingli*2，对照 LPC respirating 不钳制 +
+            # 结束判定 jingli>=max_jingli*2 涨上限；区别于 KIND_JINGLI clamp max_jingli）
+            vitals.jingli = max(0, min(vitals.max_jingli * 2, vitals.jingli + e.amount))
+        elif e.kind == KIND_MAX_NEILI and vitals:
+            # max_neili += amount（amount=0 瓶颈只重置）+ neili 重置为 max_neili
+            # （对照 LPC dazuo.c:98/102 set("neili", max_neili)）
+            vitals.max_neili += e.amount
+            vitals.neili = vitals.max_neili
+        elif e.kind == KIND_MAX_JINGLI and vitals:
+            # max_jingli += amount + jingli 重置（对照 LPC tuna.c:87/91 set jingli=max_jingli）
+            vitals.max_jingli += e.amount
+            vitals.jingli = vitals.max_jingli
+        elif e.kind == KIND_EFF_JINGLI and vitals:
+            # eff_jingli += amount（tuna 瓶颈增长，对照 LPC tuna.c:87 eff_jingli += 1）
+            vitals.eff_jingli += e.amount

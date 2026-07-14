@@ -183,15 +183,29 @@ def test_kill_multi_round_npc_death() -> None:
 
 
 def test_kill_player_death_respawn() -> None:
-    """玩家 qi=1 被打死 -> 传送回 spawn_room + 恢复 qi。"""
+    """玩家 qi=1 被打死 -> die() 进阴间（ghost + death_room + death_stage）。
+
+    M3-1 ADR-0032 决策 4：玩家死亡走完整死亡轮回（die + 阴间 + 还阳），替代
+    S5a 简化版（传送 spawn_room + 恢复）。还阳由 GovernanceSystem tick 推进
+    death_stage 到 stage 4 触发（reincarnate_at），不在 kill 命令内完成。
+    """
+    from xkx.runtime.components import EffectComp, Marks
+
     game, pid = _game(spawn_room="xueshan/shanmen")
     game.world.get(pid, Vitals).qi = 1
     msgs = kill(game, pid, "葛伦布")
     assert any("眼前一黑" in m for m in msgs)
-    assert any("有了知觉" in m for m in msgs)
-    assert game.world.get(pid, Position).room_id == "xueshan/shanmen"
-    vitals = game.world.get(pid, Vitals)
-    assert vitals.qi == vitals.max_qi
+    # die() 进阴间：ghost 标记 + move death_room（default theme = test/death）
+    assert "ghost" in game.world.get(pid, Marks).flags
+    assert game.world.get(pid, Position).room_id == "test/death"
+    # death_stage EffectComp 启动（阴间 5 段剧情，GovernanceSystem 推进到还阳）
+    has_death_stage = False
+    for e in game.world.entities_with(EffectComp):
+        eff = game.world.get(e, EffectComp)
+        if eff is not None and eff.effect_id == "death_stage":
+            has_death_stage = True
+            break
+    assert has_death_stage
 
 
 def test_kill_deterministic_multi_round() -> None:

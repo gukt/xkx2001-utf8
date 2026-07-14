@@ -42,7 +42,15 @@ from xkx.runtime.components import Identity, Position, RoomComp  # noqa: E402
 from xkx.runtime.world import build_world, spawn_player  # noqa: E402
 
 GAP_PREFIX = "# GAP:"
-SCENE_FILES = ("rooms.yaml", "npcs.yaml", "rules.yaml", "quests.yaml")
+# ADR-0036：加 items.yaml + skills.yaml（武学内容生产度量）
+SCENE_FILES = (
+    "rooms.yaml",
+    "npcs.yaml",
+    "rules.yaml",
+    "quests.yaml",
+    "items.yaml",
+    "skills.yaml",
+)
 
 
 @dataclass

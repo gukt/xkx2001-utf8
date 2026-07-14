@@ -2,3 +2,7 @@
 - id: suyou_guan
   name: 酥油罐
   aliases: [suyou, guan, bottle]
+# M3-1 ADR-0036：longxiang-banruo practice 所需经书（独立 LLM 内容生产子集）
+- id: xueshan/obj/lx-jing
+  name: 龙象般若经
+  aliases: ["longxiang jing", "jing"]
