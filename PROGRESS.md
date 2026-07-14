@@ -8,12 +8,12 @@
 
 ## 当前状态速览
 
-- **阶段**：M3 收官后技术债补缺口第 3 轮完成（C4/B-2/C5 残留后置 7 子项落地）
+- **阶段**：M3 收官后技术债补缺口第 3 轮完成 + CLI 试玩三 bug 修复（合并自 worktree-fix-combat-death-respawn）
 - **分支**：feat/stage-3-techdebt-r3
-- **tests**：1795 全绿，ruff 全过
+- **tests**：1799 全绿，ruff 全过
 - **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）
 - **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；B-2 多对手/berserk + C5 钥匙/动态exit 仍后置
-- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock 门）+ `python -m xkx.content_review` 审核 pipeline
+- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock 门；战斗逐条节奏输出 + 死亡还阳闭环 + learn 链可测）+ `python -m xkx.content_review` 审核 pipeline
 
 ## Done
 
@@ -26,6 +26,7 @@
 - [x] M3 收官后技术债补缺口（[ADR-0039](docs/adr/ADR-0039-combat-path-unification.md)）- E 3 处过时注释（impl_map riposte / combat system 接入 / 全仿真确定性引用 ADR-0035）+ B 战斗路径统一（kill/fight 命令建立 CombatState + advance_combat 只调 CombatBridge 驱动，启用 ADR-0023 确定性重放，is_fighting 正确，flee 中断；对齐 LPC heart_beat）+ C1 CLI shlex 引号 tokenizer + C2 drop 命令 + C6 kneel message PronounContext 渲染 - 1771 tests
 - [x] 技术债补缺口第 2 轮（[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md) / [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md) / [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)）- C4 xlama2 交互闭环（ask set_flag + give clear_flag + spawn_items 物品生成）+ B-2 auto_fight 接入（MVP aggressive 触发 + go room-enter + CombatBridge 驱动）+ C5 门状态机（标准 doors + knock + call_out 定时关 + 双向同步 + DoorSystem）- 1782 tests
 - [x] 技术债补缺口第 3 轮（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）- C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀，非门派世仇) - 1795 tests
+- [x] CLI 试玩三 bug 修复（合并 worktree-fix-combat-death-respawn）- 战斗节奏（`_print_paced` 接入 kill/fight + 死亡对话逐条停顿）/ 死亡还阳 `KeyError: city/wumiao`（rooms.yaml 内置 death/gate+city/wumiao + commands.py 4 处 `room_entities[...]` 改 `.get()` 防御）/ demo 潜能（`load_game` 给 potential=100+force=30 测通 learn 链；help 澄清 `practice <技能种类>`）+4 回归测试 - 1799 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
@@ -37,6 +38,8 @@
 ## In Progress
 
 **M3 收官后技术债补缺口（第 3 轮）完成**（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）。C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀) 全部落地。1795 tests 全绿。技术债补缺口第 3 轮（C4/B-2/C5 残留后置 7 子项）完成；多对手/berserk/钥匙/动态exit/SMASHED 仍后置。
+
+**CLI 试玩三 bug 修复已合并**（worktree-fix-combat-death-respawn -> feat/stage-3-techdebt-r3，2026-07-14）。战斗节奏 / 死亡还阳 KeyError / demo 潜能三问题修复 + 4 回归测试，合并后 1799 tests 全绿。worktree 已删除。
 
 **M3->后置决策检查点待用户裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）：单进程容量是否实测达 80% / 是否需要外部玩家测试（触发 PG 迁移，kill criteria 8）/ 第二题材是否真实存在（触发热插拔评估）。M3 内部 demo 已达成，下一步方向需用户决策。
 

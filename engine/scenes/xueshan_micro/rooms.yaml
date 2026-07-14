@@ -179,3 +179,19 @@
     south: xueshan/houyuan
   objects:
     xueshan/npc/jiamu: 1
+# ── 阴间死亡轮回房间（ThemeConfig.wuxia() 引用，self-contained demo 内置） ──
+# death_room（die 玩家 move 目标）+ revive_room（death_stage 5 段剧情后还阳点）。
+# 完整游戏里属 death/city CPK；微场景自包含故在此内置最小定义。
+- id: death/gate
+  short: 鬼门关
+  long: 阴风惨惨，浓雾弥漫，前方矗立着一座巍峨的鬼门关。两旁立着面目狰狞的鬼卒，空气中弥漫着刺骨的阴冷气息。你只觉浑身发颤，仿佛有无形之物正注视着你。
+  # 无出口：玩家在此由 death_stage EffectComp 自动推进黑白无常 5 段剧情后还阳，
+  # 不经玩家移动（对齐 LPC d/death/gate.c init -> wgargoyle death_stage）。
+- id: city/wumiao
+  short: 武庙
+  long: 这是一座古朴的武庙，香火缭绕，庙中供奉着武圣关公之神像。许多阳寿未尽还阳的江湖中人都在此休憩恢复元气。庙外隐约可闻市井喧嚣之声。
+  exits:
+    # demo 便捷出口：还阳后返回雪山派场景。完整游戏里武庙位于扬州城、自有城内连接；
+    # 微场景为让玩家死后能继续试玩，由此单出口接回场景起点。
+    north: xueshan/shanmen
+  outdoors: true

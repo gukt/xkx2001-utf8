@@ -26,6 +26,7 @@ from xkx.runtime.commands import (
     kill,
     kneel,
     learn,
+    look,
     tuna,
 )
 from xkx.runtime.components import (
@@ -268,6 +269,34 @@ def test_player_death_underworld_reincarnate() -> None:
     assert game.world.get(pid, Position).room_id == "city/wumiao"
     vitals = game.world.get(pid, Vitals)
     assert vitals.qi == vitals.max_qi  # reincarnate 完整恢复
+
+
+def test_player_death_reincarnate_look_no_crash() -> None:
+    """还阳后 look 不再 KeyError（regression：revive_room city/wumiao 须为已加载房间）。
+
+    修复前 city/wumiao 不在微场景 rooms，look 的 ``game.room_entities[pos.room_id]``
+    直接 KeyError 崩溃；修复后该房间内置入场景，look 返回武庙描述 + 出口。
+    """
+    game, pid, engine = _game(start_room="xueshan/shanmen")
+    game.world.get(pid, Vitals).qi = 1  # 极弱，被反杀
+    kill(game, pid, "葛伦布")
+    _advance_until_idle(game, engine, pid)
+    assert game.world.get(pid, Position).room_id == "city/wumiao"
+    lines = look(game, pid)  # 修复前此行 KeyError
+    assert any("武庙" in line for line in lines)
+    assert any("出口" in line for line in lines)  # 有出口可继续试玩
+
+
+def test_death_and_revive_rooms_loaded() -> None:
+    """death/gate + city/wumiao 在微场景已加载（ThemeConfig.wuxia 引用的房间）。
+
+    死亡轮回房间（death_room/revive_room）由 ThemeConfig.wuxia() 指定为 death/gate
+    与 city/wumiao；self-contained 微场景内置最小定义，否则 die/还阳后玩家落入
+    未加载房间。
+    """
+    game, pid, engine = _game()
+    assert "death/gate" in game.room_entities
+    assert "city/wumiao" in game.room_entities
 
 
 # --- samu 拜师（min_skills 门槛 + 辈分）---
