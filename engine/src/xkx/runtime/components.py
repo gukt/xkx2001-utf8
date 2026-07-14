@@ -148,6 +148,9 @@ class CombatState:
     to_death: bool = True
     # win_threshold：fight 模式 qi% 判赢阈值（LPC darba.c checking，0 = kill 模式不判）
     win_threshold: int = 0
+    # killer_ids：要杀到死的目标 entity_id 列表（LPC attack.c killer 数组，B-2 ADR-0045）。
+    # kill_ob（to_death=True）双向写入；fight 模式不写。init() 查 is_killing 重入房间重触 hatred。
+    killer_ids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -162,6 +165,9 @@ class NpcBehavior:
     # None=该 NPC 不收徒。结构对照 ApprenticeDef（layer0.py）model_dump：
     # {family_name/generation/title/conditions/kneel/success_message}。
     apprentice_config: dict | None = None
+    # B-2 ADR-0045：vendetta 标记（LPC vendetta_mark，标记式追杀非门派世仇）。
+    # NPC 被杀 -> 击杀者获 "vendetta:<mark>" flag -> 遇同类 vendetta_mark NPC 触发追杀。
+    vendetta_mark: str = ""
 
 
 @dataclass
@@ -227,17 +233,19 @@ class EffectComp:
 
 @dataclass
 class DoorEntry:
-    """门状态（C5 ADR-0042，对照 LPC room.c doors mapping + status 位掩码）。
+    """门状态（C5 ADR-0042 + ADR-0044，对照 LPC room.c doors mapping + status 位掩码）。
 
     标准 doors 状态模式：exits 静态声明不变，doors 字段存门定义+开闭状态。
-    ``closed`` 可变（knock 开 / DoorSystem call_out 定时关）。仅开/关状态，
-    LOCKED/SMASHED 位后置。
+    ``closed`` 可变（open/knock 开 / close/DoorSystem call_out 定时关）。``locked``
+    锁状态（ADR-0044 落地，独立 bool 非 LPC 位掩码；open 查 locked 走钥匙分支，
+    钥匙系统后置）。SMASHED 位跳过（LPC 全仓库死代码，凭空发明规格）。
     """
 
     name: str  # 门名（LPC doors[dir]["name"]）
     other_room: str  # 对面房间 id（LPC doors[dir]["other_side"] room）
     other_dir: str  # 对面方向（LPC doors[dir]["other_side_dir"]）
     closed: bool = True  # 开闭状态（LPC status & DOOR_CLOSED）
+    locked: bool = False  # 锁状态（ADR-0044，LPC DOOR_LOCKED 位，独立 bool）
 
 
 @dataclass

@@ -1,14 +1,17 @@
-"""门状态机运行时（C5 ADR-0042，对照 LPC room.c doors + gate.c knock + call_out 关门）。
+"""门状态机运行时（C5 ADR-0042 + ADR-0044，对照 LPC room.c doors + gate.c knock + call_out 关门）。
 
 标准 doors 状态模式：exits 静态声明不变，``RoomComp.doors`` 存门定义+开闭状态。
-``knock_door`` 开门（closed=False + 同步对面）+ schedule ``door_close`` EffectComp 定时关门。
-``DoorSystem`` tick 驱动 ``door_close`` EffectComp 到期关门（closed=True + 同步对面）。
+``open_door``/``close_door``（ADR-0044）标准开/关门副作用（对照 LPC room.c open_door/
+close_door，标准模式无定时关）。``knock_door`` 开门 + schedule ``door_close`` EffectComp
+定时关门（gate.c 模式，独有定时关语义）。``DoorSystem`` tick 驱动 ``door_close`` EffectComp
+到期关门（closed=True + 同步对面）。
 
 call_out("close_door", N) 翻译为 EffectComp（``effect_id="door_close"``，``detail`` 存门方向），
 复用 ADR-0027 call_out->EffectComp 惯例 + GovernanceSystem death_stage 模式。
 remove_call_out("close_door") 翻译为移除旧 door_close EffectComp（防重入）。
 
 [ADR-0042](../../../docs/adr/ADR-0042-door-state-machine.md) /
+[ADR-0044](../../../docs/adr/ADR-0044-door-open-close-locked.md) /
 [ADR-0027](../../../docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) /
 [inherit/room/room.c](../../../inherit/room/room.c) /
 [d/zhongnan/gate.c](../../../d/zhongnan/gate.c)
@@ -26,6 +29,46 @@ DOOR_CLOSE_EFFECT_ID = "door_close"
 DEFAULT_CLOSE_DELAY = 10
 
 
+def open_door(world: World, room_eid: int, direction: str) -> str:
+    """开门副作用（C5 ADR-0044，对照 LPC room.c open_door）。
+
+    开门（``closed=False`` + 同步对面），**不 schedule 定时关**（标准 open 无 timer，
+    对照 LPC ``cmds/std/open.c``；定时关是 knock 独有语义，gate.c 模式）。
+    返回状态：``no_door`` / ``already_open`` / ``locked`` / ``ok``。消息由调用方
+    （open 命令 / knock_door）按状态组织（对齐 LPC open_door 做副作用返回 1/0，
+    message_vision 在命令层）。
+    """
+    room = world.get(room_eid, RoomComp)
+    if room is None or direction not in room.doors:
+        return "no_door"
+    door = room.doors[direction]
+    if not door.closed:
+        return "already_open"
+    if door.locked:
+        return "locked"
+    door.closed = False
+    _sync_other_side(world, room_eid, direction, closed=False)
+    return "ok"
+
+
+def close_door(world: World, room_eid: int, direction: str) -> str:
+    """关门副作用（C5 ADR-0044，对照 LPC room.c close_door）。
+
+    关门（``closed=True`` + 同步对面）+ 取消未到期的 ``door_close`` EffectComp
+    （手动关门后不再定时关）。返回状态：``no_door`` / ``already_closed`` / ``ok``。
+    """
+    room = world.get(room_eid, RoomComp)
+    if room is None or direction not in room.doors:
+        return "no_door"
+    door = room.doors[direction]
+    if door.closed:
+        return "already_closed"
+    door.closed = True
+    _sync_other_side(world, room_eid, direction, closed=True)
+    _remove_door_close_effect(world, room_eid, direction)
+    return "ok"
+
+
 def knock_door(
     world: World,
     room_eid: int,
@@ -33,25 +76,24 @@ def knock_door(
     current_tick: int,
     close_delay: int = DEFAULT_CLOSE_DELAY,
 ) -> str | None:
-    """敲门开门（C5 ADR-0042，对照 LPC do_knock + call_out("close_door", N)）。
+    """敲门开门 + 定时关（C5 ADR-0042，对照 LPC gate.c do_knock + call_out）。
 
-    查当前房间 ``doors[direction]``：无门返回 None；已开返回提示；关门状态开门
-    （``closed=False`` + 同步对面 ``doors[other_dir]``）+ remove 旧 door_close EffectComp
-    （对齐 LPC ``remove_call_out`` 防重入）+ schedule 新 door_close EffectComp 定时关。
-    返回敲门消息（None=没门，调用方另行提示）。
+    knock 独有定时关语义（gate.c 模式），区别于标准 open（无 timer，ADR-0044）。
+    调 ``open_door`` 开门（复用开门副作用 + locked 检查），成功后 remove 旧
+    ``door_close`` EffectComp（对齐 LPC ``remove_call_out`` 防重入）+ schedule 新
+    ``door_close`` EffectComp 定时关。返回敲门消息（None=没门，调用方另行提示）。
     """
     room = world.get(room_eid, RoomComp)
     if room is None or direction not in room.doors:
         return None
     door = room.doors[direction]
-    if not door.closed:
+    status = open_door(world, room_eid, direction)
+    if status == "already_open":
         return f"{door.name}已经开着了。"
-    # 开门 + 同步对面
-    door.closed = False
-    _sync_other_side(world, room_eid, direction, closed=False)
-    # remove 旧 door_close EffectComp（对齐 LPC remove_call_out，防重入）
+    if status == "locked":
+        return f"{door.name}锁着，敲不开。"
+    # status == "ok"：开门成功，schedule 定时关（knock 独有，对齐 LPC call_out）
     _remove_door_close_effect(world, room_eid, direction)
-    # schedule door_close EffectComp（对齐 LPC call_out("close_door", N)）
     effect_eid = world.new_entity()
     world.add(
         effect_eid,

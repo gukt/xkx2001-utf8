@@ -66,7 +66,7 @@ def _game(
         ir, theme_config=descriptor.theme_config
     )
     register_skill_defs(skills)
-    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
+    item_registry = {i["id"]: i for i in ir.get("items", [])}  # C4 ADR-0043 完整 dict
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     game = Game(
         world,

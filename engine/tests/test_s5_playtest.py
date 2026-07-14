@@ -58,7 +58,7 @@ def _game(
     item_defs = load_items(SCENE_DIR / "items.yaml")
     ir = compile_scene(rooms, npcs, quests, item_defs)
     world, room_idx, quest_idx = build_world(ir)
-    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
+    item_registry = {i["id"]: i for i in ir.get("items", [])}  # C4 ADR-0043 完整 dict
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     game = Game(
         world,

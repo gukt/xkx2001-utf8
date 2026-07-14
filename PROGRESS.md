@@ -8,12 +8,12 @@
 
 ## 当前状态速览
 
-- **阶段**：M3 收官后技术债补缺口第 2 轮完成（C4/B-2/C5 全部落地）
-- **分支**：feat/stage-3-m3
-- **tests**：1782 全绿，ruff 全过
-- **关键 ADR**：[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)（层1 ask/clear_flag/spawn_items）/ [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md)（auto_fight aggressive 接入）/ [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（门状态机）/ [ADR-0039](docs/adr/ADR-0039-combat-path-unification.md)（战斗路径统一）
-- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问：单进程容量 80% / 外部玩家测试触发 PG / 第二题材）；B-2 hatred/vendetta/berserk + C5 open/close/锁 + C4 drink 残留后置
-- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + aggressive NPC + 门）+ `python -m xkx.content_review` 审核 pipeline
+- **阶段**：M3 收官后技术债补缺口第 3 轮完成（C4/B-2/C5 残留后置 7 子项落地）
+- **分支**：feat/stage-3-techdebt-r3
+- **tests**：1795 全绿，ruff 全过
+- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）
+- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；B-2 多对手/berserk + C5 钥匙/动态exit 仍后置
+- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock 门）+ `python -m xkx.content_review` 审核 pipeline
 
 ## Done
 
@@ -25,18 +25,18 @@
 - [x] M3-5 全仿真确定性评估收官（[ADR-0035](docs/adr/ADR-0035-full-simulation-determinism-decision-point.md)）- **否决全仿真实施，保持 combat-only**；实测 tick 驱动 System 几乎无 random（HealSystem/ConditionSystem/GovernanceSystem/auto_fight 全无），范围外随机源仅 command 路径 5 文件 8 处一次性随机（角色创建/死亡/练功/称谓）；扩展成本主要是全量快照 + dissent 7 审计统一 + PYTHONHASHSEED 全局化（架构税高），收益边际递减；专家 2 承重论断 2 仍成立；保留逐 System 按需纳入演进路径 - 1768 tests
 - [x] M3 收官后技术债补缺口（[ADR-0039](docs/adr/ADR-0039-combat-path-unification.md)）- E 3 处过时注释（impl_map riposte / combat system 接入 / 全仿真确定性引用 ADR-0035）+ B 战斗路径统一（kill/fight 命令建立 CombatState + advance_combat 只调 CombatBridge 驱动，启用 ADR-0023 确定性重放，is_fighting 正确，flee 中断；对齐 LPC heart_beat）+ C1 CLI shlex 引号 tokenizer + C2 drop 命令 + C6 kneel message PronounContext 渲染 - 1771 tests
 - [x] 技术债补缺口第 2 轮（[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md) / [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md) / [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)）- C4 xlama2 交互闭环（ask set_flag + give clear_flag + spawn_items 物品生成）+ B-2 auto_fight 接入（MVP aggressive 触发 + go room-enter + CombatBridge 驱动）+ C5 门状态机（标准 doors + knock + call_out 定时关 + 双向同步 + DoorSystem）- 1782 tests
+- [x] 技术债补缺口第 3 轮（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）- C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀，非门派世仇) - 1795 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
-- **C4 残留后置**：buttertea drink 效果（无 drink 命令）/ 厨房 valid_leave 持茶挡路 / 厨房初始 buttertea -- 后置
-- **B-2 残留后置**（[ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md)）：hatred（killer 数据结构）/ vendetta（门派世仇）/ berserk（look 触发）/ 多对手 select_opponent -- 后置
-- **C5 残留后置**（[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)）：LOCKED/SMASHED 位 / open/close 命令 / 锁钥匙系统 / 动态 exit 模式 -- 后置
+- **B-2 残留后置**（[ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）：多对手 select_opponent（确定性 seed+全战斗路径回归，风险最高）/ berserk（shen 驱动 look 触发，依赖 `look <target>` 命令）-- 后置
+- **C5 残留后置**（[ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)）：钥匙系统（locked 字段就位，钥匙匹配开锁后置）/ 动态 exit 模式（标准 doors 够用，风险高）/ SMASHED 位（LPC 全仓库死代码，跳过）-- 后置
 - **LPC 规格提取跳过部分**：本次 9 层覆盖核心循环约 7000 行，跳过 condition 具体类型 / 第二梯队守护进程 / 后置系统 / kungfu+d/ 内容。补充计划见 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md)（3 类分阶段补充，"实现到时才补"原则，不提前批量提取）
 - **M3-4 版权清洗后置**（用户决策 2026-07-14，未商业化阶段过早清洗是过度工程）：雪山派 CPK 含 4 金庸角色（金轮法王/鸠摩智/灵智上人/达尔巴）+ 雪山派门派名本身（[ADR-0033](docs/adr/ADR-0033-content-review-pipeline-mvp.md) 关键发现）。M3-3 预检标记 `needs_review` 待办，商业化前清洗时预检就位。全量改编化/标注/授权 + provenance 版权链回填后置门3。
 
 ## In Progress
 
-**M3 收官后技术债补缺口（第 2 轮）完成**（[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md) / [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md) / [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)）。C4 xlama2 交互闭环（ask set_flag + give clear_flag + spawn_items）+ B-2 auto_fight 接入（MVP aggressive，go room-enter + handler 注册 + CombatBridge 驱动）+ C5 门状态机（标准 doors + knock + call_out 定时关 + 双向同步 + DoorSystem）全部落地。1782 tests 全绿。技术债补缺口（第 1 轮 E/B/C1/C2/C6 + 第 2 轮 C4/B-2/C5）全部完成。
+**M3 收官后技术债补缺口（第 3 轮）完成**（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）。C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀) 全部落地。1795 tests 全绿。技术债补缺口第 3 轮（C4/B-2/C5 残留后置 7 子项）完成；多对手/berserk/钥匙/动态exit/SMASHED 仍后置。
 
 **M3->后置决策检查点待用户裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）：单进程容量是否实测达 80% / 是否需要外部玩家测试（触发 PG 迁移，kill criteria 8）/ 第二题材是否真实存在（触发热插拔评估）。M3 内部 demo 已达成，下一步方向需用户决策。
 

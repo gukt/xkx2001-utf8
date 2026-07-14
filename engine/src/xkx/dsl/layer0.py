@@ -17,16 +17,18 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class DoorDef(BaseModel):
-    """门定义（C5 ADR-0042，对照 LPC ``create_door``）。
+    """门定义（C5 ADR-0042 + ADR-0044，对照 LPC ``create_door``）。
 
     ``other_room``/``other_dir`` 声明对面房间+方向（双向同步用）。``closed``
-    初始状态（默认关）。编译到 ``DoorEntry`` 运行时组件。
+    初始状态（默认关）。``locked`` 锁状态（ADR-0044，默认未锁）。编译到
+    ``DoorEntry`` 运行时组件。
     """
 
     name: str  # 门名（LPC create_door 第 2 参）
     other_room: str  # 对面房间 id
     other_dir: str  # 对面方向（LPC create_door 第 3 参 other_side_dir）
     closed: bool = True  # 初始状态（LPC create_door 第 4 参 status）
+    locked: bool = False  # 锁状态（ADR-0044，LPC DOOR_LOCKED 位）
 
 
 class RoomDef(BaseModel):
@@ -109,6 +111,7 @@ class NpcDef(BaseModel):
     gender: str = "男性"
     age: int = 20
     attitude: str = "friendly"  # friendly | heroism | aggressive
+    vendetta_mark: str = ""  # B-2 ADR-0045：vendetta 标记（LPC vendetta_mark）
 
     # 四维属性（LPC str/dex/int/con）
     str_: int = 20
@@ -209,14 +212,21 @@ class QuestDef(BaseModel):
 
 
 class ItemDef(BaseModel):
-    """物品定义（S5a）：映射 LPC ``inherit ITEM`` + ``set_name``。
+    """物品定义（S5a + C4 ADR-0043）：映射 LPC ``inherit ITEM`` + ``set_name``。
 
     对照 d/xueshan/obj/suyouguan.c ``set_name("酥油罐", ({"suyou guan",...}))``。
+    C4 ADR-0043：``drink_supply``/``food_supply``/``jing_recover`` 消耗品字段（对照
+    LPC buttertea.c do_drink 的 water/food/jing 恢复）。全 0 = 不可饮用（drink 命令
+    拒）。set 语义简化：喝一次即消失（LPC remaining 多次饮用后置）。
     """
 
     id: str
     name: str
     aliases: list[str] = Field(default_factory=list)
+    # C4 ADR-0043：消耗品字段（对照 LPC do_drink 恢复 water/food/jing）
+    drink_supply: int = 0  # 喝后加水度（LPC add("water", drink_supply)）
+    food_supply: int = 0  # 喝后加食物度（LPC add("food", food_supply)）
+    jing_recover: int = 0  # 喝后恢复精（LPC jing = min(eff_jing, jing+recover)）
 
 
 class SkillDef(BaseModel):

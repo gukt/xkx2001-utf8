@@ -115,7 +115,8 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
         ir, theme_config=descriptor.theme_config
     )
     register_skill_defs(skills)
-    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
+    # C4 ADR-0043：item_registry 存完整 item dict（name/aliases/consumable）
+    item_registry = {i["id"]: i for i in ir.get("items", [])}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)
     game = Game(
@@ -134,14 +135,18 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
     engine.add_system(DoorSystem())  # C5 ADR-0042 门定时关门
-    # B-2 ADR-0039 决策 4：注册 AGGRESSIVE handler（NPC 主动攻击接入运行时）
+    # B-2 ADR-0039 决策 4 + ADR-0045：注册 auto_fight handler（NPC 主动攻击接入运行时）
     from xkx.runtime.auto_fight import (
         FightType,
         aggressive_start_fight_handler,
+        hatred_start_fight_handler,
         register_start_fight_handler,
+        vendetta_start_fight_handler,
     )
 
     register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
+    register_start_fight_handler(FightType.HATRED, hatred_start_fight_handler)
+    register_start_fight_handler(FightType.VENDETTA, vendetta_start_fight_handler)
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 

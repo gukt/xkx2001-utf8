@@ -69,6 +69,8 @@
     west: xueshan/zoulang
   objects:
     xueshan/npc/xlama2: 1
+  items:  # C4 ADR-0043：初始酥油茶（对照 LPC chufang.c buttertea:3，set 语义简化 1 杯）
+  - buttertea
 - id: xueshan/dumudian
   short: 度母殿
   long: 这里是大轮寺的度母殿，正中五尊大座佛，均为高肉髻、外披袒右袈裟、结跏趺坐、执手印须弭坐各异。殿内对称排列四根大柱，上雕忍冬纹，下刻连珠纹。北壁上供有两尊金刚像：马头明王和阎魔护法。
@@ -126,6 +128,7 @@
   outdoors: true
   objects:
     xueshan/npc/jinlun: 1
+    xueshan/npc/guard: 1  # B-2 ADR-0045 vendetta NPC
   items:
   - xueshan/obj/lx-jing
 - id: xueshan/wangyou

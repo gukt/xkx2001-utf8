@@ -117,6 +117,7 @@ def build_world(
                         other_room=spec["other_room"],
                         other_dir=spec["other_dir"],
                         closed=spec.get("closed", True),
+                        locked=spec.get("locked", False),
                     )
                     for d, spec in r.get("doors", {}).items()
                 },
@@ -205,6 +206,7 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             chat_msg_combat=n.get("chat_msg_combat", []),
             inquiry=n.get("inquiry", {}),
             apprentice_config=n.get("apprentice"),  # M3-1 ADR-0032 决策 1
+            vendetta_mark=n.get("vendetta_mark", ""),  # B-2 ADR-0045
         ),
     )
     # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0

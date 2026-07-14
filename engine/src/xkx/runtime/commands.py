@@ -47,7 +47,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import apply_condition
-from xkx.runtime.doors import knock_door
+from xkx.runtime.doors import close_door, knock_door, open_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -73,7 +73,7 @@ class Game:
         quests: dict[str, dict] | None = None,
         seed_base: int = 0,
         spawn_room: str = "",
-        item_registry: dict[str, str] | None = None,
+        item_registry: dict[str, dict] | None = None,
     ) -> None:
         self.world = world
         self.room_entities = room_entities
@@ -290,7 +290,9 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     # C5 ADR-0042：门关着挡路（对照 LPC valid_leave doors status 检查）
     door = room.doors.get(direction) if room else None
     if door is not None and door.closed:
-        return [f"{door.name}关着，也许敲一敲会开。"]
+        if door.locked:
+            return [f"{door.name}锁着，需要钥匙。"]
+        return [f"{door.name}关着，也许敲一敲(knock)或打开(open)会开。"]
     ctx = _eval_ctx(
         world, actor_id, dir=direction, npc_ids_in_room=_npc_ids_in_room(world, pos.room_id)
     )
@@ -308,12 +310,14 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
 
 
 def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
-    """B-2 ADR-0039 决策 4：玩家进房间触发 aggressive NPC 主动攻击（对照 LPC init()）。
+    """B-2 ADR-0039 决策 4 + ADR-0045：玩家进房间触发 NPC 主动攻击（对照 LPC init()）。
 
-    遍历房间内 ``attitude=aggressive`` 的 NPC，调 ``auto_fight(npc, player, AGGRESSIVE)``
-    （对齐 LPC init() 三触发之 aggressive）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御
-    检查 + on_start_fight handler 建敌对关系。若玩家进入战斗（is_fighting），
-    ``_run_combat`` 推进（CLI 同步模式，对齐 kill 命令）。
+    遍历房间内所有 NPC，三触发优先级（对齐 LPC attack.c init() if-else 顺序）：
+    1. hatred：player_id 在 npc.killer_ids（NPC 记住要杀的玩家）-> HATRED
+    2. vendetta：npc.vendetta_mark 且 player 有 vendetta:<mark> flag -> VENDETTA
+    3. aggressive：npc.attitude == "aggressive" -> AGGRESSIVE
+    每个 NPC 只触发其一（elif 链）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御检查 +
+    on_start_fight handler 建敌对关系。若玩家进入战斗，_run_combat 推进。
     """
     world = game.world
     pos = world.get(actor_id, Position)
@@ -323,6 +327,8 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
     ident = world.get(actor_id, Identity)
     if ident is None or not ident.is_player:
         return []
+    player_marks = world.get(actor_id, Marks)
+    player_flags = player_marks.flags if player_marks else set()
     for npc_eid in list(world.entities_in_room(pos.room_id)):
         if npc_eid == actor_id:
             continue
@@ -330,10 +336,11 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
         if npc_ident is None or npc_ident.is_player:
             continue
         behavior = world.get(npc_eid, NpcBehavior)
-        if behavior is None or behavior.attitude != "aggressive":
+        if behavior is None:
             continue
-        # aggressive NPC -> auto_fight(npc, player, AGGRESSIVE)（对齐 LPC init() aggressive 分支）
-        auto_fight(world, npc_eid, actor_id, FightType.AGGRESSIVE)
+        fight_type = _decide_room_enter_fight(world, npc_eid, actor_id, behavior, player_flags)
+        if fight_type is not None:
+            auto_fight(world, npc_eid, actor_id, fight_type)
     # 若玩家进入战斗，_run_combat 推进（CLI 同步，对齐 kill 命令 _run_combat）
     cs = world.get(actor_id, CombatState)
     if cs is not None and cs.is_fighting:
@@ -341,6 +348,30 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
         msgs.extend(_run_combat(game, actor_id))
         return msgs
     return []
+
+
+def _decide_room_enter_fight(
+    world: World,
+    npc_eid: int,
+    player_id: int,
+    behavior: NpcBehavior,
+    player_flags: set[str],
+) -> FightType | None:
+    """三触发优先级判定（B-2 ADR-0045，对照 LPC attack.c init() if-else）。
+
+    hatred > vendetta > aggressive。返回 FightType 或 None（不触发）。
+    """
+    # 1. hatred：player 在 npc.killer_ids（对齐 LPC is_killing(ob->id)）
+    npc_cs = world.get(npc_eid, CombatState)
+    if npc_cs is not None and player_id in npc_cs.killer_ids:
+        return FightType.HATRED
+    # 2. vendetta：npc.vendetta_mark 且 player 有 vendetta:<mark> flag
+    if behavior.vendetta_mark and f"vendetta:{behavior.vendetta_mark}" in player_flags:
+        return FightType.VENDETTA
+    # 3. aggressive：npc.attitude == "aggressive"
+    if behavior.attitude == "aggressive":
+        return FightType.AGGRESSIVE
+    return None
 
 
 def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
@@ -366,11 +397,23 @@ def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
 
 
 def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
-    """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验。"""
+    """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验 + vendetta 标记写入。
+
+    B-2 ADR-0045：NPC 有 vendetta_mark -> 击杀者获 ``vendetta:<mark>`` flag（对照
+    LPC combatd.c killer_reward 的 ``add("vendetta/"+vmark,1)``）。
+    """
     world.remove(npc_eid, Position)
     prog = world.get(killer_id, Progression)
     if prog:
         prog.combat_exp += 50
+    # B-2 ADR-0045：vendetta 标记写入（killer_reward）
+    behavior = world.get(npc_eid, NpcBehavior)
+    if behavior and behavior.vendetta_mark:
+        marks = world.get(killer_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(killer_id, marks)
+        marks.flags.add(f"vendetta:{behavior.vendetta_mark}")
 
 
 def _handle_player_death(
@@ -383,9 +426,15 @@ def _handle_player_death(
     替代 S5a 简化版（传送 spawn_room + 恢复），接入阶段 2 死亡系统。还阳由
     GovernanceSystem 推进 death_stage 到 stage 4 调 reincarnate_at（恢复 +
     move revive_room），不在本函数内完成（CLI 自动推进 / e2e engine.tick）。
+    B-2 ADR-0045：玩家死亡清所有 vendetta 标记（对照 LPC combatd.c death_penalty
+    的 ``delete("vendetta")``）。
     """
     from xkx.runtime.death import die
 
+    # B-2 ADR-0045：清 vendetta 标记（death_penalty）
+    marks = world.get(player_id, Marks)
+    if marks:
+        marks.flags = {f for f in marks.flags if not f.startswith("vendetta:")}
     die(world, player_id, killer_id, tick=_current_tick(game))
 
 
@@ -703,16 +752,29 @@ def _quest_brief(q: dict, qid: str, status: str, log: QuestLog | None) -> str:
 
 
 def _item_name(game: Game, item_id: str) -> str:
-    """S5a：通过 item_registry 查物品中文名（无注册则回退 id）。"""
-    return game.item_registry.get(item_id, item_id)
+    """S5a：通过 item_registry 查物品中文名（无注册则回退 id）。
+
+    C4 ADR-0043：item_registry 存完整 item dict（id -> {name, aliases, consumable}）。
+    """
+    spec = game.item_registry.get(item_id)
+    if isinstance(spec, dict):
+        return spec.get("name", item_id)
+    return spec or item_id  # 向后兼容旧 {id: name} str 结构
 
 
 def _resolve_item_id(game: Game, item_query: str, available: set[str]) -> str | None:
-    """S5a：按 id 或中文名在可用物品集中解析出 item_id。"""
+    """按 id / 中文名 / 别名在可用物品集中解析出 item_id。
+
+    S5a：id 或中文名。C4 ADR-0043：扩 aliases（对齐 ``_find_npc_in_room`` 别名解析，
+    修复 drink/take/give 别名解析 gap；item_registry 存完整 dict）。
+    """
     if item_query in available:
         return item_query
     for iid in available:
         if _item_name(game, iid) == item_query:
+            return iid
+        spec = game.item_registry.get(iid)
+        if isinstance(spec, dict) and item_query in spec.get("aliases", []):
             return iid
     return None
 
@@ -761,6 +823,41 @@ def drop(game: Game, actor_id: int, item_query: str) -> list[str]:
     if room is not None:
         room.items.add(item_id)
     return [f"你丢下{_item_name(game, item_id)}。"]
+
+
+def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """喝命令（C4 ADR-0043，对照 LPC buttertea.c do_drink）。
+
+    通用 drink：resolve 物品 -> 查 consumable（全 0 拒"不能喝"）-> is_busy 拒 ->
+    恢复 water/food/jing（jing clamp eff_jing）-> 从物品栏移除（set 语义，喝一次
+    消失）。简化（后置）：remaining 多次饮用 / water 上限检查 / fighting
+    start_busy(2) / value 清零。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
+    spec = game.item_registry.get(item_id, {})
+    drink_supply = spec.get("drink_supply", 0) if isinstance(spec, dict) else 0
+    food_supply = spec.get("food_supply", 0) if isinstance(spec, dict) else 0
+    jing_recover = spec.get("jing_recover", 0) if isinstance(spec, dict) else 0
+    if not (drink_supply or food_supply or jing_recover):
+        return ["这东西不能喝。"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if drink_supply:
+        vitals.water += drink_supply
+    if food_supply:
+        vitals.food += food_supply
+    if jing_recover and vitals.eff_jing > 0:
+        vitals.jing = min(vitals.eff_jing, vitals.jing + jing_recover)
+    inv.items.discard(item_id)  # set 语义，喝一次消失
+    return [f"你喝下{_item_name(game, item_id)}，顿觉神清气爽。"]
 
 
 def look(game: Game, actor_id: int) -> list[str]:
@@ -817,6 +914,53 @@ def knock(game: Game, actor_id: int, direction: str) -> list[str]:
     if msg is None:
         return ["这个方向没有门。"]
     return [msg]
+
+
+def open(game: Game, actor_id: int, direction: str) -> list[str]:
+    """开门命令（C5 ADR-0044，对照 LPC cmds/std/open.c）。
+
+    标准开门：调 ``open_door`` 开门（**无定时关**，区别于 knock 的定时关语义）。
+    locked 门提示需钥匙（钥匙系统后置，但 locked 检查就位）。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    status = open_door(world, room_eid, direction)
+    if status == "no_door":
+        return ["这个方向没有门。"]
+    if status == "already_open":
+        return [f"{door.name}已经开着了。"] if door else ["门已经开着了。"]
+    if status == "locked":
+        return [f"{door.name}锁着，需要钥匙。"] if door else ["门锁着，需要钥匙。"]
+    return [f"你将{door.name}打开。"] if door else ["你将门打开。"]
+
+
+def close(game: Game, actor_id: int, direction: str) -> list[str]:
+    """关门命令（C5 ADR-0044，对照 LPC cmds/std/close.c）。
+
+    标准关门：调 ``close_door`` 关门 + 取消未到期的定时关 EffectComp。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    status = close_door(world, room_eid, direction)
+    if status == "no_door":
+        return ["这个方向没有门。"]
+    if status == "already_closed":
+        return [f"{door.name}已经关上了。"] if door else ["门已经关上了。"]
+    return [f"你将{door.name}关上。"] if door else ["你将门关上。"]
 
 
 def inventory(game: Game, actor_id: int) -> list[str]:
@@ -1491,12 +1635,34 @@ def _adapter_drop(game: Game, ctx: ActionContext) -> list[str]:
     return drop(game, ctx.actor, item_query)
 
 
+def _adapter_drink(game: Game, ctx: ActionContext) -> list[str]:
+    """drink 命令适配器（C4 ADR-0043）：drink <物品>。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return drink(game, ctx.actor, item_query)
+
+
 def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
     """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
     direction = ctx.raw_args.strip()
     if not direction and ctx.parsed_args:
         direction = ctx.parsed_args[0]
     return knock(game, ctx.actor, direction)
+
+
+def _adapter_open(game: Game, ctx: ActionContext) -> list[str]:
+    """open 命令适配器（C5 ADR-0044）：open <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return open(game, ctx.actor, direction)
+
+
+def _adapter_close(game: Game, ctx: ActionContext) -> list[str]:
+    """close 命令适配器（C5 ADR-0044）：close <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return close(game, ctx.actor, direction)
 
 
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
@@ -1615,7 +1781,10 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "take": _adapter_take,
     "get": _adapter_get,
     "drop": _adapter_drop,
+    "drink": _adapter_drink,
     "knock": _adapter_knock,
+    "open": _adapter_open,
+    "close": _adapter_close,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,

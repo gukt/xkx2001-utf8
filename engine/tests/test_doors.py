@@ -11,7 +11,8 @@ from pathlib import Path
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, go, knock, look
+from xkx.runtime.commands import Game, close, go, knock, look
+from xkx.runtime.commands import open as open_cmd
 from xkx.runtime.components import Position, RoomComp
 from xkx.runtime.world import build_world, spawn_player
 
@@ -100,3 +101,71 @@ def test_knock_no_door() -> None:
     game, pid = _game(start_room="xueshan/wangyou")
     msgs = knock(game, pid, "west")  # west 无门（exit 到 luyeyuan 但无门）
     assert any("没有门" in m for m in msgs)
+
+
+# ── C5 ADR-0044：open/close 命令 + LOCKED 位 ──
+
+
+def test_open_command_opens_door() -> None:
+    """open 命令开门（对照 LPC cmds/std/open.c，标准模式无定时关）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    msgs = open_cmd(game, pid, "north")
+    assert any("打开" in m for m in msgs)
+    go(game, pid, "north")
+    assert game.world.get(pid, Position).room_id == "xueshan/mishi"
+
+
+def test_close_command_closes_door() -> None:
+    """close 命令关门 + go 再挡路（对照 LPC cmds/std/close.c）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    open_cmd(game, pid, "north")
+    msgs = close(game, pid, "north")
+    assert any("关上" in m for m in msgs)
+    wangyou = game.world.get(game.room_entities["xueshan/wangyou"], RoomComp)
+    assert wangyou.doors["north"].closed  # 关上
+    msgs = go(game, pid, "north")
+    assert any("关着" in m for m in msgs)  # 挡路
+
+
+def test_open_no_timer() -> None:
+    """open 开门后推进 tick 门不自动关（标准 open 无 timer，对照 knock 定时关）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    open_cmd(game, pid, "north")
+    for _ in range(11):  # DEFAULT_CLOSE_DELAY=10，推进 11 tick
+        game.engine.tick()
+    wangyou = game.world.get(game.room_entities["xueshan/wangyou"], RoomComp)
+    assert not wangyou.doors["north"].closed  # open 无定时关，门保持开
+
+
+def test_close_cancels_knock_timer() -> None:
+    """close 取消 knock 的定时关 EffectComp（手动关门后不再定时关）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    knock(game, pid, "north")  # knock 开门 + schedule 定时关
+    close(game, pid, "north")  # close 关门 + 取消定时关 EffectComp
+    open_cmd(game, pid, "north")  # 再开门（open 不 schedule 定时关）
+    for _ in range(11):
+        game.engine.tick()
+    wangyou = game.world.get(game.room_entities["xueshan/wangyou"], RoomComp)
+    assert not wangyou.doors["north"].closed  # timer 已被 close 取消，门保持开
+
+
+def test_open_already_open() -> None:
+    """已开门再 open 提示（对照 LPC open_door 已开 notify_fail）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    open_cmd(game, pid, "north")
+    msgs = open_cmd(game, pid, "north")
+    assert any("已经开着" in m for m in msgs)
+
+
+def test_locked_door_blocks_open() -> None:
+    """locked 门 open 提示需钥匙，knock 敲不开，go 仍挡路（钥匙系统后置）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    wangyou = game.world.get(game.room_entities["xueshan/wangyou"], RoomComp)
+    wangyou.doors["north"].locked = True  # 场景无 locked 门，测试构造
+    msgs = open_cmd(game, pid, "north")
+    assert any("锁着" in m and "钥匙" in m for m in msgs)
+    assert wangyou.doors["north"].closed  # 仍关着
+    msgs = knock(game, pid, "north")
+    assert any("锁着" in m for m in msgs)  # knock 也敲不开
+    msgs = go(game, pid, "north")
+    assert any("锁着" in m for m in msgs)  # go 挡路提示锁着

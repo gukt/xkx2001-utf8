@@ -13,3 +13,7 @@
 - id: buttertea
   name: 酥油茶
   aliases: [tea, cha, "suyou cha"]
+  # C4 ADR-0043：do_drink 恢复（对照 LPC buttertea.c drink_supply=50/food_supply=30/jing+5）
+  drink_supply: 50
+  food_supply: 30
+  jing_recover: 5

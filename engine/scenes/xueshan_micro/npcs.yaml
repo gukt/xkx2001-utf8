@@ -438,3 +438,23 @@
     unarmed: 15
   attack_skill: unarmed
   weapon_label: 爪
+# B-2 ADR-0045：vendetta NPC（标记式追杀，对照 LPC vendetta_mark；杀之获 vendetta:guard 标记）
+- id: xueshan/npc/guard
+  name: 守卫
+  aliases: [shouwei, guard]
+  gender: 男性
+  age: 25
+  attitude: peaceful
+  vendetta_mark: guard
+  str_: 15
+  dex_: 15
+  int_: 10
+  con_: 15
+  max_qi: 40
+  max_jing: 40
+  combat_exp: 200
+  skills:
+    dodge: 10
+    unarmed: 10
+  attack_skill: unarmed
+  weapon_label: 拳头
