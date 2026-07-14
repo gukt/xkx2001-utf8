@@ -10,7 +10,8 @@
 
 - **阶段**：M3 收官后技术债补缺口第 2 轮完成（C4/B-2/C5 全部落地）
 - **分支**：feat/stage-3-m3
-- **tests**：1782 全绿，ruff 全过
+- **tests**：1786 全绿，ruff 全过
+- **⚠️ 待合并 worktree**：`worktree-fix-combat-death-respawn`（CLI 试玩三 bug 修复：战斗节奏 / 死亡还阳 KeyError / demo 潜能，见 In Progress）— 合并后删 worktree
 - **关键 ADR**：[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)（层1 ask/clear_flag/spawn_items）/ [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md)（auto_fight aggressive 接入）/ [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（门状态机）/ [ADR-0039](docs/adr/ADR-0039-combat-path-unification.md)（战斗路径统一）
 - **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问：单进程容量 80% / 外部玩家测试触发 PG / 第二题材）；B-2 hatred/vendetta/berserk + C5 open/close/锁 + C4 drink 残留后置
 - **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + aggressive NPC + 门）+ `python -m xkx.content_review` 审核 pipeline
@@ -35,6 +36,12 @@
 - **M3-4 版权清洗后置**（用户决策 2026-07-14，未商业化阶段过早清洗是过度工程）：雪山派 CPK 含 4 金庸角色（金轮法王/鸠摩智/灵智上人/达尔巴）+ 雪山派门派名本身（[ADR-0033](docs/adr/ADR-0033-content-review-pipeline-mvp.md) 关键发现）。M3-3 预检标记 `needs_review` 待办，商业化前清洗时预检就位。全量改编化/标注/授权 + provenance 版权链回填后置门3。
 
 ## In Progress
+
+**⚠️ 待合并 worktree `worktree-fix-combat-death-respawn`**（CLI 试玩三 bug 修复，2026-07-14）。用户试玩 `python -m xkx.cli` 报三问题，已在 worktree 修复 + 1786 tests 全绿，待合并到 `feat/stage-3-m3` 后删 worktree：
+
+1. **战斗一古脑输出无间隔**：`_print_combat`（带 `time.sleep(0.25)`）定义却从未调用，kill/fight 走 `_print` 一次性刷屏。重命名 `_print_paced` 并接入 kill/fight + `_auto_advance`（阴间 death_stage 对话也逐条停顿）。
+2. **死亡还阳后 `l` 崩 `KeyError: 'city/wumiao'`**：`ThemeConfig.wuxia().revive_room="city/wumiao"` 但 xueshan_micro CPK 未加载该房，`look` 的 `game.room_entities[pos.room_id]` 直接索引崩溃。修复：rooms.yaml 内置 `death/gate` + `city/wumiao` 最小定义（self-contained demo，wumiao 设 north 出口接回 shanmen 便于继续试玩）；commands.py 4 处（go/take/drop/look）`room_entities[...]` 改 `.get()` 防御未加载房。
+3. **潜能不够无法测 learn 链**：`spawn_player` 未设 potential（默认 0），learn 门控 `potential < times` 直接挡死。`load_game` 给 demo 玩家 `potential=100` + 基础 `force=30`（测通 bai->learn->enable->dazuo->practice 全链；LPC 新角色靠战斗/练功积累，demo 直接给以方便试玩，不改 spawn_player 规范语义）；help 文案澄清 `practice <技能种类>`（对齐 LPC practice.c，非技能名）。
 
 **M3 收官后技术债补缺口（第 2 轮）完成**（[ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md) / [ADR-0041](docs/adr/ADR-0041-auto-fight-aggressive-wiring.md) / [ADR-0042](docs/adr/ADR-0042-door-state-machine.md)）。C4 xlama2 交互闭环（ask set_flag + give clear_flag + spawn_items）+ B-2 auto_fight 接入（MVP aggressive，go room-enter + handler 注册 + CombatBridge 驱动）+ C5 门状态机（标准 doors + knock + call_out 定时关 + 双向同步 + DoorSystem）全部落地。1782 tests 全绿。技术债补缺口（第 1 轮 E/B/C1/C2/C6 + 第 2 轮 C4/B-2/C5）全部完成。
 

@@ -283,7 +283,7 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     target = room.exits.get(direction) if room else None
     if not target:
         return [f"这里没有「{direction}」的出口。"]
@@ -726,7 +726,7 @@ def take(game: Game, actor_id: int, item_query: str) -> list[str]:
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if not room:
         return [f"这里没有「{item_query}」。"]
     item_id = _resolve_item_id(game, item_query, room.items)
@@ -757,7 +757,7 @@ def drop(game: Game, actor_id: int, item_query: str) -> list[str]:
     if item_id is None:
         return [f"你没有「{item_query}」。"]
     inv.items.discard(item_id)
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if room is not None:
         room.items.add(item_id)
     return [f"你丢下{_item_name(game, item_id)}。"]
@@ -769,7 +769,7 @@ def look(game: Game, actor_id: int) -> list[str]:
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if not room:
         return ["这里什么也没有。"]
     lines = [f"【{room.short}】", room.long]

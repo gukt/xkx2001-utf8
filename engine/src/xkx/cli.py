@@ -76,10 +76,10 @@ HELP_TEXT = """\
   bai <师傅>              拜师（须满足入门条件）
   kneel                   跪下受戒剃度（须先获师傅许可）
   learn <师傅> <技能> [次数]  向师傅请教技能（消耗潜能+精）
-  practice <技能> [次数]  练习已启用的特殊技能
+  practice <技能种类> [次数] 练习已启用的特殊技能（种类如 force/sword/unarmed）
   dazuo <气量>            打坐练内力（须先 enable 内功）
   tuna <精量>             吐纳练精力
-  enable [种类] [技能]    启用特殊技能映射（无参查看当前）
+  enable [种类] [技能]    启用特殊技能映射（种类如 force；无参查看当前）
   betrayer                叛出师门
   help                    显示本帮助（简写 h）
   quit                    退出游戏
@@ -118,6 +118,17 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)
+    # demo 试玩便利：给玩家初始潜能 + 基础 force，便于测通
+    # learn -> enable -> dazuo -> practice 链路。LPC 新角色 potential=0 靠战斗积累、
+    # force 基础靠练功获得；demo 直接给以方便试玩（不影响 spawn_player 规范语义）。
+    from xkx.runtime.components import Progression, Skills
+
+    prog = world.get(pid, Progression)
+    if prog is not None:
+        prog.potential = 100
+    skills = world.get(pid, Skills)
+    if skills is not None:
+        skills.levels["force"] = 30
     game = Game(
         world,
         room_idx,
@@ -151,8 +162,14 @@ def _print(messages: list[str]) -> None:
         print(m)
 
 
-def _print_combat(messages: list[str]) -> None:
-    """战斗消息逐条打印，每条间短暂停顿（模拟 LPC heart_beat 节奏）。"""
+def _print_paced(messages: list[str]) -> None:
+    """逐条打印消息，每条间短暂停顿（模拟 LPC heart_beat 1 秒节奏的可读化）。
+
+    用于战斗回合消息 + 阴间 death_stage 剧情消息：这两类在 CLI 同步模式下会被
+    一次性收集（combat 由 ``_run_combat`` 压缩到同步推进，death_stage 由
+    ``_auto_advance`` 连续 tick 推进），逐条停顿让玩家看清时序，而非一古脑刷屏。
+    空列表不打印也不停顿（``_auto_advance`` 多数 tick 无消息）。
+    """
     for m in messages:
         print(m)
         sys.stdout.flush()
@@ -205,7 +222,7 @@ def _auto_advance(game: Game, pid: int) -> None:
         if not active:
             break
         engine.tick()
-        _print(_drain_pending(game))
+        _print_paced(_drain_pending(game))
 
 
 def parse_and_run(game: Game, pid: int, line: str) -> bool:
@@ -265,7 +282,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         if not args:
             print("要攻击谁？如：kill 葛伦布")
             return True
-        _print(kill(game, pid, " ".join(args)))
+        _print_paced(kill(game, pid, " ".join(args)))
         # ADR-0039：战斗 + 死亡轮回由 _auto_advance 推进（CombatBridge tick 驱动）
         _auto_advance(game, pid)
         return True
@@ -273,7 +290,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         if not args:
             print("要和谁切磋？如：fight 达尔巴")
             return True
-        _print(fight(game, pid, " ".join(args)))
+        _print_paced(fight(game, pid, " ".join(args)))
         _auto_advance(game, pid)
         return True
     if cmd == "flee":
@@ -336,7 +353,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         return True
     if cmd in ("practice", "lian"):
         if not args:
-            print("你要练什么？如：practice longxiang-banruo")
+            print("你要练什么技能种类？如：practice force")
             return True
         times = 1
         if len(args) >= 2:
