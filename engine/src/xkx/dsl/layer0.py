@@ -16,6 +16,19 @@ import yaml
 from pydantic import BaseModel, Field, model_validator
 
 
+class DoorDef(BaseModel):
+    """门定义（C5 ADR-0042，对照 LPC ``create_door``）。
+
+    ``other_room``/``other_dir`` 声明对面房间+方向（双向同步用）。``closed``
+    初始状态（默认关）。编译到 ``DoorEntry`` 运行时组件。
+    """
+
+    name: str  # 门名（LPC create_door 第 2 参）
+    other_room: str  # 对面房间 id
+    other_dir: str  # 对面方向（LPC create_door 第 3 参 other_side_dir）
+    closed: bool = True  # 初始状态（LPC create_door 第 4 参 status）
+
+
 class RoomDef(BaseModel):
     """房间定义（映射 LPC ``inherit ROOM`` + ``set(...)``）。"""
 
@@ -27,6 +40,7 @@ class RoomDef(BaseModel):
     items: list[str] = Field(default_factory=list)  # S5a：房间地面物品 id（玩家可 take）
     outdoors: bool = False
     no_fight: bool = False
+    doors: dict[str, DoorDef] = Field(default_factory=dict)  # C5：方向 -> 门定义
 
 
 class ApprenticeConditions(BaseModel):

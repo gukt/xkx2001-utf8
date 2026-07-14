@@ -6,3 +6,10 @@
 - id: xueshan/obj/lx-jing
   name: 龙象般若经
   aliases: ["longxiang jing", "jing"]
+# C4 ADR-0040：xlama2 交互闭环物品（对照 LPC d/xueshan/obj/suyou.c + buttertea.c）
+- id: suyou
+  name: 酥油
+  aliases: [butter, you]
+- id: buttertea
+  name: 酥油茶
+  aliases: [tea, cha, "suyou cha"]

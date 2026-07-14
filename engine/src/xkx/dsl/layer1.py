@@ -14,6 +14,8 @@ S4 扩充（ADR-0006）：``accept_object`` 事件 + ``set_flag`` 副作用 acti
 阶段 2 扩充（ADR-0016 第二批）：``attr_eq``/``is_wizard``/``derived_state``/
 ``has_inquiry``/``attr_in`` 叶子 + ``has_item``/``has_flag`` 扩展字段 +
 ``status_eq``/``same_object``/``mud_age_lt`` + ``command`` 事件类型。
+C4 扩充（ADR-0040）：``ask`` 事件 + ``clear_flag`` action + ``spawn_items``
+物品生成副作用（accept_object/ask 规则可生成物品到房间，对照 LPC ``new(obj)->move``）。
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 EVENT_VALID_LEAVE = "valid_leave"
 EVENT_ACCEPT_OBJECT = "accept_object"  # S4 ADR-0006
 EVENT_COMMAND = "command"  # 阶段 2 ADR-0016：命令前置 deny 事件
+EVENT_ASK = "ask"  # C4 ADR-0040：ask 对话事件（inquiry 副作用，对照 LPC 函数指针）
 
 # 谓词类型（S1 最小集 + S4 扩充；扩充需 ADR，防层1 原语蠕变 -- 05 §五 dissent 3）
 PRED_ALWAYS = "always"
@@ -51,6 +54,7 @@ PRED_MUD_AGE_LT = "mud_age_lt"  # actor 游戏年龄 < value（LPC query("mud_ag
 ACTION_DENY = "deny"
 ACTION_ALLOW = "allow"
 ACTION_SET_FLAG = "set_flag"  # S4 ADR-0006：设置 actor 标记（LPC set_temp("marks/X")）
+ACTION_CLEAR_FLAG = "clear_flag"  # C4 ADR-0040：清除 actor 标记（LPC delete_temp("marks/X")）
 
 # has_flag 的 source 取值（ADR-0016 决策 4）：仅 query/temp 两层，不引入第三种存储
 FLAG_SOURCE_QUERY = "query"  # LPC query("flag")（默认）
@@ -89,6 +93,18 @@ class Predicate(BaseModel):
     not_: Predicate | None = Field(default=None, alias="not")
 
 
+class SpawnItem(BaseModel):
+    """物品生成副作用（C4 ADR-0040，对照 LPC ``new(obj)->move(room)``）。
+
+    accept_object 规则命中后，在指定房间生成物品。greenfield ``RoomComp.items``
+    是 set 语义（无数量），LPC 的 count 简化为有/无（count>0 即 add 一次）。
+    """
+
+    item_id: str
+    room_id: str
+    count: int = 1  # 对齐 LPC 数量声明，set 语义下 count>0 即生成（简化为 1 个）
+
+
 class EventRule(BaseModel):
     """事件规则：condition -> action。
 
@@ -114,9 +130,12 @@ class EventRule(BaseModel):
     dir: str = ""  # 方向绑定（S4 ADR-0005），仅 valid_leave
     verb: str = ""  # 命令动词绑定（阶段 2 ADR-0016），仅 command
     # S4 ADR-0006：accept_object 绑定
-    npc_id: str = ""  # 目标 NPC（accept_object）
+    npc_id: str = ""  # 目标 NPC（accept_object/ask）
     item_id: str = ""  # 给的物品（accept_object）
-    flag: str = ""  # set_flag 设置的标记名
+    flag: str = ""  # set_flag/clear_flag 设置/清除的标记名
+    # C4 ADR-0040：ask 事件 topic 绑定 + 物品生成副作用
+    topic: str = ""  # ask 事件的 topic（对照 LPC inquiry topic）
+    spawn_items: list[SpawnItem] = Field(default_factory=list)  # 生成物品到房间
 
 
 @dataclass
@@ -144,6 +163,8 @@ class EvalContext:
     # S4（ADR-0006）：accept_object 上下文
     npc_id: str = ""  # 目标 NPC prototype_id
     item_id: str = ""  # 给的物品 id
+    # C4 ADR-0040：ask 上下文
+    ask_topic: str = ""  # 当前 ask 的 topic（evaluate_ask 匹配 rule.topic）
     # 阶段 2（ADR-0016）
     is_wizard: bool = False  # actor 是否 wizard（LPC wizardp）
     # 派生状态集合（actor 当前满足的派生状态，由层3 ECS 推导填充）。
@@ -159,10 +180,12 @@ class EvalContext:
 
 @dataclass
 class AcceptObjectResult:
-    """accept_object 求值结果（S4 ADR-0006）。"""
+    """accept_object 求值结果（S4 ADR-0006 + C4 ADR-0040）。"""
 
     accepted: bool = True  # 是否接受物品
     set_flag: str = ""  # 非空则调用方设置 actor 此标记
+    clear_flag: str = ""  # C4：非空则调用方清除 actor 此标记（LPC delete_temp）
+    spawn_items: list[SpawnItem] = field(default_factory=list)  # C4：生成物品到房间
     message: str = ""
 
 
@@ -311,12 +334,55 @@ def evaluate_accept_object(rules: list[EventRule], ctx: EvalContext) -> AcceptOb
             continue
         # 首匹配
         if rule.action == ACTION_SET_FLAG:
-            return AcceptObjectResult(accepted=True, set_flag=rule.flag, message=rule.message)
+            return AcceptObjectResult(
+                accepted=True, set_flag=rule.flag,
+                spawn_items=rule.spawn_items, message=rule.message,
+            )
+        if rule.action == ACTION_CLEAR_FLAG:
+            return AcceptObjectResult(
+                accepted=True, clear_flag=rule.flag,
+                spawn_items=rule.spawn_items, message=rule.message,
+            )
         if rule.action == ACTION_DENY:
             return AcceptObjectResult(accepted=False, message=rule.message)
         # allow
-        return AcceptObjectResult(accepted=True, message=rule.message)
+        return AcceptObjectResult(
+            accepted=True, spawn_items=rule.spawn_items, message=rule.message,
+        )
     return AcceptObjectResult(accepted=True)
+
+
+@dataclass
+class AskResult:
+    """ask 求值结果（C4 ADR-0040）。"""
+
+    set_flag: str = ""  # 非空则调用方设置 actor 此标记
+    message: str = ""  # 非空则覆盖 inquiry 字典消息
+
+
+def evaluate_ask(rules: list[EventRule], ctx: EvalContext) -> AskResult:
+    """求值 ask 规则：首匹配（C4 ADR-0040，对照 LPC inquiry 函数指针副作用）。
+
+    按 priority 降序遍历；找第一个 ``event=ask`` + ``npc_id`` 匹配 + ``topic``
+    匹配 + condition 命中的规则。命中则按 action 返回（set_flag=设标记 +
+    message 覆盖）。无命中则返回空 AskResult（消息走 inquiry 字典，无副作用）。
+    ask 事件仅 set_flag 副作用（无 deny/allow，ask 总是返回对话消息）。
+    """
+    for rule in sorted(rules, key=lambda r: -r.priority):
+        if rule.event != EVENT_ASK:
+            continue
+        if rule.npc_id and rule.npc_id != ctx.npc_id:
+            continue
+        if rule.topic and rule.topic != ctx.ask_topic:
+            continue
+        if not eval_predicate(rule.condition, ctx):
+            continue
+        # 首匹配
+        if rule.action == ACTION_SET_FLAG:
+            return AskResult(set_flag=rule.flag, message=rule.message)
+        # ask 仅 set_flag 有副作用，其他 action 仅透传 message
+        return AskResult(message=rule.message)
+    return AskResult()
 
 
 def evaluate_command(rules: list[EventRule], ctx: EvalContext) -> tuple[bool, str]:

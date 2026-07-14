@@ -25,8 +25,10 @@ from xkx.dsl.layer1 import (
     EventRule,
     evaluate,
     evaluate_accept_object,
+    evaluate_ask,
 )
 from xkx.runtime.action_context import Abort, ActionContext, new_context
+from xkx.runtime.auto_fight import FightType, auto_fight, initiate_combat
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
@@ -45,6 +47,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import apply_condition
+from xkx.runtime.doors import knock_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -284,6 +287,10 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     target = room.exits.get(direction) if room else None
     if not target:
         return [f"这里没有「{direction}」的出口。"]
+    # C5 ADR-0042：门关着挡路（对照 LPC valid_leave doors status 检查）
+    door = room.doors.get(direction) if room else None
+    if door is not None and door.closed:
+        return [f"{door.name}关着，也许敲一敲会开。"]
     ctx = _eval_ctx(
         world, actor_id, dir=direction, npc_ids_in_room=_npc_ids_in_room(world, pos.room_id)
     )
@@ -295,7 +302,45 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     msgs.extend(look(game, actor_id))
     # M3-1 ADR-0032 决策 3：go 移动触发 reach_room objective（对照 shanmen go north）
     msgs.extend(_advance_objective(game, actor_id, "reach_room", room_id=target))
+    # B-2 ADR-0039 决策 4：room-enter 触发 aggressive NPC 主动攻击（对照 LPC init()）
+    msgs.extend(_trigger_room_enter_fight(game, actor_id))
     return msgs
+
+
+def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
+    """B-2 ADR-0039 决策 4：玩家进房间触发 aggressive NPC 主动攻击（对照 LPC init()）。
+
+    遍历房间内 ``attitude=aggressive`` 的 NPC，调 ``auto_fight(npc, player, AGGRESSIVE)``
+    （对齐 LPC init() 三触发之 aggressive）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御
+    检查 + on_start_fight handler 建敌对关系。若玩家进入战斗（is_fighting），
+    ``_run_combat`` 推进（CLI 同步模式，对齐 kill 命令）。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return []
+    # 只玩家进房间触发（对齐 LPC this_player() 是玩家）
+    ident = world.get(actor_id, Identity)
+    if ident is None or not ident.is_player:
+        return []
+    for npc_eid in list(world.entities_in_room(pos.room_id)):
+        if npc_eid == actor_id:
+            continue
+        npc_ident = world.get(npc_eid, Identity)
+        if npc_ident is None or npc_ident.is_player:
+            continue
+        behavior = world.get(npc_eid, NpcBehavior)
+        if behavior is None or behavior.attitude != "aggressive":
+            continue
+        # aggressive NPC -> auto_fight(npc, player, AGGRESSIVE)（对齐 LPC init() aggressive 分支）
+        auto_fight(world, npc_eid, actor_id, FightType.AGGRESSIVE)
+    # 若玩家进入战斗，_run_combat 推进（CLI 同步，对齐 kill 命令 _run_combat）
+    cs = world.get(actor_id, CombatState)
+    if cs is not None and cs.is_fighting:
+        msgs = ["你被攻击了！"]
+        msgs.extend(_run_combat(game, actor_id))
+        return msgs
+    return []
 
 
 def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
@@ -357,19 +402,11 @@ def _start_combat(
 ) -> None:
     """建立双向敌对关系（ADR-0039，对齐 LPC kill_ob/fight_ob + set_heart_beat(1)）。
 
-    双方 CombatState.enemy_ids 互加 + is_fighting=True。to_death 区分 kill（致死）
-    /fight（点到为止），win_threshold 是 fight 模式 qi% 判赢阈值。
+    委托 ``auto_fight.initiate_combat``（B-2 ADR-0039 决策 4，逻辑下移供 NPC 主动
+    攻击 handler 复用，避免循环依赖）。双方 CombatState.enemy_ids 互加 +
+    is_fighting=True。to_death 区分 kill/fight，win_threshold 是 fight 模式 qi% 判赢阈值。
     """
-    for a, b in ((pid, target_id), (target_id, pid)):
-        cs = world.get(a, CombatState)
-        if cs is None:
-            cs = CombatState()
-            world.add(a, cs)
-        if b not in cs.enemy_ids:
-            cs.enemy_ids.append(b)
-        cs.is_fighting = True
-        cs.to_death = to_death
-        cs.win_threshold = win_threshold
+    initiate_combat(world, pid, target_id, to_death=to_death, win_threshold=win_threshold)
 
 
 def _end_combat(world: World, pid: int, target_id: int) -> None:
@@ -550,7 +587,18 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
     behavior = world.get(target_eid, NpcBehavior)
     if not behavior or topic not in behavior.inquiry:
         return [f"{target_name}摇了摇头。"]
-    return [behavior.inquiry[topic]]
+    # C4 ADR-0040：求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
+    ctx = _eval_ctx(world, actor_id, npc_id=target_pid, ask_topic=topic)
+    ask_result = evaluate_ask(game.rules, ctx)
+    if ask_result.set_flag:
+        marks = world.get(actor_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        marks.flags.add(ask_result.set_flag)
+    # 消息：规则 message 非空则覆盖 inquiry，否则用 inquiry 字典文本
+    message = ask_result.message if ask_result.message else behavior.inquiry[topic]
+    return [message]
 
 
 def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[str]:
@@ -591,13 +639,24 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
     msgs: list[str] = (
         [result.message] if result.message else [f"你把{item_name}给了{target_name}。"]
     )
-    # set_flag 副作用
-    if result.set_flag:
+    # set_flag / clear_flag 副作用（S4 set_flag + C4 ADR-0040 clear_flag）
+    if result.set_flag or result.clear_flag:
         marks = world.get(actor_id, Marks)
         if marks is None:
             marks = Marks()
             world.add(actor_id, marks)
-        marks.flags.add(result.set_flag)
+        if result.set_flag:
+            marks.flags.add(result.set_flag)
+        if result.clear_flag:
+            marks.flags.discard(result.clear_flag)
+    # C4 ADR-0040：spawn_items 生成物品到房间（对照 LPC new(obj)->move）
+    for spawn in result.spawn_items:
+        room_eid = game.room_entities.get(spawn.room_id)
+        if room_eid is None:
+            continue
+        spawn_room = world.get(room_eid, RoomComp)
+        if spawn_room is not None:
+            spawn_room.items.add(spawn.item_id)
 
     # S4 ADR-0007 + M3-1 ADR-0032 决策 3：give_item 推进当前步骤（多步 chain）
     msgs.extend(
@@ -723,11 +782,41 @@ def look(game: Game, actor_id: int) -> list[str]:
         lines.append(f"  {_item_name(game, item_id)}({item_id})")
     if room.exits:
         dirs = sorted(room.exits.keys())
-        if len(dirs) == 1:
-            lines.append(f"    这里唯一的出口是 {dirs[0]}。")
+        # C5 ADR-0042：出口标注门状态（开/关）
+        labels = [_dir_label(room, d) for d in dirs]
+        if len(labels) == 1:
+            lines.append(f"    这里唯一的出口是 {labels[0]}。")
         else:
-            lines.append(f"    这里明显的出口是 {'、'.join(dirs[:-1])} 和 {dirs[-1]}。")
+            lines.append(f"    这里明显的出口是 {'、'.join(labels[:-1])} 和 {labels[-1]}。")
     return lines
+
+
+def _dir_label(room: RoomComp, direction: str) -> str:
+    """C5 ADR-0042：出口标签，标注门状态（如 west(铁门关)）。"""
+    door = room.doors.get(direction)
+    if door is None:
+        return direction
+    status = "关" if door.closed else "开"
+    return f"{direction}({door.name}{status})"
+
+
+def knock(game: Game, actor_id: int, direction: str) -> list[str]:
+    """敲门命令（C5 ADR-0042，对照 LPC do_knock）。
+
+    敲当前房间指定方向的门：开门（closed=False + 同步对面）+ 触发定时关门
+    （door_close EffectComp，DoorSystem 到期关）。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    msg = knock_door(world, room_eid, direction, _current_tick(game))
+    if msg is None:
+        return ["这个方向没有门。"]
+    return [msg]
 
 
 def inventory(game: Game, actor_id: int) -> list[str]:
@@ -1402,6 +1491,14 @@ def _adapter_drop(game: Game, ctx: ActionContext) -> list[str]:
     return drop(game, ctx.actor, item_query)
 
 
+def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
+    """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return knock(game, ctx.actor, direction)
+
+
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
     """look 命令适配器（无参，查看当前房间）。"""
     return look(game, ctx.actor)
@@ -1518,6 +1615,7 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "take": _adapter_take,
     "get": _adapter_get,
     "drop": _adapter_drop,
+    "knock": _adapter_knock,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,

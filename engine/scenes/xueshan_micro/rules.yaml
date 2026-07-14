@@ -33,3 +33,28 @@
   action: set_flag
   flag: 酥
   message: 葛伦布一哈腰：佛爷保佑施主，里边请。
+# C4 ADR-0040：xlama2 交互闭环（对照 d/xueshan/npc/xlama2.c ask_tea + accept_object）
+#   ask 酥油茶 -> set marks/茶（ask_tea set_temp("marks/茶",1)）
+#   give 酥油 -> clear marks/茶 + 生成 buttertea 到厨房（accept_object delete_temp + new(buttertea)->move）
+- id: xueshan_xlama2_ask_tea
+  event: ask
+  npc_id: xueshan/npc/xlama2
+  topic: 酥油茶
+  condition:
+    kind: always
+  action: set_flag
+  flag: 茶
+  # message 留空：消息走 inquiry 字典（小喇嘛一脸不耐烦...）
+- id: xueshan_xlama2_accept_suyou
+  event: accept_object
+  npc_id: xueshan/npc/xlama2
+  item_id: suyou
+  condition:
+    kind: always
+  action: clear_flag
+  flag: 茶
+  spawn_items:
+    - item_id: buttertea
+      room_id: xueshan/chufang
+      count: 3
+  message: 小喇嘛：佛主保佑...请用茶。

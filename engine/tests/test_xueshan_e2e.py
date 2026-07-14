@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
+from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
 from xkx.runtime.commands import Game, ask, give, go, kill, take
 from xkx.runtime.components import (
@@ -21,6 +21,7 @@ from xkx.runtime.components import (
     Position,
     Progression,
     QuestLog,
+    RoomComp,
     Vitals,
 )
 from xkx.runtime.world import build_world, spawn_player
@@ -38,12 +39,18 @@ def _game(
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
-    ir = compile_scene(rooms, npcs, quests)
+    item_defs = load_items(SCENE_DIR / "items.yaml")
+    ir = compile_scene(rooms, npcs, quests, items=item_defs)
     world, room_idx, quest_idx = build_world(ir)
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
-    game = Game(world, room_idx, rules, quests=quest_idx, seed_base=seed_base)
+    item_registry = {i.id: i.name for i in item_defs}
+    game = Game(
+        world, room_idx, rules, quests=quest_idx,
+        seed_base=seed_base, item_registry=item_registry,
+    )
     # ADR-0039：接入 Engine + CombatBridge（战斗 tick 驱动）+ 治理/恢复 System
     from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.doors import DoorSystem
     from xkx.runtime.engine import CombatBridge, Engine
     from xkx.runtime.governance import GovernanceSystem
     from xkx.runtime.heal import HealSystem
@@ -53,6 +60,7 @@ def _game(
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
+    engine.add_system(DoorSystem())  # C5 ADR-0042 门定时关门
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 
@@ -116,6 +124,83 @@ def test_ask_gelun1_quest_trigger() -> None:
     msgs = ask(game, pid, "葛伦布", "还愿")
     assert any("接下任务「供奉佛爷」" in m for m in msgs)
     assert game.world.get(pid, QuestLog).statuses.get("xueshan/tribute") == "in_progress"
+
+
+# --- C4 ADR-0040：xlama2 交互闭环（ask set_flag + give clear_flag + spawn_items）---
+
+
+def test_ask_xlama2_sets_tea_flag() -> None:
+    """ask 小喇嘛 about 酥油茶 -> inquiry 消息 + set marks/茶（C4 ADR-0040，对照 ask_tea）。"""
+    game, pid = _game(start_room="xueshan/chufang")
+    msgs = ask(game, pid, "小喇嘛", "酥油茶")
+    # 消息走 inquiry 字典（ask 规则 message 留空）
+    assert any("酥油那麽贵" in m for m in msgs)
+    # set_flag 副作用：玩家 marks 含"茶"
+    marks = game.world.get(pid, Marks)
+    assert marks is not None and "茶" in marks.flags
+
+
+def test_give_xlama2_suyou_clears_flag_and_spawns_tea() -> None:
+    """give 小喇嘛 酥油 -> clear marks/茶 + 厨房生成 buttertea（C4 ADR-0040）。"""
+    game, pid = _game(start_room="xueshan/chufang", items={"suyou"})
+    # 先 ask 设"茶"标记
+    ask(game, pid, "小喇嘛", "酥油茶")
+    assert "茶" in game.world.get(pid, Marks).flags
+    # give 酥油 -> clear_flag + spawn buttertea 到厨房
+    msgs = give(game, pid, "小喇嘛", "酥油")
+    assert any("请用茶" in m for m in msgs)
+    # "茶"标记已清
+    assert "茶" not in game.world.get(pid, Marks).flags
+    # 酥油已移出玩家物品栏
+    assert "suyou" not in game.world.get(pid, Inventory).items
+    # 厨房生成 buttertea（set 语义，count 简化为有/无）
+    chufang = game.world.get(game.room_entities["xueshan/chufang"], RoomComp)
+    assert "buttertea" in chufang.items
+
+
+def test_xlama2_loop_take_buttertea() -> None:
+    """完整闭环：ask 设茶 -> give 酥油生茶 -> take 酥油茶（C4 ADR-0040）。"""
+    game, pid = _game(start_room="xueshan/chufang", items={"suyou"})
+    ask(game, pid, "小喇嘛", "酥油茶")
+    give(game, pid, "小喇嘛", "酥油")
+    # take 酥油茶（中文名匹配 buttertea）
+    msgs = take(game, pid, "酥油茶")
+    assert any("捡起" in m for m in msgs)
+    assert "buttertea" in game.world.get(pid, Inventory).items
+
+
+# --- B-2 ADR-0039 决策 4：auto_fight 接入（aggressive NPC 主动攻击）---
+
+
+def test_go_into_aggressive_npc_triggers_auto_fight() -> None:
+    """go 进 aggressive NPC 房间触发 auto_fight（注册 handler 后，对照 LPC init()）。"""
+    import xkx.runtime.auto_fight as auto_fight_mod
+    from xkx.runtime.auto_fight import (
+        FightType,
+        aggressive_start_fight_handler,
+        register_start_fight_handler,
+    )
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
+    try:
+        msgs = go(game, pid, "east")  # luyeyuan -> wangyou（yelang aggressive）
+        # _trigger_room_enter_fight 触发：handler 建敌对关系 -> "你被攻击了！"
+        assert any("被攻击" in m for m in msgs)
+    finally:
+        auto_fight_mod._START_FIGHT_HANDLERS.pop(FightType.AGGRESSIVE, None)
+
+
+def test_aggressive_npc_no_attack_without_handler() -> None:
+    """未注册 handler -> aggressive NPC 不攻击（on_start_fight 默认 no-op）。"""
+    from xkx.runtime.components import CombatState
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    # 不注册 handler（默认 no-op）
+    msgs = go(game, pid, "east")  # luyeyuan -> wangyou
+    assert not any("被攻击" in m for m in msgs)
+    cs = game.world.get(pid, CombatState)
+    assert cs is None or not cs.is_fighting
 
 
 def test_ask_unknown_topic() -> None:

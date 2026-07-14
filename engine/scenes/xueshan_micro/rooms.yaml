@@ -133,7 +133,28 @@
   long: 这里乃是大轮寺外一处僻静所在，四下绝无人迹。前前後後，大大小小几百座佛塔，被白得耀眼的雪被披盖着。银白色的山野、雪地里闪耀着红色和蓝色的光带，五彩缤纷，迷宫一样的琼楼仙阁在你眼前出现。西边一条小径不知通往何处。
   exits:
     west: xueshan/luyeyuan
+    north: xueshan/mishi
+  doors:
+    north:
+      name: 铁门
+      other_room: xueshan/mishi
+      other_dir: south
+      closed: true
+  objects:
+    xueshan/npc/yelang: 1
   outdoors: true
+# C5 ADR-0042：门状态机示例（铁门，对照 LPC bingyin.c create_door）
+- id: xueshan/mishi
+  short: 密室
+  long: 一间幽暗的密室，空气中弥漫着陈旧的香气。南边是一扇沉重的铁门。
+  exits:
+    south: xueshan/wangyou
+  doors:
+    south:
+      name: 铁门
+      other_room: xueshan/wangyou
+      other_dir: north
+      closed: true
 - id: xueshan/beilu
   short: 大雪山北麓
   long: 这里山势比大雪山东面稍缓，也不是十分的严寒。山道两旁长得有稀稀拉拉的一些野草。四下毫无人迹，只有几只秃鹰在高处盘旋，俯视着茫茫雪山。

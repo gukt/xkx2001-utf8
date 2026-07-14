@@ -102,6 +102,42 @@ def _default_start_fight_handler(
     return None
 
 
+def initiate_combat(
+    world: World, attacker_id: int, target_id: int, *, to_death: bool, win_threshold: int = 0
+) -> None:
+    """建立双向敌对关系（B-2 ADR-0039 决策 4，对齐 LPC kill_ob/fight_ob + set_heart_beat(1)）。
+
+    供 ``on_start_fight`` handler（NPC 主动攻击）+ commands ``_start_combat``（玩家发起）
+    共用，逻辑下移到本模块避免循环依赖（auto_fight 不导入 commands）。双方
+    ``CombatState.enemy_ids`` 互加 + ``is_fighting=True``。``to_death`` 区分 kill/fight，
+    ``win_threshold`` 是 fight 模式 qi% 判赢阈值。
+    """
+    from xkx.runtime.components import CombatState
+
+    for a, b in ((attacker_id, target_id), (target_id, attacker_id)):
+        cs = world.get(a, CombatState)
+        if cs is None:
+            cs = CombatState()
+            world.add(a, cs)
+        if b not in cs.enemy_ids:
+            cs.enemy_ids.append(b)
+        cs.is_fighting = True
+        cs.to_death = to_death
+        cs.win_threshold = win_threshold
+
+
+def aggressive_start_fight_handler(
+    world: World, me_id: int, obj_id: int, fight_type: FightType
+) -> None:
+    """AGGRESSIVE 触发的战斗 handler（B-2 ADR-0039 决策 4，对齐 LPC kill_ob）。
+
+    NPC ``attitude=aggressive`` 主动攻击玩家：建立敌对关系（to_death），后续攻击由
+    CombatBridge tick 驱动（对齐 LPC heart_beat）。由 ``register_start_fight_handler``
+    在 engine/game 初始化时注册。
+    """
+    initiate_combat(world, me_id, obj_id, to_death=True)
+
+
 # ──────────────────────── auto_fight（战斗触发入口） ────────────────────────
 
 

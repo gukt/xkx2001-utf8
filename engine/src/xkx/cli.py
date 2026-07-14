@@ -101,6 +101,7 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
         scene: CPK 目录名（``scenes/`` 下，默认武侠旗舰微场景）。
     """
     from xkx.runtime.conditions import ConditionSystem
+    from xkx.runtime.doors import DoorSystem
     from xkx.runtime.engine import CombatBridge, Engine
     from xkx.runtime.governance import GovernanceSystem
     from xkx.runtime.heal import HealSystem
@@ -132,6 +133,15 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     engine.add_system(HealSystem())
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
+    engine.add_system(DoorSystem())  # C5 ADR-0042 门定时关门
+    # B-2 ADR-0039 决策 4：注册 AGGRESSIVE handler（NPC 主动攻击接入运行时）
+    from xkx.runtime.auto_fight import (
+        FightType,
+        aggressive_start_fight_handler,
+        register_start_fight_handler,
+    )
+
+    register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 
