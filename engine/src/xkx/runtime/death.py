@@ -50,6 +50,7 @@ from xkx.runtime.conditions import (
 )
 from xkx.runtime.ecs import World
 from xkx.runtime.equipment import unequip
+from xkx.runtime.message import tell_object
 from xkx.runtime.query import move_to
 from xkx.runtime.theme import ThemeConfig
 
@@ -127,7 +128,7 @@ def unconcious(world: World, eid: int, defeater: int | None = None) -> None:
     apply_condition(world, eid, "revive", delay)
     # 消息 + announce（2.2 最小，消息推送后置 M3）
     announce(world, eid, "unconcious")
-    _tell(world, eid, "\n你的眼前一黑，接著什么也不知道了。\n")
+    tell_object(world, eid, "\n你的眼前一黑，接著什么也不知道了。\n")
     # winner_reward(defeater) 后置 stub（昏迷胜者奖励，非 killer_reward）
     _mark_dirty(world, eid)
 
@@ -142,7 +143,7 @@ def revive(world: World, eid: int, quiet: bool = False) -> None:
     clear_one_condition(world, eid, "revive")
     if not quiet:
         announce(world, eid, "revive")
-        _tell(world, eid, "\n慢慢地你终于又有了知觉。\n")
+        tell_object(world, eid, "\n慢慢地你终于又有了知觉。\n")
     _mark_dirty(world, eid)
 
 
@@ -423,29 +424,16 @@ def _is_city_room(room: RoomComp | None) -> bool:
     return room is not None and room.room_id.startswith("city/")
 
 
-def _tell(world: World, eid: int, msg: str) -> None:
-    """向实体输出消息（LPC tell_object）。
-
-    M3-1 子任务 5：最小消息缓冲--写到 ``world.pending_messages`` 供 CLI 自动推进
-    时收集（完整 WS 推送由 connection/ws_server 后置 M3）。
-    """
-    pending = getattr(world, "pending_messages", None)
-    if pending is not None:
-        pending.append(msg)
-
-
 def _save(world: World, eid: int) -> None:
     """存档（LPC save()，die/death_penalty 中防回档）。
 
-    优先调 StorageSystem.persist_now 同步存单实体；无 StorageSystem 则 mark_dirty。
+    M3-1：mark_dirty 标脏等周期 persist。立即同步单实体存（LPC save() 语义）
+    留 per-object save 第二批 DaemonStore（ADR-0056）。原调 persist_now(eid)
+    签名断裂（persist_now 签名是 (world) 且 async 未 await）实际未真存，
+    改 mark_dirty 修复断裂不降级行为。
     """
     storage = getattr(world, "storage_system", None)
-    if storage is None:
-        return
-    persist_now = getattr(storage, "persist_now", None)
-    if persist_now is not None:
-        persist_now(eid)
-    else:
+    if storage is not None:
         storage.mark_dirty(eid)
 
 

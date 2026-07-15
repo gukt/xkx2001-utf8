@@ -4,15 +4,15 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-15（pilot 13 样本实测完成，区间承诺得出）
+**最后更新**：2026-07-15（pilot 收尾 + 转向 AI 分批迁移，ADR-0056）
 
 ## 当前状态速览
 
-- **阶段**：阶段 0 pilot 实测完成（13 样本，区间承诺 [781,1724]h）
+- **阶段**：阶段 0 pilot 收尾 -> 转 AI agent 按架构依赖分批迁移（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）
 - **分支**：feat/sampling-pilot
 - **tests**：2189 全绿，ruff 全过（+176 pilot 单测）
-- **关键 ADR**：[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（pilot 降级区间承诺）/ [ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md)（规格补充分类）
-- **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（区间承诺 + 退路校验 + 数据质量）
+- **关键 ADR**：[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃人工工时，改 AI 分批）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（工时承诺部分退役）
+- **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（工时数据归档，副产出保留）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
 
@@ -25,10 +25,12 @@
 - [x] **pilot 样本 id=1 `xue.c:main`**：迁移 [samples/xue_c_main.py](engine/tools/sampling/pilot/samples/xue_c_main.py) + 16 单测 [tests/test_xue_c_main.py](engine/tests/test_xue_c_main.py)；扩展 stubs.py 3 个 A 类回落桩；记 effort 125min 到 effort_records.jsonl；1994 tests 全绿
 - [x] **pilot 样本 id=3 `tieyanling.c:do_qingjiao`**：迁移 [samples/tieyanling_c_do_qingjiao.py](engine/tools/sampling/pilot/samples/tieyanling_c_do_qingjiao.py) + 15 单测 [tests/test_tieyanling_c_do_qingjiao.py](engine/tests/test_tieyanling_c_do_qingjiao.py)；扩展 stubs.py 1 个 teach_skillsname 桩；记 effort 65min；2009 tests 全绿
 - [x] **pilot 剩余 11 样本并行迁移 + 区间承诺**：两阶段（预建 7 组共享桩 + Workflow 11 agent 并行），13 样本全绿 2189 tests，区间 [781,1724]h 详见 [REPORT](engine/tools/sampling/pilot/REPORT.md)；退路未触发（误分类 7.7%，high-tier CV 0.24）
+- [x] [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)：放弃人工工时估算（项目由 AI agent 迁移，工时语义错位），改按架构依赖分批迁移；退役 ADR-0048 工时承诺部分，保留 pilot 副产出（缺口情报/桩/13 样本）
+- [x] **第一批架构补全：message facade**：建 [message.py](engine/src/xkx/runtime/message.py)（tell_object/tell_room/message_vision 三段视角，照 simul_efun/message.c），收敛 death/governance _tell，修 death persist_now(eid) 断裂；+7 单测，2196 全绿
 
 ## In Progress
 
-**pilot 实测完成**（feat/sampling-pilot）：13 样本全测全绿，区间承诺 [781,1724]h 已得出（[REPORT](engine/tools/sampling/pilot/REPORT.md)）。退路未触发（误分类 7.7% < 30%，high-tier CV 0.24 < 1）。待决策：基于区间承诺的全量迁移批次划分。
+**第一批架构补全完成**（message facade，[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md) 决策 4）：2196 tests 全绿。第二批待规划（per-object save DaemonStore + item-as-entity 方案 B）。新 session 在本分支 feat/sampling-pilot 接力第二批（分支已从 pilot 演化为 AI 分批迁移工作分支）。
 
 ## Blocked
 
@@ -36,9 +38,8 @@
 
 ## Next Up
 
-1. **决策全量迁移批次**：基于区间承诺 [781,1724]h（约 7.8-21.6 人月）+ [ADR-0047](docs/adr/ADR-0047-batch-migration-path.md) 分批路径，划分迁移批次与优先级。
-2. **low tier 补测校准**：pending/logic/low（872 函数）仅 1 个纠偏样本外推、主导点估 70%，需补测典型样本或用类比基准下修后再承诺。
-3. **implemented drift 澄清**：id=12/13 drift 140min 是完整迁移工时非补后置分支，后续若复用 pilot 数据需注意解读。
+1. **第二批架构补全**：per-object save DaemonStore（机制层 + 修 death persist_now 同步存 + job_data/bboard 数据建模）+ item-as-entity 方案 B（5/8 收口过渡层）。
+2. **后续批迁移**：按子系统/缺口类型 agent 并行迁移，边跑边记 AI 成本（token / 运行时间）。
 
 ## kill criteria 状态（开工必读）
 

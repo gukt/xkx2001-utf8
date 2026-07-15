@@ -1,6 +1,6 @@
 # ADR-0048：抽样校准阶段 B 方案修正（降级区间承诺 + pilot 纠偏 + 回归按需后置）
 
-- 状态：已采纳
+- 状态：已采纳（工时承诺部分被 [ADR-0056](ADR-0056-abandon-effort-estimation-ai-batched-migration.md) 退役，pilot 副产出保留）
 - 日期：2026-07-14
 - 阶段：0 任务 6 抽样校准实验阶段 B（方案修正）
 - 关联：[ADR-0047](ADR-0047-greenfield-effort-semantics.md)（被修正）/ [ADR-0046](ADR-0046-sampling-calibration-methodology.md) / [05](../xkx-arch/05-第三轮专家对抗复审报告.md) 专家 6 工时模型 dissent / [04](../xkx-arch/04-迁移路径与避坑清单.md) 验收"工时承诺有数据支撑" / 评审团 workflow（4 方案 + 3 评委）

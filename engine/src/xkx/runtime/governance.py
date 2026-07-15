@@ -65,6 +65,7 @@ from xkx.runtime.conditions import (
     query_condition,
 )
 from xkx.runtime.ecs import World
+from xkx.runtime.message import tell_object
 from xkx.runtime.query import move_to
 from xkx.runtime.systems import System
 from xkx.runtime.theme import ThemeConfig
@@ -204,7 +205,7 @@ class GovernanceSystem(System):
             trig = death_stage_handler(world, eff, tick)
             target_id = eff.target_id
             # tell 剧情消息（2.6 最小不推送，消息系统后置 M3，对齐 death._tell）
-            _tell(world, target_id, "".join(trig.messages))
+            tell_object(world, target_id, "".join(trig.messages))
             # 推进 stage：duration 衰减（handler 已算 new_duration）
             new_duration = trig.new_duration
             if new_duration is None:
@@ -573,17 +574,6 @@ def _transfer_exp(
         from_prog.combat_exp = max(0, from_prog.combat_exp - amount)
     if to_prog is not None:
         to_prog.combat_exp += amount
-
-
-def _tell(world: World, eid: int, msg: str) -> None:
-    """向实体输出消息（LPC tell_object）。
-
-    M3-1 子任务 5：最小消息缓冲--写到 ``world.pending_messages`` 供 CLI 自动推进
-    时收集（对齐 death._tell；完整 WS 推送由 connection/ws_server 后置 M3）。
-    """
-    pending = getattr(world, "pending_messages", None)
-    if pending is not None:
-        pending.append(msg)
 
 
 def _mark_dirty(world: World, eid: int) -> None:
