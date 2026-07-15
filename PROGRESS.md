@@ -8,7 +8,7 @@
 
 ## 当前状态速览
 
-- **阶段**：M3 收官后产品化收尾窗口（demo 打磨 9 项完成）
+- **阶段**：M3 收官后产品化收尾窗口完成 + 后置技术债全部裁决/关闭（分支 feat/stage-3-techdebt-r3 任务完成，14 commits ahead master 未合并）
 - **分支**：feat/stage-3-techdebt-r3
 - **tests**：1814 全绿，ruff 全过
 - **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）/ [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)（多对手+钥匙系统，B-2/C5 收尾）/ [ADR-0050](docs/adr/ADR-0050-du-command-and-schema-extension.md)（du 研读命令+ItemDef/QuestReward schema 扩展，demo 打磨）/ [ADR-0051](docs/adr/ADR-0051-berserk-semantic-flavor-only.md)（berserk 语义裁决=忠实 LPC flavor）/ [ADR-0052](docs/adr/ADR-0052-c5-residual-smashed-skip-dynamic-exit-postpone.md)（C5 残留裁决：SMASHED 跳过+动态 exit 后置交通系统）
@@ -45,7 +45,7 @@
 
 ## In Progress
 
-**Demo 打磨（产品化收尾窗口）完成**（9 项，详见 Done）：A1/B1/B2/B3/B5/C1/C2/C3/B4。1812 tests 全绿。方向=用户选产品化收尾窗口（Q2 暂否，聚焦已迁移内容产品化；pilot 被测环节受人工工时红线约束留人工；berserk 已裁决=忠实 LPC flavor [ADR-0051]）。
+**Demo 打磨（产品化收尾窗口）完成**（9 项，详见 Done）：A1/B1/B2/B3/B5/C1/C2/C3/B4。1812 tests 全绿。方向=用户选产品化收尾窗口（Q2 暂否，聚焦已迁移内容产品化；pilot 被测环节受人工工时红线约束留人工；berserk 已裁决=忠实 LPC flavor [ADR-0051]；C5 残留已裁决关闭 [ADR-0052]）。**当前分支任务完成**，下 session 新分支推进。
 
 **M3->后置决策检查点已裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问，2026-07-15）：Q1 单进程容量实测 80%--否（合成压测余量 8x，无真实在线）；Q3 第二题材--否（仅武侠）；Q2 外部玩家测试--**暂否**（用户选产品化收尾窗口，不启动 PG 迁移/网络层产品化）。三问均不触发后置阶段，聚焦已迁移内容产品化 + 后置技术债/抽样 pilot 按需推进。
 
@@ -68,6 +68,13 @@ driver UE 问题已于 2026-07-11 解除（用户重启电脑，PID 22753 监听
 - **全仿真确定性**：M3-5 已决策否决实施（[ADR-0035](docs/adr/ADR-0035-full-simulation-determinism-decision-point.md)），保持 combat-only，触发条件后置（分布式回放 / 反作弊强需求 / 观战产品需求）
 
 **规格补充建议**：层 H 第二梯队（CHANNEL_D/fingerd/rankd PKS）/ 层 C（vote）/ 层 I（human.c 属性公式）/ 层 F（阴间流程）-- 按 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md) "实现到时才补"。S2-S4f 简化项按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md)~[ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 在 S4+ 补全。
+
+**当前分支任务完成**（`feat/stage-3-techdebt-r3`，14 commits ahead master 未合并）：技术债补缺口 B-2/C5 全部实施/裁决 + 产品化收尾 demo 打磨 + 后置技术债全部裁决/关闭（ADR-0049~0052）。无残留有动手价值的后置项。合并 master 前跑 `just test` 全绿确认（1814 tests）。
+
+**下 session 接力**（新分支推进，当前分支可合并 master 或保留）：
+
+- **pilot 实测**（`feat/sampling-pilot`）：阶段 0 验收硬交付物，被测环节受人工工时红线（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)），AI 铺路建桩 + 人工计时。manifest id=1 `xue.c:main` 起步。
+- **M2/UGC 闭环**（`feat/m2-ugc-loop`）：项目核心创新未闭合（DSL 只 layer0/1，无 Orchestrator/MCP/评审工作台，LLM 后置 [ADR-0036](docs/adr/ADR-0036-content-llm-volcano-ark-langfuse-postpone.md)），战略价值最高。
 
 ## kill criteria 状态（开工必读）
 
