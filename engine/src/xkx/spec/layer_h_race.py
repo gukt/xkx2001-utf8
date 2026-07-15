@@ -1,16 +1,24 @@
 """层 H-RACE：race daemon 种族初始化 -- LPC 规格提取（ADR-0030 开放问题 1）。
 
 覆盖范围：
-- ``adm/daemons/race/human.c`` -- ``setup_human`` 的 greenfield 对应。
+- ``adm/daemons/race/human.c`` -- ``create`` / ``setup_human`` / ``query_action`` /
+  ``set_default_object`` 的 greenfield 对应。
   LPC 原版把"通用人类种族逻辑"与"13 门派加成"混在一个 429 行函数里，
-  本层按 ADR-0030 决策 1 拆为两个独立函数规格：
+  本层按 ADR-0030 决策 1 拆为多个独立函数规格：
 
-  1. ``setup_race`` -- 通用种族基础（引擎层，主题无关）：
+  1. ``create`` -- race daemon 自身静态属性初始化（unit/gender/can_speak/
+     attitude/limbs/dead/unconscious/revive 消息模板）。
+  2. ``set_default_actions`` -- 将 ``query_action`` 回调绑定到
+     ``entity.default_actions``（human.c:59）。
+  3. ``query_action`` -- 返回 ``HUMAN_COMBAT_ACTIONS`` 中随机一个
+     combat action 模板（含 action 文本与 damage_type）。
+  4. ``set_default_object`` -- 标记 entity 的默认原型文件路径（human.c:421）。
+  5. ``setup_race`` -- 通用种族基础（引擎层，主题无关）：
      属性随机 ``10+random(21)``、年龄分层 ``max_jing``/``max_qi``/``max_jingli``
      公式（age<=14/<=30/>30 三段 + 70 岁衰减）、``max_potential`` 公式、
+     ``eff_jingli`` 与 ``max_neili`` 追加加成、force 技能上限钳位、
      ``base_weight`` + str 加成。不硬编码任何门派名 / 技能名。
-
-  2. ``apply_family_bonuses`` -- 门派加成（题材包 CPK 资产，声明式载体）：
+  6. ``apply_family_bonuses`` -- 门派加成（题材包 CPK 资产，声明式载体）：
      按 ``family_name`` 过滤匹配的 FamilyBonus 列表，条件检查（技能等级 > 阈值 +
      额外条件），公式计算（读 bonus 参数，年龄调整统一逻辑）。不认识任何具体
      门派名，只做 ``family_name == bonus.family_name`` 字符串匹配。
@@ -55,6 +63,284 @@ from xkx.spec.base import (
     SideEffect,
     SideEffectType,
 )
+
+# ---------------------------------------------------------------------------
+# 人类基础 combat_action 模板（LPC human.c:14-30）
+# ---------------------------------------------------------------------------
+
+HUMAN_COMBAT_ACTIONS = [
+    {"action": "$N挥拳攻击$n的$l", "damage_type": "瘀伤"},
+    {"action": "$N往$n的$l一抓", "damage_type": "擦伤"},
+    {"action": "$N往$n的$l狠狠地踢了一脚", "damage_type": "瘀伤"},
+    {"action": "$N提起拳头往$n的$l捶去", "damage_type": "内伤"},
+    {"action": "$N对准$n的$l用力挥出一拳", "damage_type": "瘀伤"},
+]
+
+
+# ---------------------------------------------------------------------------
+# create() 函数规格（race daemon 自身初始化）
+#
+# LPC 对照：adm/daemons/race/human.c 行 32-49。
+# ---------------------------------------------------------------------------
+
+_create = FunctionSpec(
+    signature=FunctionSignature(
+        name="create",
+        params=[],
+        return_type="void",
+        lpc_file="adm/daemons/race/human.c",
+        line_range=(32, 49),
+    ),
+    postconditions=[
+        Postcondition(
+            description="设置 unit 为 '位'（human.c:35）",
+            state_change='set("unit", "位")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 gender 为 '男性'（human.c:36）",
+            state_change='set("gender", "男性")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 can_speak 为 1（human.c:37）",
+            state_change='set("can_speak", 1)',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 attitude 为 'peaceful'（human.c:38）",
+            state_change='set("attitude", "peaceful")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 limbs 列表，含头顶/颈部/胸口等 21 个部位（human.c:40-44）",
+            state_change='set("limbs", ({...}))',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 dead_message 模板（human.c:46）",
+            state_change='set("dead_message", "\\n$N倒在地上...\\n\\n")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 unconcious_message 模板（human.c:47）",
+            state_change='set("unconcious_message", "\\n$N脚下一个不稳...\\n\\n")',
+            kind="effect",
+        ),
+        Postcondition(
+            description="设置 revive_message 模板（human.c:48）",
+            state_change='set("revive_message", "\\n$N慢慢睁开眼睛...\\n\\n")',
+            kind="effect",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="设置 unit / gender / can_speak / attitude",
+            lpc_call=(
+                'set("unit", "位"); set("gender", "男性"); '
+                'set("can_speak", 1); set("attitude", "peaceful")'
+            ),
+            target="race daemon self",
+        ),
+        SideEffect(
+            order=2,
+            kind=SideEffectType.STATE_MUTATION,
+            description="设置 limbs 列表（21 个部位）",
+            lpc_call='set("limbs", ({...}))',
+            target="race daemon self",
+        ),
+        SideEffect(
+            order=3,
+            kind=SideEffectType.STATE_MUTATION,
+            description="设置 dead_message / unconcious_message / revive_message 模板",
+            lpc_call=(
+                'set("dead_message", ...); set("unconcious_message", ...); '
+                'set("revive_message", ...)'
+            ),
+            target="race daemon self",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="create 设置后 limbs 列表固定为 21 个部位，且 unit/gender/"
+            "can_speak/attitude 均有值（human.c:35-44）",
+            lpc_expr=(
+                'sizeof(limbs) == 21 && unit == "位" && gender == "男性" '
+                '&& can_speak == 1 && attitude == "peaceful"'
+            ),
+            scope="function",
+        ),
+    ],
+    notes="human race daemon 启动时初始化自身静态属性，供 setup_human 与 entity 模板引用。",
+)
+
+
+# ---------------------------------------------------------------------------
+# set_default_actions 函数规格（human.c:59）
+#
+# LPC 对照：adm/daemons/race/human.c setup_human() 内
+# ob->set("default_actions", (: call_other, __FILE__, "query_action" :))。
+# ---------------------------------------------------------------------------
+
+_set_default_actions = FunctionSpec(
+    signature=FunctionSignature(
+        name="set_default_actions",
+        params=[
+            LPCParam(
+                name="entity",
+                lpc_type="object",
+                description="待设置默认动作的角色实体",
+            ),
+        ],
+        return_type="void",
+        lpc_file="adm/daemons/race/human.c",
+        line_range=(59, 59),
+    ),
+    preconditions=[
+        Precondition(
+            description="entity 已绑定且可写 default_actions 属性",
+            lpc_expr="objectp(entity)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="entity.default_actions 设置为调用 query_action 的回调（human.c:59）",
+            state_change='ob->set("default_actions", (: call_other, __FILE__, "query_action" :))',
+            kind="effect",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="entity.default_actions 绑定 query_action 回调",
+            lpc_call=(
+                'ob->set("default_actions", '
+                '(: call_other, __FILE__, "query_action" :))'
+            ),
+            target="entity.default_actions",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="default_actions 回调固定指向 query_action（human.c:59）",
+            lpc_expr='default_actions == (: call_other, __FILE__, "query_action" :)',
+            scope="function",
+        ),
+    ],
+    notes="setup_human 内部调用，无门派默认动作时回退到 human 基础 combat_action。",
+)
+
+
+# ---------------------------------------------------------------------------
+# query_action 函数规格（human.c:425-428）
+# ---------------------------------------------------------------------------
+
+_query_action = FunctionSpec(
+    signature=FunctionSignature(
+        name="query_action",
+        params=[],
+        return_type="mapping",
+        lpc_file="adm/daemons/race/human.c",
+        line_range=(425, 428),
+    ),
+    preconditions=[
+        Precondition(
+            description="combat_action 映射已初始化（create() 中设置）",
+            lpc_expr="sizeof(combat_action) > 0",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description=(
+                "返回 combat_action 中随机一个 action 条目，"
+                "含 action 文本与 damage_type"
+            ),
+            return_value="combat_action[random(sizeof(combat_action))]",
+            kind="effect",
+        ),
+    ],
+    random_specs=[
+        RandomSpec(
+            lpc_call="combat_action[random(sizeof(combat_action))]",
+            probability_model="在 HUMAN_COMBAT_ACTIONS 5 个条目中均匀选择",
+            semantic="人类基础无武器 combat action 随机选择",
+            seed_inputs=["HUMAN_COMBAT_ACTIONS length"],
+            determinism_note="非 combat 确定性范围，初始化/回退动作选择允许真随机",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="返回的 combat action 条目必含 action 与 damage_type 两个键"
+            "（human.c:14-30）",
+            lpc_expr='result["action"] && result["damage_type"]',
+            scope="function",
+        ),
+    ],
+    notes="返回 HUMAN_COMBAT_ACTIONS 中随机一项，供 entity.default_actions 回调使用。",
+)
+
+
+# ---------------------------------------------------------------------------
+# set_default_object 函数规格（human.c:421）
+# ---------------------------------------------------------------------------
+
+_set_default_object = FunctionSpec(
+    signature=FunctionSignature(
+        name="set_default_object",
+        params=[
+            LPCParam(
+                name="entity",
+                lpc_type="object",
+                description="待设置默认对象的角色实体",
+            ),
+            LPCParam(
+                name="file_path",
+                lpc_type="string",
+                description="默认对象文件路径（LPC 中为 __FILE__）",
+            ),
+        ],
+        return_type="void",
+        lpc_file="adm/daemons/race/human.c",
+        line_range=(421, 421),
+    ),
+    preconditions=[
+        Precondition(
+            description="entity 已创建且可写 default_object 属性",
+            lpc_expr="objectp(entity)",
+            kind="require",
+        ),
+    ],
+    postconditions=[
+        Postcondition(
+            description="entity.default_object 设置为 file_path（human.c:421）",
+            state_change="ob->set_default_object(__FILE__)",
+            kind="effect",
+        ),
+    ],
+    side_effects=[
+        SideEffect(
+            order=1,
+            kind=SideEffectType.STATE_MUTATION,
+            description="entity.default_object 设为 file_path",
+            lpc_call="ob->set_default_object(__FILE__)",
+            target="entity.default_object",
+        ),
+    ],
+    invariants=[
+        Invariant(
+            description="default_object 设置后等于传入的 file_path（human.c:421）",
+            lpc_expr="default_object == file_path",
+            scope="function",
+        ),
+    ],
+    notes="setup_human 末尾调用，标记 entity 的默认原型文件路径。",
+)
+
 
 # ---------------------------------------------------------------------------
 # setup_race 函数规格（通用种族基础，引擎层）
@@ -171,6 +457,36 @@ _setup_race = FunctionSpec(
             state_change='if(!userp && max_jing<1) max_jing=100; if(!userp && max_qi<1) max_qi=100',
             kind="effect",
         ),
+        Postcondition(
+            description="eff_jingli 加成 max_jing：eff_jingli>0 时 max_jing += "
+            "eff_jingli/4（human.c:212）",
+            state_change='if(eff_jingli > 0) max_jing += eff_jingli / 4',
+            kind="effect",
+        ),
+        Postcondition(
+            description="max_neili 加成 max_qi：max_neili>0 时 max_qi += "
+            "max_neili/4（human.c:382）",
+            state_change='if(max_neili > 0) max_qi += max_neili / 4',
+            kind="effect",
+        ),
+        Postcondition(
+            description="eff_jingli 加成 max_jingli：eff_jingli>0 时 max_jingli += "
+            "eff_jingli（human.c:404）",
+            state_change='if(eff_jingli > 0) max_jingli += eff_jingli',
+            kind="effect",
+        ),
+        Postcondition(
+            description="eff_jingli 受 force 技能上限钳位：当有效 force 高于基础 "
+            "force 且 eff_jingli > force*con/2 时，eff_jingli 与 max_jingli 均钳位到 "
+            "force*con/2（human.c:405-409）",
+            state_change=(
+                'if(query_skill("force") > query_skill("force", 1) && '
+                'eff_jingli > query_skill("force") * con / 2) { '
+                'eff_jingli = query_skill("force") * con / 2; '
+                'max_jingli = query_skill("force") * con / 2; }'
+            ),
+            kind="effect",
+        ),
     ],
     invariants=[
         Invariant(
@@ -208,6 +524,17 @@ _setup_race = FunctionSpec(
             description="max_jingli/max_neili 未定义时下限 1（human.c:416-419，"
             "防止后续计算除零或异常）",
             lpc_expr='if(undefinedp(max_jingli)) max_jingli=1; if(undefinedp(max_neili)) max_neili=1',
+            scope="function",
+        ),
+        Invariant(
+            description="eff_jingli / max_neili 追加公式：eff_jingli 同时加成 "
+            "max_jing（1/4）与 max_jingli（全额），max_neili 加成 max_qi（1/4），"
+            "并由 force 技能上限钳位 eff_jingli（human.c:212,382,404-409）",
+            lpc_expr=(
+                'eff_jingli > 0: max_jing += eff_jingli/4; max_jingli += eff_jingli; '
+                'max_neili > 0: max_qi += max_neili/4; '
+                'clamp: eff_jingli <= force*con/2'
+            ),
             scope="function",
         ),
     ],
@@ -339,6 +666,39 @@ _setup_race = FunctionSpec(
             description="weight 未设置时 = profile.base_weight+(str-10)*profile.str_weight_factor",
             lpc_call='if(!query_weight()) set_weight(profile.base_weight + (str-10)*profile.str_weight_factor)',
             target="entity.weight",
+        ),
+        SideEffect(
+            order=19,
+            kind=SideEffectType.STATE_MUTATION,
+            description="eff_jingli 加成 max_jing：eff_jingli>0 时 max_jing += eff_jingli/4",
+            lpc_call='if(eff_jingli > 0) max_jing += eff_jingli / 4',
+            target="entity.max_jing",
+        ),
+        SideEffect(
+            order=20,
+            kind=SideEffectType.STATE_MUTATION,
+            description="max_neili 加成 max_qi：max_neili>0 时 max_qi += max_neili/4",
+            lpc_call='if(max_neili > 0) max_qi += max_neili / 4',
+            target="entity.max_qi",
+        ),
+        SideEffect(
+            order=21,
+            kind=SideEffectType.STATE_MUTATION,
+            description="eff_jingli 加成 max_jingli：eff_jingli>0 时 max_jingli += eff_jingli",
+            lpc_call='if(eff_jingli > 0) max_jingli += eff_jingli',
+            target="entity.max_jingli",
+        ),
+        SideEffect(
+            order=22,
+            kind=SideEffectType.STATE_MUTATION,
+            description="eff_jingli 受 force 技能上限钳位",
+            lpc_call=(
+                'if(query_skill("force") > query_skill("force", 1) && '
+                'eff_jingli > query_skill("force") * con / 2) { '
+                'eff_jingli = query_skill("force") * con / 2; '
+                'max_jingli = query_skill("force") * con / 2; }'
+            ),
+            target="entity.eff_jingli / entity.max_jingli",
         ),
     ],
     random_specs=[
@@ -565,21 +925,31 @@ LAYER_SPEC = LayerSpec(
         "adm/daemons/race/human.c",
     ],
     function_specs=[
+        _create,
+        _set_default_actions,
+        _query_action,
+        _set_default_object,
         _setup_race,
         _apply_family_bonuses,
     ],
     cross_layer_refs=[
         "setup_char (层 H: CHAR_D) -- setup_char 按种族分派调用 setup_human，"
         "greenfield 对应 setup_race（种族分派入口在 CHAR_D）",
-        "query_skill (层 B: F_SKILL) -- apply_family_bonuses 条件检查读取技能等级",
-        "set / query / set_temp (层 B: F_DBASE) -- setup_race 读写属性/max_*/weight",
+        "query_skill (层 B: F_SKILL) -- apply_family_bonuses 条件检查读取技能等级，"
+        "setup_race 中 eff_jingli 上限也读取 force 技能",
+        "set / query / set_temp (层 B: F_DBASE) -- setup_race / create / "
+        "set_default_actions / set_default_object 读写属性",
         "jing/qi/jingli/eff_jing/eff_qi 钳位 (层 H: CHAR_D setup_char) -- "
         "setup_race 只设置 max_*，qi/eff_* 由 setup_char 后续钳位",
-        "default_actions / reset_action (层 E: combat) -- setup_race 设置 "
-        "default_actions，reset_action 由 setup_char 调用",
+        "default_actions / reset_action (层 E: combat) -- _set_default_actions "
+        "绑定 query_action 回调，reset_action 由 setup_char 调用",
+        "query_action (层 E: combat) -- query_action 返回 combat_action 模板，"
+        "供 combat 系统在无门派动作时回退使用",
     ],
     notes=(
-        "层 H-RACE 覆盖 race daemon 种族初始化（setup_race 通用基础 + "
+        "层 H-RACE 覆盖 race daemon 种族初始化（create 自身属性 / "
+        "set_default_actions 默认动作绑定 / query_action 基础 combat_action / "
+        "set_default_object 默认原型 / setup_race 通用基础 / "
         "apply_family_bonuses 门派加成分发），是 ADR-0030 决策 1 race 层切割的 "
         "规格契约。\n"
         "\n"

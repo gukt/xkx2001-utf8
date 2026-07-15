@@ -44,13 +44,14 @@ class TestSmoke:
         assert LAYER_SPEC.layer_name == "核心守护进程"
 
     def test_lpc_files_complete(self) -> None:
-        """5 个 LPC 文件都在 lpc_files 中。"""
+        """6 个 LPC 文件都在 lpc_files 中（含 ADR-0028 新增的 rankd.c）。"""
         assert "adm/daemons/logind.c" in LAYER_SPEC.lpc_files
         assert "adm/daemons/chard.c" in LAYER_SPEC.lpc_files
         assert "adm/daemons/securityd.c" in LAYER_SPEC.lpc_files
         assert "adm/daemons/natured.c" in LAYER_SPEC.lpc_files
         assert "adm/daemons/chinesed.c" in LAYER_SPEC.lpc_files
-        assert len(LAYER_SPEC.lpc_files) == 5
+        assert "adm/daemons/rankd.c" in LAYER_SPEC.lpc_files
+        assert len(LAYER_SPEC.lpc_files) == 6
 
     def test_function_specs_nonempty(self) -> None:
         assert len(LAYER_SPEC.function_specs) > 0
