@@ -17,19 +17,19 @@ class TestCpkLoader:
     """load_cpk 加载器（manifest -> IR + rules）。"""
 
     def test_load_xueshan_micro(self) -> None:
-        """加载 xueshan_micro（wuxia 旗舰，21 房间，子任务 4 + C5 密室扩展）。"""
+        """加载 xueshan_micro（24 房间，C5 密室 + 钥匙藏经阁 + 阴间 death/revive 房）。"""
         r = default_registry()
         m, ir, rules, _skills = load_cpk(SCENES / "xueshan_micro", registry=r)
         assert m.cpk_id == "wuxia_xueshan_micro"
         assert m.theme == "wuxia"
-        assert len(ir["rooms"]) == 21
+        assert len(ir["rooms"]) == 24
         assert m.entry_points["main_scene"] == "xueshan/dshanlu"
         assert len(rules) >= 1
 
     @pytest.mark.parametrize(
         "name,cpk_id,theme,room_count",
         [
-            ("xueshan_micro", "wuxia_xueshan_micro", "wuxia", 21),
+            ("xueshan_micro", "wuxia_xueshan_micro", "wuxia", 24),
             ("zhongnan_micro", "wuxia_zhongnan_micro", "wuxia", 3),
             ("wuxia_micro", "wuxia_micro", "wuxia", 2),
             ("academy_micro", "academy_micro", "default", 2),

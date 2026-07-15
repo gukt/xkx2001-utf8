@@ -1,0 +1,40 @@
+{
+  "methodology": "ADR-0048 降级区间承诺 + pilot 纠偏。从 sample_candidates.json 80 候选里选 13 个，high-tier 过采样（工时变异源主体）+ 纠偏样本（校准分类偏差）+ 子系统覆盖。实测时按此清单逐样本迁移，工时填 effort_records.jsonl。",
+  "total": 13,
+  "by_stratum": {
+    "pending/logic/high": 6,
+    "pending/logic/mid": 3,
+    "pending/data/low": 2,
+    "implemented/logic/high": 2
+  },
+  "subsystem_coverage": ["cmds", "d", "clone", "kungfu", "feature", "adm", "inherit"],
+  "audit_samples": [
+    {"id": 10, "file": "clone/beast/snake.c", "func": "init", "reason": "误分类纠偏：原 pending/data，实为 logic（含战斗触发+新命令 bian）"},
+    {"id": 12, "file": "adm/daemons/s_combatd.c", "func": "death_penalty", "reason": "后置分支纠偏：implemented 工时≈0 偏低，实际 ~7min（6 项后置副作用待补）"},
+    {"id": 13, "file": "cmds/skill/bai.c", "func": "main", "reason": "确认≈0 偏差：implemented 已实现但有 cancel/守卫分支被简化跳过"}
+  ],
+  "samples": [
+    {"id": 1, "file": "cmds/skill/xue.c", "func": "main", "subsystem": "cmds", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 53, "role": "high-tier 变异源（最复杂，cc 最高）"},
+    {"id": 2, "file": "d/wizard/center.c", "func": "do_check_menpai_job", "subsystem": "d", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 45, "role": "high-tier（11 段重复可去重）"},
+    {"id": 3, "file": "d/kunlun/obj/tieyanling.c", "func": "do_qingjiao", "subsystem": "d", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 40, "role": "high-tier（与 xue 同构，铁焰令版请教）"},
+    {"id": 4, "file": "clone/npc/murong.c", "func": "do_copy", "subsystem": "clone", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 36, "role": "high-tier"},
+    {"id": 5, "file": "kungfu/skill/songshan-jian.c", "func": "next_sword", "subsystem": "kungfu", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 34, "role": "high-tier"},
+    {"id": 6, "file": "feature/damage.c", "func": "die", "subsystem": "feature", "status": "pending", "func_kind": "logic", "tier": "high", "call_count": 32, "role": "high-tier（死亡闭环）"},
+    {"id": 7, "file": "adm/daemons/emoted.c", "func": "do_emote", "subsystem": "adm", "status": "pending", "func_kind": "logic", "tier": "mid", "call_count": 30, "role": "mid"},
+    {"id": 8, "file": "d/taohua/obj/shizi.c", "func": "bash_weapon", "subsystem": "d", "status": "pending", "func_kind": "logic", "tier": "mid", "call_count": 27, "role": "mid"},
+    {"id": 9, "file": "inherit/misc/bboard.c", "func": "do_read", "subsystem": "inherit", "status": "pending", "func_kind": "logic", "tier": "mid", "call_count": 6, "role": "mid"},
+    {"id": 10, "file": "clone/beast/snake.c", "func": "init", "subsystem": "clone", "status": "pending", "func_kind": "data", "tier": "low", "call_count": 3, "role": "误分类纠偏（实为 logic）"},
+    {"id": 11, "file": "inherit/char/char.c", "func": "setup", "subsystem": "inherit", "status": "pending", "func_kind": "data", "tier": "low", "call_count": 1, "role": "架构替代低工时确认"},
+    {"id": 12, "file": "adm/daemons/s_combatd.c", "func": "death_penalty", "subsystem": "adm", "status": "implemented", "func_kind": "logic", "tier": "high", "call_count": 26, "role": "后置分支纠偏"},
+    {"id": 13, "file": "cmds/skill/bai.c", "func": "main", "subsystem": "cmds", "status": "implemented", "func_kind": "logic", "tier": "high", "call_count": 36, "role": "确认≈0 偏差"}
+  ],
+  "session_plan": {
+    "session_1": "建共享桩（stubs.py）+ 测 1-2 个 high-tier（建议 id=1 xue.c:main，最复杂变异源）",
+    "session_2_3": "测剩余 11-12 样本（每 session 1-3 个）+ 推算区间承诺 + 报告",
+    "total_estimated_hours": "14-20h / 2-3 session"
+  },
+  "fallback_triggers": {
+    "misclassification_rate_gt_30pct": "升级接力补测（回 ADR-0047 分批路径）",
+    "high_tier_cv_gt_1": "升级接力补测"
+  }
+}

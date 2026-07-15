@@ -58,7 +58,7 @@ def _game(
     item_defs = load_items(SCENE_DIR / "items.yaml")
     ir = compile_scene(rooms, npcs, quests, item_defs)
     world, room_idx, quest_idx = build_world(ir)
-    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
+    item_registry = {i["id"]: i for i in ir.get("items", [])}  # C4 ADR-0043 完整 dict
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
     game = Game(
         world,
@@ -266,9 +266,9 @@ def test_full_playtest_loop() -> None:
 
 
 def test_cli_load_game() -> None:
-    """load_game 返回可用的 game + player（起点 shanmen）。"""
+    """load_game 返回可用的 game + player（起点 dshanlu，B1 改起始避卡门）。"""
     game, pid = load_game()
-    assert game.world.get(pid, Position).room_id == "xueshan/shanmen"
+    assert game.world.get(pid, Position).room_id == "xueshan/dshanlu"
 
 
 def test_cli_parse_quit_returns_false() -> None:
@@ -310,9 +310,8 @@ def test_cli_parse_unknown() -> None:
 
 
 def test_cli_playtest_flow() -> None:
-    """CLI 完整试玩流程：go eastdown -> take -> go westup -> ask -> give -> go north。"""
+    """CLI 完整试玩流程：take（起点 dshanlu 有酥油）-> go westup -> ask -> give -> go north。"""
     game, pid = load_game()
-    assert parse_and_run(game, pid, "go eastdown") is True
     assert parse_and_run(game, pid, "take suyou_guan") is True
     assert "suyou_guan" in game.world.get(pid, Inventory).items
     assert parse_and_run(game, pid, "go westup") is True
@@ -320,3 +319,37 @@ def test_cli_playtest_flow() -> None:
     assert parse_and_run(game, pid, "give 葛伦布 suyou_guan") is True
     assert parse_and_run(game, pid, "go north") is True
     assert game.world.get(pid, Position).room_id == "xueshan/guangchang"
+
+
+def test_cli_load_game_demo_potential_force() -> None:
+    """load_game 给玩家初始 potential + 基础 force（demo 测 learn/practice 链便利）。
+
+    LPC 新角色 potential=0 靠战斗积累、force 基础靠练功；demo 直接给以方便试玩
+    learn -> enable -> dazuo -> practice 全链路（不改变 spawn_player 规范语义）。
+    """
+    game, pid = load_game()
+    prog = game.world.get(pid, Progression)
+    skills = game.world.get(pid, Skills)
+    assert prog.potential >= 100  # 足够 learn 多次
+    assert skills.levels.get("force", 0) >= 1  # 基础 force 供 practice force
+
+
+def test_cli_kill_paces_combat_output(monkeypatch, capsys) -> None:
+    """parse_and_run kill 经 _print_paced 逐条停顿输出战斗消息（不再一古脑刷屏）。
+
+    time.sleep 打桩避免拖慢测试；断言 sleep 被调用 = 战斗消息逐条有节奏打印。
+    """
+    import xkx.cli as cli_mod
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(cli_mod.time, "sleep", lambda s: sleeps.append(s))
+    game, pid = load_game()
+    # 强玩家秒杀葛伦布，避免触发死亡轮回拖长
+    game.world.get(pid, Vitals).qi = 99999
+    game.world.get(pid, Skills).levels["unarmed"] = 500
+    # 起点已改 dshanlu（B1），先 go westup 到山门再 kill 葛伦布
+    assert parse_and_run(game, pid, "go westup") is True
+    assert parse_and_run(game, pid, "kill 葛伦布") is True
+    out = capsys.readouterr().out
+    assert "发起了攻击" in out  # 战斗消息经 _print_paced 输出
+    assert sleeps  # time.sleep 被调用（逐条停顿 = 有节奏，非一古脑）

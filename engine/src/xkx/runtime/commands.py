@@ -27,6 +27,7 @@ from xkx.dsl.layer1 import (
     evaluate_accept_object,
     evaluate_ask,
 )
+from xkx.dsl.layer2 import InquiryNode
 from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.auto_fight import FightType, auto_fight, initiate_combat
 from xkx.runtime.capability import CapabilityToken, PermissionService
@@ -47,7 +48,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import apply_condition
-from xkx.runtime.doors import knock_door
+from xkx.runtime.doors import close_door, knock_door, open_door, unlock_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -73,7 +74,7 @@ class Game:
         quests: dict[str, dict] | None = None,
         seed_base: int = 0,
         spawn_room: str = "",
-        item_registry: dict[str, str] | None = None,
+        item_registry: dict[str, dict] | None = None,
     ) -> None:
         self.world = world
         self.room_entities = room_entities
@@ -247,10 +248,14 @@ def _complete_quest(game: Game, actor_id: int, qid: str) -> list[str]:
     reward = q.get("reward", {})
     msgs: list[str] = []
     exp = reward.get("exp", 0)
-    if exp:
+    potential = reward.get("potential", 0)
+    if exp or potential:
         prog = world.get(actor_id, Progression)
         if prog:
-            prog.combat_exp += exp
+            if exp:
+                prog.combat_exp += exp
+            if potential:
+                prog.potential = min(prog.max_potential, prog.potential + potential)
     flag = reward.get("flag", "")
     if flag:
         marks = world.get(actor_id, Marks)
@@ -283,14 +288,16 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     target = room.exits.get(direction) if room else None
     if not target:
         return [f"这里没有「{direction}」的出口。"]
     # C5 ADR-0042：门关着挡路（对照 LPC valid_leave doors status 检查）
     door = room.doors.get(direction) if room else None
     if door is not None and door.closed:
-        return [f"{door.name}关着，也许敲一敲会开。"]
+        if door.locked:
+            return [f"{door.name}锁着，需要钥匙。"]
+        return [f"{door.name}关着，也许敲一敲(knock)或打开(open)会开。"]
     ctx = _eval_ctx(
         world, actor_id, dir=direction, npc_ids_in_room=_npc_ids_in_room(world, pos.room_id)
     )
@@ -308,12 +315,14 @@ def go(game: Game, actor_id: int, direction: str) -> list[str]:
 
 
 def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
-    """B-2 ADR-0039 决策 4：玩家进房间触发 aggressive NPC 主动攻击（对照 LPC init()）。
+    """B-2 ADR-0039 决策 4 + ADR-0045：玩家进房间触发 NPC 主动攻击（对照 LPC init()）。
 
-    遍历房间内 ``attitude=aggressive`` 的 NPC，调 ``auto_fight(npc, player, AGGRESSIVE)``
-    （对齐 LPC init() 三触发之 aggressive）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御
-    检查 + on_start_fight handler 建敌对关系。若玩家进入战斗（is_fighting），
-    ``_run_combat`` 推进（CLI 同步模式，对齐 kill 命令）。
+    遍历房间内所有 NPC，三触发优先级（对齐 LPC attack.c init() if-else 顺序）：
+    1. hatred：player_id 在 npc.killer_ids（NPC 记住要杀的玩家）-> HATRED
+    2. vendetta：npc.vendetta_mark 且 player 有 vendetta:<mark> flag -> VENDETTA
+    3. aggressive：npc.attitude == "aggressive" -> AGGRESSIVE
+    每个 NPC 只触发其一（elif 链）。auto_fight 内部 NPC vs NPC 跳过 + 5 防御检查 +
+    on_start_fight handler 建敌对关系。若玩家进入战斗，_run_combat 推进。
     """
     world = game.world
     pos = world.get(actor_id, Position)
@@ -323,6 +332,8 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
     ident = world.get(actor_id, Identity)
     if ident is None or not ident.is_player:
         return []
+    player_marks = world.get(actor_id, Marks)
+    player_flags = player_marks.flags if player_marks else set()
     for npc_eid in list(world.entities_in_room(pos.room_id)):
         if npc_eid == actor_id:
             continue
@@ -330,10 +341,11 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
         if npc_ident is None or npc_ident.is_player:
             continue
         behavior = world.get(npc_eid, NpcBehavior)
-        if behavior is None or behavior.attitude != "aggressive":
+        if behavior is None:
             continue
-        # aggressive NPC -> auto_fight(npc, player, AGGRESSIVE)（对齐 LPC init() aggressive 分支）
-        auto_fight(world, npc_eid, actor_id, FightType.AGGRESSIVE)
+        fight_type = _decide_room_enter_fight(world, npc_eid, actor_id, behavior, player_flags)
+        if fight_type is not None:
+            auto_fight(world, npc_eid, actor_id, fight_type)
     # 若玩家进入战斗，_run_combat 推进（CLI 同步，对齐 kill 命令 _run_combat）
     cs = world.get(actor_id, CombatState)
     if cs is not None and cs.is_fighting:
@@ -341,6 +353,30 @@ def _trigger_room_enter_fight(game: Game, actor_id: int) -> list[str]:
         msgs.extend(_run_combat(game, actor_id))
         return msgs
     return []
+
+
+def _decide_room_enter_fight(
+    world: World,
+    npc_eid: int,
+    player_id: int,
+    behavior: NpcBehavior,
+    player_flags: set[str],
+) -> FightType | None:
+    """三触发优先级判定（B-2 ADR-0045，对照 LPC attack.c init() if-else）。
+
+    hatred > vendetta > aggressive。返回 FightType 或 None（不触发）。
+    """
+    # 1. hatred：player 在 npc.killer_ids（对齐 LPC is_killing(ob->id)）
+    npc_cs = world.get(npc_eid, CombatState)
+    if npc_cs is not None and player_id in npc_cs.killer_ids:
+        return FightType.HATRED
+    # 2. vendetta：npc.vendetta_mark 且 player 有 vendetta:<mark> flag
+    if behavior.vendetta_mark and f"vendetta:{behavior.vendetta_mark}" in player_flags:
+        return FightType.VENDETTA
+    # 3. aggressive：npc.attitude == "aggressive"
+    if behavior.attitude == "aggressive":
+        return FightType.AGGRESSIVE
+    return None
 
 
 def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
@@ -366,11 +402,23 @@ def kill(game: Game, actor_id: int, target_name: str) -> list[str]:
 
 
 def _handle_npc_death(world: World, npc_eid: int, killer_id: int) -> None:
-    """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验。"""
+    """NPC 死亡：移除 Position（从房间消失）+ 击杀者加经验 + vendetta 标记写入。
+
+    B-2 ADR-0045：NPC 有 vendetta_mark -> 击杀者获 ``vendetta:<mark>`` flag（对照
+    LPC combatd.c killer_reward 的 ``add("vendetta/"+vmark,1)``）。
+    """
     world.remove(npc_eid, Position)
     prog = world.get(killer_id, Progression)
     if prog:
         prog.combat_exp += 50
+    # B-2 ADR-0045：vendetta 标记写入（killer_reward）
+    behavior = world.get(npc_eid, NpcBehavior)
+    if behavior and behavior.vendetta_mark:
+        marks = world.get(killer_id, Marks)
+        if marks is None:
+            marks = Marks()
+            world.add(killer_id, marks)
+        marks.flags.add(f"vendetta:{behavior.vendetta_mark}")
 
 
 def _handle_player_death(
@@ -383,9 +431,15 @@ def _handle_player_death(
     替代 S5a 简化版（传送 spawn_room + 恢复），接入阶段 2 死亡系统。还阳由
     GovernanceSystem 推进 death_stage 到 stage 4 调 reincarnate_at（恢复 +
     move revive_room），不在本函数内完成（CLI 自动推进 / e2e engine.tick）。
+    B-2 ADR-0045：玩家死亡清所有 vendetta 标记（对照 LPC combatd.c death_penalty
+    的 ``delete("vendetta")``）。
     """
     from xkx.runtime.death import die
 
+    # B-2 ADR-0045：清 vendetta 标记（death_penalty）
+    marks = world.get(player_id, Marks)
+    if marks:
+        marks.flags = {f for f in marks.flags if not f.startswith("vendetta:")}
     die(world, player_id, killer_id, tick=_current_tick(game))
 
 
@@ -435,12 +489,17 @@ def advance_combat(
     cs = world.get(pid, CombatState)
     if cs is None or not cs.is_fighting or not cs.enemy_ids:
         return [], True
-    target_id = cs.enemy_ids[0]
     engine = getattr(game, "engine", None)
     if engine is not None:
         bridge = engine.get_system("CombatSystem")
         if bridge is not None:
-            bridge.update(world, combat_round)
+            bridge.update(world, combat_round)  # 设 world.combat_selects（本回合 select）
+    # select_opponent（B-2 ADR-0045）：本回合选中对手（combat seed 驱动，对齐 LPC
+    # attack.c）。fallback enemy_ids[0] 用于 engine 未接入 / pid 未被 select 的退化情况。
+    selects = getattr(world, "combat_selects", {})
+    target_id = selects.get(pid)
+    if target_id is None:
+        target_id = cs.enemy_ids[0]
     # CombatBridge 产生的战斗消息（已收集到 pending_messages）
     messages = list(getattr(world, "pending_messages", []))
     if messages:
@@ -514,7 +573,7 @@ def fight(game: Game, actor_id: int, target_name: str) -> list[str]:
         return ["你没有位置。"]
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
-        return [f"这里没有「{target_name}。"]
+        return [f"这里没有「{target_name}」。"]
     target_ident = world.get(target_eid, Identity)
     target_pid = target_ident.prototype_id if target_ident else ""
     # 取匹配 fight_win objective 的 win_threshold（默认 50%，对照 darba.c:109）
@@ -583,11 +642,35 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
                 return [f"任务「{q['name']}」进行中（{step}/{total}）。"]
             return [f"任务「{q['name']}」已完成。"]
 
-    # 普通 inquiry
+    # 普通 inquiry（支持 str / InquiryNode）
     behavior = world.get(target_eid, NpcBehavior)
     if not behavior or topic not in behavior.inquiry:
         return [f"{target_name}摇了摇头。"]
-    # C4 ADR-0040：求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
+    return _run_inquiry(game, actor_id, target_eid, target_name, target_pid, topic)
+
+
+def _run_inquiry(
+    game: Game,
+    actor_id: int,
+    target_eid: int,
+    target_name: str,
+    target_pid: str,
+    topic: str,
+    visited: set[str] | None = None,
+) -> list[str]:
+    """执行单个 inquiry topic，支持 next_topic 链（M2-2 layer2）。"""
+    if visited is None:
+        visited = set()
+    if topic in visited:
+        return []
+    visited.add(topic)
+
+    world = game.world
+    behavior = world.get(target_eid, NpcBehavior)
+    if behavior is None or topic not in behavior.inquiry:
+        return [f"{target_name}摇了摇头。"]
+
+    # C4 ADR-0040：先求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
     ctx = _eval_ctx(world, actor_id, npc_id=target_pid, ask_topic=topic)
     ask_result = evaluate_ask(game.rules, ctx)
     if ask_result.set_flag:
@@ -596,9 +679,53 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
             marks = Marks()
             world.add(actor_id, marks)
         marks.flags.add(ask_result.set_flag)
-    # 消息：规则 message 非空则覆盖 inquiry，否则用 inquiry 字典文本
-    message = ask_result.message if ask_result.message else behavior.inquiry[topic]
-    return [message]
+
+    raw = behavior.inquiry[topic]
+    msgs: list[str] = []
+    next_topic = ""
+    if isinstance(raw, InquiryNode):
+        node = raw
+        # requires_flag 检查
+        marks = world.get(actor_id, Marks)
+        if node.requires_flag and (marks is None or node.requires_flag not in marks.flags):
+            return [f"{target_name}摇了摇头。"]
+        _apply_inquiry_transaction(world, actor_id, node)
+        # 规则 message 非空则覆盖 reply
+        msgs.append(ask_result.message if ask_result.message else node.reply)
+        if node.once:
+            behavior.inquiry.pop(topic, None)
+        next_topic = node.next_topic
+    else:
+        msgs.append(ask_result.message if ask_result.message else raw)
+
+    if next_topic:
+        msgs.extend(
+            _run_inquiry(
+                game, actor_id, target_eid, target_name, target_pid, next_topic, visited
+            )
+        )
+    return msgs
+
+
+def _apply_inquiry_transaction(world: World, actor_id: int, node: InquiryNode) -> None:
+    """执行 InquiryNode 的 transaction 副作用（flag / 物品）。"""
+    marks = world.get(actor_id, Marks)
+    if node.sets_flag or node.clears_flag:
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        if node.sets_flag:
+            marks.flags.add(node.sets_flag)
+        if node.clears_flag:
+            marks.flags.discard(node.clears_flag)
+    inv = world.get(actor_id, Inventory)
+    if node.gives_item:
+        if inv is None:
+            inv = Inventory()
+            world.add(actor_id, inv)
+        inv.items.add(node.gives_item)
+    if node.takes_item and inv is not None:
+        inv.items.discard(node.takes_item)
 
 
 def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[str]:
@@ -671,8 +798,8 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
 def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
     """任务查询命令（S4 ADR-0007 + M3-1 多步进度）：quest / quest <id>。
 
-    ``quest`` 列出所有任务状态（in_progress 显示 current_step/total）；``quest <id>``
-    查单个任务状态。
+    ``quest`` 只列进行中/已完成任务（not_started 折叠为"可接任务 N 个"提示，需向
+    NPC 打听接取，避免新手被一堆未接触任务刷屏）；``quest <id>`` 查单个任务状态。
     """
     world = game.world
     log = world.get(actor_id, QuestLog)
@@ -685,10 +812,22 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
         return [_quest_brief(q, arg, status, log)]
     if not game.quests:
         return ["当前没有可接任务。"]
-    lines = []
+    lines: list[str] = []
+    available_count = 0
     for qid, q in game.quests.items():
         status = statuses.get(qid, "not_started")
-        lines.append(_quest_brief(q, qid, status, log))
+        if status == "not_started":
+            available_count += 1
+        else:
+            lines.append(_quest_brief(q, qid, status, log))
+    if not lines:
+        lines.append("暂无进行中任务。")
+    if available_count:
+        lines.append(
+            "可接任务 "
+            + str(available_count)
+            + " 个，向 NPC 打听接取（如 ask 葛伦布 about 还愿）。"
+        )
     return lines
 
 
@@ -703,16 +842,29 @@ def _quest_brief(q: dict, qid: str, status: str, log: QuestLog | None) -> str:
 
 
 def _item_name(game: Game, item_id: str) -> str:
-    """S5a：通过 item_registry 查物品中文名（无注册则回退 id）。"""
-    return game.item_registry.get(item_id, item_id)
+    """S5a：通过 item_registry 查物品中文名（无注册则回退 id）。
+
+    C4 ADR-0043：item_registry 存完整 item dict（id -> {name, aliases, consumable}）。
+    """
+    spec = game.item_registry.get(item_id)
+    if isinstance(spec, dict):
+        return spec.get("name", item_id)
+    return spec or item_id  # 向后兼容旧 {id: name} str 结构
 
 
 def _resolve_item_id(game: Game, item_query: str, available: set[str]) -> str | None:
-    """S5a：按 id 或中文名在可用物品集中解析出 item_id。"""
+    """按 id / 中文名 / 别名在可用物品集中解析出 item_id。
+
+    S5a：id 或中文名。C4 ADR-0043：扩 aliases（对齐 ``_find_npc_in_room`` 别名解析，
+    修复 drink/take/give 别名解析 gap；item_registry 存完整 dict）。
+    """
     if item_query in available:
         return item_query
     for iid in available:
         if _item_name(game, iid) == item_query:
+            return iid
+        spec = game.item_registry.get(iid)
+        if isinstance(spec, dict) and item_query in spec.get("aliases", []):
             return iid
     return None
 
@@ -726,7 +878,7 @@ def take(game: Game, actor_id: int, item_query: str) -> list[str]:
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if not room:
         return [f"这里没有「{item_query}」。"]
     item_id = _resolve_item_id(game, item_query, room.items)
@@ -757,19 +909,61 @@ def drop(game: Game, actor_id: int, item_query: str) -> list[str]:
     if item_id is None:
         return [f"你没有「{item_query}」。"]
     inv.items.discard(item_id)
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if room is not None:
         room.items.add(item_id)
     return [f"你丢下{_item_name(game, item_id)}。"]
 
 
-def look(game: Game, actor_id: int) -> list[str]:
-    """查看命令（S5a）：LPC 风格显示房间描述 + NPC(每行) + 物品 + 出口。"""
+def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """喝命令（C4 ADR-0043，对照 LPC buttertea.c do_drink）。
+
+    通用 drink：resolve 物品 -> 查 consumable（全 0 拒"不能喝"）-> is_busy 拒 ->
+    恢复 water/food/jing（jing clamp eff_jing）-> 从物品栏移除（set 语义，喝一次
+    消失）。简化（后置）：remaining 多次饮用 / water 上限检查 / fighting
+    start_busy(2) / value 清零。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
+    spec = game.item_registry.get(item_id, {})
+    drink_supply = spec.get("drink_supply", 0) if isinstance(spec, dict) else 0
+    food_supply = spec.get("food_supply", 0) if isinstance(spec, dict) else 0
+    jing_recover = spec.get("jing_recover", 0) if isinstance(spec, dict) else 0
+    qi_recover = spec.get("qi_recover", 0) if isinstance(spec, dict) else 0
+    if not (drink_supply or food_supply or jing_recover or qi_recover):
+        return ["这东西不能喝。"]
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    if drink_supply:
+        vitals.water += drink_supply
+    if food_supply:
+        vitals.food += food_supply
+    if jing_recover and vitals.eff_jing > 0:
+        vitals.jing = min(vitals.eff_jing, vitals.jing + jing_recover)
+    if qi_recover:
+        vitals.qi = min(vitals.max_qi, vitals.qi + qi_recover)
+    inv.items.discard(item_id)  # set 语义，喝一次消失
+    return [f"你喝下{_item_name(game, item_id)}，顿觉神清气爽。"]
+
+
+def look(game: Game, actor_id: int, target_name: str = "") -> list[str]:
+    """查看命令（S5a + ADR-0051）：``look`` 房间视图；``look <target>`` NPC 详情 +
+    邪派 NPC berserk flavor（对照 LPC look.c:189-193 + combatd.c start_berserk
+    !userp 早退，忠实=仅 flavor 不战斗）。"""
     world = game.world
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
-    room = world.get(game.room_entities[pos.room_id], RoomComp)
+    if target_name:
+        return _look_target(game, actor_id, target_name)
+    room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if not room:
         return ["这里什么也没有。"]
     lines = [f"【{room.short}】", room.long]
@@ -788,6 +982,46 @@ def look(game: Game, actor_id: int) -> list[str]:
             lines.append(f"    这里唯一的出口是 {labels[0]}。")
         else:
             lines.append(f"    这里明显的出口是 {'、'.join(labels[:-1])} 和 {labels[-1]}。")
+    return lines
+
+
+def _look_target(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """look <target>：NPC 详情 + 邪派 berserk flavor（ADR-0051，对照 look.c:189-193
+    + combatd.c:886/888 !userp 早退=仅 flavor 不战斗）。"""
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_vitals = world.get(target_eid, Vitals)
+    target_title = world.get(target_eid, TitleComp)
+    target_attrs = world.get(target_eid, Attributes)
+    target_combat = world.get(target_eid, CombatState)
+    name = target_ident.name if target_ident else target_name
+    alias = (
+        target_ident.aliases[0]
+        if target_ident and target_ident.aliases
+        else (target_ident.prototype_id if target_ident else "")
+    )
+    lines = [f"{name}（{alias}）"]
+    if target_attrs:
+        parts = [f"性别：{target_attrs.gender}", f"年龄：{target_attrs.age}"]
+        if target_combat and target_combat.weapon_label != "拳头":
+            parts.append(f"手持：{target_combat.weapon_label}")
+        lines.append("  " + "  ".join(parts))
+    if target_vitals:
+        lines.append(f"  气：{target_vitals.qi}/{target_vitals.max_qi}")
+    # berserk flavor（对照 look.c:189-193：random(-shen) > int*10 -> 瞪眼 + 扫视；
+    # combatd.c:888 !userp 早退=忠实不战斗）
+    shen = target_title.shen if target_title else 0
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    if shen < 0 and random.randint(0, max(0, -shen - 1)) > int_val * 10:
+        lines.append(f"{name}突然转过头来瞪你一眼。")
+        lines.append(f"{name}用一种异样的眼神扫视著在场的每一个人。")
     return lines
 
 
@@ -817,6 +1051,81 @@ def knock(game: Game, actor_id: int, direction: str) -> list[str]:
     if msg is None:
         return ["这个方向没有门。"]
     return [msg]
+
+
+def open(game: Game, actor_id: int, direction: str) -> list[str]:
+    """开门命令（C5 ADR-0044，对照 LPC cmds/std/open.c）。
+
+    标准开门：调 ``open_door`` 开门（**无定时关**，区别于 knock 的定时关语义）。
+    locked 门提示需钥匙（钥匙系统后置，但 locked 检查就位）。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    status = open_door(world, room_eid, direction)
+    if status == "no_door":
+        return ["这个方向没有门。"]
+    if status == "already_open":
+        return [f"{door.name}已经开着了。"] if door else ["门已经开着了。"]
+    if status == "locked":
+        return [f"{door.name}锁着，需要钥匙。"] if door else ["门锁着，需要钥匙。"]
+    return [f"你将{door.name}打开。"] if door else ["你将门打开。"]
+
+
+def unlock(game: Game, actor_id: int, direction: str) -> list[str]:
+    """解锁命令（C5 钥匙系统，对照 LPC donglang.c/houyuan.c do_unlock）。
+
+    检查 inventory 含 ``door.key_id`` 钥匙（对照 LPC ``present(key, this_player())``）
+    -> 调 ``unlock_door`` 解锁+开门+双向同步。无门/未锁/无钥匙分别提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    if not door:
+        return ["这个方向没有门。"]
+    if not door.locked:
+        return [f"{door.name}没有上锁。"]
+    inv = world.get(actor_id, Inventory)
+    if not door.key_id or inv is None or door.key_id not in inv.items:
+        return [f"{door.name}锁着，你没有合适的钥匙。"]
+    status = unlock_door(world, room_eid, direction)
+    if status == "ok":
+        return [f"你用钥匙将{door.name}打开。"]
+    return [f"{door.name}打不开。"]
+
+
+def close(game: Game, actor_id: int, direction: str) -> list[str]:
+    """关门命令（C5 ADR-0044，对照 LPC cmds/std/close.c）。
+
+    标准关门：调 ``close_door`` 关门 + 取消未到期的定时关 EffectComp。无门提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    status = close_door(world, room_eid, direction)
+    if status == "no_door":
+        return ["这个方向没有门。"]
+    if status == "already_closed":
+        return [f"{door.name}已经关上了。"] if door else ["门已经关上了。"]
+    return [f"你将{door.name}关上。"] if door else ["你将门关上。"]
 
 
 def inventory(game: Game, actor_id: int) -> list[str]:
@@ -1200,7 +1509,7 @@ def learn(
     vitals.jing -= gin_cost  # 扣 jing（learn.c:148 receive_damage）
     msgs = [f"你向「{teacher_name}」请教了「{skill_id}」。"]
     if blocked_by_exp:
-        msgs.append("你缺乏实战经验，无法领会这种武功。")
+        msgs.append("你缺乏实战经验，无法领会这种武功（击败敌人可积累实战经验）。")
         return msgs
     if improve_skill(world, actor_id, skill_id, gain):
         msgs.append(f"你的「{skill_id}」进步了！")
@@ -1255,6 +1564,54 @@ def practice(
             break
         if improve_skill(world, actor_id, skillname, amount, weak_mode=weak_mode):
             msgs.append(f"你的「{skillname}」进步了！")
+    return msgs
+
+
+def du(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """du|study 研读命令（C3，对照 LPC lx-jing.c do_study）。
+
+    研读经书加技能：持经书 + class=lama + potential>=1 + jing>=cost + 非 busy/fighting
+    -> improve_skill(read_skill, random(int*3/2)) + 扣 jing(1500/int) + 扣 potential。
+    简化（后置）：literate 门控 / lamaism>=150 门控后置（demo 无门槛）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["你无法在战斗中专心研读。"]
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
+    spec = game.item_registry.get(item_id, {})
+    read_skill = spec.get("read_skill", "") if isinstance(spec, dict) else ""
+    if not read_skill:
+        return ["这东西没法研读。"]
+    # class=lama 门控（对照 lx-jing.c:35 class!=lama 拒）
+    title_comp = world.get(actor_id, TitleComp)
+    if not title_comp or title_comp.char_class != "lama":
+        return ["你未入佛门，尘缘不断，无法修持密宗神法。"]
+    prog = world.get(actor_id, Progression)
+    if prog is None or prog.potential < 1:
+        return ["你的潜能不够。"]
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    gin_cost = 1500 // int_val if int_val > 0 else 1500  # 对照 lx-jing.c:75
+    if vitals.jing < gin_cost:
+        return ["你现在过于疲倦，无法专心研读。"]
+    gain = random.randint(0, max(0, int_val * 3 // 2))  # 对照 lx-jing.c:74
+    prog.potential -= 1
+    vitals.jing -= gin_cost
+    msgs = [f"你仔细研读{_item_name(game, item_id)}。"]
+    if improve_skill(world, actor_id, read_skill, gain):
+        msgs.append(f"你的「{read_skill}」进步了！")
+    else:
+        msgs.append("你研读片刻，似乎略有心得。")
     return msgs
 
 
@@ -1491,6 +1848,12 @@ def _adapter_drop(game: Game, ctx: ActionContext) -> list[str]:
     return drop(game, ctx.actor, item_query)
 
 
+def _adapter_drink(game: Game, ctx: ActionContext) -> list[str]:
+    """drink 命令适配器（C4 ADR-0043）：drink <物品>。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return drink(game, ctx.actor, item_query)
+
+
 def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
     """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
     direction = ctx.raw_args.strip()
@@ -1499,9 +1862,33 @@ def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
     return knock(game, ctx.actor, direction)
 
 
+def _adapter_open(game: Game, ctx: ActionContext) -> list[str]:
+    """open 命令适配器（C5 ADR-0044）：open <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return open(game, ctx.actor, direction)
+
+
+def _adapter_close(game: Game, ctx: ActionContext) -> list[str]:
+    """close 命令适配器（C5 ADR-0044）：close <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return close(game, ctx.actor, direction)
+
+
+def _adapter_unlock(game: Game, ctx: ActionContext) -> list[str]:
+    """unlock 命令适配器（C5 钥匙系统）：unlock <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return unlock(game, ctx.actor, direction)
+
+
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
-    """look 命令适配器（无参，查看当前房间）。"""
-    return look(game, ctx.actor)
+    """look 命令适配器：look [房间] / look <target>（NPC 详情，ADR-0051）。"""
+    return look(game, ctx.actor, ctx.raw_args.strip())
 
 
 def _adapter_inventory(game: Game, ctx: ActionContext) -> list[str]:
@@ -1602,6 +1989,14 @@ def _adapter_enable(game: Game, ctx: ActionContext) -> list[str]:
     return enable(game, ctx.actor, args[0], args[1])
 
 
+def _adapter_du(game: Game, ctx: ActionContext) -> list[str]:
+    """du|study 命令适配器：du <经书>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要研读什么？（如：du 龙象般若经）"]
+    return du(game, ctx.actor, raw)
+
+
 # 命令注册表：verb -> adapter (game, ctx) -> list[str]
 # 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
 COMMAND_REGISTRY: dict[str, Any] = {
@@ -1615,7 +2010,11 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "take": _adapter_take,
     "get": _adapter_get,
     "drop": _adapter_drop,
+    "drink": _adapter_drink,
     "knock": _adapter_knock,
+    "open": _adapter_open,
+    "close": _adapter_close,
+    "unlock": _adapter_unlock,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,
@@ -1633,6 +2032,8 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "respirate": _adapter_tuna,
     "enable": _adapter_enable,
     "jifa": _adapter_enable,
+    "du": _adapter_du,
+    "study": _adapter_du,
 }
 
 

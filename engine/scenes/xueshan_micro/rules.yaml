@@ -23,7 +23,7 @@
               flag: 酥
   action: deny
   priority: 0
-  message: 葛伦布挡住你说：你准备用什麽供奉我们佛爷呀？
+  message: 葛伦布挡住你说：要进寺供奉佛爷，先去东边山路（eastdown）取一罐酥油来。
 - id: xueshan_gelun1_accept_suyou
   event: accept_object
   npc_id: xueshan/npc/gelun1
@@ -58,3 +58,14 @@
       room_id: xueshan/chufang
       count: 3
   message: 小喇嘛：佛主保佑...请用茶。
+# C4 ADR-0043：厨房持茶挡路（对照 d/xueshan/chufang.c valid_leave west + present("tea",me)）
+#   持酥油茶朝 west 走被挡，要求先喝完（drink 闭环）。layer1 has_item 谓词，零代码。
+- id: xueshan_chufang_tea_block
+  event: valid_leave
+  dir: west
+  condition:
+    kind: has_item
+    item_id: buttertea
+  action: deny
+  priority: 0
+  message: 别着急，喝完茶再走！

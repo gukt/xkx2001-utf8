@@ -13,15 +13,19 @@ from pathlib import Path
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, ask, give, go, kill, take
+from xkx.runtime.commands import Game, ask, drink, du, give, go, kill, look, take, unlock
 from xkx.runtime.components import (
+    CombatState,
     Identity,
     Inventory,
     Marks,
+    NpcBehavior,
     Position,
     Progression,
     QuestLog,
     RoomComp,
+    Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.world import build_world, spawn_player
@@ -43,7 +47,7 @@ def _game(
     ir = compile_scene(rooms, npcs, quests, items=item_defs)
     world, room_idx, quest_idx = build_world(ir)
     pid = spawn_player(world, "玩家", start_room, family=family, items=items)
-    item_registry = {i.id: i.name for i in item_defs}
+    item_registry = {i.id: i.model_dump() for i in item_defs}  # C4 ADR-0043 完整 dict
     game = Game(
         world, room_idx, rules, quests=quest_idx,
         seed_base=seed_base, item_registry=item_registry,
@@ -397,3 +401,264 @@ def test_multi_step_quest_chain() -> None:
     assert game.world.get(pid, Progression).combat_exp >= before + 150
     assert log.statuses["xueshan/pilgrimage"] == "completed"
     assert "跑腿" in game.world.get(pid, Marks).flags
+
+
+# --- C4 ADR-0043：drink 命令 + 厨房初始物品 + 持茶挡路闭环 ---
+
+
+def test_drink_buttertea_restores_and_consumes() -> None:
+    """drink 酥油茶恢复 water/food/jing + 物品消失（对照 LPC buttertea.c do_drink）。"""
+    game, pid = _game(start_room="xueshan/chufang")
+    take(game, pid, "buttertea")  # 厨房初始 buttertea
+    inv = game.world.get(pid, Inventory)
+    assert "buttertea" in inv.items
+    vitals = game.world.get(pid, Vitals)
+    vitals.jing = 10
+    vitals.water = 100
+    vitals.food = 100
+    msgs = drink(game, pid, "buttertea")
+    assert any("神清气爽" in m for m in msgs)
+    assert "buttertea" not in inv.items  # set 语义喝一次消失
+    assert vitals.water == 150  # +50
+    assert vitals.food == 130  # +30
+    assert vitals.jing == 15  # 10 + 5（clamp eff_jing=150）
+
+
+def test_drink_non_consumable_rejected() -> None:
+    """无 consumable 字段的物品 drink 拒（对照 LPC 物品无 do_drink add_action）。"""
+    game, pid = _game(start_room="xueshan/chufang")
+    inv = game.world.get(pid, Inventory)
+    inv.items.add("suyou")  # 酥油无 consumable
+    msgs = drink(game, pid, "suyou")
+    assert any("不能喝" in m for m in msgs)
+    assert "suyou" in inv.items  # 未消耗
+
+
+def test_chufang_tea_block_valid_leave() -> None:
+    """持酥油茶朝 west 走被挡，喝完后放行（对照 LPC chufang.c valid_leave west）。"""
+    game, pid = _game(start_room="xueshan/chufang")
+    take(game, pid, "buttertea")
+    msgs = go(game, pid, "west")  # 持茶被挡
+    assert any("喝完茶" in m for m in msgs)
+    assert game.world.get(pid, Position).room_id == "xueshan/chufang"
+    drink(game, pid, "buttertea")  # 喝完
+    go(game, pid, "west")  # 放行
+    assert game.world.get(pid, Position).room_id == "xueshan/zoulang"
+
+
+def test_take_by_alias_resolves() -> None:
+    """take 按别名解析（C4 ADR-0043 _resolve_item_id 扩 aliases，修复不对称 gap）。"""
+    game, pid = _game(start_room="xueshan/chufang")
+    take(game, pid, "tea")  # 别名 tea -> buttertea
+    inv = game.world.get(pid, Inventory)
+    assert "buttertea" in inv.items
+
+
+# --- B-2 ADR-0045：hatred（killer_ids 重触）+ vendetta（标记式追杀）---
+
+
+def _find_npc_eid(game: Game, room_id: str, name: str) -> int:
+    """按名称/别名找房间内 NPC 实体。"""
+    for eid in game.world.entities_in_room(room_id):
+        ident = game.world.get(eid, Identity)
+        if ident and not ident.is_player and name in (ident.name, *ident.aliases):
+            return eid
+    raise AssertionError(f"no npc {name} in {room_id}")
+
+
+def test_hatred_retriggers_on_reentry() -> None:
+    """NPC 记住玩家（killer_ids），重入房间 hatred 重触（对照 LPC is_killing）。"""
+    from xkx.runtime import auto_fight as auto_fight_mod
+    from xkx.runtime.auto_fight import (
+        FightType,
+        hatred_start_fight_handler,
+        register_start_fight_handler,
+    )
+
+    game, pid = _game(start_room="xueshan/wangyou")
+    yelang_eid = _find_npc_eid(game, "xueshan/wangyou", "野狼")
+    # 手动设 yelang.killer_ids 含 pid（模拟曾 to_death 战斗过 + flee 中断，killer 保留）
+    yelang_cs = game.world.get(yelang_eid, CombatState)
+    yelang_cs.killer_ids.append(pid)
+    register_start_fight_handler(FightType.HATRED, hatred_start_fight_handler)
+    try:
+        go(game, pid, "west")  # wangyou -> luyeyuan（离开）
+        assert game.world.get(pid, Position).room_id == "xueshan/luyeyuan"
+        msgs = go(game, pid, "east")  # luyeyuan -> wangyou（重入，hatred 触发）
+        assert any("被攻击" in m for m in msgs)
+    finally:
+        auto_fight_mod._START_FIGHT_HANDLERS.pop(FightType.HATRED, None)
+
+
+def test_vendetta_mark_written_on_kill() -> None:
+    """杀 vendetta NPC -> 击杀者获 vendetta:<mark> flag（对照 LPC killer_reward）。"""
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    kill(game, pid, "守卫")  # guard（vendetta_mark=guard）在 luyeyuan
+    marks = game.world.get(pid, Marks)
+    assert "vendetta:guard" in marks.flags
+
+
+def test_decide_room_enter_fight_priority() -> None:
+    """三触发优先级 hatred > vendetta > aggressive（对照 LPC init() if-else）。"""
+    from xkx.runtime.auto_fight import FightType
+    from xkx.runtime.commands import _decide_room_enter_fight
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    guard_eid = _find_npc_eid(game, "xueshan/luyeyuan", "守卫")
+    behavior = game.world.get(guard_eid, NpcBehavior)
+    guard_cs = game.world.get(guard_eid, CombatState)
+    player_flags = {f"vendetta:{behavior.vendetta_mark}"}  # 满足 vendetta 条件
+    # 1. hatred 优先（killer_ids 含 pid）
+    guard_cs.killer_ids.append(pid)
+    assert (
+        _decide_room_enter_fight(game.world, guard_eid, pid, behavior, player_flags)
+        == FightType.HATRED
+    )
+    # 2. 清 killer_ids -> vendetta
+    guard_cs.killer_ids.clear()
+    assert (
+        _decide_room_enter_fight(game.world, guard_eid, pid, behavior, player_flags)
+        == FightType.VENDETTA
+    )
+    # 3. 清 player_flags -> guard 非 aggressive -> None
+    assert (
+        _decide_room_enter_fight(game.world, guard_eid, pid, behavior, set()) is None
+    )
+
+
+def test_multi_opponent_advances_one_per_round() -> None:
+    """多对手 advance_combat：每回合 select_opponent 选 1 个对手，未选中者满血。
+
+    B-2 ADR-0045 后置收尾：修正原 CombatBridge 每 tick 打所有敌人的语义偏差
+    （对齐 LPC attack.c 每 heart_beat 选 1 个）。手动设玩家 vs 2 NPC 互敌，跑 1 回合，
+    验证未选中的 NPC 必然满血（select 只打 1 个，非全打）。
+    """
+    from xkx.runtime.commands import advance_combat
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    npcs = [
+        eid for eid in game.world.entities_in_room("xueshan/luyeyuan")
+        if not game.world.get(eid, Identity).is_player
+    ]
+    assert len(npcs) >= 2
+    npc1, npc2 = npcs[0], npcs[1]
+    # 手动设三方互敌（绕过 auto_fight 触发）
+    pid_cs = game.world.get(pid, CombatState)
+    pid_cs.enemy_ids = [npc1, npc2]
+    pid_cs.is_fighting = True
+    pid_cs.to_death = True
+    for eid in (npc1, npc2):
+        e_cs = game.world.get(eid, CombatState)
+        e_cs.enemy_ids = [pid]
+        e_cs.is_fighting = True
+        e_cs.to_death = True
+
+    advance_combat(game, pid, combat_round=0)
+
+    # select 只打 1 个：未选中的 NPC 必然满血（未被攻击）
+    selects = getattr(game.world, "combat_selects", {})
+    selected = selects.get(pid)
+    assert selected in (npc1, npc2)
+    other = npc2 if selected == npc1 else npc1
+    other_vitals = game.world.get(other, Vitals)
+    assert other_vitals.qi == other_vitals.max_qi
+
+
+def test_du_scripture_improves_skill() -> None:
+    """du 研读经书加 longxiang-banruo（C3，对照 LPC lx-jing.c do_study）。"""
+    game, pid = _game(items={"xueshan/obj/lx-jing"}, start_room="xueshan/guangchang")
+    # 模拟 kneel 后 class=lama + 给潜能/精（du 消耗）
+    title = game.world.get(pid, TitleComp)
+    if title is None:
+        title = TitleComp()
+        game.world.add(pid, title)
+    title.char_class = "lama"
+    game.world.get(pid, Progression).potential = 10
+    game.world.get(pid, Vitals).jing = 200
+    before_pot = game.world.get(pid, Progression).potential
+    msgs = du(game, pid, "龙象般若经")
+    assert any("研读" in m for m in msgs)
+    assert game.world.get(pid, Progression).potential == before_pot - 1
+    skills = game.world.get(pid, Skills)
+    # du 必累积 learned 或升级 levels（improve_skill amount 下限 1）
+    assert (
+        skills.levels.get("longxiang-banruo", 0) > 0
+        or skills.learned.get("longxiang-banruo", 0) > 0
+    )
+
+
+def test_du_rejects_non_lama() -> None:
+    """du 需 class=lama（未剃度拒，对照 lx-jing.c:35）。"""
+    game, pid = _game(items={"xueshan/obj/lx-jing"}, start_room="xueshan/guangchang")
+    msgs = du(game, pid, "龙象般若经")
+    assert any("未入佛门" in m for m in msgs)
+
+
+def test_cangjing_fojing_take_and_reach() -> None:
+    """C1：铁钥匙开锁进藏经阁，take 般若经（du 研读加 longxiang-banruo）。"""
+    game, pid = _game(start_room="xueshan/changlang", items={"xueshan/obj/key"})
+    go(game, pid, "north")  # 长廊 -> 大殿
+    unlock(game, pid, "north")  # 开铁锁门（持钥匙）
+    go(game, pid, "north")  # 大殿 -> 藏经阁
+    assert game.world.get(pid, Position).room_id == "xueshan/cangjing"
+    take(game, pid, "般若经")
+    assert "xueshan/obj/fojing" in game.world.get(pid, Inventory).items
+
+
+def test_mishi_dan_drink_restores() -> None:
+    """C2：密室雪莲丹 drink 恢复气+精（qi_recover/jing_recover）。"""
+    game, pid = _game(start_room="xueshan/mishi", items={"xueshan/obj/dan"})
+    vitals = game.world.get(pid, Vitals)
+    vitals.qi = 10
+    vitals.jing = 10
+    drink(game, pid, "雪莲丹")
+    assert vitals.qi > 10  # qi 恢复（qi_recover=150）
+    assert vitals.jing > 10  # jing 恢复（jing_recover=100）
+
+
+def test_wolf_quest_kill_completes() -> None:
+    """B4：kill 野狼完成清剿 quest + 奖 exp/potential。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    # 手动接任务（设 in_progress，绕过 ask 葛伦布 野狼 的长路径）
+    log = game.world.get(pid, QuestLog)
+    if log is None:
+        log = QuestLog()
+        game.world.add(pid, log)
+    log.statuses["xueshan/quest/wolf"] = "in_progress"
+    log.current_step["xueshan/quest/wolf"] = 0
+    # 强玩家秒杀野狼
+    game.world.get(pid, Vitals).qi = 99999
+    game.world.get(pid, Skills).levels["unarmed"] = 500
+    before_exp = game.world.get(pid, Progression).combat_exp
+    before_pot = game.world.get(pid, Progression).potential
+    kill(game, pid, "野狼")
+    assert (
+        game.world.get(pid, QuestLog).statuses["xueshan/quest/wolf"] == "completed"
+    )
+    # +50 npc death（_handle_npc_death）+ 200 quest reward（战斗命中另有少量 exp）
+    assert game.world.get(pid, Progression).combat_exp >= before_exp + 250
+    assert game.world.get(pid, Progression).potential == before_pot + 50
+
+
+def test_look_target_npc_detail() -> None:
+    """look <target> 显示 NPC 详情（ADR-0051，非邪派无 berserk flavor）。"""
+    game, pid = _game(start_room="xueshan/guangchang")  # 昌齐在广场
+    msgs = look(game, pid, "昌齐")
+    assert any("昌齐大喇嘛" in m for m in msgs)
+    assert any("性别" in m for m in msgs)
+    # 昌齐 shen 0（非邪派），无 berserk flavor
+    assert not any("瞪你一眼" in m for m in msgs)
+
+
+def test_look_target_berserk_flavor(monkeypatch) -> None:
+    """look 邪派 NPC 触发 berserk flavor（ADR-0051，忠实 !userp 不战斗）。"""
+    import xkx.runtime.commands as cmd_mod
+
+    game, pid = _game(start_room="xueshan/luyeyuan")  # 金轮法王（shen -300）在鹿野苑
+    # mock random.randint 返回上界（必触发 random(-shen) > int*10）
+    monkeypatch.setattr(cmd_mod.random, "randint", lambda a, b: b)
+    msgs = look(game, pid, "金轮法王")
+    assert any("瞪你一眼" in m for m in msgs)
+    assert any("异样的眼神" in m for m in msgs)
+    # 忠实 LPC：!userp 早退，不战斗
+    assert not any("发起了攻击" in m for m in msgs)

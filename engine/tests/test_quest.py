@@ -63,12 +63,18 @@ def test_ask_completed_shows_done() -> None:
 
 
 def test_quest_list_and_status() -> None:
-    """quest / quest <id> 查询状态。"""
+    """quest 只列进行中（not_started 折叠为可接提示）；quest <id> 查单个。"""
     game, pid = _game()
+    # 未接任务时 quest 不列 not_started 详情，只给可接提示
+    msgs = quest(game, pid)
+    assert not any("供奉佛爷" in m for m in msgs)
+    assert any("可接任务" in m for m in msgs)
+    ask(game, pid, "葛伦布", "还愿")
+    # 接任务后 quest 列出 in_progress
     msgs = quest(game, pid)
     assert any("供奉佛爷" in m for m in msgs)
-    assert any("not_started" in m for m in msgs)
-    ask(game, pid, "葛伦布", "还愿")
+    assert any("in_progress" in m for m in msgs)
+    # quest <id> 查单个
     msgs = quest(game, pid, "xueshan/tribute")
     assert any("in_progress" in m for m in msgs)
 

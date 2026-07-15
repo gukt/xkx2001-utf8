@@ -124,6 +124,10 @@ def initiate_combat(
         cs.is_fighting = True
         cs.to_death = to_death
         cs.win_threshold = win_threshold
+        # B-2 ADR-0045：to_death（kill_ob）双向写 killer_ids（对齐 LPC killer 数组）；
+        # fight 模式（fight_ob）不写（killer 只记致死目标）。init() 查 is_killing 重触 hatred。
+        if to_death and b not in cs.killer_ids:
+            cs.killer_ids.append(b)
 
 
 def aggressive_start_fight_handler(
@@ -134,6 +138,30 @@ def aggressive_start_fight_handler(
     NPC ``attitude=aggressive`` 主动攻击玩家：建立敌对关系（to_death），后续攻击由
     CombatBridge tick 驱动（对齐 LPC heart_beat）。由 ``register_start_fight_handler``
     在 engine/game 初始化时注册。
+    """
+    initiate_combat(world, me_id, obj_id, to_death=True)
+
+
+def hatred_start_fight_handler(
+    world: World, me_id: int, obj_id: int, fight_type: FightType
+) -> None:
+    """HATRED 触发的战斗 handler（B-2 ADR-0045，对齐 LPC start_hatred kill_ob）。
+
+    NPC 记住要杀的玩家（killer_ids），玩家重入房间时 init() 查 is_killing 重触
+    hatred。建立敌对关系（to_death）。与 aggressive handler 实质相同（都 to_death），
+    区分仅为 FightType 语义标签（对齐 LPC 三触发 hatred > vendetta > aggressive）。
+    """
+    initiate_combat(world, me_id, obj_id, to_death=True)
+
+
+def vendetta_start_fight_handler(
+    world: World, me_id: int, obj_id: int, fight_type: FightType
+) -> None:
+    """VENDETTA 触发的战斗 handler（B-2 ADR-0045，对齐 LPC start_vendetta kill_ob）。
+
+    标记式追杀：玩家杀有 vendetta_mark 的 NPC 获 ``vendetta:<mark>`` flag，遇同类
+    vendetta_mark NPC 触发。建立敌对关系（to_death）。与 hatred/aggressive handler
+    实质相同，区分仅为 FightType 语义标签。
     """
     initiate_combat(world, me_id, obj_id, to_death=True)
 

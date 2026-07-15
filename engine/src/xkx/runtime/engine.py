@@ -25,9 +25,14 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from xkx.combat.replay import CombatSnapshot, InputEntry
 from xkx.combat.replay import replay as replay_fn
+from xkx.combat.rng import DeterministicRNG
 from xkx.combat.system import CombatSystem
 from xkx.runtime.profiler import TickProfiler
 from xkx.runtime.systems import System
+
+# LPC attack.c:12 MAX_OPPONENT：select_opponent 最多从 4 个敌人中随机选 1 个。
+# CombatBridge 每 tick 每 attacker 选 1 个对手（对齐 LPC heart_beat select_opponent）。
+MAX_OPPONENT = 4
 
 if TYPE_CHECKING:
     from xkx.combat.result import CombatRoundResult
@@ -174,30 +179,44 @@ class CombatBridge(System):
         if not combatants:
             return
 
-        # 按 enemy_ids 构建 input_log（真实敌对对，非全两两遍历）
+        # select_opponent（B-2 ADR-0045 后置收尾，对齐 LPC attack.c:79-87）：每 attacker
+        # 用 combat seed 选 1 个对手（random(MAX_OPPONENT)；which < len(enemy) ?
+        # enemy[which] : enemy[0]，单敌人确定性 fallback enemy[0]）。修正原"每 tick 打所有
+        # 敌人"的语义偏差--LPC 每 heart_beat 只选 1 个对手打。select 的 random 纳入 combat
+        # seed 链（同 seed + 同 enemy_ids -> 同 select -> 同 input_log），不扩展 combat-only
+        # 确定性范围（ADR-0045 §不变量；replay 接收已 select 的 input_log，不重 select）。
+        seed = self._seed_base + tick
+        select_rng = DeterministicRNG(seed)
         input_log: list[InputEntry] = []
+        selects: dict[int, int] = {}
         seq = 0
         for attacker_id in combatants:
             cs = world.get(attacker_id, CombatState)
             if cs is None:
                 continue
-            for victim_id in cs.enemy_ids:
-                if victim_id not in combatants:
-                    continue
-                input_log.append(
-                    InputEntry(
-                        attacker_id=attacker_id,
-                        victim_id=victim_id,
-                        attack_type=0,
-                        seq=seq,
-                    )
+            enemy_ids = [e for e in cs.enemy_ids if e in combatants]
+            if not enemy_ids:
+                continue
+            which = select_rng.rand(MAX_OPPONENT)  # LPC random(MAX_OPPONENT)
+            victim_id = enemy_ids[which] if which < len(enemy_ids) else enemy_ids[0]
+            selects[attacker_id] = victim_id
+            input_log.append(
+                InputEntry(
+                    attacker_id=attacker_id,
+                    victim_id=victim_id,
+                    attack_type=0,
+                    seq=seq,
                 )
-                seq += 1
+            )
+            seq += 1
+
+        # advance_combat 读 selects 取本回合选中对手（结束判定/消息用，跨层传递：combat
+        # 决策在 CombatBridge runtime 适配层，写 world 临时属性，combat 包不反向依赖 runtime）
+        world.combat_selects = selects  # type: ignore[attr-defined]
 
         if not input_log:
             return
 
-        seed = self._seed_base + tick
         snapshot = CombatSnapshot(combatants=combatants, seed=seed)  # type: ignore[arg-type]
         results: list[CombatRoundResult] = replay_fn(snapshot, seed, input_log)
 

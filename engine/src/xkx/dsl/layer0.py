@@ -15,18 +15,24 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from xkx.dsl.layer2 import InquiryNode
+
 
 class DoorDef(BaseModel):
-    """门定义（C5 ADR-0042，对照 LPC ``create_door``）。
+    """门定义（C5 ADR-0042 + ADR-0044，对照 LPC ``create_door``）。
 
     ``other_room``/``other_dir`` 声明对面房间+方向（双向同步用）。``closed``
-    初始状态（默认关）。编译到 ``DoorEntry`` 运行时组件。
+    初始状态（默认关）。``locked`` 锁状态（ADR-0044，默认未锁）。``key_id``
+    开锁钥匙物品 id（C5 钥匙系统，对照 LPC ``present(key)``；空=无钥匙锁/未锁门）。
+    编译到 ``DoorEntry`` 运行时组件。
     """
 
     name: str  # 门名（LPC create_door 第 2 参）
     other_room: str  # 对面房间 id
     other_dir: str  # 对面方向（LPC create_door 第 3 参 other_side_dir）
     closed: bool = True  # 初始状态（LPC create_door 第 4 参 status）
+    locked: bool = False  # 锁状态（ADR-0044，LPC DOOR_LOCKED 位）
+    key_id: str = ""  # 开锁钥匙物品 id（C5 钥匙系统，对照 LPC present(key) 匹配）
 
 
 class RoomDef(BaseModel):
@@ -109,6 +115,8 @@ class NpcDef(BaseModel):
     gender: str = "男性"
     age: int = 20
     attitude: str = "friendly"  # friendly | heroism | aggressive
+    shen: int = 0  # ADR-0051：道德值（正=侠负=魔，look 邪派 NPC 触发 berserk flavor）
+    vendetta_mark: str = ""  # B-2 ADR-0045：vendetta 标记（LPC vendetta_mark）
 
     # 四维属性（LPC str/dex/int/con）
     str_: int = 20
@@ -139,8 +147,9 @@ class NpcDef(BaseModel):
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = Field(default_factory=list)
 
-    # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串
-    inquiry: dict[str, str] = Field(default_factory=dict)
+    # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串。
+    # M2-2：扩展为 topic -> str | InquiryNode，支持交易原子节点。
+    inquiry: dict[str, str | InquiryNode] = Field(default_factory=dict)
 
     # M3-1 ADR-0032 决策 1：拜师配置（None=该 NPC 不收徒）
     apprentice: ApprenticeDef | None = None
@@ -156,6 +165,7 @@ class QuestReward(BaseModel):
     """
 
     exp: int = 0
+    potential: int = 0  # B4：奖励潜能（du/learn 消耗，clamp max_potential）
     flag: str = ""  # 完成后设置的标记（LPC set_temp("marks/X")）
     message: str = ""  # 完成时给玩家的消息
     time_gate: int = 0  # M3-1：可重复任务冷却 tick 数（0=一次性）
@@ -209,14 +219,24 @@ class QuestDef(BaseModel):
 
 
 class ItemDef(BaseModel):
-    """物品定义（S5a）：映射 LPC ``inherit ITEM`` + ``set_name``。
+    """物品定义（S5a + C4 ADR-0043）：映射 LPC ``inherit ITEM`` + ``set_name``。
 
     对照 d/xueshan/obj/suyouguan.c ``set_name("酥油罐", ({"suyou guan",...}))``。
+    C4 ADR-0043：``drink_supply``/``food_supply``/``jing_recover`` 消耗品字段（对照
+    LPC buttertea.c do_drink 的 water/food/jing 恢复）。全 0 = 不可饮用（drink 命令
+    拒）。set 语义简化：喝一次即消失（LPC remaining 多次饮用后置）。
     """
 
     id: str
     name: str
     aliases: list[str] = Field(default_factory=list)
+    # C4 ADR-0043：消耗品字段（对照 LPC do_drink 恢复 water/food/jing）
+    drink_supply: int = 0  # 喝后加水度（LPC add("water", drink_supply)）
+    food_supply: int = 0  # 喝后加食物度（LPC add("food", food_supply)）
+    jing_recover: int = 0  # 喝后恢复精（LPC jing = min(eff_jing, jing+recover)）
+    qi_recover: int = 0  # C2：喝后恢复气（LPC qi = min(max_qi, qi+recover)，丹药）
+    # C3：研读经书加技能（对照 LPC lx-jing.c do_study）。非空 = 可 du 研读，加该技能。
+    read_skill: str = ""
 
 
 class SkillDef(BaseModel):

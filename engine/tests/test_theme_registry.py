@@ -44,7 +44,7 @@ class TestThemeRegistry:
         assert w.family_bonuses[0] is WUDANG_BONUS
         assert w.family_bonuses[0].family_name == "武当派"
         assert w.theme_config is not None
-        assert w.theme_config.start_room == "xueshan/shanmen"
+        assert w.theme_config.start_room == "xueshan/dshanlu"
 
     def test_default_descriptor(self) -> None:
         """default 题材：HUMAN_PROFILE + 海盗帮 FamilyBonus + ThemeConfig.default()。"""

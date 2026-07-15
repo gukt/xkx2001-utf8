@@ -353,3 +353,88 @@ def test_combat_bridge_seed_determinism() -> None:
     v2 = world2.get(2, Vitals)
     assert v1 is not None and v2 is not None
     assert v1.qi == v2.qi, f"伤害不一致: {v1.qi} vs {v2.qi}"
+
+
+# ---- CombatBridge select_opponent（B-2 ADR-0045 后置收尾，多对手）----
+
+
+def test_combat_bridge_selects_one_opponent() -> None:
+    """多对手 select_opponent：每 attacker 每 tick 只打 1 个敌人（对齐 LPC attack.c，
+    修正原"每 tick 打所有敌人"语义偏差）。A 敌视 B+C -> 只 B 或 C 之一受伤。"""
+    world = _make_world()
+    a = _make_combatant(
+        world, name="甲", str_=50, dex_=50, combat_exp=99999,
+        skills={"unarmed": 80}, max_qi=600, is_fighting=True,
+    )
+    b = _make_combatant(
+        world, name="乙", str_=10, dex_=1, con_=1, combat_exp=0,
+        skills={"dodge": 0}, max_qi=100, is_fighting=True,
+    )
+    c = _make_combatant(
+        world, name="丙", str_=10, dex_=1, con_=1, combat_exp=0,
+        skills={"dodge": 0}, max_qi=100, is_fighting=True,
+    )
+    a_cs = world.get(a, CombatState)
+    assert a_cs is not None
+    a_cs.enemy_ids = [b, c]  # A 敌视 B+C；B/C 不敌视 A（只测 A 的 select）
+
+    CombatBridge(seed_base=0).update(world, tick=1)
+
+    b_vitals = world.get(b, Vitals)
+    c_vitals = world.get(c, Vitals)
+    assert b_vitals is not None and c_vitals is not None
+    # select 只打 1 个：B 或 C 至少一个满血（未被打）
+    assert b_vitals.qi == b_vitals.max_qi or c_vitals.qi == c_vitals.max_qi
+    selects = getattr(world, "combat_selects", {})
+    assert selects.get(a) in (b, c)  # A 选中 B 或 C
+
+
+def test_combat_bridge_multi_opponent_determinism() -> None:
+    """多对手同 seed 同 select：两个 world 同 tick -> A 选中同对手 + 同伤害。"""
+    world1 = _make_world()
+    world2 = _make_world()
+    for w in (world1, world2):
+        a = _make_combatant(
+            w, name="甲", str_=50, dex_=50, combat_exp=99999,
+            skills={"unarmed": 80}, is_fighting=True,
+        )
+        b = _make_combatant(
+            w, name="乙", str_=10, dex_=1, con_=1, combat_exp=0,
+            skills={"dodge": 0}, is_fighting=True,
+        )
+        c = _make_combatant(
+            w, name="丙", str_=10, dex_=1, con_=1, combat_exp=0,
+            skills={"dodge": 0}, is_fighting=True,
+        )
+        a_cs = w.get(a, CombatState)
+        assert a_cs is not None
+        a_cs.enemy_ids = [b, c]
+
+    CombatBridge(seed_base=0).update(world1, tick=1)
+    CombatBridge(seed_base=0).update(world2, tick=1)
+
+    # A 的选中对手一致（两 world 同构 A=1/B=2/C=3）
+    s1 = getattr(world1, "combat_selects", {})
+    s2 = getattr(world2, "combat_selects", {})
+    assert s1.get(1) == s2.get(1)
+    selected = s1.get(1)
+    v1 = world1.get(selected, Vitals)
+    v2 = world2.get(selected, Vitals)
+    assert v1 is not None and v2 is not None
+    assert v1.qi == v2.qi
+
+
+def test_combat_bridge_single_enemy_select_fallback() -> None:
+    """单敌人 select_opponent 确定性 fallback enemy[0]（which >= len 时 fallback，
+    单敌人行为不变，对齐 LPC sizeof(enemy)=1 永远打 enemy[0]）。"""
+    world = _make_world()
+    a = _make_combatant(world, name="甲", is_fighting=True)
+    b = _make_combatant(world, name="乙", is_fighting=True)
+    a_cs = world.get(a, CombatState)
+    assert a_cs is not None
+    a_cs.enemy_ids = [b]  # 单敌人
+
+    CombatBridge(seed_base=0).update(world, tick=1)
+
+    selects = getattr(world, "combat_selects", {})
+    assert selects.get(a) == b  # 单敌人必选 b（fallback enemy[0]）

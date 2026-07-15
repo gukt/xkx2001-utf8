@@ -2,10 +2,11 @@
 - id: suyou_guan
   name: 酥油罐
   aliases: [suyou, guan, bottle]
-# M3-1 ADR-0036：longxiang-banruo practice 所需经书（独立 LLM 内容生产子集）
+# C3：du 研读加 longxiang-banruo（对照 LPC lx-jing.c do_study，原"practice 所需经书"误标修正）
 - id: xueshan/obj/lx-jing
   name: 龙象般若经
   aliases: ["longxiang jing", "jing"]
+  read_skill: longxiang-banruo
 # C4 ADR-0040：xlama2 交互闭环物品（对照 LPC d/xueshan/obj/suyou.c + buttertea.c）
 - id: suyou
   name: 酥油
@@ -13,3 +14,22 @@
 - id: buttertea
   name: 酥油茶
   aliases: [tea, cha, "suyou cha"]
+  # C4 ADR-0043：do_drink 恢复（对照 LPC buttertea.c drink_supply=50/food_supply=30/jing+5）
+  drink_supply: 50
+  food_supply: 30
+  jing_recover: 5
+# C5 钥匙系统：开锁钥匙（对照 LPC d/city/obj/gfkey.c set_name("闺房钥匙",({"guifang key","key"}))）
+- id: xueshan/obj/key
+  name: 铁钥匙
+  aliases: [key, yaoshi]
+# C1：藏经阁般若经（du 研读加 longxiang-banruo，对照 LPC fojing4.c）
+- id: xueshan/obj/fojing
+  name: 般若经
+  aliases: [boruo jing, boruo, 般若]
+  read_skill: longxiang-banruo
+# C2：密室雪莲丹（drink 恢复气+精，对照 LPC 丹药）
+- id: xueshan/obj/dan
+  name: 雪莲丹
+  aliases: [xuelian dan, dan, 雪莲]
+  qi_recover: 150
+  jing_recover: 100

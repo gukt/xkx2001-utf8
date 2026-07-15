@@ -23,7 +23,9 @@ from xkx.runtime.commands import (
     bai,
     betrayer,
     dazuo,
+    drink,
     drop,
+    du,
     enable,
     fight,
     flee,
@@ -64,8 +66,9 @@ HELP_TEXT = """\
   go <方向>               向指定方向移动（如 go north），移动后自动查看房间
   <方向>                  直接输入方向即可移动，支持简写：n s e w ne nw se sw
                           u d nu su eu wu nd sd ed wd（如 n = go north）
-  look                    查看当前房间（简写 l）
+  look [target]          查看房间或 NPC 详情（简写 l；邪派 NPC 会瞪眼）
   get <物品>              捡起地上的物品（也支持 take）
+  drink <物品>            喝/服用（酥油茶恢复精，雪莲丹恢复气）
   kill <NPC>              攻击 NPC（多回合战斗，至一方倒下）
   fight <NPC>             切磋武艺（点到为止，不致死）
   ask <NPC> about <话题>  向 NPC 打听/对话
@@ -76,10 +79,11 @@ HELP_TEXT = """\
   bai <师傅>              拜师（须满足入门条件）
   kneel                   跪下受戒剃度（须先获师傅许可）
   learn <师傅> <技能> [次数]  向师傅请教技能（消耗潜能+精）
-  practice <技能> [次数]  练习已启用的特殊技能
+  practice <技能种类> [次数] 练习已启用的特殊技能（种类如 force/sword/unarmed）
   dazuo <气量>            打坐练内力（须先 enable 内功）
   tuna <精量>             吐纳练精力
-  enable [种类] [技能]    启用特殊技能映射（无参查看当前）
+  enable [种类] [技能]    启用特殊技能映射（种类如 force；无参查看当前）
+  du <经书>               研读经书提升武功（须先 kneel 剃度入佛门）
   betrayer                叛出师门
   help                    显示本帮助（简写 h）
   quit                    退出游戏
@@ -115,9 +119,24 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
         ir, theme_config=descriptor.theme_config
     )
     register_skill_defs(skills)
-    item_registry = {i["id"]: i["name"] for i in ir.get("items", [])}
+    # C4 ADR-0043：item_registry 存完整 item dict（name/aliases/consumable）
+    item_registry = {i["id"]: i for i in ir.get("items", [])}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)
+    # demo 试玩便利：给玩家初始潜能 + 基础 force，便于测通
+    # learn -> enable -> dazuo -> practice 链路。LPC 新角色 potential=0 靠战斗积累、
+    # force 基础靠练功获得；demo 直接给以方便试玩（不影响 spawn_player 规范语义）。
+    from xkx.runtime.components import Progression, Skills
+
+    prog = world.get(pid, Progression)
+    if prog is not None:
+        prog.potential = 100
+        # B3：combat_exp 便利值（同 potential 便利逻辑），让 longxiang-banruo 能学到
+        # ~36（拜萨木门槛 30）；spawn_player 默认 500 会卡在 ~17（my_skill³/10>500）。
+        prog.combat_exp = 5000
+    skills = world.get(pid, Skills)
+    if skills is not None:
+        skills.levels["force"] = 30
     game = Game(
         world,
         room_idx,
@@ -134,14 +153,18 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     engine.add_system(ConditionSystem())
     engine.add_system(GovernanceSystem())
     engine.add_system(DoorSystem())  # C5 ADR-0042 门定时关门
-    # B-2 ADR-0039 决策 4：注册 AGGRESSIVE handler（NPC 主动攻击接入运行时）
+    # B-2 ADR-0039 决策 4 + ADR-0045：注册 auto_fight handler（NPC 主动攻击接入运行时）
     from xkx.runtime.auto_fight import (
         FightType,
         aggressive_start_fight_handler,
+        hatred_start_fight_handler,
         register_start_fight_handler,
+        vendetta_start_fight_handler,
     )
 
     register_start_fight_handler(FightType.AGGRESSIVE, aggressive_start_fight_handler)
+    register_start_fight_handler(FightType.HATRED, hatred_start_fight_handler)
+    register_start_fight_handler(FightType.VENDETTA, vendetta_start_fight_handler)
     game.engine = engine  # type: ignore[attr-defined]
     return game, pid
 
@@ -151,8 +174,14 @@ def _print(messages: list[str]) -> None:
         print(m)
 
 
-def _print_combat(messages: list[str]) -> None:
-    """战斗消息逐条打印，每条间短暂停顿（模拟 LPC heart_beat 节奏）。"""
+def _print_paced(messages: list[str]) -> None:
+    """逐条打印消息，每条间短暂停顿（模拟 LPC heart_beat 1 秒节奏的可读化）。
+
+    用于战斗回合消息 + 阴间 death_stage 剧情消息：这两类在 CLI 同步模式下会被
+    一次性收集（combat 由 ``_run_combat`` 压缩到同步推进，death_stage 由
+    ``_auto_advance`` 连续 tick 推进），逐条停顿让玩家看清时序，而非一古脑刷屏。
+    空列表不打印也不停顿（``_auto_advance`` 多数 tick 无消息）。
+    """
     for m in messages:
         print(m)
         sys.stdout.flush()
@@ -205,7 +234,7 @@ def _auto_advance(game: Game, pid: int) -> None:
         if not active:
             break
         engine.tick()
-        _print(_drain_pending(game))
+        _print_paced(_drain_pending(game))
 
 
 def parse_and_run(game: Game, pid: int, line: str) -> bool:
@@ -233,7 +262,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         print(HELP_TEXT)
         return True
     if cmd in ("look", "l"):
-        _print(look(game, pid))
+        _print(look(game, pid, " ".join(args)))
         return True
     if cmd in ("inventory", "i"):
         _print(inventory(game, pid))
@@ -261,11 +290,18 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         _print(drop(game, pid, " ".join(args)))
         _advance_heartbeat(game)
         return True
+    if cmd in ("drink", "he"):
+        if not args:
+            print("要喝什么？如：drink 酥油茶")
+            return True
+        _print(drink(game, pid, " ".join(args)))
+        _advance_heartbeat(game)
+        return True
     if cmd == "kill":
         if not args:
             print("要攻击谁？如：kill 葛伦布")
             return True
-        _print(kill(game, pid, " ".join(args)))
+        _print_paced(kill(game, pid, " ".join(args)))
         # ADR-0039：战斗 + 死亡轮回由 _auto_advance 推进（CombatBridge tick 驱动）
         _auto_advance(game, pid)
         return True
@@ -273,7 +309,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         if not args:
             print("要和谁切磋？如：fight 达尔巴")
             return True
-        _print(fight(game, pid, " ".join(args)))
+        _print_paced(fight(game, pid, " ".join(args)))
         _auto_advance(game, pid)
         return True
     if cmd == "flee":
@@ -336,7 +372,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         return True
     if cmd in ("practice", "lian"):
         if not args:
-            print("你要练什么？如：practice longxiang-banruo")
+            print("你要练什么技能种类？如：practice force")
             return True
         times = 1
         if len(args) >= 2:
@@ -378,6 +414,13 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         skill_type = args[0] if args else ""
         map_to = args[1] if len(args) >= 2 else ""
         _print(enable(game, pid, skill_type, map_to))
+        return True
+    if cmd in ("du", "study"):
+        if not args:
+            print("你要研读什么？如：du 龙象般若经")
+            return True
+        _print(du(game, pid, " ".join(args)))
+        _advance_heartbeat(game)
         return True
 
     print(f"未知命令「{cmd}」，输入 help 查看帮助。")

@@ -181,7 +181,7 @@ def test_theme_config_wuxia_contains_wuxia_paths() -> None:
     from xkx.runtime.theme import ThemeConfig
 
     cfg = ThemeConfig.wuxia()
-    assert cfg.start_room == "xueshan/shanmen"
+    assert cfg.start_room == "xueshan/dshanlu"
     assert cfg.death_room == "death/gate"
     assert "city_jail" in cfg.jail_rooms
     assert cfg.jail_rooms["bonze_jail"] == "shaolin/guangchang1"

@@ -67,6 +67,7 @@
   - changqi lama
   - changqi
   - lama
+  - 昌齐
   gender: 男性
   age: 60
   attitude: peaceful
@@ -119,6 +120,7 @@
   - samu huofo
   - samu
   - huofo
+  - 萨木
   gender: 男性
   age: 45
   attitude: heroism
@@ -201,6 +203,7 @@
   - lingzhi shangren
   - lingzhi
   - shangren
+  - 灵智
   gender: 男性
   age: 45
   attitude: peaceful
@@ -255,9 +258,11 @@
   - jinlun fawang
   - jinlun
   - fawang
+  - 金轮
   gender: 男性
   age: 50
   attitude: peaceful
+  shen: -300  # ADR-0051：邪派法王（look 触发 berserk flavor，忠实 !userp 不战斗）
   str_: 30
   dex_: 30
   int_: 30
@@ -307,6 +312,7 @@
   aliases:
   - jiumozhi
   - jiu
+  - 鸠摩
   gender: 男性
   age: 45
   attitude: peaceful
@@ -359,6 +365,7 @@
   - jiamu huofo
   - jiamu
   - huofo
+  - 嘉木
   gender: 男性
   age: 80
   attitude: friendly
@@ -403,6 +410,7 @@
   - lazhang huofo
   - lazhang
   - huofo
+  - 拉章
   gender: 男性
   age: 65
   attitude: friendly
@@ -438,3 +446,23 @@
     unarmed: 15
   attack_skill: unarmed
   weapon_label: 爪
+# B-2 ADR-0045：vendetta NPC（标记式追杀，对照 LPC vendetta_mark；杀之获 vendetta:guard 标记）
+- id: xueshan/npc/guard
+  name: 守卫
+  aliases: [shouwei, guard]
+  gender: 男性
+  age: 25
+  attitude: peaceful
+  vendetta_mark: guard
+  str_: 15
+  dex_: 15
+  int_: 10
+  con_: 15
+  max_qi: 40
+  max_jing: 40
+  combat_exp: 200
+  skills:
+    dodge: 10
+    unarmed: 10
+  attack_skill: unarmed
+  weapon_label: 拳头

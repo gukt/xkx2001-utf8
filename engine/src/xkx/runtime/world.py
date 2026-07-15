@@ -26,6 +26,7 @@ from xkx.combat.result import (
     KIND_WOUND_JING,
     Effect,
 )
+from xkx.dsl.layer2 import InquiryNode
 from xkx.runtime.components import (
     Attributes,
     CombatState,
@@ -117,6 +118,8 @@ def build_world(
                         other_room=spec["other_room"],
                         other_dir=spec["other_dir"],
                         closed=spec.get("closed", True),
+                        locked=spec.get("locked", False),
+                        key_id=spec.get("key_id", ""),
                     )
                     for d, spec in r.get("doors", {}).items()
                 },
@@ -197,20 +200,28 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             weapon_label=n.get("weapon_label", "拳头"),
         ),
     )
+    raw_inquiry = n.get("inquiry", {}) or {}
+    inquiry: dict[str, str | InquiryNode] = {}
+    for topic, value in raw_inquiry.items():
+        if isinstance(value, dict):
+            inquiry[topic] = InquiryNode(**value)
+        else:
+            inquiry[topic] = value
     world.add(
         eid,
         NpcBehavior(
             attitude=n.get("attitude", "friendly"),
             chat_chance_combat=n.get("chat_chance_combat", 0),
             chat_msg_combat=n.get("chat_msg_combat", []),
-            inquiry=n.get("inquiry", {}),
+            inquiry=inquiry,
             apprentice_config=n.get("apprentice"),  # M3-1 ADR-0032 决策 1
+            vendetta_mark=n.get("vendetta_mark", ""),  # B-2 ADR-0045
         ),
     )
     # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
-    # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
-    # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
-    world.add(eid, TitleComp())
+    # 非 None，set("shen") 不 raise DbaseKeyError）。ADR-0051：NpcDef.shen 透传
+    # （邪派 NPC shen 负，look 触发 berserk flavor）；title/char_class 等仍后置。
+    world.add(eid, TitleComp(shen=n.get("shen", 0)))
     # M3-1 ADR-0032 决策 1：师傅 NPC 的 FamilyComp（LPC create_family 语义）。
     # apprentice_config 非空 = 该 NPC 是师傅，写师傅自己的 family（privs=-1 全部
     # 权限，对照 apprentice.c:52 assign_apprentice(title, -1)）。玩家拜师时
