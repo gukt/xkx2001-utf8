@@ -884,12 +884,16 @@ def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
     return [f"你喝下{_item_name(game, item_id)}，顿觉神清气爽。"]
 
 
-def look(game: Game, actor_id: int) -> list[str]:
-    """查看命令（S5a）：LPC 风格显示房间描述 + NPC(每行) + 物品 + 出口。"""
+def look(game: Game, actor_id: int, target_name: str = "") -> list[str]:
+    """查看命令（S5a + ADR-0051）：``look`` 房间视图；``look <target>`` NPC 详情 +
+    邪派 NPC berserk flavor（对照 LPC look.c:189-193 + combatd.c start_berserk
+    !userp 早退，忠实=仅 flavor 不战斗）。"""
     world = game.world
     pos = world.get(actor_id, Position)
     if not pos:
         return ["你没有位置。"]
+    if target_name:
+        return _look_target(game, actor_id, target_name)
     room = world.get(game.room_entities.get(pos.room_id), RoomComp)
     if not room:
         return ["这里什么也没有。"]
@@ -909,6 +913,46 @@ def look(game: Game, actor_id: int) -> list[str]:
             lines.append(f"    这里唯一的出口是 {labels[0]}。")
         else:
             lines.append(f"    这里明显的出口是 {'、'.join(labels[:-1])} 和 {labels[-1]}。")
+    return lines
+
+
+def _look_target(game: Game, actor_id: int, target_name: str) -> list[str]:
+    """look <target>：NPC 详情 + 邪派 berserk flavor（ADR-0051，对照 look.c:189-193
+    + combatd.c:886/888 !userp 早退=仅 flavor 不战斗）。"""
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    target_eid = _find_npc_in_room(world, pos.room_id, target_name)
+    if target_eid is None:
+        return [f"这里没有「{target_name}」。"]
+    target_ident = world.get(target_eid, Identity)
+    target_vitals = world.get(target_eid, Vitals)
+    target_title = world.get(target_eid, TitleComp)
+    target_attrs = world.get(target_eid, Attributes)
+    target_combat = world.get(target_eid, CombatState)
+    name = target_ident.name if target_ident else target_name
+    alias = (
+        target_ident.aliases[0]
+        if target_ident and target_ident.aliases
+        else (target_ident.prototype_id if target_ident else "")
+    )
+    lines = [f"{name}（{alias}）"]
+    if target_attrs:
+        parts = [f"性别：{target_attrs.gender}", f"年龄：{target_attrs.age}"]
+        if target_combat and target_combat.weapon_label != "拳头":
+            parts.append(f"手持：{target_combat.weapon_label}")
+        lines.append("  " + "  ".join(parts))
+    if target_vitals:
+        lines.append(f"  气：{target_vitals.qi}/{target_vitals.max_qi}")
+    # berserk flavor（对照 look.c:189-193：random(-shen) > int*10 -> 瞪眼 + 扫视；
+    # combatd.c:888 !userp 早退=忠实不战斗）
+    shen = target_title.shen if target_title else 0
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    if shen < 0 and random.randint(0, max(0, -shen - 1)) > int_val * 10:
+        lines.append(f"{name}突然转过头来瞪你一眼。")
+        lines.append(f"{name}用一种异样的眼神扫视著在场的每一个人。")
     return lines
 
 
@@ -1774,8 +1818,8 @@ def _adapter_unlock(game: Game, ctx: ActionContext) -> list[str]:
 
 
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
-    """look 命令适配器（无参，查看当前房间）。"""
-    return look(game, ctx.actor)
+    """look 命令适配器：look [房间] / look <target>（NPC 详情，ADR-0051）。"""
+    return look(game, ctx.actor, ctx.raw_args.strip())
 
 
 def _adapter_inventory(game: Game, ctx: ActionContext) -> list[str]:

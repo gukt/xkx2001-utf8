@@ -211,9 +211,9 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
         ),
     )
     # 2.5 ADR-0028：TitleComp 默认实例（rankd 求值可取字段，query("shen") 返回 0
-    # 非 None，set("shen") 不 raise DbaseKeyError）。NPC title/shen/char_class 等
-    # 称谓数据从题材包 IR 注入后置（NpcDef 当前无这些字段）。
-    world.add(eid, TitleComp())
+    # 非 None，set("shen") 不 raise DbaseKeyError）。ADR-0051：NpcDef.shen 透传
+    # （邪派 NPC shen 负，look 触发 berserk flavor）；title/char_class 等仍后置。
+    world.add(eid, TitleComp(shen=n.get("shen", 0)))
     # M3-1 ADR-0032 决策 1：师傅 NPC 的 FamilyComp（LPC create_family 语义）。
     # apprentice_config 非空 = 该 NPC 是师傅，写师傅自己的 family（privs=-1 全部
     # 权限，对照 apprentice.c:52 assign_apprentice(title, -1)）。玩家拜师时

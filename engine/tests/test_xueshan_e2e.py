@@ -13,7 +13,7 @@ from pathlib import Path
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, ask, drink, du, give, go, kill, take, unlock
+from xkx.runtime.commands import Game, ask, drink, du, give, go, kill, look, take, unlock
 from xkx.runtime.components import (
     CombatState,
     Identity,
@@ -638,3 +638,27 @@ def test_wolf_quest_kill_completes() -> None:
     # +50 npc death（_handle_npc_death）+ 200 quest reward（战斗命中另有少量 exp）
     assert game.world.get(pid, Progression).combat_exp >= before_exp + 250
     assert game.world.get(pid, Progression).potential == before_pot + 50
+
+
+def test_look_target_npc_detail() -> None:
+    """look <target> 显示 NPC 详情（ADR-0051，非邪派无 berserk flavor）。"""
+    game, pid = _game(start_room="xueshan/guangchang")  # 昌齐在广场
+    msgs = look(game, pid, "昌齐")
+    assert any("昌齐大喇嘛" in m for m in msgs)
+    assert any("性别" in m for m in msgs)
+    # 昌齐 shen 0（非邪派），无 berserk flavor
+    assert not any("瞪你一眼" in m for m in msgs)
+
+
+def test_look_target_berserk_flavor(monkeypatch) -> None:
+    """look 邪派 NPC 触发 berserk flavor（ADR-0051，忠实 !userp 不战斗）。"""
+    import xkx.runtime.commands as cmd_mod
+
+    game, pid = _game(start_room="xueshan/luyeyuan")  # 金轮法王（shen -300）在鹿野苑
+    # mock random.randint 返回上界（必触发 random(-shen) > int*10）
+    monkeypatch.setattr(cmd_mod.random, "randint", lambda a, b: b)
+    msgs = look(game, pid, "金轮法王")
+    assert any("瞪你一眼" in m for m in msgs)
+    assert any("异样的眼神" in m for m in msgs)
+    # 忠实 LPC：!userp 早退，不战斗
+    assert not any("发起了攻击" in m for m in msgs)

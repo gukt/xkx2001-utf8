@@ -66,7 +66,7 @@ HELP_TEXT = """\
   go <方向>               向指定方向移动（如 go north），移动后自动查看房间
   <方向>                  直接输入方向即可移动，支持简写：n s e w ne nw se sw
                           u d nu su eu wu nd sd ed wd（如 n = go north）
-  look                    查看当前房间（简写 l）
+  look [target]          查看房间或 NPC 详情（简写 l；邪派 NPC 会瞪眼）
   get <物品>              捡起地上的物品（也支持 take）
   drink <物品>            喝/服用（酥油茶恢复精，雪莲丹恢复气）
   kill <NPC>              攻击 NPC（多回合战斗，至一方倒下）
@@ -262,7 +262,7 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         print(HELP_TEXT)
         return True
     if cmd in ("look", "l"):
-        _print(look(game, pid))
+        _print(look(game, pid, " ".join(args)))
         return True
     if cmd in ("inventory", "i"):
         _print(inventory(game, pid))

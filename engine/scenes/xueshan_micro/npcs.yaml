@@ -262,6 +262,7 @@
   gender: 男性
   age: 50
   attitude: peaceful
+  shen: -300  # ADR-0051：邪派法王（look 触发 berserk flavor，忠实 !userp 不战斗）
   str_: 30
   dex_: 30
   int_: 30

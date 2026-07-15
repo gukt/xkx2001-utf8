@@ -113,6 +113,7 @@ class NpcDef(BaseModel):
     gender: str = "男性"
     age: int = 20
     attitude: str = "friendly"  # friendly | heroism | aggressive
+    shen: int = 0  # ADR-0051：道德值（正=侠负=魔，look 邪派 NPC 触发 berserk flavor）
     vendetta_mark: str = ""  # B-2 ADR-0045：vendetta 标记（LPC vendetta_mark）
 
     # 四维属性（LPC str/dex/int/con）
