@@ -3511,6 +3511,7 @@ LAYER_SPEC = LayerSpec(
         "adm/daemons/securityd.c",
         "adm/daemons/natured.c",
         "adm/daemons/chinesed.c",
+        "adm/daemons/rankd.c",
     ],
     function_specs=[
         # LOGIN_D

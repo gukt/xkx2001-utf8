@@ -1,9 +1,10 @@
 """层 H-RACE：race daemon 种族初始化 -- 规格提取测试（ADR-0030 开放问题 1）。
 
 测试内容：
-- smoke：LAYER_SPEC 可加载、layer_id=="H-RACE"、function_specs 含 2 个
-- 结构属性：setup_race / apply_family_bonuses 签名完整（name/lpc_file/
-  lpc_signature/preconditions/postconditions/invariants/side_effects 都非空）
+- smoke：LAYER_SPEC 可加载、layer_id=="H-RACE"、function_specs 含 6 个
+- 结构属性：create / set_default_actions / query_action / set_default_object /
+  setup_race / apply_family_bonuses 签名完整（name/lpc_file/lpc_signature/
+  preconditions/postconditions/invariants/side_effects 都非空）
 - 副作用 order 递增连续（hypothesis 随机子集仍递增）
 - invariants 非空
 - cross_layer_refs 目标层 ID 合法（A-I 范围内）
@@ -54,12 +55,20 @@ class TestSmoke:
         assert len(LAYER_SPEC.lpc_files) == 1
 
     def test_function_spec_count(self) -> None:
-        """应有 2 个 FunctionSpec（setup_race + apply_family_bonuses）。"""
-        assert len(LAYER_SPEC.function_specs) == 2
+        """应有 6 个 FunctionSpec（create + set_default_actions + query_action +
+        set_default_object + setup_race + apply_family_bonuses）。"""
+        assert len(LAYER_SPEC.function_specs) == 6
 
     def test_expected_function_names(self) -> None:
         names = {spec.signature.name for spec in LAYER_SPEC.function_specs}
-        expected = {"setup_race", "apply_family_bonuses"}
+        expected = {
+            "create",
+            "set_default_actions",
+            "query_action",
+            "set_default_object",
+            "setup_race",
+            "apply_family_bonuses",
+        }
         assert names == expected, f"函数名不匹配: {names ^ expected}"
 
     def test_cross_layer_refs_nonempty(self) -> None:
@@ -122,6 +131,33 @@ class TestFunctionSpecSignature:
             if s.signature.name == "apply_family_bonuses"
         )
 
+    @pytest.fixture
+    def create(self) -> FunctionSpec:
+        return next(
+            s for s in LAYER_SPEC.function_specs if s.signature.name == "create"
+        )
+
+    @pytest.fixture
+    def set_default_actions(self) -> FunctionSpec:
+        return next(
+            s for s in LAYER_SPEC.function_specs
+            if s.signature.name == "set_default_actions"
+        )
+
+    @pytest.fixture
+    def query_action(self) -> FunctionSpec:
+        return next(
+            s for s in LAYER_SPEC.function_specs
+            if s.signature.name == "query_action"
+        )
+
+    @pytest.fixture
+    def set_default_object(self) -> FunctionSpec:
+        return next(
+            s for s in LAYER_SPEC.function_specs
+            if s.signature.name == "set_default_object"
+        )
+
     def test_setup_race_signature_complete(self, setup_race: FunctionSpec) -> None:
         """setup_race 签名字段非空。"""
         sig = setup_race.signature
@@ -179,6 +215,127 @@ class TestFunctionSpecSignature:
         self, apply_family_bonuses: FunctionSpec
     ) -> None:
         assert len(apply_family_bonuses.side_effects) > 0
+
+    def test_create_signature_complete(self, create: FunctionSpec) -> None:
+        """create 签名字段非空。"""
+        sig = create.signature
+        assert sig.name == "create"
+        assert sig.return_type == "void"
+        assert sig.lpc_file == "adm/daemons/race/human.c"
+        assert sig.line_range == (32, 49)
+        assert len(sig.params) == 0
+
+    def test_create_postconditions_nonempty(self, create: FunctionSpec) -> None:
+        assert len(create.postconditions) > 0
+
+    def test_create_invariants_nonempty(self, create: FunctionSpec) -> None:
+        assert len(create.invariants) > 0
+
+    def test_create_side_effects_nonempty(self, create: FunctionSpec) -> None:
+        assert len(create.side_effects) > 0
+
+    def test_set_default_actions_signature_complete(
+        self, set_default_actions: FunctionSpec
+    ) -> None:
+        """set_default_actions 签名字段非空。"""
+        sig = set_default_actions.signature
+        assert sig.name == "set_default_actions"
+        assert sig.return_type == "void"
+        assert sig.lpc_file == "adm/daemons/race/human.c"
+        assert sig.line_range == (59, 59)
+        assert len(sig.params) == 1
+        assert sig.params[0].name == "entity"
+
+    def test_set_default_actions_postconditions_nonempty(
+        self, set_default_actions: FunctionSpec
+    ) -> None:
+        assert len(set_default_actions.postconditions) > 0
+
+    def test_set_default_actions_invariants_nonempty(
+        self, set_default_actions: FunctionSpec
+    ) -> None:
+        assert len(set_default_actions.invariants) > 0
+
+    def test_set_default_actions_side_effects_nonempty(
+        self, set_default_actions: FunctionSpec
+    ) -> None:
+        assert len(set_default_actions.side_effects) > 0
+
+    def test_query_action_signature_complete(
+        self, query_action: FunctionSpec
+    ) -> None:
+        """query_action 签名字段非空。"""
+        sig = query_action.signature
+        assert sig.name == "query_action"
+        assert sig.return_type == "mapping"
+        assert sig.lpc_file == "adm/daemons/race/human.c"
+        assert sig.line_range == (425, 428)
+        assert len(sig.params) == 0
+
+    def test_query_action_postconditions_nonempty(
+        self, query_action: FunctionSpec
+    ) -> None:
+        assert len(query_action.postconditions) > 0
+
+    def test_query_action_invariants_nonempty(
+        self, query_action: FunctionSpec
+    ) -> None:
+        assert len(query_action.invariants) > 0
+
+    def test_query_action_random_specs_nonempty(
+        self, query_action: FunctionSpec
+    ) -> None:
+        assert len(query_action.random_specs) > 0
+
+    def test_query_action_notes_nonempty(self, query_action: FunctionSpec) -> None:
+        assert query_action.notes is not None and len(query_action.notes) > 0
+
+    def test_set_default_object_signature_complete(
+        self, set_default_object: FunctionSpec
+    ) -> None:
+        """set_default_object 签名字段非空。"""
+        sig = set_default_object.signature
+        assert sig.name == "set_default_object"
+        assert sig.return_type == "void"
+        assert sig.lpc_file == "adm/daemons/race/human.c"
+        assert sig.line_range == (421, 421)
+        assert len(sig.params) == 2
+        assert sig.params[0].name == "entity"
+        assert sig.params[1].name == "file_path"
+
+    def test_set_default_object_postconditions_nonempty(
+        self, set_default_object: FunctionSpec
+    ) -> None:
+        assert len(set_default_object.postconditions) > 0
+
+    def test_set_default_object_invariants_nonempty(
+        self, set_default_object: FunctionSpec
+    ) -> None:
+        assert len(set_default_object.invariants) > 0
+
+    def test_set_default_object_side_effects_nonempty(
+        self, set_default_object: FunctionSpec
+    ) -> None:
+        assert len(set_default_object.side_effects) > 0
+
+
+# ---------------------------------------------------------------------------
+# HUMAN_COMBAT_ACTIONS 模块级常量
+# ---------------------------------------------------------------------------
+
+
+class TestHumanCombatActions:
+    """HUMAN_COMBAT_ACTIONS 常量结构正确。"""
+
+    def test_combat_actions_count_and_keys(self) -> None:
+        from xkx.spec.layer_h_race import HUMAN_COMBAT_ACTIONS
+
+        assert len(HUMAN_COMBAT_ACTIONS) == 5
+        for action in HUMAN_COMBAT_ACTIONS:
+            assert "action" in action
+            assert "damage_type" in action
+            assert isinstance(action["action"], str)
+            assert isinstance(action["damage_type"], str)
 
 
 # ---------------------------------------------------------------------------

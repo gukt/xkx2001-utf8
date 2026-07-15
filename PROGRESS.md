@@ -4,27 +4,27 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-15（M2-2 实现完成）
+**最后更新**：2026-07-15（规格补充 Batch 1-4 完成）
 
 ## 当前状态速览
 
-- **阶段**：M2-2 UGC 创作闭环增强轮实现完成（分支 `feat/m2-ugc-loop-r2`）
-- **分支**：feat/m2-ugc-loop-r2
-- **tests**：1857 全绿，ruff 全过
-- **关键 ADR**：[ADR-0053](docs/adr/ADR-0053-m2-ugc-loop-mvp-scope.md)（M2 MVP）/ [ADR-0054](docs/adr/ADR-0054-m2-2-langfuse-still-postponed.md)（M2-2 Langfuse 不接）
-- **新增内容**：layer2 InquiryNode 交易原子节点 / FastAPI+WebSocket 评审工作台 / ClaudeClient adapter / `just serve-workbench`
-- **工具链**：`fastapi` + `uvicorn[standard]` 作为 `[workbench]` optional dependency；`httpx` 进 dev 依赖供 TestClient
+- **阶段**：阶段 0 规格补充完成（master 工作区）
+- **分支**：master
+- **tests**：1970 全绿，ruff 全过
+- **关键 ADR**：[ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md)（规格补充分类决策）/ [ADR-0054](docs/adr/ADR-0054-m2-2-langfuse-still-postponed.md)（M2-2 Langfuse 不接）
+- **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
+- **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
 
 ## Done
 
-- [x] M2-2 layer2 Ink 对话树最小实现 - `dsl/layer2.py` 的 `InquiryNode` + `InkStory` + `compile_ink_to_inquiries`；`NpcDef.inquiry` 扩展为 `dict[str, str | InquiryNode]`；运行时 `ask()` 支持 transaction 副作用（flag/物品）+ `next_topic` 链 + `once` 移除；向后兼容纯字符串 inquiry - 1857 tests
-- [x] M2-2 FastAPI + WebSocket 评审工作台 - 新建 `xkx.workbench` 包：`app.py` / `router.py` / `ws.py` / `runner.py` / `static/index.html` / `__main__.py`；REST endpoints（list/get/asset/review/create-job）+ WebSocket 实时阶段事件；Orchestrator 增加 `event_callback`，workbench 用 `asyncio.Queue` + `loop.call_soon_threadsafe` 线程安全桥广播 - 1857 tests
-- [x] M2-2 ClaudeClient adapter - `content_gen.llm_client.ClaudeClient`（stdlib urllib 调用 Anthropic Messages API）+ `create_llm_client` 工厂；`orchestrator`/`content_gen` CLI 增加 `--provider volcano|claude`；`.env.example` 增加 Anthropic 配置；保留 VolcanoArk 为主 - 1857 tests
-- [x] M2-2 Langfuse 不接决策记录 - [ADR-0054](docs/adr/ADR-0054-m2-2-langfuse-still-postponed.md) + `content_gen/__init__.py` docstring 清理过时暗示
+- [x] 规格补充 Batch 1：修复 `layer_h_daemons.py` 漏列 `rankd.c`；新建 `layer_h_daemons2.py` 覆盖 CHANNEL_D / MONEY_D / UPDATE_D / ALIAS_D - 1926 tests
+- [x] 规格补充 Batch 2：扩展 `layer_h_daemons2.py` 覆盖 FINGER_D / BAN_D / REGBAN_D / REGI_D / MARRY_D；新建 `layer_c_vote.py` 覆盖 vote / chblk / unchblk / vote_clear / vote_suspension - 1970 tests
+- [x] 规格补充 Batch 3：扩展 `layer_h_daemons2.py` 覆盖 EMOTE_D / INQUIRY_D / PIG_D / PROFILE_D / ADS_D / EDITOR_D / WEAPON_D / LANGUAGE_D / VIRTUAL_D；扩展 `layer_h_race.py` 覆盖 human.c `create` / `query_action` / `default_actions` / `set_default_object` / eff_jingli / max_neili 交互；新建 `layer_f_hell.py` 覆盖阴间主路径 + 关键惩罚房间 - 1970 tests
+- [x] 规格补充 Batch 4：新增 [ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md) 记录子层分类与范围决策 - 1970 tests
 
 ## In Progress
 
-**当前无进行中的阻塞性子任务。** M2-2 已按计划完成，等待 review 或进入下一阶段。
+**当前无进行中的阻塞性子任务。** 规格补充全部完成，等待 review 或进入 pilot 实测。
 
 ## Blocked
 
@@ -33,12 +33,11 @@
 ## Next Up
 
 1. **pilot 实测**（`feat/sampling-pilot`）：阶段 0 验收硬交付物，AI 铺路建桩 + 人工计时。manifest id=1 `xue.c:main` 起步。
-2. **规格补充**：层 H 第二梯队 / 层 C（vote）/ 层 I（human.c）/ 层 F（阴间流程）按 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md) "实现到时才补"。
-3. **合并当前分支**：`feat/m2-ugc-loop-r2` 可合并 master 或保留。
+2. **合并当前分支**：`feat/m2-ugc-loop-r2` 已合并 master，无需额外合并。
 
 ## kill criteria 状态（开工必读）
 
-阶段 -1/0/1/2 与 M3 仍全部通过（详见 [stage-m2-mvp-done.md](docs/progress-archive/stage-m2-mvp-done.md)）。M2-2 为增强轮，不引入新的 kill criteria 风险。
+阶段 -1/0/1/2 与 M3 仍全部通过（详见 [stage-m2-mvp-done.md](docs/progress-archive/stage-m2-mvp-done.md)）。本次规格补充为阶段 0 后续补强，不引入新的 kill criteria 风险。
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 
