@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xkx.combat.context import CombatantSnapshot
 from xkx.combat.result import (
     KIND_CLEAR_MARK,
@@ -56,6 +58,9 @@ from xkx.runtime.storage import (
 )
 from xkx.runtime.theme import ThemeConfig
 
+if TYPE_CHECKING:
+    from xkx.runtime.daemon_store import DaemonStore
+
 
 def build_world(
     ir: dict,
@@ -64,6 +69,7 @@ def build_world(
     persist_interval: int = DEFAULT_PERSIST_INTERVAL,
     checkpoint_interval: int = DEFAULT_CHECKPOINT_INTERVAL,
     theme_config: ThemeConfig | None = None,
+    daemon_store: DaemonStore | None = None,
 ) -> tuple[World, dict[str, int], dict[str, dict]]:
     """从 IR 构建世界。返回 (world, room_id -> entity_id, quest_id -> quest dict)。
 
@@ -79,6 +85,11 @@ def build_world(
     （动态属性，类比 ``storage_system`` 注入模式）。``None`` 时用
     ``ThemeConfig.default()``（非武侠测试默认配置）。governance/death/cli 通过
     ``world.theme_config`` 读取房间路径，不硬编码武侠路径字面量。
+
+    ADR-0057：可选 ``daemon_store`` 传入时挂到 ``world.daemon_store``（动态属性，
+    类比 ``storage_system`` 注入模式）。承接 LPC F_SAVE 单例（bboard/job_data 等）
+    的 per-object save，独立于 ``StorageSystem``（ECS 实体周期 persist）。
+    不传则不接入 daemon 存档（向后兼容）。
     """
     schema = SchemaRegistry.with_builtins()
     issues = validate_dbase_map(schema)
@@ -143,6 +154,10 @@ def build_world(
             persist_interval=persist_interval,
             checkpoint_interval=checkpoint_interval,
         )
+
+    # ADR-0057：接入 DaemonStore（可选，独立于 StorageSystem，承接 LPC F_SAVE 单例）
+    if daemon_store is not None:
+        world.daemon_store = daemon_store  # type: ignore[attr-defined]
 
     return world, room_entities, quest_idx
 

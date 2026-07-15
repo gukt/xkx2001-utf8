@@ -450,21 +450,23 @@ def test_npc_die_makes_corpse_in_room() -> None:
 
 
 def test_player_die_saves(monkeypatch: Any) -> None:
-    """玩家死亡 -> save 被调（_save 经 storage_system.persist_now）。"""
+    """玩家死亡 -> save 被调（_save 经 storage_system.mark_dirty，ADR-0057 决策 5）。
+
+    death 属 entity 非 daemon，走 mark_dirty（周期 persist），不引入 per-eid 同步
+    persist。原 FakeStorage 测 ``persist_now(eid)`` 是假绿（签名断裂未真存），
+    改测 mark_dirty 对齐 runtime.death._save。
+    """
     world, _ = _world_with_room()
     player = _player(world)
 
-    saved: list[int] = []
+    dirtied: list[int] = []
 
     class _FakeStorage:
-        def persist_now(self, eid: int) -> None:
-            saved.append(eid)
-
         def mark_dirty(self, eid: int) -> None:
-            pass
+            dirtied.append(eid)
 
     world.storage_system = _FakeStorage()  # type: ignore[attr-defined]
 
     damage_c_die(world, player, tick=0)
 
-    assert player in saved
+    assert player in dirtied

@@ -219,12 +219,22 @@ class QuestDef(BaseModel):
 
 
 class ItemDef(BaseModel):
-    """物品定义（S5a + C4 ADR-0043）：映射 LPC ``inherit ITEM`` + ``set_name``。
+    """物品定义（S5a + C4 ADR-0043 + ADR-0058 方案 B）：映射 LPC ``inherit ITEM`` + ``set_name``。
 
     对照 d/xueshan/obj/suyouguan.c ``set_name("酥油罐", ({"suyou guan",...}))``。
     C4 ADR-0043：``drink_supply``/``food_supply``/``jing_recover`` 消耗品字段（对照
     LPC buttertea.c do_drink 的 water/food/jing 恢复）。全 0 = 不可饮用（drink 命令
     拒）。set 语义简化：喝一次即消失（LPC remaining 多次饮用后置）。
+
+    ADR-0058 方案 B：扩展武器/物品属性字段（weight/value/rigidity/weapon_prop/unit/
+    long/material/flag/skill_type），对照 LPC 武器/物品 create() set 习惯（
+    [djdao.c](../../../d/village/obj/djdao.c) / [eyujian.c](../../../d/xixia/obj/eyujian.c)
+    / [shizi.c](../../../d/taohua/obj/shizi.c)）。编译进 item_registry dict，
+    ItemCatalog 函数族（``items.py``）读它。新字段全带默认值，不破坏现有 8 字段
+    + drink/take/give 命令语义。
+
+    **关键**（ADR-0058 §3）：物品 ``weight`` 是台账字段，**绝不走 dbase key "weight"**
+    （那是角色级 ``Equipment.encumbrance``，[dbase_map.py](../runtime/dbase_map.py) L83）。
     """
 
     id: str
@@ -237,6 +247,17 @@ class ItemDef(BaseModel):
     qi_recover: int = 0  # C2：喝后恢复气（LPC qi = min(max_qi, qi+recover)，丹药）
     # C3：研读经书加技能（对照 LPC lx-jing.c do_study）。非空 = 可 du 研读，加该技能。
     read_skill: str = ""
+    # ADR-0058 方案 B：武器/物品属性台账字段（对照 LPC create() set 习惯）
+    weight: int = 0  # 物品级重量（LPC set_weight(N)，台账字段非角色 encumbrance）
+    value: int = 0  # 价值（LPC set("value", N)）
+    rigidity: int = 0  # 武器硬度（LPC set("rigidity", N)，击碎判定用，eyujian 100000）
+    # 武器属性 mapping（LPC set("weapon_prop/damage", N) 等；wield 遍历注入 apply/<key>）
+    weapon_prop: dict[str, int] = Field(default_factory=dict)
+    unit: str = ""  # 量词（LPC set("unit", "把")）
+    long: str = ""  # 长描述（LPC set("long", "...")）
+    material: str = ""  # 材质（LPC set("material", "steel")）
+    flag: int = 0  # 武器握持标记位掩码（LPC set("flag", EDGED)，weapon.h TWO_HANDED/EDGED/...）
+    skill_type: str = ""  # 武器技能种类（LPC set("skill_type", "sword")，init_sword/blade 设）
 
 
 class SkillDef(BaseModel):

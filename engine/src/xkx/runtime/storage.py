@@ -42,6 +42,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def write_json_atomic(path: str, obj: dict[str, Any]) -> None:
+    """原子写 JSON 文件（ADR-0022 §2 三步，ADR-0057 提为模块级 helper）。
+
+    JsonFileBackend 与 DaemonStore 共用本 helper 保证 daemon/entity 存档同等
+    崩溃安全。三步：
+
+    1. write-temp：写到 ``<path>.tmp.<pid>``（同目录同 filesystem，保证
+       ``os.replace`` 是原子 rename 非跨设备拷贝）
+    2. fsync：``os.fsync(tmp_fd)`` 刷盘（数据 + 元数据）
+    3. os.replace：POSIX 原子 rename(2) 替换 target
+
+    写 tmp 中途崩溃只损坏 tmp，target 仍是上一次完整存档。
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)  # assure_file 对齐
+    tmp = f"{path}.tmp.{os.getpid()}"
+    # 步骤 1：write-temp
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False)
+        f.flush()
+        # 步骤 2：fsync 刷盘（数据 + 元数据）
+        os.fsync(f.fileno())
+    # 步骤 3：os.replace 原子替换（POSIX rename(2)）
+    os.replace(tmp, path)
+
 # 默认存档周期（tick 数）。对齐 LPC NATURE_D event_sunrise 每日自动保存的周期语义
 # 但缩短到适合测试的间隔（ADR-0022 §3）。
 DEFAULT_PERSIST_INTERVAL = 30  # ticks（tick=1s 即 30s）
@@ -124,18 +149,8 @@ class JsonFileBackend(StorageBackend):
             self._write_entity_atomic(eid, state)
 
     def _write_entity_atomic(self, eid: int, state: dict[str, Any]) -> None:
-        """原子写单个实体文件（ADR-0022 §2 三步）。"""
-        target = self._entity_path(eid)
-        os.makedirs(os.path.dirname(target), exist_ok=True)  # assure_file 对齐
-        tmp = f"{target}.tmp.{os.getpid()}"
-        # 步骤 1：write-temp（写到同目录 tmp，保证 os.replace 是原子 rename 非跨设备拷贝）
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False)
-            f.flush()
-            # 步骤 2：fsync 刷盘（数据 + 元数据）
-            os.fsync(f.fileno())
-        # 步骤 3：os.replace 原子替换（POSIX rename(2)）
-        os.replace(tmp, target)
+        """原子写单个实体文件（ADR-0022 §2 三步，ADR-0057 复用 helper）。"""
+        write_json_atomic(self._entity_path(eid), state)
 
     def restore(self) -> dict[int, dict[str, Any]]:
         """扫描存档目录读回所有实体（ADR-0022 §7 步骤 1-2）。

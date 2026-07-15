@@ -230,15 +230,17 @@ def _start_death(world: Any, eid: int, tick: int) -> None:
 
 
 def _save(world: Any, eid: int) -> None:
-    """this_object()->save()（对照 L245）。对照 death._save。"""
+    """this_object()->save()（对照 L245）。对照 death._save。
+
+    ADR-0057 决策 5：death 属 entity 非 daemon，走 mark_dirty（ADR-0022 §1
+    内存权威 + 周期 persist），不引入 per-eid 同步 persist。原样本调
+    ``persist_now(eid)`` 签名断裂（``persist_now`` 签名是 ``(world)`` 且 async
+    未 await）实际未真存，改 mark_dirty 修复断裂不降级行为。
+    """
     storage = getattr(world, "storage_system", None)
     if storage is None:
         return
-    persist_now = getattr(storage, "persist_now", None)
-    if persist_now is not None:
-        persist_now(eid)
-    else:
-        storage.mark_dirty(eid)
+    storage.mark_dirty(eid)
 
 
 def _set_ghost(world: Any, eid: int) -> None:
