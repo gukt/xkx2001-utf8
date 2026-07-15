@@ -1,0 +1,41 @@
+系统/子系统,实现状态,证据文件,风险等级,负责专家
+M2/UGC 创作闭环 MVP,implemented,engine/src/xkx/orchestrator/loop.py; engine/src/xkx/content_gen/; engine/src/xkx/workbench/,low,游戏制作人/范围管理; UGC 平台专家
+ECS SparseSet 存储,implemented,engine/src/xkx/runtime/ecs.py,low,游戏引擎/ECS 专家; 游戏服务器架构师
+System 基类与注册表,partial,engine/src/xkx/runtime/systems.py; engine/src/xkx/runtime/engine.py,medium,游戏引擎/ECS 专家; 游戏服务器架构师
+tick 调度器与非均匀 tick,partial,engine/src/xkx/runtime/engine.py; engine/src/xkx/runtime/profiler.py,medium,游戏引擎/ECS 专家; 游戏服务器架构师
+1000 实体 System tick 压测,implemented,engine/tools/load_test.py; tests/test_load_test.py,low,游戏服务器架构师
+100 并发命令对 tick 的影响,missing,engine/tools/load_test.py 未注入命令,high,游戏服务器架构师; 游戏制作人/范围管理
+1000 真实 WS 连接压测,missing,无专项 WS 压力测试,high,游戏服务器架构师
+combat-only 确定性边界,implemented,engine/src/xkx/combat/resolve_attack.py; combat/replay.py; combat/rng.py,low,游戏引擎/ECS 专家; MUD 玩法与文化专家
+do_attack 七步管线,partial,engine/src/xkx/combat/resolve_attack.py; combat/system.py,medium,MUD 玩法与文化专家; 游戏引擎/ECS 专家
+Command 8 段中间件管线,implemented,engine/src/xkx/runtime/commands.py; middleware/s0_flood_check.py~s7_execute_audit.py,low,游戏服务器架构师; MUD 玩法与文化专家
+command 事件接入层1,missing,engine/src/xkx/dsl/layer1.py 已存在 evaluate_command 但 commands.py 未调用,high,DSL 规则引擎专家
+PronounContext 三元组,partial,engine/src/xkx/runtime/pronoun.py; runtime/title.py,medium,MUD 玩法与文化专家; 游戏服务器架构师
+技能三层组件,implemented,engine/src/xkx/runtime/components.py; runtime/skill.py,low,MUD 玩法与文化专家
+SkillData 招式表与 perform/exert,missing,engine/src/xkx/runtime/skill.py _SKILL_DATA_REGISTRY 为空 stub; combat/context.py,high,MUD 玩法与文化专家; 游戏引擎/ECS 专家
+21 门派 FamilyBonus / class 称号表,partial,engine/src/xkx/themes/wuxia.py 仅注册武当派; runtime/family.py,high,MUD 玩法与文化专家; UGC 平台专家
+NPC heart_beat / random_move / chat / attitude,partial,engine/src/xkx/runtime/components.py; runtime/auto_fight.py; runtime/world.py,high,MUD 玩法与文化专家; 游戏制作人/范围管理
+灵魂系统 die/unconcious/reincarnate,partial,engine/src/xkx/runtime/death.py; runtime/governance.py,high,MUD 玩法与文化专家; 游戏制作人/范围管理
+阴间区域 / 黑白无常 / 鬼魂视觉,missing,engine/src/xkx/runtime/governance.py 部分逻辑; 无 /d/death/ 区域,high,MUD 玩法与文化专家
+拜师配置 ApprenticeDef / KneelDef,implemented,engine/src/xkx/dsl/layer0.py; runtime/commands.py bai/kneel,low,MUD 玩法与文化专家
+门派任务链数据,partial,engine/src/xkx/dsl/layer0.py QuestDef.objectives; 缺少官方 CPK 内容,high,MUD 玩法与文化专家; UGC 平台专家
+JSON 存档原子写 / offload / dirty-flag,implemented,engine/src/xkx/runtime/storage.py; tests/test_storage.py,low,游戏服务器架构师
+多实体 JSON 存档事务原子性,missing,ADR-0022 台账 #1 已记录但阶段1 未实现,medium,游戏服务器架构师
+System 派生变更审计,partial,middleware/s7_execute_audit.py 覆盖 Command; HealSystem/ConditionSystem/GovernanceSystem 直接 mutate 无 ledger,high,游戏服务器架构师; 游戏引擎/ECS 专家; 对抗质证人
+call_out / ActionScheduler 统一调度,at_risk,engine/src/xkx/runtime/engine.py 注释提及但无独立实现; call_out 分散于 EffectComp/ConditionSystem/GovernanceSystem/DoorSystem,high,游戏引擎/ECS 专家; DSL 规则引擎专家; 对抗质证人
+DSL 层0 声明式数据,partial,engine/src/xkx/dsl/layer0.py,medium,DSL 规则引擎专家; UGC 平台专家
+DSL 层1 规则求值器,partial,engine/src/xkx/dsl/layer1.py; runtime/commands.py 调用 valid_leave/accept_object/ask,high,DSL 规则引擎专家; UGC 平台专家
+DSL 层2 Ink 对话树,partial,engine/src/xkx/dsl/layer2.py 仅实现 InquiryNode,medium,DSL 规则引擎专家; UGC 平台专家
+DSL 层3 RestrictedPython 沙箱,missing,无 engine/src/xkx/dsl/layer3.py; ADR-0053 延后,high,UGC 平台专家; DSL 规则引擎专家; 游戏制作人/范围管理
+CPK manifest 与加载器,partial,engine/src/xkx/dsl/cpk.py; dsl/cpk_loader.py; scenes/*/manifest.yaml,medium,UGC 平台专家
+四道校验（Schema/Capability/Resource/Dependency）,partial,engine/src/xkx/dsl/validator.py,medium,UGC 平台专家; DSL 规则引擎专家
+ThemeRegistry 静态加载,partial,engine/src/xkx/runtime/theme_registry.py; themes/wuxia.py; themes/default.py,medium,UGC 平台专家; DSL 规则引擎专家
+capabilities_required 与词汇表绑定,missing,engine/src/xkx/dsl/cpk.py 字段为空列表; theme_registry.py 词汇表为空,high,UGC 平台专家; DSL 规则引擎专家
+module_pack 受信任开发者机制,missing,engine/src/xkx/dsl/cpk.py PackType 仅为字符串; orchestrator/loop.py 硬编码 module_pack,high,UGC 平台专家; 对抗质证人
+自动化预检 / 审核 pipeline,partial,engine/src/xkx/content_review/precheck.py; content_review/rules.py; content_review/review_status.py,medium,UGC 平台专家; 游戏制作人/范围管理
+provenance / 版权追踪,partial,engine/src/xkx/dsl/cpk.py Provenance 字段; orchestrator/loop.py 部分写入,medium,UGC 平台专家; 游戏制作人/范围管理
+经济系统 MONEY_D,missing,无对应模块,high,游戏制作人/范围管理
+社交频道 / 组队 / 婚姻 / 交易,missing,CHANNEL_D / MARRY_D / F_TEAM 等未迁移,high,游戏制作人/范围管理
+NATURE_D / 昼夜天气,missing,无对应模块,medium,游戏制作人/范围管理
+坐骑与交通系统,missing,MountComp / VehicleComp / FerryComp 待补,medium,游戏制作人/范围管理
+非武侠微场景 e2e,missing,themes/default.py 仅海盗帮 FamilyBonus; 无完整 default 场景,high,游戏制作人/范围管理; 对抗质证人

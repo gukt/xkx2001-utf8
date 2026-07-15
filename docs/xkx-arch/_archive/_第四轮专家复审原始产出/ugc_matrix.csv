@@ -1,0 +1,39 @@
+指标/系统,推荐 owner,理由,主题无关性影响
+heart_beat tick 周期（1s，compute<100ms）,framework,引擎核心调度不变量，所有题材共享,强主题无关，题材包不可覆盖
+ECS SparseSet / World 生命周期,framework,核心运行时基础设施,强主题无关
+System 注册表与执行顺序,framework,平台级调度机制；具体 System 实现可下沉题材包,强主题无关
+tick 调度器 / 非均匀 tick,framework,引擎核心不变量,强主题无关
+Command 8 段管线,framework,外部意图抽象；具体命令实现可下沉题材包,强主题无关；动词注册表由题材包扩展
+do_attack 七步管线 / CombatKernel,framework,主题无关内核，已用非武侠验证,强主题无关；招式数据走 SkillData
+resolve_attack / DeterministicRNG / replay,framework,纯函数重放基础设施,强主题无关
+Effect 账本与 apply_effects,framework,跨 System 副作用抽象,强主题无关；具体 effect kind 可扩展
+PronounContext 10 变量与 visible 门控,framework,文本渲染核心；rankd.c 三元组是 engine 层不变量,强主题无关；题材包只注入 class 表
+JSON 存档原子写 / dirty-flag / StorageBackend,framework,持久化边界抽象,强主题无关
+DSL 层0 schema 框架,framework,schema 由 ThemeRegistry 注册，核心提供验证框架,框架主题无关；具体 schema family 题材相关
+DSL 层1 规则求值器,framework,唯一规则表示层，引擎内求值,主题无关；谓词/动词词汇表由题材包注册
+DSL 层2 Ink 对话树运行时,framework,解释器框架；具体对话内容由 CPK 提供,主题无关；文本题材相关
+DSL 层3 RestrictedPython 沙箱,framework,UGC 脚本执行环境,强主题无关；具体 capability 由题材包声明
+ThemeRegistry 静态加载机制,framework,启动时注册表，引擎层机制,强主题无关；注册内容题材相关
+CPK 加载器 / manifest 校验 / 四道校验,framework,DSL 编译与依赖校验基础设施,强主题无关
+capabilities_required 审计与资源配额,framework,安全边界，衔接词汇表与运行时权限,强主题无关
+自动化预检（暴力/赌博/版权/license）,framework,内容审核基础设施,强主题无关；词表可配置
+专家审核 checklist 模板,framework,六维矩阵与人工 review 框架,强主题无关
+WS 服务器 / 会话管理 / 断线重连,framework,平台级网络基础设施,强主题无关
+tick profiler / 负载测试框架,framework,性能基准基础设施,强主题无关
+武侠 RaceProfile / 人类/limbs/年龄公式参数,official_cpk,wuxia 题材包注入；引擎只提供 setup_race 框架,主题相关；default 题材包可注入非武侠 profile
+武侠 FamilyBonus / 门派加成,official_cpk,wuxia 题材包 StdLib 资产,主题相关；必须走 ThemeRegistry 注入
+武侠 class 称号分支表,official_cpk,wuxia 题材包 ThemeDescriptor.class_tables,主题相关
+武侠房间路径（start/death/jail rooms）,official_cpk,wuxia 题材包 ThemeConfig,主题相关；核心通过 ThemeConfig 抽象
+武侠技能招式表 SkillData,official_cpk,wuxia 题材包 CPK 资产,主题相关；不进 combat 内核
+具体 condition handler（snake_poison/drunk 等）,official_cpk,武侠题材具体行为，可注册到 framework handler 表,主题相关；handler 接口主题无关
+拜师配置 ApprenticeDef / 入门条件 / 剃度,official_cpk / user_cpk,M3 由官方 CPK 闭合；后期可开放玩家自创门派/支线,主题相关；需受 ThemeRegistry 词汇表约束
+门派任务链数据,official_cpk / user_cpk,M3 官方，后期可 UGC,主题相关
+NPC heart_beat 调度框架（chat/random_move/attitude/vendetta）,framework,通用 NPC AI 更新机制；具体行为数据由 CPK 提供,机制主题无关；野兽/商人/守卫等行为模式主题相关
+灵魂系统核心（die/unconcious/reincarnate/death_penalty）,framework,生死状态机是世界运行基础设施,强主题无关；阴间剧情/惩罚数值可由题材包配置
+阴间区域 / 黑白无常 / 鬼魂视觉 / astral_vision,official_cpk,武侠世界观下的具体剧情与区域设计,主题相关；核心提供 ThemeConfig 房间路径与 visible 钩子
+themed 治理（天雷/阴间/vote/法院）,framework,平台级 fail-closed Python System，不可落入 UGC 可编辑层,强主题无关；策略是启动时加载的可信配置/代码
+市场分发（浏览/搜索/安装/评分/分账）,framework,平台级能力，market 字段 Day1 预留，M3 不做,强主题无关
+版权清洗状态与 provenance 链,framework,平台级合规与内容追踪,强主题无关；命中内容由题材包产生
+Langfuse / 修订量追踪,framework,M2 创作闭环度量基础设施,强主题无关
+原创第三方门派/区域/任务 CPK,user_cpk,普通创作者产出,主题相关；必须声明 theme 与 capabilities，受沙箱与审核约束
+玩家自建房间/NPC/层1 规则,user_cpk,UGC layer0/1 资产,主题相关；受 ThemeRegistry 词汇表限制

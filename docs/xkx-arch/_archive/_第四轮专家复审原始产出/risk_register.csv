@@ -1,0 +1,20 @@
+风险,严重度,涉及系统,责任专家,建议动作,状态
+100 并发命令未纳入 tick 预算实测,high,runtime/commands.py; middleware/; tools/load_test.py,游戏服务器架构师,在 load_test.py 中每 tick 注入 100 条随机命令 dispatch，确认 tick p99 < 100ms；写入 kill criteria 3,open
+1000 真实 WS 连接容量未验证,high,runtime/ws_server.py; runtime/connection.py; tools/load_test.py,游戏服务器架构师,补做 1000 并发 WS 连接 + 登录 + 命令收发压测，验证 FD/GC/asyncio 边界；写入 kill criteria 5,open
+System 派生变更审计覆盖缺口,high,runtime/heal.py; runtime/conditions.py; runtime/governance.py; middleware/s7_execute_audit.py,游戏服务器架构师; 游戏引擎/ECS 专家; 对抗质证人,为 SystemContext/World 增加统一 mutation 钩子或 world.apply_mutation(eid,delta)，要求非 combat System 产出 ledger；写入 ADR-0056,open
+DSL 层3 RestrictedPython 沙箱缺失,high,dsl/layer3（缺失）; dsl/cpk.py; orchestrator/loop.py,UGC 平台专家; DSL 规则引擎专家; 游戏制作人/范围管理,M3 后立刻启动 layer3 设计：AST 白名单、resource_quota、capability 映射；开放 UGC 脚本前必须就位,open
+module_pack / ugc 边界名存实亡,high,dsl/cpk.py PackType; orchestrator/loop.py; dsl/cpk_loader.py,UGC 平台专家; 对抗质证人,引入受信任发布者白名单/签名机制，禁止外部作者任意声明 module_pack；写入 ADR-0058,open
+ThemeRegistry 词汇表未启用 / 层1 原语蠕变,high,runtime/theme_registry.py; dsl/layer1.py; dsl/cpk_loader.py; dsl/validator.py,DSL 规则引擎专家; UGC 平台专家; 对抗质证人,填充 condition_predicates / action_verbs，CPK 加载器校验未注册谓词/动作报错，将 capability 与词汇表绑定；写入 ADR-0057,open
+command 事件未接入 8 段命令管线,high,dsl/layer1.py; runtime/commands.py; middleware/,DSL 规则引擎专家; 对抗质证人,在命令管线中间件或 adapter 中调用 evaluate_command，确保 deny-wins 与 notify_fail 对齐,open
+SkillData 招式表为空 / 战斗文化空心化,high,runtime/skill.py; combat/system.py; combat/context.py; themes/wuxia.py,MUD 玩法与文化专家; 游戏引擎/ECS 专家,M3-1 完成 21 门派核心招式 SkillData 注入 + query_action 招式选择，补全 perform/exert 最小路径,open
+金庸衍生 71 文件未清洗 / 版权阻断,medium-high,content_review/rules.py; content_review/precheck.py; docs/adr/ADR-0033.md,游戏制作人/范围管理; UGC 平台专家,产出 71 文件清单、替换名/同人标注 SOP、门3 provenance 回填流程；写入 ADR-0059,open
+M3 范围过载 / 平台特性与引擎并行挤占,high,orchestrator/; workbench/; content_gen/; runtime/; combat/,游戏制作人/范围管理,将 Agent/UGC 投入压缩到维持闭环可用，主力集中到核心循环；清理 workbench/ 中与 ADR-0053 不符的 FastAPI/WebSocket 后端,open
+NPC heart_beat / AI 未闭环使世界死寂,high,runtime/components.py; runtime/auto_fight.py; runtime/world.py; runtime/skill.py,MUD 玩法与文化专家; 游戏制作人/范围管理,实现最小 NPC heart_beat 闭环：chat 概率触发、random_move、aggressive init、自然恢复与死亡回收,open
+灵魂/阴间系统缺失影响生死体验,high,runtime/death.py; runtime/governance.py; runtime/heal.py,MUD 玩法与文化专家,实现最小阴间闭环：死亡后 move 阴间入口、death_stage 计时、黑白无常 30 秒后还阳/惩罚；补全鬼魂不可见与 astral_vision,open
+非武侠微场景硬门禁缺失,high,themes/default.py; runtime/theme_registry.py; combat/,游戏制作人/范围管理; 对抗质证人,在 default 题材下构造 5-10 房间 + 2 NPC + 1 战斗 + 1 任务 e2e，全部不引用武侠语义,open
+call_out / ActionScheduler 归属未收敛,high,runtime/engine.py; runtime/systems.py; runtime/conditions.py; runtime/governance.py; runtime/doors.py,游戏引擎/ECS 专家; DSL 规则引擎专家; 对抗质证人,补 ActionScheduler 原型，把延迟/自递归 call_out 从 EffectComp 与各 System 中剥离；写入 ADR-0060,open
+多实体 JSON 存档无事务原子性,medium,runtime/storage.py; serialization.py; ADR-0022,游戏服务器架构师,在 ADR-0022 台账 #1 中增加阶段1 已知限制段落；迁 PG 时作为首要补齐项,open
+System 注册顺序隐式时序依赖,medium,runtime/engine.py; runtime/systems.py; combat/system.py; runtime/conditions.py; runtime/heal.py,游戏引擎/ECS 专家,在 ADR 中明确 System update phase（pre_combat / combat / post_combat / persist），或增加 update_phase 优先级机制,open
+`status_eq` 脆弱集合字符串编码,medium,dsl/layer1.py; runtime/commands.py,DSL 规则引擎专家,改为 EvalContext 显式携带 dict[str,str] 标记值映射，避免等号文本误触发,open
+性能门禁缺少 CI 集成,medium,tests/test_load_test.py; tools/benchmark.py; tools/load_test.py,游戏引擎/ECS 专家; 游戏服务器架构师,将 1000 实体 / 100 并发 / 单 do_attack 微基准纳入 CI 门禁；写入 ADR-0055,open
+Persist 跳过导致崩溃丢失窗口扩大,medium,runtime/storage.py; runtime/profiler.py,游戏服务器架构师,在 tick profiler 中增加 persist 跳过次数指标，设定连续跳过 N 次后的告警/降级策略,open

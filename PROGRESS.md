@@ -21,14 +21,15 @@
 - [x] 规格补充 Batch 2：扩展 `layer_h_daemons2.py` 覆盖 FINGER_D / BAN_D / REGBAN_D / REGI_D / MARRY_D；新建 `layer_c_vote.py` 覆盖 vote / chblk / unchblk / vote_clear / vote_suspension - 1970 tests
 - [x] 规格补充 Batch 3：扩展 `layer_h_daemons2.py` 覆盖 EMOTE_D / INQUIRY_D / PIG_D / PROFILE_D / ADS_D / EDITOR_D / WEAPON_D / LANGUAGE_D / VIRTUAL_D；扩展 `layer_h_race.py` 覆盖 human.c `create` / `query_action` / `default_actions` / `set_default_object` / eff_jingli / max_neili 交互；新建 `layer_f_hell.py` 覆盖阴间主路径 + 关键惩罚房间 - 1970 tests
 - [x] 规格补充 Batch 4：新增 [ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md) 记录子层分类与范围决策 - 1970 tests
+- [x] **pilot 样本 id=1 `xue.c:main`**：迁移 [samples/xue_c_main.py](engine/tools/sampling/pilot/samples/xue_c_main.py) + 16 单测 [tests/test_xue_c_main.py](engine/tests/test_xue_c_main.py)；扩展 stubs.py 3 个 A 类回落桩；记 effort 125min 到 effort_records.jsonl；1994 tests 全绿
+- [x] **pilot 样本 id=3 `tieyanling.c:do_qingjiao`**：迁移 [samples/tieyanling_c_do_qingjiao.py](engine/tools/sampling/pilot/samples/tieyanling_c_do_qingjiao.py) + 15 单测 [tests/test_tieyanling_c_do_qingjiao.py](engine/tests/test_tieyanling_c_do_qingjiao.py)；扩展 stubs.py 1 个 teach_skillsname 桩；记 effort 65min；2009 tests 全绿
 
 ## In Progress
 
-**pilot AI 铺路完成**（feat/sampling-pilot），交人工计时 `xue.c:main`：
+**pilot 后续样本实测**（feat/sampling-pilot）：
 
-- 建桩 [stubs.py](engine/tools/sampling/pilot/stubs.py)（6 桩）+ scan 扩展 `status_kind_tier` 交叉表（补 output/ 产出）+ 实现 [estimate.py](engine/tools/sampling/pilot/estimate.py) 推算核心 + 8 单测
-- [xue 导航笔记](engine/tools/sampling/pilot/samples/xue_c_main.notes.md)（三态表+6桩+8后置分支+effort模板）；workflow 13 路三态对照完成，桩缺口清单 [stub_gaps.md](engine/tools/sampling/pilot/samples/stub_gaps.md)
-- **纠偏信号**：workflow 发现 ~40 桩缺口（超 ADR-0048 点名 7 桩），含架构层（item-as-entity/消息分发）；首批测 xue 校准锚点，漂移大则触发 ADR-0048 退路
+- 已完成 2/13 样本（xue 125min / tieyanling 65min），均 pending/logic/high，未触发纠偏退路
+- 继续按 manifest 测剩余 11 样本，每样本补迁移代码 + 测试 + effort 记录
 
 ## Blocked
 
@@ -36,8 +37,8 @@
 
 ## Next Up
 
-1. **人工计时 xue.c:main**（manifest id=1）：按 [导航笔记](engine/tools/sampling/pilot/samples/xue_c_main.notes.md) 补 8 后置分支 + 6 桩，记工时到 effort_records.jsonl。锚点 115-190min。
-2. **后续 12 样本**：按 [stub_gaps.md](engine/tools/sampling/pilot/samples/stub_gaps.md) 桩缺口测，A 类简单桩按需补建，B 类架构缺口记为待迁移面或触发退路。
+1. **样本 id=2 `d/wizard/center.c:do_check_menpai_job`**：job_data 子系统整体未迁移（B 类架构缺口），需决策记为待迁移面或简化测关键分支。
+2. **样本 id=4-13**：按 [samples_manifest.json](engine/tools/sampling/pilot/samples_manifest.json) 顺序推进，A 类简单桩按需补建，B 类架构缺口记为待迁移面。
 3. **推算区间承诺**：13 样本工时齐后跑 estimate.py，写报告 + 校验误分类率（>30% 触发退路）。
 
 ## kill criteria 状态（开工必读）
