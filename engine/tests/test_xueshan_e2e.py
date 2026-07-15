@@ -13,7 +13,7 @@ from pathlib import Path
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, ask, drink, give, go, kill, take
+from xkx.runtime.commands import Game, ask, drink, du, give, go, kill, take, unlock
 from xkx.runtime.components import (
     CombatState,
     Identity,
@@ -24,6 +24,8 @@ from xkx.runtime.components import (
     Progression,
     QuestLog,
     RoomComp,
+    Skills,
+    TitleComp,
     Vitals,
 )
 from xkx.runtime.world import build_world, spawn_player
@@ -560,3 +562,79 @@ def test_multi_opponent_advances_one_per_round() -> None:
     other = npc2 if selected == npc1 else npc1
     other_vitals = game.world.get(other, Vitals)
     assert other_vitals.qi == other_vitals.max_qi
+
+
+def test_du_scripture_improves_skill() -> None:
+    """du 研读经书加 longxiang-banruo（C3，对照 LPC lx-jing.c do_study）。"""
+    game, pid = _game(items={"xueshan/obj/lx-jing"}, start_room="xueshan/guangchang")
+    # 模拟 kneel 后 class=lama + 给潜能/精（du 消耗）
+    title = game.world.get(pid, TitleComp)
+    if title is None:
+        title = TitleComp()
+        game.world.add(pid, title)
+    title.char_class = "lama"
+    game.world.get(pid, Progression).potential = 10
+    game.world.get(pid, Vitals).jing = 200
+    before_pot = game.world.get(pid, Progression).potential
+    msgs = du(game, pid, "龙象般若经")
+    assert any("研读" in m for m in msgs)
+    assert game.world.get(pid, Progression).potential == before_pot - 1
+    skills = game.world.get(pid, Skills)
+    # du 必累积 learned 或升级 levels（improve_skill amount 下限 1）
+    assert (
+        skills.levels.get("longxiang-banruo", 0) > 0
+        or skills.learned.get("longxiang-banruo", 0) > 0
+    )
+
+
+def test_du_rejects_non_lama() -> None:
+    """du 需 class=lama（未剃度拒，对照 lx-jing.c:35）。"""
+    game, pid = _game(items={"xueshan/obj/lx-jing"}, start_room="xueshan/guangchang")
+    msgs = du(game, pid, "龙象般若经")
+    assert any("未入佛门" in m for m in msgs)
+
+
+def test_cangjing_fojing_take_and_reach() -> None:
+    """C1：铁钥匙开锁进藏经阁，take 般若经（du 研读加 longxiang-banruo）。"""
+    game, pid = _game(start_room="xueshan/changlang", items={"xueshan/obj/key"})
+    go(game, pid, "north")  # 长廊 -> 大殿
+    unlock(game, pid, "north")  # 开铁锁门（持钥匙）
+    go(game, pid, "north")  # 大殿 -> 藏经阁
+    assert game.world.get(pid, Position).room_id == "xueshan/cangjing"
+    take(game, pid, "般若经")
+    assert "xueshan/obj/fojing" in game.world.get(pid, Inventory).items
+
+
+def test_mishi_dan_drink_restores() -> None:
+    """C2：密室雪莲丹 drink 恢复气+精（qi_recover/jing_recover）。"""
+    game, pid = _game(start_room="xueshan/mishi", items={"xueshan/obj/dan"})
+    vitals = game.world.get(pid, Vitals)
+    vitals.qi = 10
+    vitals.jing = 10
+    drink(game, pid, "雪莲丹")
+    assert vitals.qi > 10  # qi 恢复（qi_recover=150）
+    assert vitals.jing > 10  # jing 恢复（jing_recover=100）
+
+
+def test_wolf_quest_kill_completes() -> None:
+    """B4：kill 野狼完成清剿 quest + 奖 exp/potential。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    # 手动接任务（设 in_progress，绕过 ask 葛伦布 野狼 的长路径）
+    log = game.world.get(pid, QuestLog)
+    if log is None:
+        log = QuestLog()
+        game.world.add(pid, log)
+    log.statuses["xueshan/quest/wolf"] = "in_progress"
+    log.current_step["xueshan/quest/wolf"] = 0
+    # 强玩家秒杀野狼
+    game.world.get(pid, Vitals).qi = 99999
+    game.world.get(pid, Skills).levels["unarmed"] = 500
+    before_exp = game.world.get(pid, Progression).combat_exp
+    before_pot = game.world.get(pid, Progression).potential
+    kill(game, pid, "野狼")
+    assert (
+        game.world.get(pid, QuestLog).statuses["xueshan/quest/wolf"] == "completed"
+    )
+    # +50 npc death（_handle_npc_death）+ 200 quest reward（战斗命中另有少量 exp）
+    assert game.world.get(pid, Progression).combat_exp >= before_exp + 250
+    assert game.world.get(pid, Progression).potential == before_pot + 50

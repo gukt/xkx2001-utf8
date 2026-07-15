@@ -80,3 +80,30 @@
     flag: 读经
     message: 拉章活佛点头：这本经书你拿回去好好钻研。
     time_gate: 0
+# C1：藏经阁取经 quest（开锁进藏经阁 reach_room，giver 拉章活佛）
+- id: xueshan/quest/cangjing
+  name: 藏经阁取经
+  giver: xueshan/npc/lazhangfo
+  trigger: 藏经阁
+  description: 拉章活佛说：藏经阁中有一册般若经，取来研读必有进益。
+  objectives:
+  - kind: reach_room
+    room_id: xueshan/cangjing
+  reward:
+    exp: 300
+    message: 拉章活佛赞许：般若经乃密宗至宝，你且拿去研读（du 般若经）。
+    time_gate: 0
+# B4：新手 kill 野狼 quest（giver 葛伦布，kill_npc 野狼，reward exp+potential）
+- id: xueshan/quest/wolf
+  name: 清剿野狼
+  giver: xueshan/npc/gelun1
+  trigger: 野狼
+  description: 葛伦布说：忘忧谷有一只伤人的野狼，替佛爷清剿了它。
+  objectives:
+  - kind: kill_npc
+    npc_id: xueshan/npc/yelang
+  reward:
+    exp: 200
+    potential: 50
+    message: 葛伦布合什：施主武艺精进，佛爷保佑。
+    time_gate: 0

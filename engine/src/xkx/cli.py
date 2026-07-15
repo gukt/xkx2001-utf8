@@ -23,7 +23,9 @@ from xkx.runtime.commands import (
     bai,
     betrayer,
     dazuo,
+    drink,
     drop,
+    du,
     enable,
     fight,
     flee,
@@ -66,6 +68,7 @@ HELP_TEXT = """\
                           u d nu su eu wu nd sd ed wd（如 n = go north）
   look                    查看当前房间（简写 l）
   get <物品>              捡起地上的物品（也支持 take）
+  drink <物品>            喝/服用（酥油茶恢复精，雪莲丹恢复气）
   kill <NPC>              攻击 NPC（多回合战斗，至一方倒下）
   fight <NPC>             切磋武艺（点到为止，不致死）
   ask <NPC> about <话题>  向 NPC 打听/对话
@@ -80,6 +83,7 @@ HELP_TEXT = """\
   dazuo <气量>            打坐练内力（须先 enable 内功）
   tuna <精量>             吐纳练精力
   enable [种类] [技能]    启用特殊技能映射（种类如 force；无参查看当前）
+  du <经书>               研读经书提升武功（须先 kneel 剃度入佛门）
   betrayer                叛出师门
   help                    显示本帮助（简写 h）
   quit                    退出游戏
@@ -127,6 +131,9 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     prog = world.get(pid, Progression)
     if prog is not None:
         prog.potential = 100
+        # B3：combat_exp 便利值（同 potential 便利逻辑），让 longxiang-banruo 能学到
+        # ~36（拜萨木门槛 30）；spawn_player 默认 500 会卡在 ~17（my_skill³/10>500）。
+        prog.combat_exp = 5000
     skills = world.get(pid, Skills)
     if skills is not None:
         skills.levels["force"] = 30
@@ -283,6 +290,13 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         _print(drop(game, pid, " ".join(args)))
         _advance_heartbeat(game)
         return True
+    if cmd in ("drink", "he"):
+        if not args:
+            print("要喝什么？如：drink 酥油茶")
+            return True
+        _print(drink(game, pid, " ".join(args)))
+        _advance_heartbeat(game)
+        return True
     if cmd == "kill":
         if not args:
             print("要攻击谁？如：kill 葛伦布")
@@ -400,6 +414,13 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
         skill_type = args[0] if args else ""
         map_to = args[1] if len(args) >= 2 else ""
         _print(enable(game, pid, skill_type, map_to))
+        return True
+    if cmd in ("du", "study"):
+        if not args:
+            print("你要研读什么？如：du 龙象般若经")
+            return True
+        _print(du(game, pid, " ".join(args)))
+        _advance_heartbeat(game)
         return True
 
     print(f"未知命令「{cmd}」，输入 help 查看帮助。")

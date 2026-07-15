@@ -161,6 +161,7 @@ class QuestReward(BaseModel):
     """
 
     exp: int = 0
+    potential: int = 0  # B4：奖励潜能（du/learn 消耗，clamp max_potential）
     flag: str = ""  # 完成后设置的标记（LPC set_temp("marks/X")）
     message: str = ""  # 完成时给玩家的消息
     time_gate: int = 0  # M3-1：可重复任务冷却 tick 数（0=一次性）
@@ -229,6 +230,9 @@ class ItemDef(BaseModel):
     drink_supply: int = 0  # 喝后加水度（LPC add("water", drink_supply)）
     food_supply: int = 0  # 喝后加食物度（LPC add("food", food_supply)）
     jing_recover: int = 0  # 喝后恢复精（LPC jing = min(eff_jing, jing+recover)）
+    qi_recover: int = 0  # C2：喝后恢复气（LPC qi = min(max_qi, qi+recover)，丹药）
+    # C3：研读经书加技能（对照 LPC lx-jing.c do_study）。非空 = 可 du 研读，加该技能。
+    read_skill: str = ""
 
 
 class SkillDef(BaseModel):

@@ -266,9 +266,9 @@ def test_full_playtest_loop() -> None:
 
 
 def test_cli_load_game() -> None:
-    """load_game 返回可用的 game + player（起点 shanmen）。"""
+    """load_game 返回可用的 game + player（起点 dshanlu，B1 改起始避卡门）。"""
     game, pid = load_game()
-    assert game.world.get(pid, Position).room_id == "xueshan/shanmen"
+    assert game.world.get(pid, Position).room_id == "xueshan/dshanlu"
 
 
 def test_cli_parse_quit_returns_false() -> None:
@@ -310,9 +310,8 @@ def test_cli_parse_unknown() -> None:
 
 
 def test_cli_playtest_flow() -> None:
-    """CLI 完整试玩流程：go eastdown -> take -> go westup -> ask -> give -> go north。"""
+    """CLI 完整试玩流程：take（起点 dshanlu 有酥油）-> go westup -> ask -> give -> go north。"""
     game, pid = load_game()
-    assert parse_and_run(game, pid, "go eastdown") is True
     assert parse_and_run(game, pid, "take suyou_guan") is True
     assert "suyou_guan" in game.world.get(pid, Inventory).items
     assert parse_and_run(game, pid, "go westup") is True
@@ -348,6 +347,8 @@ def test_cli_kill_paces_combat_output(monkeypatch, capsys) -> None:
     # 强玩家秒杀葛伦布，避免触发死亡轮回拖长
     game.world.get(pid, Vitals).qi = 99999
     game.world.get(pid, Skills).levels["unarmed"] = 500
+    # 起点已改 dshanlu（B1），先 go westup 到山门再 kill 葛伦布
+    assert parse_and_run(game, pid, "go westup") is True
     assert parse_and_run(game, pid, "kill 葛伦布") is True
     out = capsys.readouterr().out
     assert "发起了攻击" in out  # 战斗消息经 _print_paced 输出

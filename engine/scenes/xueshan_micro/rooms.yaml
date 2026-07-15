@@ -115,6 +115,8 @@
       closed: true
       locked: true
       key_id: xueshan/obj/key
+  items:
+  - xueshan/obj/fojing
 - id: xueshan/hongdian
   short: 红殿
   long: 这里是大轮寺的红殿，殿内光线暗淡，壁上画像色暗。殿正中供着密集金刚。金刚三面，戴宝冠，主面三睛，耳饰大环，上身裸，下着长裙，结跏趺坐，六臂，两主臂拥明妃，其余两臂分张两侧各执法器，明妃亦六臂，与金刚相向而拥，两腿盘腰後。金刚座下有石莲花、海石榴花、太平花和十字花。
@@ -183,6 +185,8 @@
       other_room: xueshan/wangyou
       other_dir: north
       closed: true
+  items:
+  - xueshan/obj/dan
 - id: xueshan/beilu
   short: 大雪山北麓
   long: 这里山势比大雪山东面稍缓，也不是十分的严寒。山道两旁长得有稀稀拉拉的一些野草。四下毫无人迹，只有几只秃鹰在高处盘旋，俯视着茫茫雪山。

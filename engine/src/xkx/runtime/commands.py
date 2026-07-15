@@ -247,10 +247,14 @@ def _complete_quest(game: Game, actor_id: int, qid: str) -> list[str]:
     reward = q.get("reward", {})
     msgs: list[str] = []
     exp = reward.get("exp", 0)
-    if exp:
+    potential = reward.get("potential", 0)
+    if exp or potential:
         prog = world.get(actor_id, Progression)
         if prog:
-            prog.combat_exp += exp
+            if exp:
+                prog.combat_exp += exp
+            if potential:
+                prog.potential = min(prog.max_potential, prog.potential + potential)
     flag = reward.get("flag", "")
     if flag:
         marks = world.get(actor_id, Marks)
@@ -568,7 +572,7 @@ def fight(game: Game, actor_id: int, target_name: str) -> list[str]:
         return ["你没有位置。"]
     target_eid = _find_npc_in_room(world, pos.room_id, target_name)
     if target_eid is None:
-        return [f"这里没有「{target_name}。"]
+        return [f"这里没有「{target_name}」。"]
     target_ident = world.get(target_eid, Identity)
     target_pid = target_ident.prototype_id if target_ident else ""
     # 取匹配 fight_win objective 的 win_threshold（默认 50%，对照 darba.c:109）
@@ -725,8 +729,8 @@ def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[s
 def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
     """任务查询命令（S4 ADR-0007 + M3-1 多步进度）：quest / quest <id>。
 
-    ``quest`` 列出所有任务状态（in_progress 显示 current_step/total）；``quest <id>``
-    查单个任务状态。
+    ``quest`` 只列进行中/已完成任务（not_started 折叠为"可接任务 N 个"提示，需向
+    NPC 打听接取，避免新手被一堆未接触任务刷屏）；``quest <id>`` 查单个任务状态。
     """
     world = game.world
     log = world.get(actor_id, QuestLog)
@@ -739,10 +743,22 @@ def quest(game: Game, actor_id: int, arg: str = "") -> list[str]:
         return [_quest_brief(q, arg, status, log)]
     if not game.quests:
         return ["当前没有可接任务。"]
-    lines = []
+    lines: list[str] = []
+    available_count = 0
     for qid, q in game.quests.items():
         status = statuses.get(qid, "not_started")
-        lines.append(_quest_brief(q, qid, status, log))
+        if status == "not_started":
+            available_count += 1
+        else:
+            lines.append(_quest_brief(q, qid, status, log))
+    if not lines:
+        lines.append("暂无进行中任务。")
+    if available_count:
+        lines.append(
+            "可接任务 "
+            + str(available_count)
+            + " 个，向 NPC 打听接取（如 ask 葛伦布 about 还愿）。"
+        )
     return lines
 
 
@@ -850,7 +866,8 @@ def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
     drink_supply = spec.get("drink_supply", 0) if isinstance(spec, dict) else 0
     food_supply = spec.get("food_supply", 0) if isinstance(spec, dict) else 0
     jing_recover = spec.get("jing_recover", 0) if isinstance(spec, dict) else 0
-    if not (drink_supply or food_supply or jing_recover):
+    qi_recover = spec.get("qi_recover", 0) if isinstance(spec, dict) else 0
+    if not (drink_supply or food_supply or jing_recover or qi_recover):
         return ["这东西不能喝。"]
     vitals = world.get(actor_id, Vitals)
     if vitals is None:
@@ -861,6 +878,8 @@ def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
         vitals.food += food_supply
     if jing_recover and vitals.eff_jing > 0:
         vitals.jing = min(vitals.eff_jing, vitals.jing + jing_recover)
+    if qi_recover:
+        vitals.qi = min(vitals.max_qi, vitals.qi + qi_recover)
     inv.items.discard(item_id)  # set 语义，喝一次消失
     return [f"你喝下{_item_name(game, item_id)}，顿觉神清气爽。"]
 
@@ -1377,7 +1396,7 @@ def learn(
     vitals.jing -= gin_cost  # 扣 jing（learn.c:148 receive_damage）
     msgs = [f"你向「{teacher_name}」请教了「{skill_id}」。"]
     if blocked_by_exp:
-        msgs.append("你缺乏实战经验，无法领会这种武功。")
+        msgs.append("你缺乏实战经验，无法领会这种武功（击败敌人可积累实战经验）。")
         return msgs
     if improve_skill(world, actor_id, skill_id, gain):
         msgs.append(f"你的「{skill_id}」进步了！")
@@ -1432,6 +1451,54 @@ def practice(
             break
         if improve_skill(world, actor_id, skillname, amount, weak_mode=weak_mode):
             msgs.append(f"你的「{skillname}」进步了！")
+    return msgs
+
+
+def du(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """du|study 研读命令（C3，对照 LPC lx-jing.c do_study）。
+
+    研读经书加技能：持经书 + class=lama + potential>=1 + jing>=cost + 非 busy/fighting
+    -> improve_skill(read_skill, random(int*3/2)) + 扣 jing(1500/int) + 扣 potential。
+    简化（后置）：literate 门控 / lamaism>=150 门控后置（demo 无门槛）。
+    """
+    world = game.world
+    if is_busy(world, actor_id):
+        return ["你现在正忙着呢。"]
+    combat = world.get(actor_id, CombatState)
+    if combat and combat.is_fighting:
+        return ["你无法在战斗中专心研读。"]
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你没有「{item_query}」。"]
+    spec = game.item_registry.get(item_id, {})
+    read_skill = spec.get("read_skill", "") if isinstance(spec, dict) else ""
+    if not read_skill:
+        return ["这东西没法研读。"]
+    # class=lama 门控（对照 lx-jing.c:35 class!=lama 拒）
+    title_comp = world.get(actor_id, TitleComp)
+    if not title_comp or title_comp.char_class != "lama":
+        return ["你未入佛门，尘缘不断，无法修持密宗神法。"]
+    prog = world.get(actor_id, Progression)
+    if prog is None or prog.potential < 1:
+        return ["你的潜能不够。"]
+    attrs = world.get(actor_id, Attributes)
+    int_val = attrs.int_ if attrs else 20
+    vitals = world.get(actor_id, Vitals)
+    if vitals is None:
+        return ["你没有状态。"]
+    gin_cost = 1500 // int_val if int_val > 0 else 1500  # 对照 lx-jing.c:75
+    if vitals.jing < gin_cost:
+        return ["你现在过于疲倦，无法专心研读。"]
+    gain = random.randint(0, max(0, int_val * 3 // 2))  # 对照 lx-jing.c:74
+    prog.potential -= 1
+    vitals.jing -= gin_cost
+    msgs = [f"你仔细研读{_item_name(game, item_id)}。"]
+    if improve_skill(world, actor_id, read_skill, gain):
+        msgs.append(f"你的「{read_skill}」进步了！")
+    else:
+        msgs.append("你研读片刻，似乎略有心得。")
     return msgs
 
 
@@ -1809,6 +1876,14 @@ def _adapter_enable(game: Game, ctx: ActionContext) -> list[str]:
     return enable(game, ctx.actor, args[0], args[1])
 
 
+def _adapter_du(game: Game, ctx: ActionContext) -> list[str]:
+    """du|study 命令适配器：du <经书>。"""
+    raw = ctx.raw_args.strip()
+    if not raw:
+        return ["你要研读什么？（如：du 龙象般若经）"]
+    return du(game, ctx.actor, raw)
+
+
 # 命令注册表：verb -> adapter (game, ctx) -> list[str]
 # 阶段 1 的 10 命令 + get（take 别名），全部 cmds/std/cmds/usr 范畴
 COMMAND_REGISTRY: dict[str, Any] = {
@@ -1844,6 +1919,8 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "respirate": _adapter_tuna,
     "enable": _adapter_enable,
     "jifa": _adapter_enable,
+    "du": _adapter_du,
+    "study": _adapter_du,
 }
 
 

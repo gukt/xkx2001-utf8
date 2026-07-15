@@ -8,13 +8,13 @@
 
 ## 当前状态速览
 
-- **阶段**：M3 收官后技术债补缺口第 4 轮（B-2/C5 残留后置收尾）
+- **阶段**：M3 收官后产品化收尾窗口（demo 打磨 9 项完成）
 - **分支**：feat/stage-3-techdebt-r3
-- **tests**：1807 全绿，ruff 全过
+- **tests**：1812 全绿，ruff 全过
 - **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）/ [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)（多对手+钥匙系统，B-2/C5 收尾）
-- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；抽样校准阶段 B 方案修正完成（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，降级区间承诺 + pilot 纠偏，14-20h 省 75-85%），pilot 脚手架/manifest 就绪，实测待启动；B-2/C5 残留后置收尾（多对手+钥匙完成 [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)，berserk/动态 exit/SMASHED 仍后置）
+- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问，用户已选产品化收尾窗口方向）；demo 打磨 9 项完成（A1/B1/B2/B3/B5/C1/C2/C3/B4）；抽样校准 pilot 实测待启动（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，人工工时红线，被测环节留人工）；berserk 语义裁决待用户（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md) §不做）
 - **工具链**：仓库根新增 [justfile](justfile) task runner（24 recipe 自带 `cd engine && uv run`，agent 在仓库根 `just <recipe>` 即可，`just --list` 自举）；CLAUDE.md/本文件命令行已同步改 `uv run`。ruff format 有 85 文件历史漂移，可单独 `just format` 全量格式化。
-- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock/unlock 门 + 钥匙开锁；战斗逐条节奏输出 + 死亡还阳闭环 + learn 链可测）+ `python -m xkx.content_review` 审核 pipeline
+- **可玩 demo**：CLI `python -m xkx.cli` 闭环（起始 dshanlu 免卡门 + 供奉/拜师/kneel/learn/du 研读经书链 + drink 闭环 + aggressive/hatred/vendetta NPC + open/close/knock/unlock 门 + 钥匙开锁 + 藏经阁取经 + 密室雪莲丹 + kill 野狼 quest；战斗逐条节奏 + 死亡还阳）+ `python -m xkx.content_review` 审核 pipeline
 
 ## Done
 
@@ -32,6 +32,7 @@
 - [x] 抽样校准实验阶段 B 设计定稿（[ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)）- 函数级分布（7991 函数）+ greenfield 工时语义（已实现 82.4%/待迁移 17.6%=10422 调用点/1159 函数）+ 修正抽样面 + 80 样本候选清单 + 实测方法论定稿 - 1799 tests
 - [x] 抽样校准阶段 B 方案修正（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)）- 评审团 4 方案+3 评委三方收敛：80 样本窄 CI 降级为 pilot 13+类比基准区间承诺（14-20h 省 75-85%）+误分类定量纠偏+回归按需后置+LLM 否决（工时语义污染）；pilot 脚手架+manifest 就绪 - 1799 tests
 - [x] 技术债补缺口第 4 轮（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）- B-2 多对手 select_opponent（修正每 tick 全打 bug，combat seed+combat_selects 跨层）+ C5 钥匙系统（key_id+unlock+铁钥匙场景）；berserk/动态 exit/SMASHED 仍后置 - 1807 tests
+- [x] Demo 打磨（产品化收尾窗口，9 项）- A1 fight 提示引号 + B1 起始 dshanlu+卡门引导 + B5 quest 只列进行中 + B2 NPC 中文短 alias + B3 combat_exp 便利+learn 引导 + C3 du 研读（对照 LPC lx-jing.c，ItemDef read_skill）+ C1 藏经阁般若经+取经 quest + C2 密室雪莲丹+drink qi（ItemDef qi_recover）+ B4 kill 野狼 quest（QuestReward potential）- 1812 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
@@ -41,6 +42,8 @@
 - **M3-4 版权清洗后置**（用户决策 2026-07-14，未商业化阶段过早清洗是过度工程）：雪山派 CPK 含 4 金庸角色（金轮法王/鸠摩智/灵智上人/达尔巴）+ 雪山派门派名本身（[ADR-0033](docs/adr/ADR-0033-content-review-pipeline-mvp.md) 关键发现）。M3-3 预检标记 `needs_review` 待办，商业化前清洗时预检就位。全量改编化/标注/授权 + provenance 版权链回填后置门3。
 
 ## In Progress
+
+**Demo 打磨（产品化收尾窗口）完成**（9 项，详见 Done）：A1/B1/B2/B3/B5/C1/C2/C3/B4。1812 tests 全绿。方向=用户选产品化收尾窗口（Q2 暂否，聚焦已迁移内容产品化；pilot 被测环节受人工工时红线约束留人工，berserk 卡语义裁决）。
 
 **M3 收官后技术债补缺口第 4 轮完成**（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）。B-2 多对手 select_opponent（修正每 tick 全打 bug，combat seed 选目标+combat_selects 跨层）+ C5 钥匙系统（key_id+unlock 命令+铁钥匙场景）落地。1807 tests 全绿。berserk/动态 exit/SMASHED 仍后置。
 

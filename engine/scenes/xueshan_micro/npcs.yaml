@@ -67,6 +67,7 @@
   - changqi lama
   - changqi
   - lama
+  - 昌齐
   gender: 男性
   age: 60
   attitude: peaceful
@@ -119,6 +120,7 @@
   - samu huofo
   - samu
   - huofo
+  - 萨木
   gender: 男性
   age: 45
   attitude: heroism
@@ -201,6 +203,7 @@
   - lingzhi shangren
   - lingzhi
   - shangren
+  - 灵智
   gender: 男性
   age: 45
   attitude: peaceful
@@ -255,6 +258,7 @@
   - jinlun fawang
   - jinlun
   - fawang
+  - 金轮
   gender: 男性
   age: 50
   attitude: peaceful
@@ -307,6 +311,7 @@
   aliases:
   - jiumozhi
   - jiu
+  - 鸠摩
   gender: 男性
   age: 45
   attitude: peaceful
@@ -359,6 +364,7 @@
   - jiamu huofo
   - jiamu
   - huofo
+  - 嘉木
   gender: 男性
   age: 80
   attitude: friendly
@@ -403,6 +409,7 @@
   - lazhang huofo
   - lazhang
   - huofo
+  - 拉章
   gender: 男性
   age: 65
   attitude: friendly

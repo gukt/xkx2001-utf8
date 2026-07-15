@@ -74,7 +74,7 @@ class ThemeConfig:
         （武当/少林等中文）。
         """
         return cls(
-            start_room="xueshan/shanmen",
+            start_room="xueshan/dshanlu",
             death_room="death/gate",
             revive_room="city/wumiao",
             jail_rooms={
