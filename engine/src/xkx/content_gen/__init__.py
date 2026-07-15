@@ -17,7 +17,9 @@ from xkx.content_gen.generate import (
     generate_npc,
     generate_quest,
     generate_room,
+    generate_rule,
     generate_skill,
+    revise_asset,
 )
 from xkx.content_gen.llm_client import LLMClient, VolcanoArkClient, load_dotenv
 
@@ -30,4 +32,6 @@ __all__ = [
     "generate_quest",
     "generate_room",
     "generate_item",
+    "generate_rule",
+    "revise_asset",
 ]

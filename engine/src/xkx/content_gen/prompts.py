@@ -239,3 +239,74 @@ def build_item_prompt(lpc_source: str, item_id: str) -> list[dict[str, str]]:
         "LPC set_name(中文名, ({别名数组})) -> name + aliases。",
     ]
     return _wrap(lpc_source, "\n".join(lines))
+
+
+def build_rule_prompt(
+    lpc_source: str,
+    rule_id: str,
+    event_type: str = "valid_leave",
+) -> list[dict[str, str]]:
+    """EventRule 转译 prompt（层1 事件规则 condition -> action）。"""
+    lines = [
+        f'将上述 LPC 事件钩子转译为单个 EventRule 的 YAML（顶层 dict，id="{rule_id}"，'
+        f'event="{event_type}"）。',
+        "",
+        "EventRule schema 字段：",
+        "id / event(valid_leave|accept_object|ask|command) / "
+        "condition(Predicate) / action(deny|allow|set_flag|clear_flag)",
+        "priority(int) / message(单行触发消息) / dir(方向，仅 valid_leave) / "
+        "verb(命令动词，仅 command)",
+        "npc_id(完整 NPC id) / item_id(物品 id) / flag(标记名) / "
+        "topic(ask 话题) / spawn_items(list，仅 ask/accept_object)",
+        "",
+        "Predicate 结构：",
+        "- kind: always | attr_lt | age_lt | present_npc | has_flag | family_eq | "
+        "has_item | attr_eq | attr_in | status_eq | same_object | mud_age_lt",
+        "- kind=always 时其他字段可省略；kind=attr_lt/age_lt/mud_age_lt 时用 value(int)；"
+        "kind=attr_eq/status_eq 时用 value_str(str)",
+        "- kind=present_npc 用 npc_id；kind=has_flag 用 flag + flag_source(query|temp，默认 query)",
+        "- kind=family_eq 用 family；kind=has_item 用 item_id / item_category / item_name 三选一",
+        "- kind=attr_in 用 values(list[str])",
+        "- 组合谓词：all(list[Predicate]) / any(list[Predicate]) / not(Predicate)，"
+        "组合节点优先于 kind",
+        "",
+        "spawn_items 结构：item_id / room_id / count",
+        "",
+        "输出要求：只输出纯 YAML（顶层 dict），不要 ``` 围栏，不要解释文字。",
+    ]
+    return _wrap(lpc_source, "\n".join(lines))
+
+
+def build_revision_prompt(
+    asset_type: str,
+    asset_id: str,
+    current_yaml: str,
+    findings: list[str],
+    rag_context: str = "",
+) -> list[dict[str, str]]:
+    """根据校验 finding 修订 asset YAML 的 prompt。"""
+    user_lines = [
+        f"请修订以下 {asset_type} `{asset_id}` 的 YAML，使其通过校验。",
+        "",
+        "当前 YAML：",
+        "----",
+        current_yaml,
+        "----",
+        "",
+        "需要修复的问题：",
+    ]
+    user_lines.extend(f"- {f}" for f in findings)
+    user_lines.extend([
+        "",
+        "约束：",
+        "- 保持原有 id、类型和语义，只修问题。",
+        "- id 引用必须用完整 id（房间 xueshan/<room>，NPC xueshan/npc/<name>，物品英文 id）。",
+        "- 文本字段单行，不要 YAML 多行（| />）。",
+        "- 只输出纯 YAML，不要 ``` 围栏，不要解释文字。",
+    ])
+    if rag_context:
+        user_lines.extend(["", "世界圣经约束：", rag_context])
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": "\n".join(user_lines)},
+    ]

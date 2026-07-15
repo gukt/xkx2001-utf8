@@ -12,14 +12,18 @@ from xkx.content_gen.generate import (
     generate_npc,
     generate_quest,
     generate_room,
+    generate_rule,
     generate_skill,
+    revise_asset,
 )
 from xkx.content_gen.llm_client import LLMClient
 from xkx.content_gen.prompts import (
     build_item_prompt,
     build_npc_prompt,
     build_quest_prompt,
+    build_revision_prompt,
     build_room_prompt,
+    build_rule_prompt,
     build_skill_prompt,
 )
 
@@ -162,3 +166,47 @@ class TestPrompts:
         """FakeLLMClient 满足 LLMClient 协议（结构化类型，运行时无操作）。"""
         client: LLMClient = FakeLLMClient("id: x")
         assert client is not None
+
+
+class TestGenerateRule:
+    """rule 生成与修订 prompt。"""
+
+    def test_generate_rule_sets_defaults(self) -> None:
+        llm = FakeLLMClient("event: valid_leave\ncondition:\n  kind: always\n"
+                            "action: deny\npriority: 10\nmessage: 不能走")
+        data = generate_rule(llm, "LPC", "r1/block")
+        assert data["id"] == "r1/block"
+        assert data["event"] == "valid_leave"
+
+    def test_build_rule_prompt_contains_predicate_schema(self) -> None:
+        msgs = build_rule_prompt("LPC", "r1/block", "valid_leave")
+        user = msgs[1]["content"]
+        assert "EventRule" in user
+        assert "Predicate" in user
+        assert "spawn_items" in user
+
+
+class TestReviseAsset:
+    """根据 findings 修订 asset。"""
+
+    def test_revise_asset_updates_current(self) -> None:
+        llm = FakeLLMClient("id: xueshan/r1\nshort: 修正后\nlong: 修正\n"
+                            "objects: {}\nitems: []\noutdoors: true\n"
+                            "no_fight: false\ndoors: {}\nexits: {}\n")
+        current = {
+            "id": "xueshan/r1",
+            "short": "旧",
+            "long": "旧长文本",
+        }
+        data = revise_asset(llm, "room", "xueshan/r1", current,
+                            ["exit 指向未知房间"])
+        assert data["id"] == "xueshan/r1"
+        assert data["short"] == "修正后"
+
+    def test_build_revision_prompt_contains_findings(self) -> None:
+        msgs = build_revision_prompt(
+            "room", "xueshan/r1", "id: x\n", ["exit 错误"]
+        )
+        user = msgs[1]["content"]
+        assert "exit 错误" in user
+        assert "只输出纯 YAML" in user

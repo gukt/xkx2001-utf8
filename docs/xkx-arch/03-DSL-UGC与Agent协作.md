@@ -280,8 +280,8 @@ Orchestrator(RAG 世界圣经) 拆解 DAG ──> 按需唤起专项能力生成
 | 对话树 | Ink 语义子集 | 避免外部二进制依赖 |
 | 沙箱 | RestrictedPython（UGC + 平台级统一两层） | 砍 WASM；燃料计量 |
 | Agent 编排 | 内存状态机（MVP） | LangGraph 仅过渡原型 |
-| LLM | Claude API 主 + 可插拔 GLM | 符合部署环境 |
-| MCP 验证 | Model Context Protocol + networkx | 图可达性 + combat-sim |
+| LLM | 火山方舟主 + 可插拔 adapter（Claude/GLM 可选） | 符合部署环境，ADR-0053 |
+| MCP 验证 | Model Context Protocol + stdlib BFS（networkx 后置） | 图可达性 + combat-sim |
 | 资产存储 | blake3 + 本地 JSON（经 StorageBackend 接口） | 内容寻址，后期策略切换 PG |
 | 任务队列 | MVP 不用 Celery，单进程 asyncio | 验证收敛后再引入 |
 | 评审工作台 | FastAPI + WebSocket + 可视化预览 | 场景图/对话图 |

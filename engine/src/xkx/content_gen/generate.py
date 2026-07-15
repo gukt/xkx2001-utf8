@@ -16,7 +16,9 @@ from xkx.content_gen.prompts import (
     build_item_prompt,
     build_npc_prompt,
     build_quest_prompt,
+    build_revision_prompt,
     build_room_prompt,
+    build_rule_prompt,
     build_skill_prompt,
 )
 
@@ -107,4 +109,51 @@ def generate_item(llm: LLMClient, lpc_source: str, item_id: str) -> dict[str, An
     if not isinstance(data, dict):
         raise ValueError(f"generate_item({item_id}) 期望 dict，得到 {type(data).__name__}")
     data.setdefault("id", item_id)
+    return data
+
+
+def generate_rule(
+    llm: LLMClient,
+    lpc_source: str,
+    rule_id: str,
+    event_type: str = "valid_leave",
+) -> dict[str, Any]:
+    """生成 EventRule v0 dict（层1 事件规则）。"""
+    raw = llm.chat(build_rule_prompt(lpc_source, rule_id, event_type))
+    data = _parse(raw)
+    if not isinstance(data, dict):
+        raise ValueError(f"generate_rule({rule_id}) 期望 dict，得到 {type(data).__name__}")
+    data.setdefault("id", rule_id)
+    data.setdefault("event", event_type)
+    return data
+
+
+def revise_asset(
+    llm: LLMClient,
+    asset_type: str,
+    asset_id: str,
+    current: dict[str, Any],
+    findings: list[str],
+    rag_context: str = "",
+) -> dict[str, Any]:
+    """根据 findings 修订 asset dict。
+
+    将 current dict 序列化为 YAML 后交给 LLM，返回解析后的修订版 dict。
+    如果 LLM 输出不是 dict，抛出 ValueError（ Orchestrator 会将其记为 finding）。
+    """
+    current_yaml = yaml.safe_dump(
+        current,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+    )
+    raw = llm.chat(
+        build_revision_prompt(asset_type, asset_id, current_yaml, findings, rag_context)
+    )
+    data = _parse(raw)
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"revise_asset({asset_type}/{asset_id}) 期望 dict，得到 {type(data).__name__}"
+        )
+    data.setdefault("id", current.get("id", asset_id))
     return data
