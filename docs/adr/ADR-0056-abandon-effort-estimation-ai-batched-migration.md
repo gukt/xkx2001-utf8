@@ -46,3 +46,20 @@
 - 第一批实施计划单独文档（plan-before-execute），定 item-as-entity / message facade / per-object save / job_data 的优先级与范围。
 - [PROGRESS.md](../../PROGRESS.md) 更新：阶段 0 pilot 收尾，转入"AI 分批迁移"阶段。
 - [ADR-0048](ADR-0048-stage-b-degraded-interval-pilot.md) 状态加注"工时承诺部分被 ADR-0056 退役，pilot 副产出保留"。
+
+## 附录：第二批调研结论摘要（2026-07-15，3 agent 调研）
+
+第一批（message facade）已完成。第二批两个缺口的调研结论供新 session 接力：
+
+### per-object save（卡 id=2/9）
+
+- 现状：`StorageSystem` 是 world 级周期快照（per-entity 文件按 eid 寻址），无"单例数据对象按自定义路径主动 save/restore"。
+- 推荐：方案 B DaemonStore（独立于 StorageSystem，复用 `_write_entity_atomic` 原子写 helper，`register`/`get`/`save`/`restore_all`，存档 `<root>/daemon/`）。覆盖 job_data / bboard / job_server / mapdb 全部 F_SAVE 单例。
+- 工程量：机制层小-中（半天-1 天）；数据建模（job_data 60+ 变量 / bboard notes 结构）随各子系统迁移批。崩溃安全复用原子写 + offload，daemon 主动 save 不走 dirty-flag（业务时机），不违反不变量。建议新 ADR 关联 [ADR-0022](ADR-0022-json-save-crash-recovery-dirty-flag.md)。
+
+### item-as-entity（卡 id=5/8，已迁完收口性质）
+
+- 现状：物品是 str `item_id` 无 `ItemComp`；`weight` -> 角色负重，`rigidity`/`value`/`weapon_prop` = unknown（raise）；`ItemDef` 仅 8 字段无武器属性。
+- 纠正：id=4 `murong.do_copy` **不是** item 缺口（是 skill 变更 API，已桩）；真卡 item 的只有 id=5/8（已用样本桩迁完 tests_pass）。
+- 推荐：方案 B 最小子集（`ItemCatalog` 台账 `item_id` -> 属性 + `item_weight`/`item_query`/`item_move_to_room` 函数族，读属性 + move 掉落，写副作用 set name/value 维持现状），明确标注过渡，方案 A 物品实体化留 M3。
+- 工程量：小-中（3-5h）。风险：方案 B 滚雪球（per-instance 写副作用）+ LPC 武器属性提取的数据工程量（`WeaponDef` 缺失）。
