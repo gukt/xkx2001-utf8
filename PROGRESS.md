@@ -4,17 +4,17 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-14
+**最后更新**：2026-07-15
 
 ## 当前状态速览
 
-- **阶段**：M3 收官后技术债补缺口第 3 轮完成 + CLI 试玩三 bug 修复（合并自 worktree-fix-combat-death-respawn）
+- **阶段**：M3 收官后技术债补缺口第 4 轮（B-2/C5 残留后置收尾）
 - **分支**：feat/stage-3-techdebt-r3
-- **tests**：1799 全绿，ruff 全过
-- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）
-- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；抽样校准阶段 B 方案修正完成（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，降级区间承诺 + pilot 纠偏，14-20h 省 75-85%），pilot 脚手架/manifest 就绪，实测待启动；B-2/C5 残留后置
+- **tests**：1807 全绿，ruff 全过
+- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）/ [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)（多对手+钥匙系统，B-2/C5 收尾）
+- **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）；抽样校准阶段 B 方案修正完成（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，降级区间承诺 + pilot 纠偏，14-20h 省 75-85%），pilot 脚手架/manifest 就绪，实测待启动；B-2/C5 残留后置收尾（多对手+钥匙完成 [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)，berserk/动态 exit/SMASHED 仍后置）
 - **工具链**：仓库根新增 [justfile](justfile) task runner（24 recipe 自带 `cd engine && uv run`，agent 在仓库根 `just <recipe>` 即可，`just --list` 自举）；CLAUDE.md/本文件命令行已同步改 `uv run`。ruff format 有 85 文件历史漂移，可单独 `just format` 全量格式化。
-- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock 门；战斗逐条节奏输出 + 死亡还阳闭环 + learn 链可测）+ `python -m xkx.content_review` 审核 pipeline
+- **可玩 demo**：CLI `python -m xkx.cli` 闭环（xlama2 交互 + drink + aggressive/hatred/vendetta NPC + open/close/knock/unlock 门 + 钥匙开锁；战斗逐条节奏输出 + 死亡还阳闭环 + learn 链可测）+ `python -m xkx.content_review` 审核 pipeline
 
 ## Done
 
@@ -31,15 +31,18 @@
 - [x] 抽样校准实验阶段 A（[ADR-0046](docs/adr/ADR-0046-sampling-calibration-methodology.md)）- 59270 调用点枚举（对账粗略 68771）+ 分布（dbase 56%/d+kungfu 82%）+ 抽样方案 80 样本 + 迁移单位建议（函数级）- 1799 tests
 - [x] 抽样校准实验阶段 B 设计定稿（[ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)）- 函数级分布（7991 函数）+ greenfield 工时语义（已实现 82.4%/待迁移 17.6%=10422 调用点/1159 函数）+ 修正抽样面 + 80 样本候选清单 + 实测方法论定稿 - 1799 tests
 - [x] 抽样校准阶段 B 方案修正（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)）- 评审团 4 方案+3 评委三方收敛：80 样本窄 CI 降级为 pilot 13+类比基准区间承诺（14-20h 省 75-85%）+误分类定量纠偏+回归按需后置+LLM 否决（工时语义污染）；pilot 脚手架+manifest 就绪 - 1799 tests
+- [x] 技术债补缺口第 4 轮（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）- B-2 多对手 select_opponent（修正每 tick 全打 bug，combat seed+combat_selects 跨层）+ C5 钥匙系统（key_id+unlock+铁钥匙场景）；berserk/动态 exit/SMASHED 仍后置 - 1807 tests
 
 ## 已知技术债（后置，不阻塞阶段 0）
 
-- **B-2 残留后置**（[ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）：多对手 select_opponent（确定性 seed+全战斗路径回归，风险最高）/ berserk（shen 驱动 look 触发，依赖 `look <target>` 命令）-- 后置
-- **C5 残留后置**（[ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)）：钥匙系统（locked 字段就位，钥匙匹配开锁后置）/ 动态 exit 模式（标准 doors 够用，风险高）/ SMASHED 位（LPC 全仓库死代码，跳过）-- 后置
+- **B-2 残留后置**（[ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）：多对手 select_opponent 已实施（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）/ berserk（LPC 规格陷阱：本质玩家邪派互殴，NPC 仅 flavor；硬前置 `look <target>`+缺 quest_exp）-- 后置
+- **C5 残留后置**（[ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)）：钥匙系统已实施（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）/ 动态 exit 模式（标准 doors+locked+钥匙+valid_leave 够用，风险高）/ SMASHED 位（LPC 全仓库死代码，跳过）-- 后置
 - **LPC 规格提取跳过部分**：本次 9 层覆盖核心循环约 7000 行，跳过 condition 具体类型 / 第二梯队守护进程 / 后置系统 / kungfu+d/ 内容。补充计划见 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md)（3 类分阶段补充，"实现到时才补"原则，不提前批量提取）
 - **M3-4 版权清洗后置**（用户决策 2026-07-14，未商业化阶段过早清洗是过度工程）：雪山派 CPK 含 4 金庸角色（金轮法王/鸠摩智/灵智上人/达尔巴）+ 雪山派门派名本身（[ADR-0033](docs/adr/ADR-0033-content-review-pipeline-mvp.md) 关键发现）。M3-3 预检标记 `needs_review` 待办，商业化前清洗时预检就位。全量改编化/标注/授权 + provenance 版权链回填后置门3。
 
 ## In Progress
+
+**M3 收官后技术债补缺口第 4 轮完成**（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）。B-2 多对手 select_opponent（修正每 tick 全打 bug，combat seed 选目标+combat_selects 跨层）+ C5 钥匙系统（key_id+unlock 命令+铁钥匙场景）落地。1807 tests 全绿。berserk/动态 exit/SMASHED 仍后置。
 
 **M3 收官后技术债补缺口（第 3 轮）完成**（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）。C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀) 全部落地。1795 tests 全绿。技术债补缺口第 3 轮（C4/B-2/C5 残留后置 7 子项）完成；多对手/berserk/钥匙/动态exit/SMASHED 仍后置。
 

@@ -9,11 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from xkx.dsl.ir import compile_scene
-from xkx.dsl.layer0 import load_npcs, load_quests, load_rooms
+from xkx.dsl.layer0 import load_items, load_npcs, load_quests, load_rooms
 from xkx.dsl.layer1 import load_rules
-from xkx.runtime.commands import Game, close, go, knock, look
+from xkx.runtime.commands import Game, close, go, knock, look, take, unlock
 from xkx.runtime.commands import open as open_cmd
-from xkx.runtime.components import Position, RoomComp
+from xkx.runtime.components import Inventory, Position, RoomComp
 from xkx.runtime.world import build_world, spawn_player
 
 SCENE_DIR = Path(__file__).resolve().parent.parent / "scenes" / "xueshan_micro"
@@ -25,10 +25,12 @@ def _game(start_room: str = "xueshan/shanmen") -> tuple[Game, int]:
     npcs = load_npcs(SCENE_DIR / "npcs.yaml")
     quests = load_quests(SCENE_DIR / "quests.yaml")
     rules = load_rules(SCENE_DIR / "rules.yaml")
-    ir = compile_scene(rooms, npcs, quests)
+    item_defs = load_items(SCENE_DIR / "items.yaml")
+    ir = compile_scene(rooms, npcs, quests, items=item_defs)
     world, room_idx, quest_idx = build_world(ir)
     pid = spawn_player(world, "玩家", start_room)
-    game = Game(world, room_idx, rules, quests=quest_idx)
+    item_registry = {i.id: i.model_dump() for i in item_defs}  # C4 ADR-0043 完整 dict
+    game = Game(world, room_idx, rules, quests=quest_idx, item_registry=item_registry)
     from xkx.runtime.conditions import ConditionSystem
     from xkx.runtime.doors import DoorSystem
     from xkx.runtime.engine import CombatBridge, Engine
@@ -158,10 +160,10 @@ def test_open_already_open() -> None:
 
 
 def test_locked_door_blocks_open() -> None:
-    """locked 门 open 提示需钥匙，knock 敲不开，go 仍挡路（钥匙系统后置）。"""
+    """locked 门 open 提示需钥匙，knock 敲不开，go 仍挡路（locked 检查分支）。"""
     game, pid = _game(start_room="xueshan/wangyou")
     wangyou = game.world.get(game.room_entities["xueshan/wangyou"], RoomComp)
-    wangyou.doors["north"].locked = True  # 场景无 locked 门，测试构造
+    wangyou.doors["north"].locked = True  # 场景铁门构造 locked 测试 locked 分支
     msgs = open_cmd(game, pid, "north")
     assert any("锁着" in m and "钥匙" in m for m in msgs)
     assert wangyou.doors["north"].closed  # 仍关着
@@ -169,3 +171,51 @@ def test_locked_door_blocks_open() -> None:
     assert any("锁着" in m for m in msgs)  # knock 也敲不开
     msgs = go(game, pid, "north")
     assert any("锁着" in m for m in msgs)  # go 挡路提示锁着
+
+
+# ── C5 钥匙系统：unlock 命令 + key_id 匹配（对照 LPC donglang.c/houyuan.c do_unlock）──
+
+
+def test_locked_scene_door_blocks_go() -> None:
+    """场景 locked 门挡路：dadian 北铁锁门 locked，go 提示锁着需钥匙。"""
+    game, pid = _game(start_room="xueshan/dadian")
+    msgs = go(game, pid, "north")
+    assert any("锁" in m for m in msgs)
+    assert game.world.get(pid, Position).room_id == "xueshan/dadian"
+
+
+def test_unlock_without_key_rejected() -> None:
+    """无钥匙 unlock 被拒，门仍锁（对照 LPC present(key) 检查失败）。"""
+    game, pid = _game(start_room="xueshan/dadian")
+    msgs = unlock(game, pid, "north")
+    assert any("没有合适的钥匙" in m for m in msgs)
+    door = game.world.get(game.room_entities["xueshan/dadian"], RoomComp).doors["north"]
+    assert door.locked  # 仍锁
+
+
+def test_unlock_with_key_opens_and_syncs() -> None:
+    """有钥匙 unlock 开锁开门 + 双向同步 + go 通过（对照 LPC do_unlock + set exits 双向）。"""
+    game, pid = _game(start_room="xueshan/changlang")
+    take(game, pid, "铁钥匙")  # changlang 地面拾取钥匙
+    inv = game.world.get(pid, Inventory)
+    assert "xueshan/obj/key" in inv.items
+    go(game, pid, "north")  # changlang -> dadian
+    assert game.world.get(pid, Position).room_id == "xueshan/dadian"
+    msgs = unlock(game, pid, "north")
+    assert any("钥匙" in m and "开" in m for m in msgs)
+    # 双向同步：dadian + cangjing 铁锁门都解锁+开
+    dadian = game.world.get(game.room_entities["xueshan/dadian"], RoomComp)
+    cangjing = game.world.get(game.room_entities["xueshan/cangjing"], RoomComp)
+    assert not dadian.doors["north"].locked
+    assert not dadian.doors["north"].closed
+    assert not cangjing.doors["south"].locked
+    assert not cangjing.doors["south"].closed
+    go(game, pid, "north")  # 进藏经阁
+    assert game.world.get(pid, Position).room_id == "xueshan/cangjing"
+
+
+def test_unlock_not_locked_door() -> None:
+    """未锁门 unlock 提示没有上锁（对照 LPC do_unlock on unlocked）。"""
+    game, pid = _game(start_room="xueshan/wangyou")
+    msgs = unlock(game, pid, "north")  # wangyou 北铁门未锁（标准 doors）
+    assert any("没有上锁" in m for m in msgs)

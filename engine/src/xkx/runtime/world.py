@@ -118,6 +118,7 @@ def build_world(
                         other_dir=spec["other_dir"],
                         closed=spec.get("closed", True),
                         locked=spec.get("locked", False),
+                        key_id=spec.get("key_id", ""),
                     )
                     for d, spec in r.get("doors", {}).items()
                 },

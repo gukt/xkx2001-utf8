@@ -47,7 +47,7 @@ from xkx.runtime.components import (
     Vitals,
 )
 from xkx.runtime.conditions import apply_condition
-from xkx.runtime.doors import close_door, knock_door, open_door
+from xkx.runtime.doors import close_door, knock_door, open_door, unlock_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
 from xkx.runtime.middleware.s1_alias import AliasState, alias_resolve
@@ -484,12 +484,17 @@ def advance_combat(
     cs = world.get(pid, CombatState)
     if cs is None or not cs.is_fighting or not cs.enemy_ids:
         return [], True
-    target_id = cs.enemy_ids[0]
     engine = getattr(game, "engine", None)
     if engine is not None:
         bridge = engine.get_system("CombatSystem")
         if bridge is not None:
-            bridge.update(world, combat_round)
+            bridge.update(world, combat_round)  # 设 world.combat_selects（本回合 select）
+    # select_opponent（B-2 ADR-0045）：本回合选中对手（combat seed 驱动，对齐 LPC
+    # attack.c）。fallback enemy_ids[0] 用于 engine 未接入 / pid 未被 select 的退化情况。
+    selects = getattr(world, "combat_selects", {})
+    target_id = selects.get(pid)
+    if target_id is None:
+        target_id = cs.enemy_ids[0]
     # CombatBridge 产生的战斗消息（已收集到 pending_messages）
     messages = list(getattr(world, "pending_messages", []))
     if messages:
@@ -939,6 +944,34 @@ def open(game: Game, actor_id: int, direction: str) -> list[str]:
     if status == "locked":
         return [f"{door.name}锁着，需要钥匙。"] if door else ["门锁着，需要钥匙。"]
     return [f"你将{door.name}打开。"] if door else ["你将门打开。"]
+
+
+def unlock(game: Game, actor_id: int, direction: str) -> list[str]:
+    """解锁命令（C5 钥匙系统，对照 LPC donglang.c/houyuan.c do_unlock）。
+
+    检查 inventory 含 ``door.key_id`` 钥匙（对照 LPC ``present(key, this_player())``）
+    -> 调 ``unlock_door`` 解锁+开门+双向同步。无门/未锁/无钥匙分别提示。
+    """
+    world = game.world
+    pos = world.get(actor_id, Position)
+    if not pos:
+        return ["你没有位置。"]
+    room_eid = game.room_entities.get(pos.room_id)
+    if room_eid is None:
+        return ["这里没有门。"]
+    room = world.get(room_eid, RoomComp)
+    door = room.doors.get(direction) if room else None
+    if not door:
+        return ["这个方向没有门。"]
+    if not door.locked:
+        return [f"{door.name}没有上锁。"]
+    inv = world.get(actor_id, Inventory)
+    if not door.key_id or inv is None or door.key_id not in inv.items:
+        return [f"{door.name}锁着，你没有合适的钥匙。"]
+    status = unlock_door(world, room_eid, direction)
+    if status == "ok":
+        return [f"你用钥匙将{door.name}打开。"]
+    return [f"{door.name}打不开。"]
 
 
 def close(game: Game, actor_id: int, direction: str) -> list[str]:
@@ -1665,6 +1698,14 @@ def _adapter_close(game: Game, ctx: ActionContext) -> list[str]:
     return close(game, ctx.actor, direction)
 
 
+def _adapter_unlock(game: Game, ctx: ActionContext) -> list[str]:
+    """unlock 命令适配器（C5 钥匙系统）：unlock <方向>。"""
+    direction = ctx.raw_args.strip()
+    if not direction and ctx.parsed_args:
+        direction = ctx.parsed_args[0]
+    return unlock(game, ctx.actor, direction)
+
+
 def _adapter_look(game: Game, ctx: ActionContext) -> list[str]:
     """look 命令适配器（无参，查看当前房间）。"""
     return look(game, ctx.actor)
@@ -1785,6 +1826,7 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "knock": _adapter_knock,
     "open": _adapter_open,
     "close": _adapter_close,
+    "unlock": _adapter_unlock,
     "look": _adapter_look,
     "inventory": _adapter_inventory,
     "hp": _adapter_hp,

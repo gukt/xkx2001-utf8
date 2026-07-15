@@ -20,8 +20,9 @@ class DoorDef(BaseModel):
     """门定义（C5 ADR-0042 + ADR-0044，对照 LPC ``create_door``）。
 
     ``other_room``/``other_dir`` 声明对面房间+方向（双向同步用）。``closed``
-    初始状态（默认关）。``locked`` 锁状态（ADR-0044，默认未锁）。编译到
-    ``DoorEntry`` 运行时组件。
+    初始状态（默认关）。``locked`` 锁状态（ADR-0044，默认未锁）。``key_id``
+    开锁钥匙物品 id（C5 钥匙系统，对照 LPC ``present(key)``；空=无钥匙锁/未锁门）。
+    编译到 ``DoorEntry`` 运行时组件。
     """
 
     name: str  # 门名（LPC create_door 第 2 参）
@@ -29,6 +30,7 @@ class DoorDef(BaseModel):
     other_dir: str  # 对面方向（LPC create_door 第 3 参 other_side_dir）
     closed: bool = True  # 初始状态（LPC create_door 第 4 参 status）
     locked: bool = False  # 锁状态（ADR-0044，LPC DOOR_LOCKED 位）
+    key_id: str = ""  # 开锁钥匙物品 id（C5 钥匙系统，对照 LPC present(key) 匹配）
 
 
 class RoomDef(BaseModel):

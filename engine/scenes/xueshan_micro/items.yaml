@@ -17,3 +17,7 @@
   drink_supply: 50
   food_supply: 30
   jing_recover: 5
+# C5 钥匙系统：开锁钥匙（对照 LPC d/city/obj/gfkey.c set_name("闺房钥匙",({"guifang key","key"}))）
+- id: xueshan/obj/key
+  name: 铁钥匙
+  aliases: [key, yaoshi]

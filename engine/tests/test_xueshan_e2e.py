@@ -522,3 +522,41 @@ def test_decide_room_enter_fight_priority() -> None:
     assert (
         _decide_room_enter_fight(game.world, guard_eid, pid, behavior, set()) is None
     )
+
+
+def test_multi_opponent_advances_one_per_round() -> None:
+    """多对手 advance_combat：每回合 select_opponent 选 1 个对手，未选中者满血。
+
+    B-2 ADR-0045 后置收尾：修正原 CombatBridge 每 tick 打所有敌人的语义偏差
+    （对齐 LPC attack.c 每 heart_beat 选 1 个）。手动设玩家 vs 2 NPC 互敌，跑 1 回合，
+    验证未选中的 NPC 必然满血（select 只打 1 个，非全打）。
+    """
+    from xkx.runtime.commands import advance_combat
+
+    game, pid = _game(start_room="xueshan/luyeyuan")
+    npcs = [
+        eid for eid in game.world.entities_in_room("xueshan/luyeyuan")
+        if not game.world.get(eid, Identity).is_player
+    ]
+    assert len(npcs) >= 2
+    npc1, npc2 = npcs[0], npcs[1]
+    # 手动设三方互敌（绕过 auto_fight 触发）
+    pid_cs = game.world.get(pid, CombatState)
+    pid_cs.enemy_ids = [npc1, npc2]
+    pid_cs.is_fighting = True
+    pid_cs.to_death = True
+    for eid in (npc1, npc2):
+        e_cs = game.world.get(eid, CombatState)
+        e_cs.enemy_ids = [pid]
+        e_cs.is_fighting = True
+        e_cs.to_death = True
+
+    advance_combat(game, pid, combat_round=0)
+
+    # select 只打 1 个：未选中的 NPC 必然满血（未被攻击）
+    selects = getattr(game.world, "combat_selects", {})
+    selected = selects.get(pid)
+    assert selected in (npc1, npc2)
+    other = npc2 if selected == npc1 else npc1
+    other_vitals = game.world.get(other, Vitals)
+    assert other_vitals.qi == other_vitals.max_qi

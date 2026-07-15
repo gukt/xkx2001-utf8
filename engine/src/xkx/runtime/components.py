@@ -237,8 +237,9 @@ class DoorEntry:
 
     标准 doors 状态模式：exits 静态声明不变，doors 字段存门定义+开闭状态。
     ``closed`` 可变（open/knock 开 / close/DoorSystem call_out 定时关）。``locked``
-    锁状态（ADR-0044 落地，独立 bool 非 LPC 位掩码；open 查 locked 走钥匙分支，
-    钥匙系统后置）。SMASHED 位跳过（LPC 全仓库死代码，凭空发明规格）。
+    锁状态（ADR-0044 落地，独立 bool 非 LPC 位掩码；open 查 locked 走钥匙分支）。
+    ``key_id`` 开锁钥匙物品 id（C5 钥匙系统，对照 LPC ``present(key)``；unlock 命令
+    检查 inventory 含 key_id -> 解锁）。SMASHED 位跳过（LPC 全仓库死代码，凭空发明规格）。
     """
 
     name: str  # 门名（LPC doors[dir]["name"]）
@@ -246,6 +247,7 @@ class DoorEntry:
     other_dir: str  # 对面方向（LPC doors[dir]["other_side_dir"]）
     closed: bool = True  # 开闭状态（LPC status & DOOR_CLOSED）
     locked: bool = False  # 锁状态（ADR-0044，LPC DOOR_LOCKED 位，独立 bool）
+    key_id: str = ""  # 开锁钥匙物品 id（C5 钥匙系统，对照 LPC present(key) 匹配）
 
 
 @dataclass

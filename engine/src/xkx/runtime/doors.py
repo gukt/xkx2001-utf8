@@ -69,6 +69,26 @@ def close_door(world: World, room_eid: int, direction: str) -> str:
     return "ok"
 
 
+def unlock_door(world: World, room_eid: int, direction: str) -> str:
+    """解锁门副作用（C5 钥匙系统，对照 LPC donglang.c do_unlock）。
+
+    解锁（``locked=False``）+ 开门（``closed=False``）+ 同步对面 locked+closed。
+    钥匙匹配检查在调用方（unlock 命令，对照 LPC ``present(key, this_player())``），
+    本函数只做解锁副作用（调用方已确认玩家持钥匙）。返回状态：
+    ``no_door`` / ``not_locked`` / ``ok``。
+    """
+    room = world.get(room_eid, RoomComp)
+    if room is None or direction not in room.doors:
+        return "no_door"
+    door = room.doors[direction]
+    if not door.locked:
+        return "not_locked"
+    door.locked = False
+    door.closed = False
+    _sync_other_side(world, room_eid, direction, closed=False, locked=False)
+    return "ok"
+
+
 def knock_door(
     world: World,
     room_eid: int,
@@ -111,16 +131,23 @@ def knock_door(
 
 
 def _sync_other_side(
-    world: World, room_eid: int, direction: str, *, closed: bool
+    world: World, room_eid: int, direction: str, *, closed: bool, locked: bool | None = None
 ) -> None:
-    """双向同步：设对面房间 doors[other_dir].closed（对照 LPC open_door 递归同步）。"""
+    """双向同步：设对面房间 doors[other_dir] 状态（对照 LPC open_door 递归同步）。
+
+    ``closed`` 必传；``locked`` 可选（None=仅同步 closed，C5 钥匙系统解锁时传
+    locked=False 同步对面解锁）。
+    """
     room = world.get(room_eid, RoomComp)
     if room is None or direction not in room.doors:
         return
     door = room.doors[direction]
     other_room = _get_room_by_id(world, door.other_room)
     if other_room is not None and door.other_dir in other_room.doors:
-        other_room.doors[door.other_dir].closed = closed
+        other_door = other_room.doors[door.other_dir]
+        other_door.closed = closed
+        if locked is not None:
+            other_door.locked = locked
 
 
 def _close_door(world: World, room_eid: int, direction: str) -> None:

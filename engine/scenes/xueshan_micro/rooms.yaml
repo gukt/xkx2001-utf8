@@ -79,17 +79,42 @@
     southdown: xueshan/yanwu
 - id: xueshan/changlang
   short: 长廊
-  long: 一条略显阴暗的长廊，长廊一侧是一溜排开的转经轮，另一侧顺序点着一排酥油灯。昏黄的灯光在影子里摇弋，发出温暖的香气，几个喇嘛来回逡迅着往灯里加着酥油，再往北走就是大殿了。
+  long: 一条略显阴暗的长廊，长廊一侧是一溜排开的转经轮，另一侧顺序点着一排酥油灯。昏黄的灯光在影子里摇弋，发出温暖的香气，几个喇嘛来回逡迅着往灯里加着酥油，再往北走就是大殿了。地上不知谁遗落了一把铁钥匙。
   exits:
     north: xueshan/dadian
     south: xueshan/dumudian
+  items:
+  - xueshan/obj/key
 - id: xueshan/dadian
   short: 大殿
   long: 大殿内光线昏暗，烟雾缭绕，隐约可见华丽的柱子上，横梁上，佛像上都积了厚厚一层酥油。许多喇嘛和信徒们对着大大小小的佛像叩拜，祈祷，添酥油。殿内供奉的释迦牟尼像相传是文成公主下嫁时带来的，由于年久失修，像上的金漆以剥脱了许多，斑斑驳驳的。
   exits:
     south: xueshan/changlang
+    north: xueshan/cangjing
+  doors:
+    north:
+      name: 铁锁门
+      other_room: xueshan/cangjing
+      other_dir: south
+      closed: true
+      locked: true
+      key_id: xueshan/obj/key
   objects:
     xueshan/npc/jiumo: 1
+# C5 钥匙系统：上锁门示例（对照 LPC d/zhongnan/donglang.c do_unlock + present(key)）
+- id: xueshan/cangjing
+  short: 藏经阁
+  long: 一间幽静的藏经阁，四壁书架堆满泛黄的经卷，空气中弥漫着陈旧的纸墨气息。南边是一扇沉重的铁锁门。
+  exits:
+    south: xueshan/dadian
+  doors:
+    south:
+      name: 铁锁门
+      other_room: xueshan/dadian
+      other_dir: north
+      closed: true
+      locked: true
+      key_id: xueshan/obj/key
 - id: xueshan/hongdian
   short: 红殿
   long: 这里是大轮寺的红殿，殿内光线暗淡，壁上画像色暗。殿正中供着密集金刚。金刚三面，戴宝冠，主面三睛，耳饰大环，上身裸，下着长裙，结跏趺坐，六臂，两主臂拥明妃，其余两臂分张两侧各执法器，明妃亦六臂，与金刚相向而拥，两腿盘腰後。金刚座下有石莲花、海石榴花、太平花和十字花。
