@@ -4,14 +4,15 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-15（pilot AI 铺路完成）
+**最后更新**：2026-07-15（pilot 13 样本实测完成，区间承诺得出）
 
 ## 当前状态速览
 
-- **阶段**：阶段 0 pilot 实测（AI 铺路完成，待人工计时）
+- **阶段**：阶段 0 pilot 实测完成（13 样本，区间承诺 [781,1724]h）
 - **分支**：feat/sampling-pilot
-- **tests**：1978 全绿，ruff 全过（+8 pilot estimate 单测）
-- **关键 ADR**：[ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md)（规格补充分类决策）/ [ADR-0054](docs/adr/ADR-0054-m2-2-langfuse-still-postponed.md)（M2-2 Langfuse 不接）
+- **tests**：2189 全绿，ruff 全过（+176 pilot 单测）
+- **关键 ADR**：[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（pilot 降级区间承诺）/ [ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md)（规格补充分类）
+- **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（区间承诺 + 退路校验 + 数据质量）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
 
@@ -23,13 +24,11 @@
 - [x] 规格补充 Batch 4：新增 [ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md) 记录子层分类与范围决策 - 1970 tests
 - [x] **pilot 样本 id=1 `xue.c:main`**：迁移 [samples/xue_c_main.py](engine/tools/sampling/pilot/samples/xue_c_main.py) + 16 单测 [tests/test_xue_c_main.py](engine/tests/test_xue_c_main.py)；扩展 stubs.py 3 个 A 类回落桩；记 effort 125min 到 effort_records.jsonl；1994 tests 全绿
 - [x] **pilot 样本 id=3 `tieyanling.c:do_qingjiao`**：迁移 [samples/tieyanling_c_do_qingjiao.py](engine/tools/sampling/pilot/samples/tieyanling_c_do_qingjiao.py) + 15 单测 [tests/test_tieyanling_c_do_qingjiao.py](engine/tests/test_tieyanling_c_do_qingjiao.py)；扩展 stubs.py 1 个 teach_skillsname 桩；记 effort 65min；2009 tests 全绿
+- [x] **pilot 剩余 11 样本并行迁移 + 区间承诺**：两阶段（预建 7 组共享桩 + Workflow 11 agent 并行），13 样本全绿 2189 tests，区间 [781,1724]h 详见 [REPORT](engine/tools/sampling/pilot/REPORT.md)；退路未触发（误分类 7.7%，high-tier CV 0.24）
 
 ## In Progress
 
-**pilot 后续样本实测**（feat/sampling-pilot）：
-
-- 已完成 2/13 样本（xue 125min / tieyanling 65min），均 pending/logic/high，未触发纠偏退路
-- 继续按 manifest 测剩余 11 样本，每样本补迁移代码 + 测试 + effort 记录
+**pilot 实测完成**（feat/sampling-pilot）：13 样本全测全绿，区间承诺 [781,1724]h 已得出（[REPORT](engine/tools/sampling/pilot/REPORT.md)）。退路未触发（误分类 7.7% < 30%，high-tier CV 0.24 < 1）。待决策：基于区间承诺的全量迁移批次划分。
 
 ## Blocked
 
@@ -37,9 +36,9 @@
 
 ## Next Up
 
-1. **样本 id=2 `d/wizard/center.c:do_check_menpai_job`**：job_data 子系统整体未迁移（B 类架构缺口），需决策记为待迁移面或简化测关键分支。
-2. **样本 id=4-13**：按 [samples_manifest.json](engine/tools/sampling/pilot/samples_manifest.json) 顺序推进，A 类简单桩按需补建，B 类架构缺口记为待迁移面。
-3. **推算区间承诺**：13 样本工时齐后跑 estimate.py，写报告 + 校验误分类率（>30% 触发退路）。
+1. **决策全量迁移批次**：基于区间承诺 [781,1724]h（约 7.8-21.6 人月）+ [ADR-0047](docs/adr/ADR-0047-batch-migration-path.md) 分批路径，划分迁移批次与优先级。
+2. **low tier 补测校准**：pending/logic/low（872 函数）仅 1 个纠偏样本外推、主导点估 70%，需补测典型样本或用类比基准下修后再承诺。
+3. **implemented drift 澄清**：id=12/13 drift 140min 是完整迁移工时非补后置分支，后续若复用 pilot 数据需注意解读。
 
 ## kill criteria 状态（开工必读）
 

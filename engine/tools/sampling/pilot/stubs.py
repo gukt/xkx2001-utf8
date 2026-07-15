@@ -22,13 +22,25 @@ SKILL_D.type/valid_learn 已有简化版见 combat/context.py，不重建）：
 - query_married_times(world, eid) -> int       （xue L81，spouse 系统未迁移）
 - query_spouse_title(world, eid) -> str        （xue L83，spouse 系统未迁移）
 - query_teach_skillsname(world, eid) -> list   （tieyanling L84，NPC 可教白名单）
+
+阶段一预建共享桩（剩余样本 id=2,4-13 多样本共用，ADR-0048 决策 2；
+一次性预建消除阶段二并行写冲突，各样本只读用，不再改本文件）：
+- wizardp(world, eid) -> bool              （2,6,7,12,13 巫师判定，回落 False）
+- start_more(msg) -> list[str]             （2,9 分页，全引擎无 pager，返回 [msg]）
+- ANSI 颜色常量 + strip_ansi(s)            （5,7 颜色码砍掉，常量空串）
+- query_jiali(world, eid) -> int           （5,8 加力，回落 0）
+- query_str(world, eid) -> int             （5,8 派生膂力，回落 Attributes.str_）
+- set_skill/delete_skill/map_skill/        （4,5,8,11 skill-feature 变更 API，
+  prepare_skill/reset_action/query_skills   薄包装 Skills 组件已就绪 dict）
+- tell_object/tell_room/message_vision     （5,6,7 消息 facade，写 pending_messages）
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from xkx.runtime.components import Vitals
+from xkx.runtime.components import Attributes, Skills, Vitals
 
 
 def is_spouse_of(world: Any, me_id: int, ob_id: int) -> bool:
@@ -126,3 +138,160 @@ def query_teach_skillsname(world: Any, entity_id: int) -> list[str]:
     真实：NpcBehavior 或 SkillData 中配置可教技能列表。
     """
     return []
+
+
+# ===== 阶段一预建共享桩（ADR-0048 决策 2，消除阶段二并行写冲突）=====
+
+
+def wizardp(world: Any, eid: int) -> bool:
+    """巫师判定（对照 center.c:134 can_used / damage.c / emoted.c / s_combatd.c / bai.c）。
+
+    桩：默认 False（新引擎无 wiz_level 组件，用 capability/permission 模型替代）。
+    真实：WizLevel 枚举挂载到实体或 session token 解析。
+    """
+    return False
+
+
+def start_more(msg: str) -> list[str]:
+    """分页显示长文本（对照 center.c this_player()->start_more / bboard.c F_MORE）。
+
+    全引擎无 pager（grep start_more/more/paging 零命中）。
+    桩：返回 [msg]（命令返回值占位，测试检查子串）。
+    真实：客户端层 pager 或 start_more 组件分块输出。
+    """
+    return [msg]
+
+
+# LPC ansi.h 颜色码。新引擎砍颜色内核（收缩约束），常量回落空串。
+NOR = HIW = HIY = HIR = HIG = HIC = HIB = HIM = ""
+HBBLU = HBRED = HBYEL = HBGRE = HBCYN = HBMAG = ""
+BLINK = BOLD = ""
+ESC = ""
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi(s: str) -> str:
+    """去 ANSI 转义码（对照 LPC 颜色码清理）。
+
+    桩常量全空串，迁移代码注入的 HIW+...+NOR 无 ESC；本函数兼容测试
+    注入带码串。
+    """
+    return _ANSI_RE.sub("", s)
+
+
+def query_jiali(world: Any, eid: int) -> int:
+    """加力值 query("jiali")（对照 songshan-jian.c / shizi.c）。
+
+    桩：默认 0（dbase key "jiali" 未映射，玩家自由设置项无组件承接）。
+    """
+    return 0
+
+
+def query_str(world: Any, eid: int) -> int:
+    """有效膂力 query_str() sefun（对照 songshan-jian.c / shizi.c）。
+
+    桩：回落 Attributes.str_ 基础值（race.py:228 明确 greenfield 无
+    query_str 派生加成）。真实：str + 装备/condition 派生加成。
+    """
+    attrs = world.get(eid, Attributes)
+    return attrs.str_ if attrs else 0
+
+
+def _skills(world: Any, eid: int) -> Skills:
+    """取 Skills 组件，无则建空（skill 变更 API 共用）。"""
+    s = world.get(eid, Skills)
+    if s is None:
+        s = Skills()
+        world.add(eid, s)
+    return s
+
+
+def query_skills(world: Any, eid: int) -> dict[str, int]:
+    """技能等级表 query_skills()（对照 murong.c:do_copy ob->query_skills()）。"""
+    s = world.get(eid, Skills)
+    return dict(s.levels) if s else {}
+
+
+def query_skill_map(world: Any, eid: int) -> dict[str, str]:
+    """技能映射 query_skill_map()（对照 murong.c:do_copy）。"""
+    s = world.get(eid, Skills)
+    return dict(s.skill_map) if s else {}
+
+
+def query_skill_prepare(world: Any, eid: int) -> dict[str, str]:
+    """技能准备 query_skill_prepare()（对照 murong.c:do_copy）。"""
+    s = world.get(eid, Skills)
+    return dict(s.skill_prepare) if s else {}
+
+
+def set_skill(world: Any, eid: int, name: str, level: int) -> None:
+    """设置技能等级 set_skill(name, level)（对照 murong.c me->set_skill(name,200)）。"""
+    _skills(world, eid).levels[name] = level
+
+
+def delete_skill(world: Any, eid: int, name: str) -> None:
+    """删除技能 delete_skill(name)（对照 murong.c me->delete_skill(name)）。"""
+    s = world.get(eid, Skills)
+    if s and name in s.levels:
+        del s.levels[name]
+
+
+def map_skill(world: Any, eid: int, cat: str, skill: str | None = None) -> None:
+    """设置/清除技能映射 map_skill(cat, skill)（对照 murong.c:do_copy）。
+
+    skill=None 表示清除该类别映射。
+    """
+    s = _skills(world, eid)
+    if skill is None:
+        s.skill_map.pop(cat, None)
+    else:
+        s.skill_map[cat] = skill
+
+
+def prepare_skill(world: Any, eid: int, cat: str, skill: str | None = None) -> None:
+    """设置/清除技能准备 prepare_skill(cat, skill)（对照 murong.c:do_copy）。"""
+    s = _skills(world, eid)
+    if skill is None:
+        s.skill_prepare.pop(cat, None)
+    else:
+        s.skill_prepare[cat] = skill
+
+
+def reset_action(world: Any, eid: int) -> None:
+    """重算动作集 reset_action()（对照 murong.c / songshan-jian.c / shizi.c / char.c）。
+
+    桩：no-op（完整 action mapping 推断后置 2.3，equipment.py:103 仅 wield/unequip
+    传 skill/label 时更新 CombatState）。迁移时不产生副作用即可。
+    """
+
+
+def tell_object(world: Any, eid: int, msg: str) -> None:
+    """向实体输出消息 tell_object(ob, msg)（对照 LPC efun）。
+
+    桩：写 world.pending_messages（M3-1 最小缓冲，复用 death.py:_tell 模式）。
+    真实：ConnectionSystem.push_event WS 推送（后置 M3）。
+    """
+    pending = getattr(world, "pending_messages", None)
+    if pending is not None:
+        pending.append(msg)
+
+
+def tell_room(
+    world: Any, room_id: str, msg: str, exclude: tuple[int, ...] = ()
+) -> None:
+    """房间广播 tell_room(room, msg, exclude)（对照 LPC efun）。
+
+    桩：遍历 world.entities_in_room 逐个 tell_object（排除 exclude）。
+    """
+    for eid in world.entities_in_room(room_id):
+        if eid not in exclude:
+            tell_object(world, eid, msg)
+
+
+def message_vision(world: Any, msg: str, me: int, *others: int) -> str:
+    """格式化广播 message_vision(msg, me, ...)（对照 LPC efun）。
+
+    桩：仅返回 msg（PronounService.render 的 $N/$n 替换 + 房间广播后置 M3）。
+    迁移方按需自行替换代词后调 tell_room 分发返回值。
+    """
+    return msg
