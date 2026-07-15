@@ -4,6 +4,9 @@
 迁移读帖主路径 + 关键门控到行为等价。本文件为一次性测量代码，不污染
 src/xkx（ADR-0048 决策 8）。
 
+已被引擎层 bboard_commands.py do_read 替代（ADR-0059），本文件保留作
+pilot 历史测量记录。
+
 B 类架构缺口（board/留言板子系统整体未迁移）按简化建议处理：
 - bboard 物品 dbase(board_id/notes/wizard_only/poster_family 无 ItemComp)
   -> 样本特有 BoardItem 数据结构（测试构造注入）

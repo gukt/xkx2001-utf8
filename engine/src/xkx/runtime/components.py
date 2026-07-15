@@ -209,6 +209,40 @@ class QuestLog:
 
 
 @dataclass
+class BoardLastRead:
+    """玩家留言板阅读记录（对照 LPC ``me->query("board_last_read")`` mapping）。
+
+    per-player ECS 组件：``records`` 映射 ``board_id -> 最后阅读时间戳``。
+    与 ``BboardData``（daemon 单例，承载 board 自身数据）区分：daemon 是全局
+    单例（所有玩家共享的留言列表），本组件是 per-player 读帖进度（每个玩家
+    各自读到哪里）。
+
+    用法（对照 pilot 样本桩 ``bboard_c_do_read.py:55-63``）：
+
+    .. code-block:: python
+
+        rec = world.get(eid, BoardLastRead)
+        if rec is None:
+            rec = BoardLastRead()
+            world.add(eid, rec)
+        rec.records[board_id] = note_time
+
+    对照 LPC ``bboard.c:178/224-227``：读帖时取 ``last_read_time =
+    the_player->query("board_last_read")``（mapping），定位未读帖后写回
+    ``set("board_last_read", last_read_time)``。greenfield 把该 dbase key
+    结构化为 ECS 组件（无 dbase mapping 注册，避免 ``DbaseKeyError``）。
+
+    可序列化（ADR-0022 存档崩溃安全）：字段全基本类型（``dict[str, int]``），
+    ``serialization.py`` 按 ``dataclasses.fields`` 自动提取，无需额外适配。
+
+    [ADR-0057](../../../docs/adr/ADR-0057-daemon-store-per-object-save.md)
+    [ADR-0022](../../../docs/adr/ADR-0022-json-save-crash-recovery-dirty-flag.md)
+    """
+
+    records: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class EffectComp:
     """持续 Effect 组件（阶段 1 T1，ADR-0017）。
 

@@ -4,14 +4,14 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-16（第二批架构补全完成，ADR-0057/0058）
+**最后更新**：2026-07-16（bboard 子系统迁移完成，ADR-0059）
 
 ## 当前状态速览
 
 - **阶段**：阶段 0 pilot 收尾 -> 转 AI agent 按架构依赖分批迁移（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）
 - **分支**：feat/sampling-pilot
-- **tests**：2237 全绿，ruff 全过（+176 pilot + 41 第二批架构补全单测）
-- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃人工工时，改 AI 分批）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（工时承诺部分退役）
+- **tests**：2289 全绿，ruff 全过（+176 pilot + 41 第二批架构 + 46 bboard 迁移单测）
+- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃人工工时，改 AI 分批）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（工时承诺部分退役）/ [ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)（bboard 迁移范围）
 - **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（工时数据归档，副产出保留）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
@@ -29,10 +29,11 @@
 - [x] **第一批架构补全：message facade**：建 [message.py](engine/src/xkx/runtime/message.py)（tell_object/tell_room/message_vision 三段视角，照 simul_efun/message.c），收敛 death/governance _tell，修 death persist_now(eid) 断裂；+7 单测，2196 全绿
 - [x] **第二批架构补全 A：per-object save DaemonStore**（[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)）：DaemonStore 独立 StorageSystem 复用原子写不走 dirty-flag；death 走 mark_dirty 不引入 per-eid 同步 persist（滑坡论证）；修第一批 persist_now 断裂+pilot 假绿+补 death 真单测；+22 tests
 - [x] **第二批架构补全 B：item-as-entity ItemCatalog 方案 B**（[ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)）：复用扩展 item_registry 台账+item_weight/item_query/item_move_to_room 函数族（写副作用 no-op 规避滚雪球）+WeaponDef schema；weight 双重语义/weapon_prop mapping 不变量；+19 tests，2237 全绿
+- [x] **bboard 子系统迁移**（[ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)）：cmp_wiz_level fail-closed + BoardLastRead 组件 + BboardData 补字段 + bboard_commands（do_read/do_list/do_discard）+ DaemonStore save 闭环；do_post/do_store 暂缓（edit()/EDITOR_D 卡点）；do_list 无门控行为等价；+46 tests，2289 全绿
 
 ## In Progress
 
-**第二批架构补全完成**（DaemonStore [ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md) + ItemCatalog [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)）：2237 tests 全绿。两个 B 类缺口（per-object save 卡 id=2/9、item-as-entity 卡 id=5/8）基础实现已补齐。转后续批按子系统/缺口类型 agent 并行迁移。
+**bboard 子系统迁移完成**（[ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)）：do_read/do_list/do_discard 引擎层落地 + cmp_wiz_level/BoardLastRead 补 src 缺口 + DaemonStore save 闭环验证（do_discard 删帖即存）。2289 tests 全绿。do_post/do_store 暂缓（卡点：edit() 客户端交互层 / EDITOR_D runtime）。转下一子系统批。
 
 ## Blocked
 
@@ -40,8 +41,9 @@
 
 ## Next Up
 
-1. **后续批迁移**：按子系统/缺口类型 agent 并行迁移（bboard 完整子系统 do_post/do_discard 用 DaemonStore；门派武器数据填 WeaponDef schema；job_data 子系统等），边跑边记 AI 成本（token / 运行时间）。
-2. **迁 PG**（kill criteria 8）：DaemonStore 与 StorageSystem 同步策略切换，death 回档风险补齐。
+1. **后续批迁移**：按子系统/缺口类型 agent 并行迁移--门派武器数据填 WeaponDef schema（[ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)）；job_data 子系统；剩余 B 类缺口（LPC 路径对象模型 / skill-feature 变更 API / reset_action / CHAR_D.setup_char 等按需补）；边跑边记 AI 成本（token / 运行时间）。
+2. **bboard 暂缓命令**：do_post（待客户端交互层 input_to 等价）/ do_store（待 EDITOR_D runtime，先迁 editord）--卡点解除后迁。
+3. **迁 PG**（kill criteria 8）：DaemonStore 与 StorageSystem 同步策略切换，death 回档风险补齐。
 
 ## kill criteria 状态（开工必读）
 

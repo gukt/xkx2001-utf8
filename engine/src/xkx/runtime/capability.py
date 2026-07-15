@@ -324,3 +324,60 @@ class PermissionService:
 def capabilities_for_status(status: WizLevel) -> frozenset[str]:
     """查询某 WizLevel 的默认能力集（对齐 LPC valid_cmd 权限模型）。"""
     return _WIZ_CAPABILITIES.get(status, frozenset())
+
+
+def cmp_wiz_level(token: CapabilityToken | None, level_str: str) -> int:
+    """比较 token 等级与 ``level_str`` 门槛（对照 LPC ``securityd.c:173``）。
+
+    LPC 原型 ``int cmp_wiz_level(object ob, string lvl)``：
+
+    .. code-block:: c
+
+        return ( get_wiz_level(ob) - member_array(lvl, wiz_levels) );
+
+    - ``get_wiz_level(ob) = member_array(get_status(ob), wiz_levels)``：status 在
+      ``wiz_levels`` 数组中的下标（0=player, 9=admin，从低到高）。
+    - 返回值：负数=token 等级低于 ``level_str``（不达门槛），0=相等，正数=高于。
+    - 调用点约定（``securityd.c:173`` 注释 ``/* yzc, usage: ...(this_player(),
+      "(wizard)") < 0 */``）：判 ``< 0`` 即"低于门槛拒绝"。
+
+    **WizLevel 序与 LPC wiz_levels 数组序对齐**：``WizLevel`` StrEnum 声明序
+    （PLAYER→IMMORTAL→...→ADMIN）与 LPC ``wiz_levels`` 数组（``securityd.c:24-34``）
+    完全一致，故 ``list(WizLevel).index(...)`` 等价于 LPC ``member_array`` 下标，
+    差值语义 1:1 对齐。
+
+    **fail-closed 语义**：``token=None``（未授权/未登录/已吊销）返回 ``-1``。未授权
+    视为最低等级，不放过任何有门槛的检查。对照 ADR-0020 决策 3 fail-closed 不变量
+    （None/无效 token 一律拒绝）。
+
+    **非法 level_str 处理**：``WizLevel(level_str)`` 抛 ``ValueError`` 时降级为
+    ``WizLevel.PLAYER``（下标 0）。对照 pilot 样本桩
+    ``bboard_c_do_read.py:80-81`` 行为：未知等级字符串按最低处理，避免非法门槛
+    字符串意外放行（比 LPC ``member_array`` 未找到返回 -1 导致差值为正、反而"高于"
+    的行为更可预测、更安全）。
+
+    典型场景：bboard ``wizard_only`` / ``poster_family`` 门控（ADR-0057 per-object
+    save 场景，``bboard.c:184/196`` 调 ``cmp_wiz_level(this_player(), "(immortal)")``）。
+    调用方判 ``cmp_wiz_level(token, "(immortal)") < 0`` 即"非 immortal 拒绝"。
+
+    [ADR-0057](../../../docs/adr/ADR-0057-daemon-store-per-object-save.md) per-object save
+    [ADR-0020](../../../docs/adr/ADR-0020-command-pipeline-actioncontext-capability.md) 决策 3
+
+    Args:
+        token: 玩家能力令牌（``PermissionService.issue_token`` 签发）；``None`` 视为未授权。
+        level_str: 门槛等级字符串（LPC ``wiz_levels`` 元素值，如 ``"(immortal)"``）。
+
+    Returns:
+        负数=token 等级低于 ``level_str``；0=相等；正数=高于。``token=None`` 返回 ``-1``。
+    """
+    if token is None:
+        return -1
+    order = list(WizLevel)
+    player_idx = order.index(token.status)
+    try:
+        target = WizLevel(level_str)
+    except ValueError:
+        # 非法 level_str 降级 PLAYER（对照 pilot 样本桩 L80-81，可预测且 fail-safe）
+        target = WizLevel.PLAYER
+    target_idx = order.index(target)
+    return player_idx - target_idx

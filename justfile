@@ -29,15 +29,15 @@ test:
     cd engine && uv run pytest -ra
 
 # 快速跑：安静 + 首个失败即停（改动后快速自检）
-test-q:
+test-quick:
     cd engine && uv run pytest -q -x
 
-# 跑指定测试文件/节点：just testf tests/combat/test_resolve.py::test_x
-testf target:
+# 跑指定测试文件/节点：just test-file tests/combat/test_resolve.py::test_x
+test-file target:
     cd engine && uv run pytest -ra "{{target}}"
 
-# 按关键字筛选跑：just testk combat
-testk keyword:
+# 按关键字筛选跑：just test-keyword combat
+test-keyword keyword:
     cd engine && uv run pytest -ra -k "{{keyword}}"
 
 # 只收集不跑（快速确认可导入 + 用例数）
@@ -59,23 +59,23 @@ format:
     cd engine && uv run ruff format src tests
 
 # ruff format 仅检查不改（门禁用）
-fmt-check:
+format-check:
     cd engine && uv run ruff format --check src tests
 
 # ── 门禁 ────────────────────────────────────────────────
 
 # 提交前本地门禁：lint + 全量测试
-# 注：项目当前未 enforce ruff format（85 文件有格式漂移），故 gate 不含 fmt-check；
+# 注：项目当前未 enforce ruff format（85 文件有格式漂移），故 gate 不含 format-check；
 # 欲启用格式门禁，先单独跑一次 `just format` 全量格式化消除漂移
 gate: lint test
 
-# 快速门禁：lint + test-q（不全量，改动后快速自检）
-gate-q: lint test-q
+# 快速门禁：lint + test-quick（不全量，改动后快速自检）
+gate-quick: lint test-quick
 
 # ── 引擎 CLI / 场景 ─────────────────────────────────────
 
-# 跑引擎 CLI（透传）：just run --help / just run scene xueshan_micro
-run *args:
+# 跑引擎 CLI（透传）：just cli --help / just cli scene xueshan_micro
+cli *args:
     cd engine && uv run python -m xkx.cli "$@"
 
 # 内容审核 pipeline（M3-3，ADR-0033）
@@ -122,12 +122,12 @@ scan *args:
 
 # ── 逃生口 / 杂项 ───────────────────────────────────────
 
-# 在 engine venv 跑任意 python：just py -c "import xkx; print(xkx.__file__)"
-py *args:
+# 在 engine venv 跑任意 python：just python -c "import xkx; print(xkx.__file__)"
+python *args:
     cd engine && uv run python "$@"
 
-# 在 engine venv 跑任意 pytest 参数：just pt -m slow --lf
-pt *args:
+# 在 engine venv 跑任意 pytest 参数：just pytest -m slow --lf
+pytest *args:
     cd engine && uv run pytest "$@"
 
 # 清缓存（.pytest_cache / .ruff_cache / .hypothesis / __pycache__）
