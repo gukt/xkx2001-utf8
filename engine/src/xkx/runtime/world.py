@@ -26,6 +26,7 @@ from xkx.combat.result import (
     KIND_WOUND_JING,
     Effect,
 )
+from xkx.dsl.layer2 import InquiryNode
 from xkx.runtime.components import (
     Attributes,
     CombatState,
@@ -199,13 +200,20 @@ def _spawn_npc(world: World, n: dict, room_id: str) -> int:
             weapon_label=n.get("weapon_label", "拳头"),
         ),
     )
+    raw_inquiry = n.get("inquiry", {}) or {}
+    inquiry: dict[str, str | InquiryNode] = {}
+    for topic, value in raw_inquiry.items():
+        if isinstance(value, dict):
+            inquiry[topic] = InquiryNode(**value)
+        else:
+            inquiry[topic] = value
     world.add(
         eid,
         NpcBehavior(
             attitude=n.get("attitude", "friendly"),
             chat_chance_combat=n.get("chat_chance_combat", 0),
             chat_msg_combat=n.get("chat_msg_combat", []),
-            inquiry=n.get("inquiry", {}),
+            inquiry=inquiry,
             apprentice_config=n.get("apprentice"),  # M3-1 ADR-0032 决策 1
             vendetta_mark=n.get("vendetta_mark", ""),  # B-2 ADR-0045
         ),

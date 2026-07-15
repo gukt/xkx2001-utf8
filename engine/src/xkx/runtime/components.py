@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from xkx.dsl.layer2 import InquiryNode
+
 
 @dataclass
 class Identity:
@@ -160,7 +162,8 @@ class NpcBehavior:
     attitude: str = "friendly"  # friendly | heroism | aggressive
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = field(default_factory=list)
-    inquiry: dict[str, str] = field(default_factory=dict)  # S4 ADR-0006：LPC set("inquiry")
+    # S4 ADR-0006 + M2-2：LPC set("inquiry")，支持纯文本 reply 或 InquiryNode 原子。
+    inquiry: dict[str, str | InquiryNode] = field(default_factory=dict)
     # M3-1 ADR-0032 决策 1：拜师配置（师傅 NPC 声明式入门条件 + kneel 剃度）。
     # None=该 NPC 不收徒。结构对照 ApprenticeDef（layer0.py）model_dump：
     # {family_name/generation/title/conditions/kneel/success_message}。

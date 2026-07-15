@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -60,12 +62,25 @@ class Orchestrator:
         max_revisions: int = 3,
         verifiers: list[MCPVerifier] | None = None,
         skip_l4: bool = False,
+        event_callback: Callable[[dict], None] | None = None,
     ) -> None:
         self.llm = llm
         self.bible = bible
         self.output_dir = Path(output_dir)
         self.max_revisions = max_revisions
         self.verifiers = verifiers if verifiers is not None else default_verifiers(skip_l4)
+        self._event_callback = event_callback
+
+    def _emit(self, event_type: str, payload: dict[str, Any] | None = None) -> None:
+        """向 workbench 等观察者发送阶段事件（默认无回调时开销可忽略）。"""
+        if self._event_callback is None:
+            return
+        event: dict[str, Any] = {"type": event_type}
+        if payload:
+            event.update(payload)
+        # 回调异常不得破坏主闭环
+        with contextlib.suppress(Exception):
+            self._event_callback(event)
 
     def create_job(self, intent_path: Path | str) -> Job:
         """从意图 YAML 创建 Job。"""
@@ -100,23 +115,33 @@ class Orchestrator:
 
     def _plan(self, job: Job) -> None:
         job.transition(JobState.PLANNING)
+        self._emit("phase", {"phase": "plan", "state": job.state.value})
         job.plan = generate_plan(job.intent, job.bible)
         job.trace.append({"plan": [task_key(t) for t in job.plan]})
+        self._emit("plan", {"tasks": [task_key(t) for t in job.plan]})
         job.transition(JobState.GENERATING)
+        self._emit("phase", {"phase": "plan_done", "state": job.state.value})
 
     def _generate(self, job: Job) -> None:
+        self._emit("phase", {"phase": "generate", "state": job.state.value})
         for task in job.plan:
+            key = task_key(task)
+            self._emit("generate_start", {"task": key})
             try:
                 asset = generate_asset(task, self.llm, job.bible)
             except Exception as e:  # noqa: BLE001
-                msg = f"生成失败 {task_key(task)}: {e}"
+                msg = f"生成失败 {key}: {e}"
                 job.trace.append({"error": msg})
                 job.issues.append(msg)
                 asset = {"id": task.asset_id, "_generation_error": str(e)}
-            job.assets[task_key(task)] = asset
+                self._emit("generate_error", {"task": key, "error": str(e)})
+            job.assets[key] = asset
             job.token_estimate += _estimate_tokens(asset)
+            self._emit("generate_done", {"task": key})
+        self._emit("phase", {"phase": "generate_done", "state": job.state.value})
 
     def _assemble(self, job: Job) -> None:
+        self._emit("phase", {"phase": "assemble", "state": job.state.value})
         out = job.output_dir
         out.mkdir(parents=True, exist_ok=True)
         manifest = self._build_manifest(job)
@@ -148,6 +173,10 @@ class Orchestrator:
                 ),
                 encoding="utf-8",
             )
+        self._emit(
+            "assemble_done",
+            {"output_dir": str(out), "assets": list(_ASSET_FILE.keys())},
+        )
 
     def _build_manifest(self, job: Job) -> CpkManifest:
         intent = job.intent
@@ -175,6 +204,7 @@ class Orchestrator:
 
     def _verify(self, job: Job) -> None:
         job.transition(JobState.VALIDATING)
+        self._emit("phase", {"phase": "verify", "state": job.state.value})
         job.issues = []
         try:
             manifest, ir, rules, _skills = load_cpk(job.output_dir, registry=None)
@@ -182,6 +212,7 @@ class Orchestrator:
             ir["rules"] = [r.model_dump(mode="json") for r in rules]
         except Exception as e:  # noqa: BLE001
             job.issues.append(f"CPK 加载失败: {e}")
+            self._emit("verify_error", {"error": str(e)})
             return
 
         findings: list[MCPFinding] = []
@@ -197,8 +228,20 @@ class Orchestrator:
                 for f in findings
             ],
         })
+        self._emit(
+            "verify_done",
+            {
+                "revision": job.revision_count,
+                "issue_count": len(job.issues),
+                "findings": [
+                    {"severity": f.severity, "verifier": f.verifier, "msg": f.message}
+                    for f in findings
+                ],
+            },
+        )
 
     def _revise(self, job: Job) -> None:
+        self._emit("phase", {"phase": "revise", "state": job.state.value})
         grouped: dict[str, list[str]] = {}
         for issue in job.issues:
             task = _asset_for_issue(issue, job.plan)
@@ -213,6 +256,7 @@ class Orchestrator:
             if not current or "_generation_error" in current:
                 continue
             rag_context = build_context(job.bible, task)
+            self._emit("revise_start", {"task": key, "issue_count": len(issues)})
             try:
                 revised = revise_asset(
                     self.llm,
@@ -224,18 +268,23 @@ class Orchestrator:
                 )
             except Exception as e:  # noqa: BLE001
                 job.trace.append({"revise_error": f"{key}: {e}"})
+                self._emit("revise_error", {"task": key, "error": str(e)})
                 continue
             job.assets[key] = revised
             job.token_estimate += _estimate_tokens(revised)
+            self._emit("revise_done", {"task": key})
         job.revision_count += 1
         job.transition(JobState.VALIDATING)
+        self._emit("phase", {"phase": "revise_done", "state": job.state.value})
 
     def _precheck(self, job: Job) -> None:
+        self._emit("phase", {"phase": "precheck", "state": job.state.value})
         try:
             report = precheck_cpk(job.output_dir)
         except Exception as e:  # noqa: BLE001
             job.review_status = CpkReviewStatus.REJECTED.value
             job.trace.append({"precheck_error": str(e)})
+            self._emit("precheck_error", {"error": str(e)})
             job.transition(JobState.REVIEWING)
             return
 
@@ -255,15 +304,33 @@ class Orchestrator:
             "review_status": job.review_status,
             "precheck_findings": len(report.findings),
         })
+        self._emit(
+            "precheck_done",
+            {
+                "review_status": job.review_status,
+                "finding_count": len(report.findings),
+            },
+        )
         job.transition(JobState.REVIEWING)
+        self._emit("phase", {"phase": "precheck_done", "state": job.state.value})
 
     def _finalize(self, job: Job) -> None:
+        self._emit("phase", {"phase": "finalize", "state": job.state.value})
         if job.review_status == CpkReviewStatus.PASSED.value:
             job.transition(JobState.APPROVED)
         else:
             job.transition(JobState.REJECTED)
         self._write_revision_trace(job)
         self._write_job_state(job)
+        self._emit(
+            "job_done",
+            {
+                "state": job.state.value,
+                "review_status": job.review_status,
+                "revision_count": job.revision_count,
+                "token_estimate": job.token_estimate,
+            },
+        )
 
     def _write_revision_trace(self, job: Job) -> None:
         trace_path = job.output_dir / "revision_trace.json"

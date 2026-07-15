@@ -27,6 +27,7 @@ from xkx.dsl.layer1 import (
     evaluate_accept_object,
     evaluate_ask,
 )
+from xkx.dsl.layer2 import InquiryNode
 from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.auto_fight import FightType, auto_fight, initiate_combat
 from xkx.runtime.capability import CapabilityToken, PermissionService
@@ -641,11 +642,35 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
                 return [f"任务「{q['name']}」进行中（{step}/{total}）。"]
             return [f"任务「{q['name']}」已完成。"]
 
-    # 普通 inquiry
+    # 普通 inquiry（支持 str / InquiryNode）
     behavior = world.get(target_eid, NpcBehavior)
     if not behavior or topic not in behavior.inquiry:
         return [f"{target_name}摇了摇头。"]
-    # C4 ADR-0040：求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
+    return _run_inquiry(game, actor_id, target_eid, target_name, target_pid, topic)
+
+
+def _run_inquiry(
+    game: Game,
+    actor_id: int,
+    target_eid: int,
+    target_name: str,
+    target_pid: str,
+    topic: str,
+    visited: set[str] | None = None,
+) -> list[str]:
+    """执行单个 inquiry topic，支持 next_topic 链（M2-2 layer2）。"""
+    if visited is None:
+        visited = set()
+    if topic in visited:
+        return []
+    visited.add(topic)
+
+    world = game.world
+    behavior = world.get(target_eid, NpcBehavior)
+    if behavior is None or topic not in behavior.inquiry:
+        return [f"{target_name}摇了摇头。"]
+
+    # C4 ADR-0040：先求值 ask 规则执行 set_flag 副作用（对照 LPC inquiry 函数指针）
     ctx = _eval_ctx(world, actor_id, npc_id=target_pid, ask_topic=topic)
     ask_result = evaluate_ask(game.rules, ctx)
     if ask_result.set_flag:
@@ -654,9 +679,53 @@ def ask(game: Game, actor_id: int, target_name: str, topic: str) -> list[str]:
             marks = Marks()
             world.add(actor_id, marks)
         marks.flags.add(ask_result.set_flag)
-    # 消息：规则 message 非空则覆盖 inquiry，否则用 inquiry 字典文本
-    message = ask_result.message if ask_result.message else behavior.inquiry[topic]
-    return [message]
+
+    raw = behavior.inquiry[topic]
+    msgs: list[str] = []
+    next_topic = ""
+    if isinstance(raw, InquiryNode):
+        node = raw
+        # requires_flag 检查
+        marks = world.get(actor_id, Marks)
+        if node.requires_flag and (marks is None or node.requires_flag not in marks.flags):
+            return [f"{target_name}摇了摇头。"]
+        _apply_inquiry_transaction(world, actor_id, node)
+        # 规则 message 非空则覆盖 reply
+        msgs.append(ask_result.message if ask_result.message else node.reply)
+        if node.once:
+            behavior.inquiry.pop(topic, None)
+        next_topic = node.next_topic
+    else:
+        msgs.append(ask_result.message if ask_result.message else raw)
+
+    if next_topic:
+        msgs.extend(
+            _run_inquiry(
+                game, actor_id, target_eid, target_name, target_pid, next_topic, visited
+            )
+        )
+    return msgs
+
+
+def _apply_inquiry_transaction(world: World, actor_id: int, node: InquiryNode) -> None:
+    """执行 InquiryNode 的 transaction 副作用（flag / 物品）。"""
+    marks = world.get(actor_id, Marks)
+    if node.sets_flag or node.clears_flag:
+        if marks is None:
+            marks = Marks()
+            world.add(actor_id, marks)
+        if node.sets_flag:
+            marks.flags.add(node.sets_flag)
+        if node.clears_flag:
+            marks.flags.discard(node.clears_flag)
+    inv = world.get(actor_id, Inventory)
+    if node.gives_item:
+        if inv is None:
+            inv = Inventory()
+            world.add(actor_id, inv)
+        inv.items.add(node.gives_item)
+    if node.takes_item and inv is not None:
+        inv.items.discard(node.takes_item)
 
 
 def give(game: Game, actor_id: int, target_name: str, item_query: str) -> list[str]:

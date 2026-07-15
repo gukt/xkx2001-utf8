@@ -27,7 +27,7 @@ from xkx.content_gen.generate import (
     generate_room,
     generate_skill,
 )
-from xkx.content_gen.llm_client import VolcanoArkClient
+from xkx.content_gen.llm_client import create_llm_client
 
 # 类型 -> (生成函数, 落盘文件名)
 _GENERATORS = {
@@ -68,7 +68,13 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="v0 输出目录（measure_revision 兼容 scene 文件名）",
     )
-    gen.add_argument("--model", default=None, help="覆盖 ARK_MODEL（默认 deepseek-v4-flash）")
+    gen.add_argument("--model", default=None, help="覆盖默认 model")
+    gen.add_argument(
+        "--provider",
+        default="volcano",
+        choices=["volcano", "claude"],
+        help="LLM provider（默认 volcano）",
+    )
 
     args = parser.parse_args(argv)
 
@@ -82,8 +88,9 @@ def main(argv: list[str] | None = None) -> int:
     lpc_source = lpc_path.read_text(encoding="utf-8", errors="replace")
 
     gen_fn, out_name = _GENERATORS[args.type]
-    client = VolcanoArkClient(model=args.model)
-    print(f"[content_gen] 生成 {args.type} id={args.id} (model={client.model}) ...")
+    client = create_llm_client(args.provider, model=args.model)
+    print(f"[content_gen] 生成 {args.type} id={args.id} (provider={args.provider}, "
+          f"model={client.model}) ...")
     entry = gen_fn(client, lpc_source, args.id)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)

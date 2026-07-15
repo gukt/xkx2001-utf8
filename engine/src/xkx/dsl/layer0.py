@@ -15,6 +15,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from xkx.dsl.layer2 import InquiryNode
+
 
 class DoorDef(BaseModel):
     """门定义（C5 ADR-0042 + ADR-0044，对照 LPC ``create_door``）。
@@ -145,8 +147,9 @@ class NpcDef(BaseModel):
     chat_chance_combat: int = 0
     chat_msg_combat: list[str] = Field(default_factory=list)
 
-    # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串
-    inquiry: dict[str, str] = Field(default_factory=dict)
+    # 对话（LPC set("inquiry")）；S4 ADR-0006：topic -> reply 静态字符串。
+    # M2-2：扩展为 topic -> str | InquiryNode，支持交易原子节点。
+    inquiry: dict[str, str | InquiryNode] = Field(default_factory=dict)
 
     # M3-1 ADR-0032 决策 1：拜师配置（None=该 NPC 不收徒）
     apprentice: ApprenticeDef | None = None

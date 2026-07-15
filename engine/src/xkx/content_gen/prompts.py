@@ -28,8 +28,10 @@ _SYSTEM_LINES = [
     "- 只输出纯 YAML，不要 markdown 代码围栏（```），不要任何解释文字。",
     "- 字段用 schema 定义名（str_/dex_/int_/con_ 带下划线避关键字，非 str/dex/int/con）。",
     "- LPC 未显式 set 的字段省略（用 schema 默认值），不要凭空补值。",
-    "- 函数式 inquiry（LPC (:func:)）取函数内 say/write 文本转静态字符串；set_temp 副作用用"
-    " `# GAP: ...` 注释标注（DSL 不支持的表达力缺口）。",
+    "- 函数式 inquiry（LPC (:func:)）取函数内 say/write 文本转静态字符串；若函数内有"
+    " give/take 物品或 set/clear flag 等副作用，用结构化 ``{reply: ..., sets_flag: ..., "
+    "gives_item: ..., takes_item: ...}`` 表达（M2-2 InquiryNode），不要用 `# GAP:` 标注。"
+    "set_temp 其他副作用仍用 `# GAP: ...` 注释标注。",
     "",
     "id 引用规范（关键，第 3 轮强化）：所有跨实体引用必须用完整 id，"
     "禁止用 name/别名/拼音/LPC 路径前缀：",
@@ -78,12 +80,14 @@ def build_npc_prompt(lpc_source: str, npc_id: str) -> list[dict[str, str]]:
         "attack_skill(map_skill 推断招式，无武器=unarmed) / "
         "weapon_label(武器中文名，无武器=\"拳头\")",
         "chat_chance_combat / chat_msg_combat(list，每条单行) / "
-        "inquiry(dict {topic: 单行 reply 字符串})",
+        "inquiry(dict {topic: 单行 reply 字符串 或结构化 InquiryNode: {reply, sets_flag, "
+        "clears_flag, gives_item, takes_item, once, next_topic}})",
         "apprentice(可选，师傅收徒配置；非师傅 NPC 省略此字段)",
         "",
         "文本字段单行（关键）：inquiry reply / chat_msg_combat / message 等字符串一律单行，"
         "去尾部 \\n 和外层引号。如 LPC say(\"葛伦布说道：...？\\n\") -> "
-        "inquiry reply \"葛伦布说道：...？\"（无 \\n 无引号）。",
+        "inquiry reply \"葛伦布说道：...？\"（无 \\n 无引号）。"
+        "InquiryNode 的 reply 字段同样单行。",
         "",
         "apprentice 结构（仅该 NPC 是师傅，即 LPC 有 create_family + attempt_apprentice 时填）：",
         "  family_name(门派名) / generation(师傅辈分 int，如 gongcang=12) / "

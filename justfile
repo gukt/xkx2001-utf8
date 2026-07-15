@@ -112,6 +112,10 @@ gen-rooms *args:
 orchestrate *args:
     cd engine && uv run python -m xkx.orchestrator "$@"
 
+# M2-2 FastAPI + WebSocket 评审工作台：just serve-workbench --output-dir ...
+serve-workbench *args:
+    cd engine && uv run python -m xkx.workbench "$@"
+
 # 调用点枚举统计（阶段 0 任务 6 抽样校准，ADR-0046）：just scan
 scan *args:
     cd engine && uv run python -m tools.sampling.scan_callothers "$@"

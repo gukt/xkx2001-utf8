@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from xkx.content_gen.llm_client import VolcanoArkClient
+from xkx.content_gen.llm_client import create_llm_client
 from xkx.content_review.checklist import render_checklist_template
 from xkx.orchestrator.loop import Orchestrator
 from xkx.orchestrator.rag import load_bible
@@ -49,10 +49,16 @@ def cmd_create(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-l4", action="store_true", help="跳过 measure L4 可跑通性校验"
     )
+    parser.add_argument(
+        "--provider",
+        default="volcano",
+        choices=["volcano", "claude"],
+        help="LLM provider（默认 volcano）",
+    )
     args = parser.parse_args(argv)
 
     bible = load_bible(args.bible)
-    llm = VolcanoArkClient()
+    llm = create_llm_client(args.provider)
     orchestrator = Orchestrator(
         llm=llm,
         bible=bible,
@@ -85,6 +91,12 @@ def cmd_continue(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-l4", action="store_true", help="跳过 measure L4"
     )
+    parser.add_argument(
+        "--provider",
+        default="volcano",
+        choices=["volcano", "claude"],
+        help="LLM provider（默认 volcano）",
+    )
     args = parser.parse_args(argv)
 
     output_dir = Path(args.dir)
@@ -97,7 +109,7 @@ def cmd_continue(argv: list[str] | None = None) -> int:
         return 1
 
     bible = load_bible(args.bible)
-    llm = VolcanoArkClient()
+    llm = create_llm_client(args.provider)
     orchestrator = Orchestrator(
         llm=llm,
         bible=bible,

@@ -10,7 +10,13 @@ from pathlib import Path
 import pytest
 
 from xkx.content_gen import llm_client
-from xkx.content_gen.llm_client import VolcanoArkClient, _extract_content, load_dotenv
+from xkx.content_gen.llm_client import (
+    ClaudeClient,
+    VolcanoArkClient,
+    _extract_content,
+    create_llm_client,
+    load_dotenv,
+)
 
 
 class _FakeResp:
@@ -32,6 +38,18 @@ class _FakeResp:
 def _ok_response(content: str) -> bytes:
     return json.dumps(
         {"choices": [{"message": {"role": "assistant", "content": content}}]}
+    ).encode("utf-8")
+
+
+def _claude_response(content: str) -> bytes:
+    return json.dumps(
+        {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": content}],
+            "model": "claude-test",
+        }
     ).encode("utf-8")
 
 
@@ -183,3 +201,95 @@ class TestExtractContent:
     def test_missing_choices_raises(self) -> None:
         with pytest.raises(RuntimeError, match="无 choices"):
             _extract_content({})
+
+
+class TestClaudeClient:
+    """ClaudeClient Anthropic Messages API 请求构建 + 响应解析 + 重试。"""
+
+    def test_init_requires_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
+            ClaudeClient(autoload_env=False, api_key="")
+
+    def test_chat_extracts_system_message(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        c = ClaudeClient(
+            autoload_env=False,
+            api_key="k",
+            base_url="https://anthropic.example.com",
+            model="claude-test",
+        )
+        captured: dict = {}
+
+        def fake_urlopen(req, timeout=None):
+            captured["url"] = req.full_url
+            # urllib Request.headers 是大小写不敏感 Message；统一转小写断言
+            captured["headers"] = {k.lower(): v for k, v in req.headers.items()}
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return _FakeResp(_claude_response("hello"))
+
+        monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+        result = c.chat(
+            [
+                {"role": "system", "content": "sys"},
+                {"role": "user", "content": "hi"},
+            ],
+            temperature=0.1,
+        )
+        assert result == "hello"
+        assert captured["url"] == "https://anthropic.example.com/v1/messages"
+        assert captured["headers"]["x-api-key"] == "k"
+        assert captured["headers"]["anthropic-version"] == "2023-06-01"
+        assert captured["body"]["system"] == "sys"
+        assert captured["body"]["messages"] == [{"role": "user", "content": "hi"}]
+        assert captured["body"]["temperature"] == 0.1
+        assert captured["body"]["max_tokens"] == 1024
+
+    def test_chat_retries_on_429_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        c = ClaudeClient(
+            autoload_env=False, api_key="k", base_url="https://x", model="m"
+        )
+        calls = {"n": 0}
+
+        def fake_urlopen(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {}, io.BytesIO(b"{}"))
+            return _FakeResp(_claude_response("ok"))
+
+        monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(llm_client.time, "sleep", lambda s: None)
+        assert c.chat([{"role": "user", "content": "hi"}]) == "ok"
+        assert calls["n"] == 3
+
+    def test_chat_4xx_non_retryable_raises_immediately(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        c = ClaudeClient(autoload_env=False, api_key="k", base_url="https://x", model="m")
+        calls = {"n": 0}
+
+        def fake_urlopen(req, timeout=None):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(
+                req.full_url, 400, "Bad Request", {}, io.BytesIO(b'{"error":"bad"}')
+            )
+
+        monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+        with pytest.raises(RuntimeError, match="HTTP 400"):
+            c.chat([{"role": "user", "content": "hi"}])
+        assert calls["n"] == 1
+
+
+class TestCreateLLMClient:
+    """create_llm_client 工厂按 provider 分发。"""
+
+    def test_create_volcano(self) -> None:
+        client = create_llm_client("volcano", api_key="k", autoload_env=False)
+        assert isinstance(client, VolcanoArkClient)
+
+    def test_create_claude(self) -> None:
+        client = create_llm_client("claude", api_key="k", autoload_env=False)
+        assert isinstance(client, ClaudeClient)
+
+    def test_create_unknown_raises(self) -> None:
+        with pytest.raises(ValueError, match="未知 LLM provider"):
+            create_llm_client("unknown")

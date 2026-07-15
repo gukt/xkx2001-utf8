@@ -193,3 +193,41 @@ def test_orchestrator_max_revisions_rejected(tmp_path: Path, bible: WorldBible):
     orchestrator.run(job)
     assert job.state == JobState.REJECTED
     assert job.revision_count == 1
+
+
+def test_orchestrator_emits_events(tmp_path: Path, bible: WorldBible):
+    """Orchestrator event_callback 按阶段顺序触发。"""
+    lpc_path = tmp_path / "r1.c"
+    lpc_path.write_text("// test lpc\n", encoding="utf-8")
+    llm = FakeLLMClient([_room_yaml()])
+    events: list[dict[str, Any]] = []
+
+    def callback(event: dict[str, Any]) -> None:
+        events.append(event)
+
+    orchestrator = Orchestrator(
+        llm=llm,
+        bible=bible,
+        output_dir=tmp_path,
+        max_revisions=1,
+        verifiers=[WorldGraphReachability(), SchemaValidatorMCP(), PrecheckMCP()],
+        event_callback=callback,
+    )
+    intent_path = tmp_path / "intent.yaml"
+    intent_path.write_text(
+        "cpk_id: demo\n"
+        "theme: wuxia\n"
+        "entry_scene: xueshan/r1\n"
+        "assets:\n"
+        "  - type: room\n"
+        "    id: xueshan/r1\n"
+        f"    lpc: {lpc_path}\n",
+        encoding="utf-8",
+    )
+    job = orchestrator.create_job(intent_path)
+    orchestrator.run(job)
+    assert job.state == JobState.APPROVED
+    phases = [e["type"] for e in events]
+    assert "phase" in phases
+    assert "job_done" in phases
+    assert any(e.get("type") == "job_done" and e.get("state") == "approved" for e in events)
