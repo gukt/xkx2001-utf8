@@ -11,7 +11,7 @@
 - **阶段**：M3 收官后产品化收尾窗口（demo 打磨 9 项完成）
 - **分支**：feat/stage-3-techdebt-r3
 - **tests**：1812 全绿，ruff 全过
-- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）/ [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)（多对手+钥匙系统，B-2/C5 收尾）
+- **关键 ADR**：[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md)（drink+初始物品+持茶挡路）/ [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md)（门 open/close+LOCKED）/ [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)（hatred+vendetta）/ [ADR-0040](docs/adr/ADR-0040-layer1-ask-clearflag-spawnitems.md)~[ADR-0042](docs/adr/ADR-0042-door-state-machine.md)（第 2 轮）/ [ADR-0047](docs/adr/ADR-0047-greenfield-effort-semantics.md)（抽样校准 greenfield 工时语义）/ [ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)（阶段 B 方案修正：降级区间承诺）/ [ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)（多对手+钥匙系统，B-2/C5 收尾）/ [ADR-0050](docs/adr/ADR-0050-du-command-and-schema-extension.md)（du 研读命令+ItemDef/QuestReward schema 扩展，demo 打磨）
 - **下一步**：M3->后置决策检查点（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问，用户已选产品化收尾窗口方向）；demo 打磨 9 项完成（A1/B1/B2/B3/B5/C1/C2/C3/B4）；抽样校准 pilot 实测待启动（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，人工工时红线，被测环节留人工）；berserk 语义裁决待用户（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md) §不做）
 - **工具链**：仓库根新增 [justfile](justfile) task runner（24 recipe 自带 `cd engine && uv run`，agent 在仓库根 `just <recipe>` 即可，`just --list` 自举）；CLAUDE.md/本文件命令行已同步改 `uv run`。ruff format 有 85 文件历史漂移，可单独 `just format` 全量格式化。
 - **可玩 demo**：CLI `python -m xkx.cli` 闭环（起始 dshanlu 免卡门 + 供奉/拜师/kneel/learn/du 研读经书链 + drink 闭环 + aggressive/hatred/vendetta NPC + open/close/knock/unlock 门 + 钥匙开锁 + 藏经阁取经 + 密室雪莲丹 + kill 野狼 quest；战斗逐条节奏 + 死亡还阳）+ `python -m xkx.content_review` 审核 pipeline
@@ -45,17 +45,11 @@
 
 **Demo 打磨（产品化收尾窗口）完成**（9 项，详见 Done）：A1/B1/B2/B3/B5/C1/C2/C3/B4。1812 tests 全绿。方向=用户选产品化收尾窗口（Q2 暂否，聚焦已迁移内容产品化；pilot 被测环节受人工工时红线约束留人工，berserk 卡语义裁决）。
 
-**M3 收官后技术债补缺口第 4 轮完成**（[ADR-0049](docs/adr/ADR-0049-multi-opponent-select-and-key-system.md)）。B-2 多对手 select_opponent（修正每 tick 全打 bug，combat seed 选目标+combat_selects 跨层）+ C5 钥匙系统（key_id+unlock 命令+铁钥匙场景）落地。1807 tests 全绿。berserk/动态 exit/SMASHED 仍后置。
-
-**M3 收官后技术债补缺口（第 3 轮）完成**（[ADR-0043](docs/adr/ADR-0043-drink-command-initial-items-tea-block.md) / [ADR-0044](docs/adr/ADR-0044-door-open-close-locked.md) / [ADR-0045](docs/adr/ADR-0045-hatred-vendetta-triggers.md)）。C4 drink 命令+厨房初始物品+持茶挡路闭环 + C5 open/close 命令+LOCKED 位 + B-2 hatred(killer_ids 重入重触)+vendetta(标记式追杀) 全部落地。1795 tests 全绿。技术债补缺口第 3 轮（C4/B-2/C5 残留后置 7 子项）完成；多对手/berserk/钥匙/动态exit/SMASHED 仍后置。
-
-**CLI 试玩三 bug 修复已合并**（worktree-fix-combat-death-respawn -> feat/stage-3-techdebt-r3，2026-07-14）。战斗节奏 / 死亡还阳 KeyError / demo 潜能三问题修复 + 4 回归测试，合并后 1799 tests 全绿。worktree 已删除。
-
-**M3->后置决策检查点待用户裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问）：单进程容量是否实测达 80% / 是否需要外部玩家测试（触发 PG 迁移，kill criteria 8）/ 第二题材是否真实存在（触发热插拔评估）。M3 内部 demo 已达成，下一步方向需用户决策。
+**M3->后置决策检查点已裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md) 三问，2026-07-15）：Q1 单进程容量实测 80%--否（合成压测余量 8x，无真实在线）；Q3 第二题材--否（仅武侠）；Q2 外部玩家测试--**暂否**（用户选产品化收尾窗口，不启动 PG 迁移/网络层产品化）。三问均不触发后置阶段，聚焦已迁移内容产品化 + 后置技术债/抽样 pilot 按需推进。
 
 **可穿插推进**（非主线前置，待主线方向确认后启动）：
 
-- 任务 6 抽样校准实验：**阶段 B 方案修正完成**（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，评审团 4 方案+3 评委三方收敛）。80 样本窄 CI 降级为 pilot 13 样本+类比基准区间承诺（[manifest](engine/tools/sampling/pilot/samples_manifest.json)）。pilot 脚手架（[schema](engine/tools/sampling/pilot/schema.py)/[estimate](engine/tools/sampling/pilot/estimate.py)/stubs）就绪。**pilot 实测待启动**（下 session 从 manifest id=1 xue.c:main 起步，建共享桩+测 1-2 high-tier）
+- 任务 6 抽样校准实验：**阶段 B 方案修正完成**（[ADR-0048](docs/adr/ADR-0048-stage-b-degraded-interval-pilot.md)，评审团 4 方案+3 评委三方收敛）。80 样本窄 CI 降级为 pilot 13 样本+类比基准区间承诺（[manifest](engine/tools/sampling/pilot/samples_manifest.json)）。pilot 脚手架（[schema](engine/tools/sampling/pilot/schema.py)/[estimate](engine/tools/sampling/pilot/estimate.py)/stubs）就绪。**pilot 实测待启动**（下 session 从 manifest id=1 xue.c:main 起步，建共享桩+测 1-2 high-tier；被测环节人工工时红线，留人工计时）
 - golden trace 定点辅助（driver PID 22753 运行中）-- do_attack 七步基线已录制，扩展绑定 2.4（当前过早）
 
 ## Blocked
@@ -66,12 +60,9 @@ driver UE 问题已于 2026-07-11 解除（用户重启电脑，PID 22753 监听
 
 ## Next Up
 
-**M3 收官 -> 后置阶段**（M3 5 任务全部裁决完毕：M3-1/2/3/5 完成，M3-4 后置）：
+**M3 收官 -> 后置阶段**（M3 5 任务全部裁决完毕：M3-1/2/3/5 完成，M3-4 后置；§八 三问 2026-07-15 裁决=产品化收尾窗口）：
 
-- **M3->后置决策检查点**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)，待用户裁决下一步方向）：
-  - 单进程容量是否实测达 80%（触发分布式评估）
-  - 是否需要外部玩家测试（触发 PG 迁移，kill criteria 8 硬止损线）
-  - 第二题材是否真实存在（触发热插拔评估）
+- **M3->后置决策检查点已裁决**（[04 §八](docs/xkx-arch/04-迁移路径与避坑清单.md)）：Q1/Q3 否，Q2 暂否（产品化收尾窗口）。后置阶段（分布式/PG 迁移/热插拔）均不触发，待未来条件满足再评估。
 - **全仿真确定性**：M3-5 已决策否决实施（[ADR-0035](docs/adr/ADR-0035-full-simulation-determinism-decision-point.md)），保持 combat-only，触发条件后置（分布式回放 / 反作弊强需求 / 观战产品需求）
 
 **规格补充建议**：层 H 第二梯队（CHANNEL_D/fingerd/rankd PKS）/ 层 C（vote）/ 层 I（human.c 属性公式）/ 层 F（阴间流程）-- 按 [08 §七](docs/xkx-arch/08-阶段-0-实施计划.md) "实现到时才补"。S2-S4f 简化项按 [ADR-0002](docs/adr/ADR-0002-resolve-attack-extraction.md)~[ADR-0008](docs/adr/ADR-0008-schema-validator-four-checks.md) 在 S4+ 补全。

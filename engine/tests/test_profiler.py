@@ -38,8 +38,9 @@ def test_disabled_profiler_zero_overhead() -> None:
         with p.measure_system("CombatSystem"):
             pass
     elapsed_us = (time.perf_counter_ns() - start) // 1000
-    # 10000 次空 contextmanager < 10ms（即每次 < 1μs）
-    assert elapsed_us < 10_000, f"零开销模式耗时 {elapsed_us}μs，超 10ms"
+    # 10000 次空 contextmanager 开销：PRD §六 <0.1ms/tick（100μs/次），本断言
+    # <50ms（5μs/次）仍远严于 PRD；放宽自原 10ms 以容 WSL2 timing 抖动偶发超标。
+    assert elapsed_us < 50_000, f"零开销模式耗时 {elapsed_us}μs，超 50ms"
 
 
 def test_enabled_toggle() -> None:
