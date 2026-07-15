@@ -4,13 +4,13 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-15（规格补充 Batch 1-4 完成）
+**最后更新**：2026-07-15（pilot AI 铺路完成）
 
 ## 当前状态速览
 
-- **阶段**：阶段 0 规格补充完成（master 工作区）
-- **分支**：master
-- **tests**：1970 全绿，ruff 全过
+- **阶段**：阶段 0 pilot 实测（AI 铺路完成，待人工计时）
+- **分支**：feat/sampling-pilot
+- **tests**：1978 全绿，ruff 全过（+8 pilot estimate 单测）
 - **关键 ADR**：[ADR-0055](docs/adr/ADR-0055-spec-supplement-vote-human-hell-daemons2.md)（规格补充分类决策）/ [ADR-0054](docs/adr/ADR-0054-m2-2-langfuse-still-postponed.md)（M2-2 Langfuse 不接）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
@@ -24,7 +24,11 @@
 
 ## In Progress
 
-**当前无进行中的阻塞性子任务。** 规格补充全部完成，等待 review 或进入 pilot 实测。
+**pilot AI 铺路完成**（feat/sampling-pilot），交人工计时 `xue.c:main`：
+
+- 建桩 [stubs.py](engine/tools/sampling/pilot/stubs.py)（6 桩）+ scan 扩展 `status_kind_tier` 交叉表（补 output/ 产出）+ 实现 [estimate.py](engine/tools/sampling/pilot/estimate.py) 推算核心 + 8 单测
+- [xue 导航笔记](engine/tools/sampling/pilot/samples/xue_c_main.notes.md)（三态表+6桩+8后置分支+effort模板）；workflow 13 路三态对照完成，桩缺口清单 [stub_gaps.md](engine/tools/sampling/pilot/samples/stub_gaps.md)
+- **纠偏信号**：workflow 发现 ~40 桩缺口（超 ADR-0048 点名 7 桩），含架构层（item-as-entity/消息分发）；首批测 xue 校准锚点，漂移大则触发 ADR-0048 退路
 
 ## Blocked
 
@@ -32,8 +36,9 @@
 
 ## Next Up
 
-1. **pilot 实测**（`feat/sampling-pilot`）：阶段 0 验收硬交付物，AI 铺路建桩 + 人工计时。manifest id=1 `xue.c:main` 起步。
-2. **合并当前分支**：`feat/m2-ugc-loop-r2` 已合并 master，无需额外合并。
+1. **人工计时 xue.c:main**（manifest id=1）：按 [导航笔记](engine/tools/sampling/pilot/samples/xue_c_main.notes.md) 补 8 后置分支 + 6 桩，记工时到 effort_records.jsonl。锚点 115-190min。
+2. **后续 12 样本**：按 [stub_gaps.md](engine/tools/sampling/pilot/samples/stub_gaps.md) 桩缺口测，A 类简单桩按需补建，B 类架构缺口记为待迁移面或触发退路。
+3. **推算区间承诺**：13 样本工时齐后跑 estimate.py，写报告 + 校验误分类率（>30% 触发退路）。
 
 ## kill criteria 状态（开工必读）
 

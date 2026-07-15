@@ -1,0 +1,2311 @@
+{
+  "triages": [
+    {
+      "dependencies": [
+        {
+          "api": "notify_fail(msg)",
+          "engine_path": "engine/src/xkx/runtime/middleware/s7_execute_audit.py:101",
+          "note": "命令框架用 return list[str] 替代，无独立 notify_fail 函数；s7 中间件仅注释对齐默认提示",
+          "status": "无"
+        },
+        {
+          "api": "sscanf(arg, \"%s %s %d\"/\"%s %s\")",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1447",
+          "note": "参数解析在命令派发层（learn 签名直接拆 teacher_name/skill_id/times），无运行时 sscanf",
+          "status": "无"
+        },
+        {
+          "api": "present(teacher, environment(me))",
+          "engine_path": "engine/src/xkx/runtime/query.py:338",
+          "note": "find_in_room 按 name/alias 查实体，未带 is_character 过滤；commands._find_npc_in_room:127 仅查 NPC",
+          "status": "部分"
+        },
+        {
+          "api": "environment(me)",
+          "engine_path": "engine/src/xkx/runtime/query.py:467",
+          "note": "返回 Position.room_id",
+          "status": "已有"
+        },
+        {
+          "api": "random(n) / random(sizeof(arr))",
+          "engine_path": "engine/src/xkx/combat/rng.py:37",
+          "note": "combat 用确定性 rng；learn 用 Python random.randint(0,n-1) 系统 RNG（非 combat 范围 OK）",
+          "status": "已有"
+        },
+        {
+          "api": "sizeof(arr)",
+          "engine_path": "",
+          "note": "Python len，无需专门实现",
+          "status": "已有"
+        },
+        {
+          "api": "living(ob)",
+          "engine_path": "engine/src/xkx/runtime/death.py:382",
+          "note": "私有 _is_living（Marks.flags 不含 unconscious/disabled），无公开 living()；learn 命令未做此检查",
+          "status": "部分"
+        },
+        {
+          "api": "userp(ob)",
+          "engine_path": "engine/src/xkx/runtime/components.py:18",
+          "note": "Identity.is_player 字段非函数；auto_fight.py:243 注释对齐 userp",
+          "status": "部分"
+        },
+        {
+          "api": "write(msg)",
+          "engine_path": "engine/src/xkx/runtime/death.py:426",
+          "note": "命令返回 list[str] 替代；_tell 写 pending_messages",
+          "status": "无"
+        },
+        {
+          "api": "tell_object(ob, msg)",
+          "engine_path": "engine/src/xkx/runtime/death.py:426",
+          "note": "私有 _tell / governance.py:579 写 pending_messages；完整 WS 推送后置 M3",
+          "status": "部分"
+        },
+        {
+          "api": "printf(fmt, ...)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1510",
+          "note": "用 f-string 拼接消息，无 printf",
+          "status": "无"
+        },
+        {
+          "api": "to_chinese(skill)",
+          "engine_path": "",
+          "note": "技能中文名翻译未实现（chinese_number 后置，commands.py:1232 注释）",
+          "status": "无"
+        },
+        {
+          "api": "me->is_busy()",
+          "engine_path": "engine/src/xkx/runtime/skill.py:69",
+          "note": "is_busy(world, eid)，BUSY_CONDITIONS 检查",
+          "status": "已有"
+        },
+        {
+          "api": "me->is_fighting()",
+          "engine_path": "engine/src/xkx/runtime/components.py:146",
+          "note": "CombatState.is_fighting 字段，非 no-arg 方法；auto_fight._is_fighting 私有带 obj 参数",
+          "status": "部分"
+        },
+        {
+          "api": "ob->is_character()",
+          "engine_path": "engine/src/xkx/runtime/query.py:386",
+          "note": "无独立函数，按有无 Identity 判断（query.py 注释）",
+          "status": "部分"
+        },
+        {
+          "api": "ob->name() / me->name()",
+          "engine_path": "engine/src/xkx/runtime/components.py:16",
+          "note": "Identity.name 字段 + query.short() 带修饰；无 name() 方法",
+          "status": "部分"
+        },
+        {
+          "api": "me->query(\"potential\"/\"combat_exp\"/\"gender\"/\"int\"/\"jing\")",
+          "engine_path": "engine/src/xkx/runtime/query.py:58",
+          "note": "query(world,eid,key) 均在 DBASE_KEY_MAP（Progression/Attributes/Vitals）",
+          "status": "已有"
+        },
+        {
+          "api": "me->query(\"family/family_name\") / ob->query(\"family/family_name\")",
+          "engine_path": "engine/src/xkx/runtime/components.py:330",
+          "note": "数据在 FamilyComp.family_name / Attributes.family，但 \"family/family_name\" 路径未接线（PATH_PREFIX_MAP 仅 skill/marks，resolve 判 unknown 抛 DbaseKeyError），需改读 Attributes.family",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_int()",
+          "engine_path": "engine/src/xkx/runtime/query.py:58",
+          "note": "query(\"int\") 返回 Attributes.int_ 原值已有；无 query_int 函数（LPC 年龄修正后置）",
+          "status": "部分"
+        },
+        {
+          "api": "ob->query_skill(skill,1) / me->query_skill(skill,1)",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "query_skill(world,eid,skill,raw=True)",
+          "status": "已有"
+        },
+        {
+          "api": "me->is_apprentice_of(ob)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1160",
+          "note": "_is_apprentice_of 匹配 FamilyComp.master_id+master_name",
+          "status": "已有"
+        },
+        {
+          "api": "ob->prevent_learn(me, skill)",
+          "engine_path": "",
+          "note": "师傅侧门控未实现（commands.py:1456 注明后置）",
+          "status": "无"
+        },
+        {
+          "api": "ob->recognize_apprentice(me)",
+          "engine_path": "",
+          "note": "付费副作用未实现（后置，commands.py:1456）",
+          "status": "无"
+        },
+        {
+          "api": "me->is_spouse_of(ob)",
+          "engine_path": "",
+          "note": "spouse 系统未实现（后置 M3，death.py:12 break_marriage 同后置）",
+          "status": "无"
+        },
+        {
+          "api": "me->query(\"married_times\") / me->query(\"spouse/title\")",
+          "engine_path": "",
+          "note": "spouse 系统，非 dbase key，classify 判 unknown 抛异常",
+          "status": "无"
+        },
+        {
+          "api": "me->add(\"potential\", -n) / me->add_temp(\"mark/朱\", n)",
+          "engine_path": "engine/src/xkx/runtime/query.py:123",
+          "note": "add / add_temp（Marks.flags），greenfield 不区分 dbase/temp",
+          "status": "已有"
+        },
+        {
+          "api": "SKILL_D(skill)->type()",
+          "engine_path": "engine/src/xkx/combat/context.py:63",
+          "note": "SkillData.skill_type 简化 str stub 默认 \"\"，真实 type() daemon 后置内容生产",
+          "status": "部分"
+        },
+        {
+          "api": "SKILL_D(skill)->valid_learn(me)",
+          "engine_path": "engine/src/xkx/combat/context.py:64",
+          "note": "SkillData.valid_learn 简化 bool stub 默认 True（get_skill_data skill.py:60）",
+          "status": "部分"
+        },
+        {
+          "api": "SKILL_D(skill)->query_skill_name(my_skill)",
+          "engine_path": "",
+          "note": "招式名查询未实现（后置内容生产，SkillData 无此字段）",
+          "status": "无"
+        },
+        {
+          "api": "me->improve_skill(skill, gain)",
+          "engine_path": "engine/src/xkx/runtime/skill.py:78",
+          "note": "improve_skill(world,eid,skill,amount)，含多技能惩罚+升级阈值",
+          "status": "已有"
+        },
+        {
+          "api": "me->set_skill(skill, 0)",
+          "engine_path": "engine/src/xkx/runtime/query.py:91",
+          "note": "无 set_skill 函数；set(\"skill/<id>\",0) 走 PATH_PREFIX_MAP 可用；learn 命令靠 improve_skill 隐式初始化",
+          "status": "部分"
+        },
+        {
+          "api": "me->receive_damage(\"jing\", n) / ob->receive_damage(\"jing\", n)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1509",
+          "note": "无独立函数；learn 内联 vitals.jing-=gin_cost；combat/conformance.py:75 仅 combat apply 模拟；eff_jing clamp+死亡触发未走",
+          "status": "部分"
+        },
+        {
+          "api": "ob->query(\"env/no_teach\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:182",
+          "note": "\"env\" 在 POSTPONED_KEYS，query 返回 None+warn；无 NPC 教学开关建模",
+          "status": "无"
+        },
+        {
+          "api": "inherit F_CLEAN_UP",
+          "engine_path": "",
+          "note": "greenfield 命令是函数非对象，无 clean_up mixin，概念不适用",
+          "status": "无"
+        },
+        {
+          "api": "#include <skill.h> (query_skill/improve_skill/query_skill_mapped)",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "skill.h 声明的函数均已实现（query_skill / improve_skill / skill_map 字段）",
+          "status": "已有"
+        }
+      ],
+      "file": "/home/gukt/github/xkx2001-utf8/cmds/skill/xue.c",
+      "func": "main",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "ob->prevent_learn(me, skill) — 师傅侧学习门控，全引擎未实现",
+        "ob->recognize_apprentice(me) — 认可徒弟付费副作用，未实现",
+        "me->is_spouse_of(ob) — spouse 婚姻系统未实现",
+        "me->query(\"married_times\") — spouse 系统，非 dbase key",
+        "me->query(\"spouse/title\") — spouse 系统",
+        "SKILL_D(skill)->query_skill_name(my_skill) — 招式名查询，后置内容生产",
+        "to_chinese(skill) — 技能中文名翻译未实现",
+        "ob->query(\"env/no_teach\") — NPC 教学开关（\"env\" 后置 key）",
+        "notify_fail / sscanf / printf / write — 命令基础设施 efun 无独立函数，行为被命令框架 return list[str] 吸收",
+        "inherit F_CLEAN_UP — greenfield 命令是函数非对象，无 clean_up mixin"
+      ],
+      "notes": "新引擎已在 engine/src/xkx/runtime/commands.py:1446 实现 learn() 简化版（覆盖主流程：is_busy/is_fighting/potential/master_skill/valid_learn/jing 消耗/improve_skill），但显式跳过以下 LPC 分支：峨嵋减速 slow_factor、spouse 配偶互教（is_spouse_of/married_times/spouse/title/combat_exp<10000 互授门控）、recognize_apprentice 付费、prevent_learn 师傅侧门控、query_skill_name 招式名消息、to_chinese 中文名、env/no_teach 教学开关、linji-zhuang 特判。这些均在 commands.py:1455-1456 注释中标注后置。\\n\\ndie / death_penalty / skill_death_penalty 不在本函数调用链（xue.c main 无死亡逻辑），但新引擎已实现简化版（death.py:171/254/479），供迁移其他命令时定位。\\n\\n关键导航：(1) me->query(\\\"family/family_name\\\") 路径未接线，迁移时改读 Attributes.family（family_name 同义，dbase_map.py:55）或 FamilyComp.family_name；(2) receive_damage 无独立函数，迁移时需新建或复用 learn 内联的 vitals.jing-= 模式，并补 eff_jing clamp + check_death 触发；(3) SKILL_D(skill)->method() 全部走 SkillData stub（combat/context.py:40），真实 daemon 后置内容生产子任务（ADR-0032 决策 2+5）。",
+      "partial_apis": [
+        "present — find_in_room 仅 name/alias 匹配，未带 is_character 过滤",
+        "living — 私有 _is_living(death.py:382)，无公开 living()，learn 未调用",
+        "userp — Identity.is_player 字段非函数",
+        "tell_object — 私有 _tell 写 pending_messages，WS 推送后置 M3",
+        "me->is_fighting() — CombatState.is_fighting 字段，非 no-arg 方法",
+        "ob->is_character() — 无函数，按 Identity 存在判断",
+        "ob->name() — Identity.name 字段+short()，无 name() 方法",
+        "me->query(\"family/family_name\") — 数据在 FamilyComp/Attributes.family，路径未接线（resolve 判 unknown 抛异常）",
+        "me->query_int() — query(\"int\") 有原值，无 query_int 函数（年龄修正后置）",
+        "SKILL_D(skill)->type() — SkillData.skill_type 简化 str stub 默认 \"\"",
+        "SKILL_D(skill)->valid_learn(me) — SkillData.valid_learn 简化 bool stub 默认 True",
+        "me->set_skill(skill,0) — 无函数，set(\"skill/<id>\") 路径可用",
+        "me->receive_damage(\"jing\",n) — 无独立函数，learn 内联 vitals.jing-=；combat 仅 conformance 模拟；eff clamp+死亡触发未走"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "this_player()->start_more(msg)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:956 (look 直接 return 行列表，无分页)",
+          "note": "分页显示长文本。全引擎 grep start_more/more/pager/paginate 零命中；look 等命令直接返回 list[str] 不做分页/截断。迁移时需新建 pager 组件或由客户端层承担分页。",
+          "status": "无"
+        },
+        {
+          "api": "job_data->restore()",
+          "engine_path": "engine/src/xkx/runtime/storage.py:328 (StorageSystem.restore_world) + :82/:140 (JsonFileBackend.restore)",
+          "note": "存档恢复机制已有（C1 崩溃安全 JSON 存档，write-temp+os.replace 原子写，ADR-0022）。但 LPC job_data 是独立持久化数据对象，按 .o 文件 restore_object；新引擎按 entity 快照恢复，无 job_data 这种「单例数据对象按文件 restore」的专属语义，迁移需把 job_data 映射为一个持久化实体。",
+          "status": "部分"
+        },
+        {
+          "api": "job_data->query_family_jobdata(family)",
+          "engine_path": "",
+          "note": "门派任务数据查询（门派任务完成统计/展示）。全引擎 grep query_family_jobdata/family_job/menpai_job 零命中；runtime/family.py 仅有 FamilyBonus（门派战斗加成），无门派任务数据系统。门派任务(job)子系统整体未迁移。",
+          "status": "无"
+        },
+        {
+          "api": "job_data->choose_of_player(family, 'good'|'bad')",
+          "engine_path": "",
+          "note": "按贡献度选出门派 top/bottom 玩家列表。全引擎 grep choose_of_player/contribution 零命中；无贡献度统计模型。依赖 job_data 未实现。",
+          "status": "无"
+        },
+        {
+          "api": "notify_fail(msg)",
+          "engine_path": "engine/src/xkx/runtime/middleware/s7_execute_audit.py:101 (Abort 默认提示) + engine/src/xkx/runtime/action_context.py:36 (Abort 信号)",
+          "note": "无同名 efun 函数。新引擎命令失败语义通过命令函数返回消息 list 或管线返回 Abort(reason, messages) 实现（ADR-0020 八段管线）。语义部分等价（失败反馈），但非「命令函数内调用 notify_fail 设置默认消息」的同名调用形式，迁移需改为返回 messages。",
+          "status": "部分"
+        },
+        {
+          "api": "explode(arg, ' ')",
+          "engine_path": "engine/src/xkx/runtime/middleware/s5_parse_args.py:20 (tokenize_args)",
+          "note": "字符串分割。无专门 efun 包装，Python str.split() 原生；s5 段提供引号感知 tokenizer 替代散乱 split（ADR-0020 决策 1）。等价已具备。",
+          "status": "已有"
+        },
+        {
+          "api": "sizeof(arr)",
+          "engine_path": "Python len() 原生（无专属文件）",
+          "note": "数组/映射大小。无专门 efun 包装，直接映射 Python len()。等价已具备。",
+          "status": "已有"
+        },
+        {
+          "api": "find_object(path)",
+          "engine_path": "engine/src/xkx/runtime/query.py:325 (entities_by_prototype) / :338 (find_in_room)",
+          "note": "无「按 LPC 路径字符串找已加载单例对象」的通用 efun。query.py 有 entities_by_prototype（按 NPC def id 查实体）和 find_in_room（房间内查实体），但 job_data 是 /clone/obj/job/job_data 这类路径寻址的单例数据对象，新引擎实体系统用 entity_id 而非路径，无对应查找语义。",
+          "status": "无"
+        },
+        {
+          "api": "new(path) / clone_object",
+          "engine_path": "engine/src/xkx/runtime/query.py:325 (entities_by_prototype 克隆追踪)",
+          "note": "无通用 clone efun。query.py entities_by_prototype 可追踪 NPC 克隆，但 job_data = new(JOB_DIR+'job_data') 是实例化一个单例数据对象，新引擎无「按路径实例化数据对象单例」机制。与 find_object 同属「LPC 路径寻址对象模型」缺口。",
+          "status": "无"
+        },
+        {
+          "api": "objectp(x)",
+          "engine_path": "Python isinstance 原生（无专属文件）",
+          "note": "对象类型判断。无专门 efun 包装，映射 Python isinstance/None 检查。等价已具备。",
+          "status": "已有"
+        },
+        {
+          "api": "inherit ROOM (命令调度入口 + 房间数据)",
+          "engine_path": "engine/src/xkx/runtime/world.py (RoomComp) + engine/src/xkx/runtime/doors.py + engine/src/xkx/runtime/commands.py (COMMAND_REGISTRY) + engine/src/xkx/runtime/middleware/ (八段管线)",
+          "note": "ROOM 提供 set('short'/'exits')/setup() 及 add_action 命令注册。新引擎用 ECS RoomComp 房间数据 + COMMAND_REGISTRY + 八段 middleware 管线调度命令，房间模型与命令调度框架均已具备（语义等价，非同名 inherit）。do_check_menpai_job 经 add_action(center.c:110) 注册即由该框架调度。",
+          "status": "已有"
+        }
+      ],
+      "file": "d/wizard/center.c",
+      "func": "do_check_menpai_job",
+      "has_simplified_impl": false,
+      "id": 1,
+      "missing_apis": [
+        "this_player()->start_more(msg) (分页显示)",
+        "job_data->query_family_jobdata(family) (门派任务数据查询)",
+        "job_data->choose_of_player(family, type) (贡献度 top/bottom 玩家选择)",
+        "find_object(path) (按 LPC 路径找已加载单例对象)",
+        "new(path)/clone_object (按路径实例化数据对象单例)"
+      ],
+      "notes": "函数体位于 d/wizard/center.c:199-628，对 11 个门派（武当/星宿/华山/桃花/丐帮/峨眉/白驼/全真/雪山/大理/少林）做结构完全相同的重复处理，依赖集合一致。核心缺口是「门派任务(job)子系统」整体未迁移：job_data(/clone/obj/job/job_data) 数据对象的 query_family_jobdata/choose_of_player/restore 三个方法均无对应实现，runtime/family.py 仅有 FamilyBonus 门派战斗加成，无任务/贡献度模型。次要缺口是 start_more 分页显示（全引擎无 pager）与 LPC 路径寻址对象模型（find_object/new 的路径单例语义，新引擎实体系统用 entity_id 而非路径）。efun 层 explode/sizeof/objectp 直接映射 Python 原生 (str.split/len/isinstance) 已具备；notify_fail 失败反馈语义通过八段管线 Abort/返回 messages 部分等价（ADR-0020）。附带说明：函数体第 206 行调用本文件局部函数 can_used()（center.c:124-138），其内部依赖 this_player()->query('id')（dbase 读取，已有：engine/src/xkx/runtime/query.py:58 query()）、wizardp(me)（runtime 无 wizardp 函数，新引擎用 capability/permission 模型替代巫师权限，见 engine/src/xkx/runtime/privileged.py root capability，属「部分」）、this_player() efun（通过 ActionContext actor_id 注入，见 s6_inject_context.py，已有）。can_used 的 id 白名单(server/poke/xuanyuan)+wizardp 门控迁移时需重写为 capability token 权限模型。has_simplified_impl=false：门派任务系统连简化版实现都没有，restore 仅存通用存档机制非 job_data 专属。",
+      "partial_apis": [
+        "job_data->restore() (存档机制已有但非 job_data 专属单例语义)",
+        "notify_fail (通过 Abort/返回 messages 部分等价，非同名 efun)"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "inherit ITEM（文件级继承）",
+          "engine_path": "engine/src/xkx/runtime/components.py",
+          "note": "greenfield 无 LPC 继承机制；物品是 ItemDef 数据 + Inventory/组件，无 inherit ITEM 基类。do_qingjiao 依托 ITEM 的 add_action/init 也不存在，命令改走 commands.py 注册。N/A 非等价实现",
+          "status": "无"
+        },
+        {
+          "api": "me->query(\"family\")（返回 mapping，后取 fam[\"family_name\"]）",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:54",
+          "note": "greenfield 中 \"family\"/\"family_name\" 都映射 Attributes.family（str），query 返回字符串而非 mapping。family_name 值可直接 query(\"family_name\") 取得，但 fam[\"family_name\"] 的 mapping 访问形态需改写",
+          "status": "部分"
+        },
+        {
+          "api": "me->is_busy()",
+          "engine_path": "engine/src/xkx/runtime/skill.py:69",
+          "note": "is_busy(world, eid) 完整等价；用 EffectComp(exercise/respirate) 表达 busy，对照 LPC feature/action.c:21",
+          "status": "已有"
+        },
+        {
+          "api": "notify_fail(msg)",
+          "engine_path": "engine/src/xkx/runtime/middleware/s7_execute_audit.py:101",
+          "note": "无 notify_fail() efun；命令改为返回 list[str]（如 [\"你现在正忙着呢。\"]）等价。s7 仅注释提及对齐 LPC notify_fail 默认提示，非函数实现",
+          "status": "部分"
+        },
+        {
+          "api": "sscanf(arg, \"%s %s %d\", teacher, skill, learn_times)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1446",
+          "note": "无 sscanf efun；用 Python str.split/解析替代。learn 命令已实现等效三段/两段参数解析（teacher_name/skill_id/times）",
+          "status": "已有"
+        },
+        {
+          "api": "me->is_fighting()",
+          "engine_path": "engine/src/xkx/runtime/components.py:146",
+          "note": "CombatState.is_fighting 组件字段；learn 命令 commands.py:1470 用 `if combat and combat.is_fighting` 等价判定",
+          "status": "已有"
+        },
+        {
+          "api": "present(teacher, environment(me))",
+          "engine_path": "engine/src/xkx/runtime/query.py:338",
+          "note": "find_in_room(world, room_id, keyword) 按 name/alias/id 查实体，对齐 LPC present(str, room_ob)；learn 命令用 _find_npc_in_room 封装",
+          "status": "已有"
+        },
+        {
+          "api": "environment(me)",
+          "engine_path": "engine/src/xkx/runtime/query.py:467",
+          "note": "environment(world, eid) 返回 Position.room_id，对齐 LPC environment() 语义",
+          "status": "已有"
+        },
+        {
+          "api": "ob->is_character()",
+          "engine_path": "engine/src/xkx/runtime/query.py:385",
+          "note": "greenfield 无 is_character() 方法；按有无 Identity 组件判定（有 Identity 即角色）。learn 命令用 _find_npc_in_room 仅返回角色实体，等价覆盖",
+          "status": "部分"
+        },
+        {
+          "api": "living(ob)",
+          "engine_path": "engine/src/xkx/runtime/death.py:382",
+          "note": "_is_living(world, eid)（death.py 与 auto_fight.py:269 各一份），对照 LPC living() !disable_player。私有 helper，非公开 efun",
+          "status": "已有"
+        },
+        {
+          "api": "ob->name() / me->name()",
+          "engine_path": "engine/src/xkx/runtime/query.py:375",
+          "note": "short(world, eid) 或 Identity.name；short 带 raw 参数对齐 LPC name/short 语义",
+          "status": "已有"
+        },
+        {
+          "api": "ob->query(\"family\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:54",
+          "note": "同 me->query(\"family\")：返回 str 非 mapping。fam_ob[\"family_name\"] 需改 query(\"family_name\")",
+          "status": "部分"
+        },
+        {
+          "api": "me->query(\"potential\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:72",
+          "note": "映射 Progression.potential；learn 命令 commands.py:1473 用 prog.potential 等价判定",
+          "status": "已有"
+        },
+        {
+          "api": "ob->query(\"teach_skillsname\")（NPC 可教武功白名单数组）",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:264",
+          "note": "dbase 未映射；classify_key(\"teach_skillsname\")=unknown 会 raise DbaseKeyError。NPC 可教技能白名单概念未实现，learn 命令改用 _is_apprentice_of + query_skill(NPC) 判定",
+          "status": "无"
+        },
+        {
+          "api": "sizeof(arr)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1446",
+          "note": "无 sizeof efun；Python len() 直接等价",
+          "status": "已有"
+        },
+        {
+          "api": "ob->prevent_learn(me, skill)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1456",
+          "note": "仅注释标注后置（M3-1 雪山派无峨嵋/spouse，recognize 后置），无任何实现。师傅侧门控完全缺失",
+          "status": "无"
+        },
+        {
+          "api": "me->query_skill(skill, 1)",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "query_skill(world, eid, skill_id, raw=True)，raw=True 返回 levels[skill] 原值，对齐 LPC query_skill(skill,1) raw 模式",
+          "status": "已有"
+        },
+        {
+          "api": "ob->query_skill(skill, 1)",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "同上；learn 命令 commands.py:1478 用 query_skill(world, target_eid, skill_id, raw=True) 取 NPC 技能等级",
+          "status": "已有"
+        },
+        {
+          "api": "SKILL_D(skill)->valid_learn(me)",
+          "engine_path": "engine/src/xkx/runtime/skill.py:60",
+          "note": "get_skill_data(skill_id).valid_learn 简化为 bool（默认 True），忽略 me 参数。learn 命令 commands.py:1485 用此布尔判定",
+          "status": "部分"
+        },
+        {
+          "api": "me->query(\"int\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:50",
+          "note": "映射 Attributes.int_；learn 命令 commands.py:1488 用 attrs.int_ 取值",
+          "status": "已有"
+        },
+        {
+          "api": "me->set_skill(skill, 0)（初学时显式置 0 初始化）",
+          "engine_path": "engine/src/xkx/runtime/skill.py:101",
+          "note": "无 set_skill API；improve_skill 内部 `if not weak_mode and skill not in levels: levels[skill]=0` 自动初始化。显式 set_skill(skill,0) 调用在新引擎冗余但语义已被 improve_skill 覆盖",
+          "status": "无"
+        },
+        {
+          "api": "printf(...) / write(...)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1510",
+          "note": "无 printf/write efun；命令返回 list[str] 给 actor，learn 命令 commands.py:1510 组装 msgs 列表等价",
+          "status": "已有"
+        },
+        {
+          "api": "to_chinese(skill)（技能 id -> 中文名）",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "全引擎无 to_chinese efun 也无 skill id->中文名映射表。learn 命令直接用 skill_id 字符串输出，丢中文显示",
+          "status": "无"
+        },
+        {
+          "api": "ob->query(\"env/no_teach\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:182",
+          "note": "env 在 POSTPONED_KEYS，env/ 路径前缀未实现；classify=unknown 会 raise。对 NPC 教师 N/A（NPC 无玩家 env 偏好），但机制缺失",
+          "status": "无"
+        },
+        {
+          "api": "tell_object(ob, sprintf(...))",
+          "engine_path": "engine/src/xkx/runtime/death.py:427",
+          "note": "_tell(world, eid, msg) 写入 world.pending_messages（death.py:427/governance.py:579 各一份私有 helper）。pending_messages 是全局缓冲，非按 eid 路由到目标实体连接；向教师 NPC 推消息的完整语义后置 WS(M3)",
+          "status": "部分"
+        },
+        {
+          "api": "sprintf(...)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1510",
+          "note": "无 sprintf efun；Python f-string/% 格式化直接等价",
+          "status": "已有"
+        },
+        {
+          "api": "ob->query(\"jing\") / me->query(\"jing\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:60",
+          "note": "映射 Vitals.jing；learn 命令 commands.py:1494/1502 用 vitals.jing 等价判定与消耗",
+          "status": "已有"
+        },
+        {
+          "api": "userp(ob)",
+          "engine_path": "engine/src/xkx/runtime/auto_fight.py:243",
+          "note": "Identity.is_player 判定，对齐 LPC userp()；auto_fight.py:243 有 _is_player 封装",
+          "status": "已有"
+        },
+        {
+          "api": "ob->receive_damage(\"jing\", amount)（教师方扣精）",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "无 receive_damage API；greenfield 仅内联 vitals.jing -= 扣减。教师方(NPC)扣精 + 受伤事件钩子完全未实现。do_qingjiao 行 129 教师 userp 时 receive_damage 在新引擎无对应",
+          "status": "无"
+        },
+        {
+          "api": "SKILL_D(skill)->type()（返回 \"martial\" 等）",
+          "engine_path": "engine/src/xkx/combat/context.py:63",
+          "note": "SkillData.skill_type 字段（str），learn 命令 commands.py:1499 用 skill_data.skill_type==\"martial\" 等价 combat_exp 门控",
+          "status": "已有"
+        },
+        {
+          "api": "me->query(\"combat_exp\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:71",
+          "note": "映射 Progression.combat_exp；learn 命令 commands.py:1500 用 prog.combat_exp 等价门控",
+          "status": "已有"
+        },
+        {
+          "api": "SKILL_D(skill)->query_skill_name(my_skill)（招式中文名）",
+          "engine_path": "engine/src/xkx/combat/context.py:40",
+          "note": "SkillData 无 query_skill_name/招式名字段（仅 skill_type/valid_learn/practice_skill/valid_enable 4 字段）。招式名查询属后置内容生产",
+          "status": "无"
+        },
+        {
+          "api": "me->add(\"potential\", -learn_times)",
+          "engine_path": "engine/src/xkx/runtime/query.py:123",
+          "note": "add(world, eid, key, val) 增量写；learn 命令 commands.py:1508 用 prog.potential -= times 等价（也可走 add）",
+          "status": "已有"
+        },
+        {
+          "api": "random(n)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1507",
+          "note": "Python random.randint；learn 命令 commands.py:1507 用 random.randint(0, int_val-1) 等价 gain=Σ random(int)，系统 RNG（非 combat 确定性范围）",
+          "status": "已有"
+        },
+        {
+          "api": "me->query_int()",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1488",
+          "note": "无 query_int() 方法；learn 命令直接用 Attributes.int_（即 query(\"int\")）取值。LPC query_int 是 query(\"int\") 的封装，新引擎直接读字段",
+          "status": "无"
+        },
+        {
+          "api": "me->improve_skill(skill, gain)",
+          "engine_path": "engine/src/xkx/runtime/skill.py:78",
+          "note": "improve_skill(world, eid, skill, amount) 完整等价；learned 阈值升级、多技能惩罚(>30)、amount 下限 1、!userp 跳过均覆盖。learn 命令 commands.py:1514 调用",
+          "status": "已有"
+        },
+        {
+          "api": "me->receive_damage(\"jing\", gin_cost)（玩家方扣精）",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1509",
+          "note": "无 receive_damage API；learn 命令 commands.py:1509 内联 `vitals.jing -= gin_cost` 替代。无 receive_damage 事件钩子/受伤触发，仅标量扣减",
+          "status": "无"
+        }
+      ],
+      "file": "d/kunlun/obj/tieyanling.c",
+      "func": "do_qingjiao",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "inherit ITEM（文件级继承，greenfield 无 LPC 继承机制，物品数据驱动）",
+        "ob->query(\"teach_skillsname\")（NPC 可教武功白名单，dbase 未映射 raise）",
+        "ob->query(\"env/no_teach\")（env/ 路径前缀未实现，POSTPONED_KEYS）",
+        "ob->prevent_learn(me, skill)（仅注释标注后置，无实现）",
+        "me->set_skill(skill, 0)（无 set_skill API；improve_skill 内部自动初始化）",
+        "ob->receive_damage(\"jing\", amount)（无 receive_damage API，教师方扣精未实现）",
+        "me->receive_damage(\"jing\", gin_cost)（无 receive_damage API，仅内联 vitals.jing -=）",
+        "me->query_int()（无 query_int 方法，用 Attributes.int_）",
+        "SKILL_D(skill)->query_skill_name(my_skill)（SkillData 无招式名字段）",
+        "to_chinese(skill)（技能 id->中文名映射未实现）"
+      ],
+      "notes": "do_qingjiao 是明教铁焰令触发的请教武功流程，逻辑结构与 cmds/skill/learn.c 高度同构（busy/fighting/potential/master_skill/valid_learn/combat_exp 门控/gin 消耗/random gain/improve_skill）。新引擎 learn 命令（commands.py:1446）已实现该主流程的简化版，has_simplified_impl=true。但 learn 简化版显式后置了多个 do_qingjiao 依赖的分支：(1) prevent_learn 师傅侧门控（标注后置）；(2) teach_skillsname 白名单（改用 _is_apprentice_of+query_skill）；(3) 教师方 jing 消耗 + receive_damage + tell_object 反馈（教师方副作用整块缺失）；(4) env/no_teach；(5) to_chinese/query_skill_name 中文与招式名显示。do_qingjiao 特有的明教门派门控（fam[\\\"family_name\\\"]==\\\"明教\\\"、fam_ob[\\\"family_name\\\"]==\\\"明教\\\"）在 family_name str 直接可比下可平迁，但 query(\\\"family\\\") 返回 str 而非 mapping 需改写访问形态。literate 拒绝分支属业务逻辑无引擎依赖。红线 ADR-0048 决策7：本表仅为迁移导航三态表，未写任何迁移代码或测试。",
+      "partial_apis": [
+        "notify_fail(msg)（无 efun，命令返回 list[str] 等价）",
+        "tell_object(ob, msg)（_tell 写全局 pending_messages，非按实体路由）",
+        "me/ob->query(\"family\")（返回 str 非 mapping，family_name 可直接 query）",
+        "ob->is_character()（无方法，用 Identity 存在判定）",
+        "SKILL_D(skill)->valid_learn(me)（简化为 bool，忽略 me 参数）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "me->query_skills()（this_object 自身全技能 mapping）",
+          "engine_path": "engine/src/xkx/runtime/components.py:81",
+          "note": "数据层 Skills.levels(dict[str,int])已就绪，do_copy 用 keys() 遍历它清非 force/dodge/parry 技能。可直接 world.get(me_eid, Skills).levels 读全量；无 query_skills() 命名函数，无 dbase 路径(仅 skill/<name> 单键前缀)。",
+          "status": "部分"
+        },
+        {
+          "api": "ob->query_skills()（玩家目标全技能 mapping）",
+          "engine_path": "engine/src/xkx/runtime/components.py:81",
+          "note": "mimicry 输入源，读玩家 ob 的 Skills.levels。ob 在 ECS 为另一 entity：world.get(ob_eid, Skills).levels。与 me 版同状态，无命名函数。",
+          "status": "部分"
+        },
+        {
+          "api": "me->delete_skill(sname[i])",
+          "engine_path": "engine/src/xkx/runtime/query.py:139 + dbase_map.py:116",
+          "note": "dbase delete(\"skill/<name>\") 经 PATH_PREFIX_MAP 删 Skills.levels[name](query.py:139)，对 do_copy 仅清等级够用。但无 dedicated delete_skill() 特征方法(feature/skill.c 还含依赖清理，此处不需要)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_skill_map()",
+          "engine_path": "engine/src/xkx/runtime/components.py:91",
+          "note": "数据 Skills.skill_map(dict[str,str])已就绪，直接读；无 query_skill_map() 函数，且无 dbase skill_map/ 路径(只有 skill/ 单键前缀)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->map_skill(cat) / map_skill(cat, skill)（清/设映射）",
+          "engine_path": "engine/src/xkx/runtime/components.py:91",
+          "note": "单参=清 del skill_map[cat]，双参=设 skill_map[cat]=skill；do_copy 两个用法都有(清循环+重设)。直接 dict 操作即可，无命名函数，无 dbase 路径。",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_skill_prepare()",
+          "engine_path": "engine/src/xkx/runtime/components.py:92",
+          "note": "数据 Skills.skill_prepare(dict[str,str])已就绪，直接读；无函数。do_copy 用 sizeof() 判 prepare 数量决定分支。",
+          "status": "部分"
+        },
+        {
+          "api": "me->prepare_skill(cat) / prepare_skill(cat, skill)（清/设准备）",
+          "engine_path": "engine/src/xkx/runtime/components.py:92",
+          "note": "同 map_skill，操作 skill_prepare dict；单参清/双参设，do_copy 两用法都有。无命名函数，无 dbase 路径。",
+          "status": "部分"
+        },
+        {
+          "api": "me->set_skill(name, 200)",
+          "engine_path": "engine/src/xkx/runtime/query.py:91 + dbase_map.py:116",
+          "note": "dbase set(\"skill/<name>\", 200) 写 Skills.levels[name](query.py:91)，do_copy 仅设等级=200 够用。无 dedicated set_skill()(feature/skill.c 方法还含 reset_action 触发等副作用，此处不需要)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_skill(umname[0], 1)",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "query_skill(world, eid, skill, raw=True) 完全等价：LPC 第二参 1=raw 返回 levels 原值(无 apply/map 加成)，引擎 raw=True 返回 skills.levels.get(skill,0)。三层叠加仅非 raw 模式触发。",
+          "status": "已有"
+        },
+        {
+          "api": "SKILL_D(sname)->valid_enable(\"force\"/\"dodge\")",
+          "engine_path": "engine/src/xkx/combat/context.py:66 + runtime/commands.py:1742 + runtime/skill.py:60",
+          "note": "SkillData.valid_enable(list[str]) 字段存在(context.py:66)，commands.py:1742 用 membership 检查。SKILL_D 宏加载 -> get_skill_data()(skill.py:60 stub 注册表，默认空=不限制)。真实武学数据后置内容生产，stub 下 valid_enable 恒空 -> do_copy 不会复制任何 force/dodge 技能(行为缺口)。is_unarmed() 内部也走此依赖。",
+          "status": "部分"
+        },
+        {
+          "api": "SKILL_D(pre1)->valid_combine(sname)",
+          "engine_path": "（全引擎未实现）",
+          "note": "SkillData 无 valid_combine 字段，全 src/xkx grep 零命中(运行时+规格皆无)。do_copy 用它判双 prepare 组合(sanhua+yizhi 之类)，迁移需在 SkillData 新增字段+组合判定逻辑。",
+          "status": "无"
+        },
+        {
+          "api": "me->reset_action()",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:103-110",
+          "note": "仅 wield 传 skill/label 时更新 CombatState.attack_skill/weapon_label(equipment.py:103-110，2.3 最小)。完整 reset_action(从 skill_map/skill_prepare/weapon 重算 query(\"actions\") 招式集)未实现(equipment.py:14 注明后置)。do_copy 末尾调它重算动作集，缺核心重算逻辑。",
+          "status": "部分"
+        },
+        {
+          "api": "this_object()（efun）",
+          "engine_path": "engine/src/xkx/runtime/pronoun.py:5",
+          "note": "greenfield 无全局 this_object()/this_player()(pronoun.py:5 确认)，me 改为显式 eid 参数传入(ECS 范式)。do_copy 需重构签名为 do_copy(world, me_eid, ob_eid)，me 即传入 eid。能力完整，无缺失分支。",
+          "status": "已有"
+        },
+        {
+          "api": "keys() / sizeof() / mapp()（efun）",
+          "engine_path": "Python 内置 dict.keys()/len()/isinstance(x,dict)",
+          "note": "do_copy 大量用 keys() 取 mapping 键、sizeof() 取大小、mapp() 判 mapping。Python 内置完全等价，无需引擎实现。",
+          "status": "已有"
+        },
+        {
+          "api": "inherit NPC（提供 query_skills/set_skill/map_skill/prepare_skill/reset_action 等特征方法）",
+          "engine_path": "engine/src/xkx/runtime/world.py:150 + components.py",
+          "note": "ECS 范式无 inherit；NPC=组件集(Identity/Attributes/Vitals/Skills/CombatState/NpcBehavior，_spawn_npc:150 从 IR 构造)+ free 函数。NPC base 提供的 skill-feature 方法 API 未以方法形式实现(见上各条)，整体方法面不完整。",
+          "status": "部分"
+        }
+      ],
+      "file": "clone/npc/murong.c",
+      "func": "do_copy",
+      "has_simplified_impl": false,
+      "id": 1,
+      "missing_apis": [
+        "SKILL_D(pre1)->valid_combine(sname)"
+      ],
+      "notes": "do_copy（murong.c:192-284）是慕容博\"以彼之道还施彼身\"技能复制例程：①清自身 force/dodge/parry 之外技能 + 全部 map/prepare；②复制 ob(玩家) 的 unarmed/force/dodge 类技能(经 is_unarmed + SKILL_D->valid_enable 筛选)设为 200；③重设 map/prepare（含 valid_combine 双组合分支）；④reset_action 重算动作集。新引擎 C2 技能层只实现 Skills 组件(数据结构)+query_skill(读，已有)+improve_skill(练功)；skill-feature 的变更 API(set_skill/delete_skill/map_skill/prepare_skill)与 reset_action 重算均无命名函数，但 levels/skill_map/skill_prepare 三个 dict 已就绪可直接操作（部分）。dbase 层(C1, query.py set/delete + dbase_map PATH_PREFIX_MAP skill/)可覆盖 set_skill/delete_skill 的等级写删，但无 skill_map/skill_prepare 的 dbase 路径。三大缺口：valid_combine 全无(无字段无实现)、reset_action 核心重算缺失(仅 wield 时更新 attack_skill)、valid_enable 依赖 stub 注册表(真实武学数据后置内容生产，stub 下恒空导致 do_copy 复制空集)。do_copy 整体无简化实现(has_simplified_impl=false)。do_copy 还调用本地 helper is_unarmed()(murong.c:342，非外部依赖)，其外部依赖 SKILL_D->valid_enable 已计入。本表仅做导航定位，未写任何迁移代码/测试(ADR-0048 决策7)。",
+      "partial_apis": [
+        "me->query_skills()",
+        "ob->query_skills()",
+        "me->delete_skill(name)",
+        "me->query_skill_map()",
+        "me->map_skill(cat)/map_skill(cat,skill)",
+        "me->query_skill_prepare()",
+        "me->prepare_skill(cat)/prepare_skill(cat,skill)",
+        "me->set_skill(name,200)",
+        "SKILL_D(sname)->valid_enable(force/dodge)",
+        "me->reset_action()",
+        "inherit NPC"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "victim->query_temp(\"weapon\") 读 victim 当前装备武器",
+          "engine_path": "engine/src/xkx/runtime/query.py:82 query_temp；dbase_map.py:81 \"weapon\"->(Skills,weapon)",
+          "note": "query_temp 简化为 query（无 tmp_dbase 分离）。\"weapon\" key 映射到 Skills.weapon（技能组件的武器 item_id 字段），而 LPC 语义是 victim 当前装备的武器对象；正确承接应为 Equipment.weapon 槽（components.py:108）。返回 item_id 字符串，非物品对象实体。",
+          "status": "部分"
+        },
+        {
+          "api": "victim->query(\"eff_qi\") / victim->query(\"qi\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:55(eff_qi)/54(qi)；runtime/query.py:58 query",
+          "note": "已映射到 Vitals.eff_qi/qi（components.py:39），读返回标量值。",
+          "status": "已有"
+        },
+        {
+          "api": "message_vision(msg, me, victim) 消息输出",
+          "engine_path": "engine/src/xkx/runtime/pronoun.py:359 render（仅 $X 字符串替换原语）",
+          "note": "运行时无 message_vision/tell_room/emit_message 函数。pronoun.render 仅做 $N/$n/$w 占位符→PronounContext 字段替换，不含向房间内可见者广播的副作用。spec/base.py:68 MESSAGE_OUTPUT 仅能力标注。",
+          "status": "部分"
+        },
+        {
+          "api": "HIW/HIY/NOR ANSI 颜色宏",
+          "engine_path": "（无）",
+          "note": "colorname 后置简化台账 13，无 ANSI 颜色内核化（query.py:393 short 注释）。宏字符串会被当作普通文本字面量传入 render。",
+          "status": "无"
+        },
+        {
+          "api": "weapon->name() / ob->query(\"name\") 物品名称",
+          "engine_path": "engine/src/xkx/runtime/query.py:375 short；dbase_map.py:42 \"name\"->(Identity,name)",
+          "note": "\"name\" key 映射到 Identity.name，但 greenfield 物品无 Identity 组件（short 对非角色对象返回空串，query.py:394）。weapon->name() 期望返回物品显示名，无对应物品实体承接。",
+          "status": "部分"
+        },
+        {
+          "api": "RESULT_PARRY 常量",
+          "engine_path": "engine/src/xkx/combat/result.py:24",
+          "note": "RESULT_PARRY = -2，匹配 LPC include/combat.h。",
+          "status": "已有"
+        },
+        {
+          "api": "objectp(ob) 对象有效性判断",
+          "engine_path": "engine/src/xkx/runtime/ecs.py:58 has / :54 get",
+          "note": "无 objectp efun 封装。ECS 用 world.has(eid)/get(eid) 返回 None 判等价语义。但本函数 ob 来自 victim->query_temp(\"weapon\")，是 item_id 字符串而非 eid，objectp 对 str 判定语义不同。",
+          "status": "部分"
+        },
+        {
+          "api": "weapon->weight() / ob->weight() 单物品重量",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:195 total_weight（仅角色装备总负重）",
+          "note": "total_weight 返回 Equipment.encumbrance（角色负重总和），非单物品 weight()。equipment.py:21 注释明示“物品重量/负重自动计算后置 M3 物品系统”。无单物品 weight 字段。",
+          "status": "无"
+        },
+        {
+          "api": "weapon->query(\"rigidity\") / ob->query(\"rigidity\")",
+          "engine_path": "（无；dbase_map classify_key(\"rigidity\")==\"unknown\"）",
+          "note": "rigidity 未在 DBASE_KEY_MAP 映射，query 会 raise DbaseKeyError（ADR-0025 拼写错误不静默）。且无物品实体承接。仅 spec/layer_h_daemons2.py:3595 规格提及。",
+          "status": "无"
+        },
+        {
+          "api": "me->query_str() / victim->query_str() 力量",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:48 str->Attributes.str_；runtime/query.py:58 query",
+          "note": "有基础 str 属性读（query(\"str\")）。但 greenfield 无 query_str 派生（race.py:228 注释“greenfield 无 query_str 派生”），缺 LPC query_str 的基础 str+装备加成+系数项。",
+          "status": "部分"
+        },
+        {
+          "api": "me->query(\"jiali\") / victim->query(\"jiali\") 加力",
+          "engine_path": "（无；dbase_map classify_key(\"jiali\")==\"unknown\"）",
+          "note": "jiali 未映射，query 会 raise DbaseKeyError。combat 关键属性（加力）全引擎未实现承接。",
+          "status": "无"
+        },
+        {
+          "api": "me->query_skill(\"songshan-jian\") 技能有效等级",
+          "engine_path": "engine/src/xkx/runtime/query.py:490 query_skill",
+          "note": "完整实现三层叠加（apply 修正+永久基础值半值+映射技能全值，ADR-0026 §2）。/3 在调用方做。",
+          "status": "已有"
+        },
+        {
+          "api": "me->query_temp(\"songshan_xuli\") 蓄力值",
+          "engine_path": "engine/src/xkx/runtime/query.py:82 query_temp（函数有）",
+          "note": "query_temp 简化为 query。\"songshan_xuli\" classify=unknown，query 会 raise DbaseKeyError；需走 Marks flags 或 custom key 承接（当前无映射）。",
+          "status": "部分"
+        },
+        {
+          "api": "random(n) 随机数",
+          "engine_path": "engine/src/xkx/combat/rng.py:28 randrange",
+          "note": "combat 确定性 Rng.randrange(n)（种子可复现）。签名 rng.randrange(n) 等价 LPC random(n)，需持 Rng 实例而非全局 efun。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->unequip() 卸下武器",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:150 unequip",
+          "note": "已有等价：unequip(world, eid, item_id) 按槽位卸下 + 反向扣减 Skills.apply_*（per-slot prop 副本，ADR-0026 §1）。签名是按角色 eid+item_id 而非 ob->unequip() 自卸。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->move(environment(victim)) 物品移动到房间",
+          "engine_path": "engine/src/xkx/runtime/query.py:454 move_to；:467 environment",
+          "note": "move_to 切换 entity 的 Position.room_id（移动角色/NPC）。但物品在 greenfield 仅是 Inventory.items 的 str id，无 Position 组件、无“物品在房间”概念，物品掉落到地面未实现。environment 部分已有。",
+          "status": "部分"
+        },
+        {
+          "api": "environment(victim) 所在房间",
+          "engine_path": "engine/src/xkx/runtime/query.py:467 environment",
+          "note": "返回 Position.room_id（LPC environment 语义），无 Position 返回 None。已有等价。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->set(\"name\", \"断碎的\"+...)",
+          "engine_path": "engine/src/xkx/runtime/query.py:91 set；dbase_map.py:42 \"name\"->(Identity,name)",
+          "note": "set 函数有，\"name\" key 映射 Identity.name。但物品无 Identity 组件，set 物品 name 无承接（对无 Identity 的 eid 写 name 无效/无组件）。物品改名未实现。",
+          "status": "部分"
+        },
+        {
+          "api": "ob->set(\"value\", 0)",
+          "engine_path": "（无；dbase_map classify_key(\"value\")==\"unknown\"）",
+          "note": "value 未映射，set 会 raise DbaseKeyError。无物品实体承接。",
+          "status": "无"
+        },
+        {
+          "api": "ob->set(\"weapon_prop\", 0)",
+          "engine_path": "（无；dbase_map classify_key(\"weapon_prop\")==\"unknown\"）",
+          "note": "weapon_prop 未映射，set 会 raise。注意 Equipment.weapon_props（components.py:117）是装备槽 per-slot prop 副本，非物品 dbase key“weapon_prop”，二者不同。",
+          "status": "无"
+        },
+        {
+          "api": "victim->reset_action() 重置招式映射",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:14 注释；combat/context.py:43 SkillData.action",
+          "note": "equipment.py 注释明示“reset_action 完整逻辑后置”。2.3 仅在调用方传 skill/label 时更新 CombatState.attack_skill/weapon_label，不含 LPC reset_action() 刷新 query(\"actions\") 招式映射的完整逻辑。",
+          "status": "部分"
+        }
+      ],
+      "file": "kungfu/skill/songshan-jian.c:137-188",
+      "func": "next_sword",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "HIW/HIY/NOR ANSI 颜色宏（无内核化）",
+        "weapon->weight()/ob->weight() 单物品重量（后置 M3 物品系统）",
+        "weapon->query(\"rigidity\")（key unknown，无物品实体）",
+        "me->query(\"jiali\")/victim->query(\"jiali\")（key unknown）",
+        "ob->set(\"value\",0)（key unknown，无物品实体）",
+        "ob->set(\"weapon_prop\",0)（key unknown；Equipment.weapon_props 是装备槽 prop 副本非物品 dbase key）"
+      ],
+      "notes": "核心障碍：greenfield 无独立\"物品实例对象\"实体。LPC 中 weapon/ob 是物品对象（有 weight/name/rigidity/value/weapon_prop 属性 + unequip/move 方法），greenfield 物品仅是 Inventory.items / Equipment 槽位里的 str item_id，物品本身属性无组件承接。因此 weapon->weight()/query(\"rigidity\")/name()/set(\"value\")/set(\"weapon_prop\") 等\"物品对象属性读写\"全部无对应实现（rigidity/value/weapon_prop 还是 unknown key，query/set 直接 raise DbaseKeyError）。\n\nhas_simplified_impl=true 的含义：post_action 声明式框架已存在（combat/context.py SkillData.post_action_result 字段，按规格 side_effects order=47 在七步后处理阶段把返回值 apply 入 ledger），但这是\"返回值入账本\"的声明式简化，不含 next_sword 函数体的完整逻辑（wap/wdp 计算、武器击碎寸断/脱手/反震/火星四分支、unequip+move+改名副作用链）。即框架在，函数体未迁移。\n\n已在 C1-C6 覆盖的：dbase 读写(query/set/query_temp, query.py)、技能(query_skill, query.py:490)、战斗常量(RESULT_PARRY, combat/result.py:24)、装备卸下(unequip, equipment.py:150)、移动/environment(query.py:454/467)、随机(rng.py)。关键缺口集中在\"物品对象模型\"与若干 combat dbase key(jiali/rigidity/value/weapon_prop)、ANSI 颜色、message_vision 广播、reset_action 完整逻辑。仅做分析导航，未写任何迁移代码或测试（遵守 ADR-0048 决策 7 红线）。",
+      "partial_apis": [
+        "victim->query_temp(\"weapon\")（key 映射到 Skills.weapon 非 Equipment.weapon，返回 item_id 非物品对象）",
+        "message_vision（仅 pronoun.render 字符串替换，无房间广播）",
+        "weapon->name()/ob->query(\"name\")（name 映射 Identity.name，物品无 Identity，short 返回空串）",
+        "objectp（有 ecs.has/get 等价语义，无 objectp 函数；对 str item_id 语义不同）",
+        "me->query_str()（有基础 str，无 query_str 派生加成）",
+        "me->query_temp(\"songshan_xuli\")（query_temp 有，key unknown 会 raise，需走 Marks/custom）",
+        "ob->move(environment)（move_to 移 entity，物品无 Position 无法掉落房间）",
+        "ob->set(\"name\",...)（set 有，物品无 Identity 承接）",
+        "victim->reset_action()（完整逻辑后置，2.3 仅传 skill/label 更新 CombatState）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "environment() efun",
+          "engine_path": "engine/src/xkx/runtime/query.py:467",
+          "note": "已有完整等价：返回 Position.room_id。die 中 environment()->query('no_death') 链式可用",
+          "status": "已有"
+        },
+        {
+          "api": "dbase query/set/delete/query_temp/set_temp (C1)",
+          "engine_path": "engine/src/xkx/runtime/query.py:58",
+          "note": "F_DBASE 8 函数完整实现。die 中 set('jing'/'qi'/'eff_jing'/'eff_qi'/'jingli')、query('max_jing'/'max_qi') 映射到 Vitals，均已有",
+          "status": "已有"
+        },
+        {
+          "api": "query_temp('last_damage_from'/'last_eff_damage_from') + set_temp('my_killer')",
+          "engine_path": "engine/src/xkx/runtime/query.py:82",
+          "note": "marks/ 前缀映射到 Marks.flags/temp，已有。set_temp 自动创建 Marks 组件",
+          "status": "已有"
+        },
+        {
+          "api": "query('name') / me->query('name')",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:46",
+          "note": "映射到 Identity.name，已有。killer->name(1)/name() 无独立方法但 query('name') 等价",
+          "status": "已有"
+        },
+        {
+          "api": "query('no_death') RoomComp",
+          "engine_path": "engine/src/xkx/runtime/components.py:266",
+          "note": "RoomComp.no_death 字段 + dbase_map.py:97 映射，2.2 激活。die no_death 房玩家转 unconcious 判定可用",
+          "status": "已有"
+        },
+        {
+          "api": "all_inventory() efun",
+          "engine_path": "engine/src/xkx/runtime/query.py:478",
+          "note": "返回 Inventory.items 副本，已有。die 中 all_inventory(environment())->remove_killer 的前半段可用",
+          "status": "已有"
+        },
+        {
+          "api": "is_busy()",
+          "engine_path": "engine/src/xkx/runtime/skill.py:69",
+          "note": "对照 feature/action.c:21 is_busy，已有。die 玩家分支检查 this_object()->is_busy()",
+          "status": "已有"
+        },
+        {
+          "api": "clear_condition()",
+          "engine_path": "engine/src/xkx/runtime/conditions.py:635",
+          "note": "C5 条件系统完整实现。die 中 this_object()->clear_condition() 已有",
+          "status": "已有"
+        },
+        {
+          "api": "move() / corpse->move() / move DEATH_ROOM",
+          "engine_path": "engine/src/xkx/runtime/query.py:454",
+          "note": "move_to(world,eid,room_id) 已有。corpse->move(environment()) 和 this_object()->move(DEATH_ROOM) 均可用",
+          "status": "已有"
+        },
+        {
+          "api": "ThemeConfig.death_room (DEATH_ROOM 常量)",
+          "engine_path": "engine/src/xkx/runtime/theme.py:50",
+          "note": "ThemeConfig.death_room 字段已有（武侠='death/gate'，测试='test/death'）。die 玩家 move 目标可用",
+          "status": "已有"
+        },
+        {
+          "api": "ctime()/time()/sprintf()/random() efun",
+          "engine_path": "engine/src/xkx/runtime/death.py:31",
+          "note": "Python 标准库语言层面等价（time.ctime/time.time/f-string/random）。death.py 用 _random.randint。非引擎封装但直接可用",
+          "status": "已有"
+        },
+        {
+          "api": "userp() efun",
+          "engine_path": "engine/src/xkx/runtime/components.py:18",
+          "note": "无独立 efun，用 Identity.is_player 字段判定（death.py:190 等价模式）。功能等价但非 LPC efun 封装",
+          "status": "部分"
+        },
+        {
+          "api": "living() efun",
+          "engine_path": "engine/src/xkx/runtime/death.py:382",
+          "note": "无公开 efun，death._is_living/auto_fight._is_living 内部辅助（Marks.flags 不含 unconscious/disabled）。die 内复用，但非通用 efun",
+          "status": "部分"
+        },
+        {
+          "api": "objectp()/stringp() efun",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "无独立 efun，Python isinstance/None 检查等价。die 中 objectp(killer)/stringp(killer) 需迁移时改写",
+          "status": "部分"
+        },
+        {
+          "api": "wizardp() efun",
+          "engine_path": "engine/src/xkx/runtime/capability.py:40",
+          "note": "capability.py 有 wiz_level 概念，但 death.py:491 注释'wizard 判定后置（无 wiz_level 组件）'。die 中 wizardp+query('env/immortal') 早退分支未承接",
+          "status": "无"
+        },
+        {
+          "api": "query('env/immortal') dbase",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:182",
+          "note": "'env' 在 POSTPONED_KEYS，query 返回 None+warning。die wizard 不死分支无法触发",
+          "status": "部分"
+        },
+        {
+          "api": "query('id') / killer->query('id')",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:181",
+          "note": "'id' 在 POSTPONED_KEYS（line 181）。greenfield Identity 无 id 字段（玩家 id 在 account.account_id）。set_temp('my_killer',killer->query('id')) 取到 None",
+          "status": "部分"
+        },
+        {
+          "api": "query('family/master_id')",
+          "engine_path": "engine/src/xkx/runtime/components.py:332",
+          "note": "FamilyComp.master_id 字段存在，但 dbase_map.py:108 注释'FamilyComp 不引入 family/ 路径'，'family/master_id' 路径未映射。die break_relation 前置条件无法 query",
+          "status": "部分"
+        },
+        {
+          "api": "delete('poisoner') dbase",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py",
+          "note": "'poisoner' 不在 DBASE_KEY_MAP 也不在 POSTPONED_KEYS（unknown，query/set 抛 DbaseKeyError）。death.py die 跳过此行。中毒者记录清除无承接",
+          "status": "无"
+        },
+        {
+          "api": "getuid(me) efun",
+          "engine_path": "engine/src/xkx/runtime/account.py:42",
+          "note": "account.account_id 是英文名 id 等价，但无 getuid efun 封装，且 account 与 entity 的关联需额外查。die log_file 中 getuid(me) 需迁移时适配",
+          "status": "部分"
+        },
+        {
+          "api": "remove_call_out('revive')/call_out() efun",
+          "engine_path": "engine/src/xkx/runtime/conditions.py:646",
+          "note": "无通用 call_out efun。等价机制：EffectComp + clear_one_condition（death.py:142 revive 用 clear_one_condition('revive')，doors.py 用 EffectComp 等价 remove_call_out）。die no_death 分支 remove_call_out('revive') 已通过 revive() 间接覆盖",
+          "status": "部分"
+        },
+        {
+          "api": "destruct(this_object()) efun (NPC 分支)",
+          "engine_path": "engine/src/xkx/runtime/death.py:245",
+          "note": "无通用 destruct efun。die 内 NPC 分支已有等价：death.py:245-247 移除 Position（从房间消失）。但非 LPC destruct 通用语义（governance.py 有 destruct 物品销毁等价）",
+          "status": "部分"
+        },
+        {
+          "api": "unconcious() (同文件 feature 方法)",
+          "engine_path": "engine/src/xkx/runtime/death.py:106",
+          "note": "简化版：清零 vitals+设 unconscious 标记+revive 定时器。缺 winner_reward（后置 stub）、remove_all_enemy/interrupt_me/dismiss_team/disable_player/announce 推送。die no_death 分支调此",
+          "status": "部分"
+        },
+        {
+          "api": "revive(1) (同文件 feature 方法)",
+          "engine_path": "engine/src/xkx/runtime/death.py:135",
+          "note": "简化版：清 unconscious 标记+clear_one_condition('revive')。缺 environment()->is_character 循环 move、message 推送后置 M3。die 中 revive(1) 强制安静苏醒可用",
+          "status": "部分"
+        },
+        {
+          "api": "COMBAT_D->announce(obj,'dead'/'unconcious'/'revive')",
+          "engine_path": "engine/src/xkx/runtime/death.py:370",
+          "note": "简化：仅返回消息文本（_ANNOUNCE_MESSAGES dict），不实际推送网络。消息系统后置 M3。种族消息模板后置",
+          "status": "部分"
+        },
+        {
+          "api": "COMBAT_D->death_penalty(obj)",
+          "engine_path": "engine/src/xkx/runtime/death.py:254",
+          "note": "简化 stub：combat_exp 三段扣减+potential 扣半。缺 shen/behavior_exp/balance/death_times/death_count/thief 分支（后置 2.5 TitleComp）。skill_death_penalty 真实 learned 公式为 2.3 衔接 stub",
+          "status": "部分"
+        },
+        {
+          "api": "COMBAT_D->killer_reward(killer,victim)",
+          "engine_path": "engine/src/xkx/runtime/death.py:281",
+          "note": "简化 stub：killer condition 施加+ pker 叠加。缺 PKS/MKS/shen/behavior_exp 扣减（后置 2.5 TitleComp）。无 pking 标记检查",
+          "status": "部分"
+        },
+        {
+          "api": "CHAR_D->make_corpse(victim,killer)",
+          "engine_path": "engine/src/xkx/runtime/death.py:308",
+          "note": "简化：ghost 分支物品掉环境+正常生成尸体实体+物品转移。装备重穿后置 2.3 Equipment（2.2 物品全转移 Inventory 无装备槽）",
+          "status": "部分"
+        },
+        {
+          "api": "DEATH_ROOM->start_death(obj)",
+          "engine_path": "engine/src/xkx/runtime/governance.py:231",
+          "note": "无 start_death 直接等价。governance.enter_underworld 是阴间剧情衔接（启动 death_stage EffectComp，黑白无常 5 段剧情，首延 30s）。功能承接但语义非 LPC start_death 直接调用",
+          "status": "部分"
+        },
+        {
+          "api": "save() (this_object()->save())",
+          "engine_path": "engine/src/xkx/runtime/storage.py:311",
+          "note": "非 LPC save() 直接等价。StorageSystem 有 persist_now(world)/persist_blocking/mark_dirty。death.py:437 _save 封装 persist_now(eid) 同步存单实体。die 玩家分支 save 已覆盖",
+          "status": "部分"
+        },
+        {
+          "api": "find_object('/d/city/npc/aqingsao')/load_object() efun",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "完全无实现。greenfield 无 LPC 对象路径加载模型。query.entities_by_prototype(query.py:325) 按 prototype_id 查实体但非 find_object 路径等价。die 谣言 NPC 代理分支无法承接",
+          "status": "无"
+        },
+        {
+          "api": "log_file('PKILL_DATA'/'PLAYER_DEATH',...) efun",
+          "engine_path": "engine/src/xkx/runtime/death.py:13",
+          "note": "完全无实现。death.py:13 注释'log_file 死亡日志+频道谣言后置 M3（stub 跳过）'。die 死亡日志记录分支未承接",
+          "status": "无"
+        },
+        {
+          "api": "CHANNEL_D->do_channel(rum_ob,'rumor',msg)",
+          "engine_path": "engine/src/xkx/runtime/death.py:13",
+          "note": "完全无实现。death.py:13 注释后置 M3 stub 跳过。die 无 killer 玩家死亡谣言广播分支未承接",
+          "status": "无"
+        },
+        {
+          "api": "remove_all_killer()/remove_killer(obj)/remove_all_enemy()",
+          "engine_path": "engine/src/xkx/runtime/components.py:128",
+          "note": "完全无实现。CombatState.enemy_ids 有数据（components.py:128）但无清理方法。die 中 this_object()->remove_all_killer() 和 all_inventory(env)->remove_killer(this_object()) 未承接",
+          "status": "无"
+        },
+        {
+          "api": "dismiss_team()",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "完全无实现。无 Team 组件/系统（grep 无 TeamComp/team_id）。die 玩家分支 this_object()->dismiss_team() 未承接",
+          "status": "无"
+        },
+        {
+          "api": "interrupt_me()",
+          "engine_path": "engine/src/xkx/runtime/",
+          "note": "完全无实现。is_busy 有（skill.py:69）但打断当前动作（dazuo/jingzuo）的 interrupt_me 未实现。die 玩家分支 is_busy 时 interrupt_me 未承接",
+          "status": "无"
+        },
+        {
+          "api": "MARRY_D->break_marriage(obj)",
+          "engine_path": "engine/src/xkx/runtime/death.py:243",
+          "note": "完全无实现。death.py:243 注释'break_marriage/break_relation 后置 M3（die 中 stub 跳过）'。die 玩家分支婚姻解除未承接",
+          "status": "无"
+        },
+        {
+          "api": "CHAR_D->break_relation(obj)",
+          "engine_path": "engine/src/xkx/runtime/death.py:243",
+          "note": "完全无实现。death.py:243 注释后置 M3 stub 跳过。die 中风清扬弟子 break_relation（师徒关系断裂）未承接",
+          "status": "无"
+        }
+      ],
+      "file": "/home/gukt/github/xkx2001-utf8/feature/damage.c",
+      "func": "die (152-253 行)",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "wizardp() efun",
+        "find_object() / load_object() efun（路径对象加载）",
+        "log_file('PKILL_DATA'/'PLAYER_DEATH') efun",
+        "delete('poisoner') dbase key（unknown，无承接）",
+        "remove_all_killer() / remove_killer(obj) / remove_all_enemy()（CombatState.enemy_ids 无清理方法）",
+        "dismiss_team()（无 Team 组件/系统）",
+        "interrupt_me()（is_busy 有但打断动作未实现）",
+        "CHANNEL_D->do_channel()（频道谣言广播）",
+        "MARRY_D->break_marriage()（婚姻解除，后置 M3 stub）",
+        "CHAR_D->break_relation()（师徒关系断裂，后置 M3 stub）"
+      ],
+      "notes": "die 简化版已在 engine/src/xkx/runtime/death.py:171 实现（覆盖主流程：no_death 房转 unconcious、!living 则 revive(1)、clear_condition、announce、death_penalty、killer_reward、make_corpse、玩家 ghost=1+move 阴间入口+governance.enter_underworld 衔接、NPC 移除 Position）。death.py docstring（1-27 行）明确列出后置 stub：break_marriage/break_relation/log_file/CHANNEL_D 后置 M3；death_penalty/killer_reward 的 shen/PKS/MKS 后置 2.5 TitleComp；make_corpse 装备重穿后置 2.3；winner_reward 后置 stub。C1-C6 基础（dbase/conditions/move/equipment/skill/combat）均已落地支撑 die 主流程。关键缺口集中在三块：(1) 巫师/对象加载/日志/频道 efun 类（greenfield 无 LPC 对象路径模型，wizardp/find_object/load_object/log_file/CHANNEL_D 全无）；(2) 战斗关系清理（remove_all_killer/remove_killer/remove_all_enemy，CombatState.enemy_ids 有数据无方法）；(3) 社交系统副作用（dismiss_team/interrupt_me/MARRY_D->break_marriage/CHAR_D->break_relation）。部分类多为简化 stub（announce 只返回文本不推送、death_penalty/killer_reward 缺 TitleComp 分支、make_corpse 缺装备槽）。LPC die 中 query('id')/'env/immortal'/'family/master_id' 为后置/未映射 key，迁移时需注意。红线遵守：本分析仅做导航定位，未写任何迁移代码或测试。",
+      "partial_apis": [
+        "userp()/living()/objectp()/stringp() efun（无独立 efun，组件字段/Python isinstance 等价）",
+        "getuid() efun（account.account_id 等价但无 efun 封装）",
+        "remove_call_out()/call_out() efun（无通用 efun，EffectComp+clear_one_condition 等价）",
+        "destruct() efun（die 内 NPC 分支已覆盖，无通用 efun）",
+        "query('id')（POSTPONED 后置 key）",
+        "query('env/immortal')（POSTPONED 后置 key）",
+        "query('family/master_id')（FamilyComp.master_id 有字段但无 family/ 路径映射）",
+        "unconcious()（简化：缺 winner_reward/remove_all_enemy/interrupt_me/dismiss_team/disable_player/announce 推送）",
+        "revive()（简化：缺 environment 循环 move、message 推送后置 M3）",
+        "COMBAT_D->announce()（简化：只返回文本不推送网络）",
+        "COMBAT_D->death_penalty()（简化 stub：缺 shen/behavior_exp/death_times + skill_death_penalty 真实公式）",
+        "COMBAT_D->killer_reward()（简化 stub：缺 PKS/MKS/shen/behavior_exp 扣减）",
+        "CHAR_D->make_corpse()（简化：装备重穿后置 2.3）",
+        "DEATH_ROOM->start_death()（governance.enter_underworld 阴间衔接，非直接等价）",
+        "save()（persist 机制非 LPC save() 直接等价）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "environment(me) [efun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:467",
+          "note": "environment(world, eid) 返回 Position.room_id；LPC 返回对象，greenfield 返回 room_id 字符串，语义等价（room 唯一标识）",
+          "status": "已有"
+        },
+        {
+          "api": "present(arg, environment(me)) [efun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:339",
+          "note": "find_in_room(world, room_id, keyword) 按 name/aliases 匹配房间内实体（LPC present(str, room_ob)）；物品无 Identity 故只匹角色，符合 emote 目标语义",
+          "status": "已有"
+        },
+        {
+          "api": "find_player(arg) [sefun]",
+          "engine_path": "",
+          "note": "无按 id/name 全局查在线玩家的函数。ConnectionSystem.active_sessions()（connection.py:203）持有各 session 的 body_eid，但无 entity->session 反查与按 id/name 查找 API；channel_emote 全局目标查找分支无支撑",
+          "status": "无"
+        },
+        {
+          "api": "wizardp(me) [sefun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/capability.py:40",
+          "note": "WizLevel 枚举齐全；title.query_wizhood(world, target)（title.py:81）默认返回 None（核心引擎无 wizard 判定数据源，TitleComp 无 wizhood 字段）。无 wizardp(entity)->bool 谓词；is_wizard 谓词仅 DSL 层（dsl/layer1.py:46）用于场景前置，非运行时查询。me 的 wiz 等级在 session 的 CapabilityToken.status 上，需 entity->session 解析",
+          "status": "部分"
+        },
+        {
+          "api": "notify_fail(msg) [sefun]",
+          "engine_path": "",
+          "note": "无 notify_fail() 函数（s7_execute_audit.py:101 命令未找到硬编码 \"什么？\"）。命令失败模式改为直接返回消息列表 list[str] 或 Abort(messages=...)（action_context.Abort），非 LPC 的延迟 notify_fail 语义",
+          "status": "无"
+        },
+        {
+          "api": "replace_string(str, a, b) [efun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/pronoun.py:359",
+          "note": "PronounService.render 按 10 占位符顺序 str.replace（pronoun.py:368）；通用 replace_string 即 Python str.replace，do_emote 全部 replace_string 调用均为 $X 代词占位，render 已覆盖",
+          "status": "已有"
+        },
+        {
+          "api": "capitalize(s) [efun]",
+          "engine_path": "",
+          "note": "无 LPC capitalize 函数。Python str.capitalize() 会 lowercase 其余字符（语义不同），需手写 s[0].upper()+s[1:]。仅 channel_emote==3 intermud 名格式化用",
+          "status": "部分"
+        },
+        {
+          "api": "message(class, msg, target) / tell_object / tell_room [efun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/connection.py:156",
+          "note": "transport 有（ConnectionSystem.push_event(session_id, type, data) + active_sessions()），但无 message()/tell_object()/tell_room() facade，缺 entity->session 与 room->sessions 解析。命令路径仅向 actor 返回 list[str]（ws_server.py:156 dispatch），房间广播与向 target 发送均未实现",
+          "status": "部分"
+        },
+        {
+          "api": "me->query(\"env/invisibility\") [F_DBASE]",
+          "engine_path": "",
+          "note": "env/ 前缀未实现：\"env\" 在 POSTPONED_KEYS，但 \"env/invisibility\" 路径前缀不在 PATH_PREFIX_MAP（仅 skill/marks/apply/rank_info/dali），classify_key 归 unknown 会 raise DbaseKeyError（dbase_map.py classify_key）。无 env 设置子系统，invisibility 未建模",
+          "status": "无"
+        },
+        {
+          "api": "me->query(\"gender\") / target->query(\"gender\") [F_DBASE]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:58",
+          "note": "query(world, eid, key) + dbase_map.py \"gender\"->Attributes.gender（components.py:34）已映射",
+          "status": "已有"
+        },
+        {
+          "api": "me->query(\"id\") [F_DBASE]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:58",
+          "note": "\"id\" 在 POSTPONED_KEYS，query(\"id\") 返回 None + warn；id 数据在 Identity.aliases[0]（components.py:16，登录时 aliases=[account_id]）。仅 channel_emote==3 intermud 名格式化用",
+          "status": "部分"
+        },
+        {
+          "api": "me->name() / target->name() [F_NAME]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/components.py:16",
+          "note": "Identity.name 字段；query(\"name\") 映射到 Identity.name（dbase_map.py）。注意 query.short(world, eid)（query.py:375）是带 title/nickname/状态修饰的 short()，emote 的 name() 是裸名应用 Identity.name",
+          "status": "已有"
+        },
+        {
+          "api": "target->is_character() [method]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:386",
+          "note": "无 is_character() 方法。greenfield 用 Identity 组件存在性判断（query.py:386 注释明确：有 Identity 即角色，物品无 Identity）；迁移时用 world.get(target, Identity) is not None 替代",
+          "status": "部分"
+        },
+        {
+          "api": "me->visible(target) [method]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/pronoun.py:73",
+          "note": "visible(viewer, target, world) 已实现；2.5 补 is_ghost 判定，完整 invisibility/astral_vision 后置 2.6/M3（鬼魂目标默认不可见）",
+          "status": "已有"
+        },
+        {
+          "api": "target->relay_emote(me, verb) [method]",
+          "engine_path": "",
+          "note": "runtime 无实现，仅 spec layer_h_daemons2.py:2301 描述（NPC 感知 emote 的回调）。无 relay_emote 接口/方法",
+          "status": "无"
+        },
+        {
+          "api": "gender_self(gender) [sefun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/pronoun.py:104",
+          "note": "gender_self(gender) 恒返回 \"你\"（对齐 LPC gender.c），已有",
+          "status": "已有"
+        },
+        {
+          "api": "gender_pronoun(gender) [sefun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/pronoun.py:113",
+          "note": "gender_pronoun(gender)：男/中性神/无性->他，女->她，其余->它，对齐 LPC gender.c",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_self(me)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:411",
+          "note": "title.query_self(world, target)；PronounService.query_self 委托（pronoun.py）",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_self_rude(me)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:437",
+          "note": "title.query_self_rude(world, target)",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_self_close(target)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:497",
+          "note": "title.query_self_close(world, viewer, target)；greenfield 需显式 viewer 参数（PronounContext 不变量），LPC 仅传 target，迁移时 viewer=me",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_close(target)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:463",
+          "note": "title.query_close(world, viewer, target)；二元关系函数依赖 viewer age，迁移时 viewer=me",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_respect(target)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:355",
+          "note": "title.query_respect(world, target)；单实体无 viewer 依赖",
+          "status": "已有"
+        },
+        {
+          "api": "RANK_D->query_rude(target)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/title.py:385",
+          "note": "title.query_rude(world, target)",
+          "status": "已有"
+        },
+        {
+          "api": "normal_color(str) + ANSI CYN/NOR/ESC",
+          "engine_path": "",
+          "note": "runtime 无 ANSI 颜色内核（title.py:139 注释 \"LPC HIB/NOR 颜色码砍掉\"），无 normal_color strip-ansi 函数。引擎内部不使用 ANSI，emote 输出无需 CYN/NOR 包裹与 strip",
+          "status": "无"
+        },
+        {
+          "api": "INTERMUD_MUD_NAME [constant]",
+          "engine_path": "",
+          "note": "intermud 跨 Mud 网络，收缩约束 1（不考虑分布式架构）排除；仅 channel_emote==3 intermud 名格式化用，本地 emote 不依赖",
+          "status": "无"
+        },
+        {
+          "api": "mapp / undefinedp / objectp / stringp [efun]",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:58",
+          "note": "Python 原生 isinstance(dict)/in/对象非 None/isinstance(str) 直接等价，trivial",
+          "status": "已有"
+        },
+        {
+          "api": "inherit F_DBASE",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:58",
+          "note": "query/set/query_temp/set_temp/add/add_temp/delete/delete_temp 8 函数齐全（query.py），emote mapping 读写可用（emote dict 需自行存储，非 dbase 组件）",
+          "status": "已有"
+        },
+        {
+          "api": "inherit F_SAVE (save/restore)",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/storage.py:170",
+          "note": "StorageSystem（persist/restore 周期快照）+ serialization.py（组件序列化）+ JsonFileBackend 原子写。emote mapping 存档可走 JSON 文件加载（F_SAVE 语义已有等价）",
+          "status": "已有"
+        }
+      ],
+      "file": "/home/gukt/github/xkx2001-utf8/adm/daemons/emoted.c",
+      "func": "do_emote",
+      "has_simplified_impl": false,
+      "id": 1,
+      "missing_apis": [
+        "find_player(arg) -- 全局按 id/name 查在线玩家（ConnectionSystem 有 body_eid 数据但无查找 API）",
+        "notify_fail(msg) -- 无函数；命令失败改用返回消息列表 / Abort.messages",
+        "target->relay_emote(me, verb) -- NPC 感知 emote 回调，runtime 无实现（仅 spec layer_h_daemons2.py:2301）",
+        "normal_color(str) + ANSI CYN/NOR/ESC -- runtime 无 ANSI 颜色内核（颜色码砍掉），无 strip-ansi 函数",
+        "INTERMUD_MUD_NAME -- intermud 跨 Mud 网络，收缩约束单机不考虑（仅 channel_emote==3 用）",
+        "me->query(\"env/invisibility\") -- env/ 前缀未实现，归 unknown 会 raise DbaseKeyError；无 env 设置子系统"
+      ],
+      "notes": "do_emote 依赖共 28 项：已有 18、部分 5、无 5（含 ANSI 颜色与 INTERMUD_MUD_NAME 各计 1）。核心代词/RANK_D 7 函数/gender 代词/visible/present/environment/F_DBASE/F_SAVE 全部已有（pronoun.py + title.py + query.py + storage.py）。主要缺口集中在三处：(1) 消息分发——message/tell_object/tell_room 无 facade，仅向 actor 返回 list[str]，房间广播与向 target 发送缺失（transport ConnectionSystem.push_event 存在可作基础）；(2) 全局玩家查找 find_player 无（channel_emote 全局目标分支无支撑）；(3) 频道/intermud 相关——wizardp 仅有 WizLevel 枚举无 entity 谓词，env/invisibility 未建模（raise），INTERMUD_MUD_NAME 跨 Mud 单机排除。本地非频道 emote（channel_emote==0）主流程所需依赖基本齐备，最大单点阻塞是 message() 房间广播（myself/target/others 三路输出中的 others 房间广播与 target 定向发送）。has_simplified_impl=false：无 do_emote 的 runtime 简化实现，仅有 spec（layer_h_daemons2.py:2217 _emote_do_emote）。本分析仅做导航定位，未写任何迁移代码/测试（遵守 ADR-0048 决策 7 红线）。",
+      "partial_apis": [
+        "wizardp(me) -- WizLevel 枚举 + query_wizhood 占位（默认 None），无 entity->bool 谓词，wiz 等级在 session token 上需 entity->session 解析",
+        "capitalize(s) -- 无 LPC capitalize 函数，Python str.capitalize() 语义不同，需 s[0].upper()+s[1:]",
+        "message/tell_object/tell_room (message efun) -- transport 有（ConnectionSystem.push_event + active_sessions），缺 facade 与 entity->session/room->sessions 解析",
+        "me->query(\"id\") -- id 在 POSTPONED_KEYS 返回 None+warn，id 数据在 Identity.aliases[0]",
+        "target->is_character() -- 无方法，greenfield 用 Identity 组件存在性判断（query.py:386）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "me->query(\"neili\") / me->query(\"jiali\") （dbase query）",
+          "engine_path": "engine/src/xkx/runtime/query.py:58 + engine/src/xkx/runtime/dbase_map.py:66",
+          "note": "neili 已映射 (Vitals, neili) 可读写（已有）。jiali 未映射：自由设置项无组件承接，query 会判 unknown 抛 DbaseKeyError（无）",
+          "status": "部分"
+        },
+        {
+          "api": "victim->query_temp(\"weapon\")",
+          "engine_path": "engine/src/xkx/runtime/query.py:82 + engine/src/xkx/runtime/dbase_map.py:81",
+          "note": "\"weapon\" 映射 Skills.weapon，但返回 item_id 字符串（str|None），而非可调方法的武器对象 ob；且 query_temp 与 query 合并（无 tmp_dbase 分离）。这是 ob->* 一族调用失效的根因",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_skill(\"tanzhi-shentong\",1) / victim->query_skill(\"parry\")",
+          "engine_path": "engine/src/xkx/runtime/query.py:490",
+          "note": "已实现，支持 raw 第二参数（LPC query_skill(id,1)=raw 模式）；三层 ModifierStack 叠加（apply 修正+基础半值+映射技能全值）",
+          "status": "已有"
+        },
+        {
+          "api": "me->query_str() / victim->query_str() （sefun）",
+          "engine_path": "（无）",
+          "note": "query_str sefun 未实现——race.py:228 明确\"greenfield 无 query_str 派生\"（忽略 query_str-str 的 1000 系数项）。基础 str 可经 query(\"str\") 取 Attributes.str_，但派生 sefun 缺失",
+          "status": "无"
+        },
+        {
+          "api": "ob->weight() （物品自重）",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:195",
+          "note": "物品非实体无 weight()。equipment.py:195 total_weight 是角色携带装备总重（LPC weight() on character），非武器物品自重 ob->weight()，语义不同",
+          "status": "无"
+        },
+        {
+          "api": "ob->query(\"rigidity\")",
+          "engine_path": "（无）",
+          "note": "key \"rigidity\" 未在 DBASE_KEY_MAP 映射；且物品 item_id 非实体无 dbase",
+          "status": "无"
+        },
+        {
+          "api": "ob->query(\"weapon_prop/damage\")",
+          "engine_path": "（无）",
+          "note": "\"weapon_prop\" 非 PATH_PREFIX_MAP 前缀（仅 skill/marks/apply/rank_info/dali）。weapon_prop 存于 wielder 的 Equipment.weapon_props dict（按槽位），非 item 自身属性",
+          "status": "无"
+        },
+        {
+          "api": "ob->name()",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:46",
+          "note": "query(\"name\") 对实体映射 Identity.name 可用；但 ob 为 item_id 字符串非实体，无 ob.name() 方法",
+          "status": "部分"
+        },
+        {
+          "api": "ob->unequip()",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:150",
+          "note": "unequip 已实现，但是 wielder 中心签名 (world, eid, item_id)，非 item.unequip()。效果（卸武器+扣 prop+清 weapon_props）等价，调用约定需适配",
+          "status": "部分"
+        },
+        {
+          "api": "ob->move(environment(victim))",
+          "engine_path": "engine/src/xkx/runtime/query.py:454 + engine/src/xkx/runtime/query.py:467",
+          "note": "move_to:454 + environment:467 对实体有效；但物品非实体，物品从手中落入房间的 item.move(room) 无建模（物品仅在 Inventory set/Equipment 槽位间流转）",
+          "status": "部分"
+        },
+        {
+          "api": "ob->set(\"name\"/\"value\"/\"weapon_prop\")",
+          "engine_path": "engine/src/xkx/runtime/query.py:91",
+          "note": "set 框架已实现，\"name\" 映射 Identity.name 可用；但 \"value\"/\"weapon_prop\" 未映射（无组件承接），且物品非实体无法 set",
+          "status": "部分"
+        },
+        {
+          "api": "victim->reset_action()",
+          "engine_path": "engine/src/xkx/runtime/equipment.py:103",
+          "note": "无 runtime def reset_action。equipment.py:14 注明\"reset_action 完整逻辑后置\"，仅 wield/unequip 传 skill/label 时更新 CombatState.attack_skill/weapon_label（2.3 最小，不完整推断）",
+          "status": "部分"
+        },
+        {
+          "api": "random(wap) （efun）",
+          "engine_path": "engine/src/xkx/combat/rng.py:25",
+          "note": "CombatRNG.randrange 语义 [0,n)（LPC random(n) 等价）；combat 作用域确定性 RNG（非全局 efun，但 bash_weapon 属 combat post_action 适用）",
+          "status": "已有"
+        },
+        {
+          "api": "environment(victim) （efun）",
+          "engine_path": "engine/src/xkx/runtime/query.py:467",
+          "note": "返回 Position.room_id（LPC environment() 语义），无 Position 返回 None",
+          "status": "已有"
+        },
+        {
+          "api": "inherit COMBINED_ITEM",
+          "engine_path": "（无）",
+          "note": "文件级 inherit。无 set_amount/add_amount/query_amount 叠加物品实现（bash_weapon 体未直接调用，但属对象能力；do_tanzhi 的 add_amount(-1) 依赖此项）",
+          "status": "无"
+        },
+        {
+          "api": "inherit F_COMMAND",
+          "engine_path": "（无）",
+          "note": "文件级 inherit。无 add_action 机制——命令派发走 middleware 链（s0-s7），非 LPC add_action 注册（init() 中 add_action(do_tanzhi,\"tan\") 无等价）",
+          "status": "无"
+        }
+      ],
+      "file": "/home/gukt/github/xkx2001-utf8/d/taohua/obj/shizi.c",
+      "func": "bash_weapon",
+      "has_simplified_impl": false,
+      "id": 1,
+      "missing_apis": [
+        "me->query(\"jiali\") —— dbase key \"jiali\" 未映射（玩家自由设置项，无组件承接，query 抛 DbaseKeyError unknown）",
+        "me->query_str() / victim->query_str() —— query_str sefun 未实现（race.py:228 明确\"greenfield 无 query_str 派生\"；基础 str 可经 query(\"str\") 取 Attributes.str_，派生项缺失）",
+        "ob->weight() —— 武器物品自重未建模（equipment.py:195 total_weight 是角色携带装备总重，非 item 自重）",
+        "ob->query(\"rigidity\") —— dbase key 未映射，且物品 item_id 非实体无 dbase",
+        "ob->query(\"weapon_prop/damage\") —— \"weapon_prop\" 非 PATH_PREFIX；weapon_prop 存于 wielder 的 Equipment.weapon_props dict，非 item 自身属性",
+        "inherit COMBINED_ITEM —— 叠加物品（set_amount/add_amount/query_amount）未实现",
+        "inherit F_COMMAND —— add_action 机制未实现（命令派发走 middleware，非 LPC add_action 注册）"
+      ],
+      "notes": "bash_weapon 是桃花弹指神通砸武器的 combat post_action（行 135-177）：取 victim 临时武器 ob，按 wap=neili+query_str+技能 与 wdp=weight/500+rigidity+query_str+parry/2 对抗，四档判定（断裂 wap>2*wdp 且 damage<90 / 脱手 wap>wdp / 震动 wap>wdp/2 / 火星）。核心阻塞：武器物品在 greenfield ECS 中建模为 item_id 字符串（Inventory.items: set[str]、Equipment.weapon: str|None），非实体，故 ob->weight()/name()/query()/set()/move() 一族对象方法调用均无直接等价目标——这是迁移动的第一阻塞点，需先确立 item-as-entity 建模或 item_id→属性台账适配层。已就绪基础：neili/技能 query_skill(含 raw 模式)/random(CombatRNG)/environment/move_to/query/set dbase 框架/unequip(wielder 中心)。未实现：query_str sefun、jiali/weapon_prop/rigidity 三个 dbase key、reset_action 完整逻辑。已有规格 spec/layer_h_daemons2.py:3569 _weapon_bash_weapon FunctionSpec（含 preconditions/invariants/side_effects/random_specs），但 runtime 无任何实现（has_simplified_impl=false）。红线遵守 ADR-0048 决策 7：仅分析导航，未写任何迁移代码或测试。",
+      "partial_apis": [
+        "victim->query_temp(\"weapon\") —— 映射 Skills.weapon，但返回 item_id 字符串而非武器对象 ob（ob->* 调用根因）",
+        "ob->name() —— query(\"name\") 对实体映射 Identity.name 可用，但 ob 为 item_id 非实体",
+        "ob->unequip() —— equipment.py:150 已实现但 wielder 中心签名 (world,eid,item_id)，非 item.unequip()，效果等价需适配调用约定",
+        "ob->move(environment(victim)) —— move_to+environment 对实体有效，但物品非实体，物品落入房间无建模",
+        "ob->set(\"name\"/\"value\"/\"weapon_prop\") —— set 框架已实现，\"name\" 映射可用，\"value\"/\"weapon_prop\" 未映射且物品非实体",
+        "victim->reset_action() —— 无 runtime def，完整逻辑后置，仅 wield/unequip 传 skill/label 时更新 CombatState（2.3 最小）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "this_player() [efun, 行176]",
+          "engine_path": "src/xkx/runtime/action_context.py:64",
+          "note": "greenfield 无全局 this_player()（单进程 asyncio 无等价物，pronoun.py:5 明示）。等价物是 ActionContext.actor（命令发起者 entity_id），段7执行时已注入 ctx。迁移时从 ctx.actor 取，不得造全局调用。状态：部分（有 actor 等价但无 efn 调用）",
+          "status": "部分"
+        },
+        {
+          "api": "the_player->query(\"board_last_read\") [call_other, 行178]",
+          "engine_path": "src/xkx/runtime/query.py:58",
+          "note": "dbase query 函数已实现（ADR-0025）。但 \"board_last_read\" key 不在 DBASE_KEY_MAP（grep 确认为空），属 unknown，query() 会 raise DbaseKeyError。需新增 board 读记录存储组件/映射才能承接。状态：部分（机制有，key 无映射）",
+          "status": "部分"
+        },
+        {
+          "api": "query(\"board_id\")/query(\"notes\")/query(\"wizard_only\")/query(\"poster_family\") [self dbase, 行179/180/182/190]",
+          "engine_path": "src/xkx/runtime/query.py:58",
+          "note": "bboard 是 LPC ITEM 物品的自身 dbase。greenfield 无 ItemComp（components.py 只有 Inventory 容器:177 + RoomComp:257），这些 key 全为 unknown（raise DbaseKeyError）。需新增物品组件承载。状态：无",
+          "status": "无"
+        },
+        {
+          "api": "SECURITY_D->cmp_wiz_level(the_player, \"(immortal)\") [call_other daemon, 行184/196]",
+          "engine_path": "src/xkx/runtime/capability.py:39",
+          "note": "已有 WizLevel StrEnum 层次模型（capability.py:39，含 IMMORTAL/CARETAKER 等）+ capabilities_for_status(:324) + CapabilityToken 能力校验。但缺 cmp_wiz_level 直接比较函数（LPC 返回 player 等级与 level_str 比较结果 -1/0/1）。迁移需用 WizLevel 枚举序比较 + 从 token 取玩家 status。状态：部分",
+          "status": "部分"
+        },
+        {
+          "api": "notify_fail(msg) [efun, 行185/188/198/200/210/213]",
+          "engine_path": "src/xkx/runtime/action_context.py:35",
+          "note": "greenfield 无 notify_fail efun。命令失败等价物是 Abort 信号（action_context.py:35，reason+messages）。但 Abort 是管线级短路，do_read 内部“中途 notify_fail 返回提示并终止”的细粒度模式需改为返回 messages list 或 Abort。s7_execute_audit.py:101 注释对齐 LPC notify_fail 默认提示。状态：部分",
+          "status": "部分"
+        },
+        {
+          "api": "pointerp(notes)/stringp(family)/mapp(fam)/mapp(last_read_time)/undefinedp(...)/sizeof(notes) [efun, 行187/195/197/202/226/205/212]",
+          "engine_path": "（engine 内无实现）",
+          "note": "全引擎无 LPC efun 兼容包装层（grep 确认 runtime 无 def pointerp/stringp/mapp/undefinedp/sizeof）。属通用编程原语，迁移直接用 Python 内建：isinstance(x,list)/isinstance(x,str)/isinstance(x,dict)/key in d/len(x)。状态：无（engine 内无，trivial Python 替代）",
+          "status": "无"
+        },
+        {
+          "api": "sscanf(arg, \"%d\", num) [efun, 行209]",
+          "engine_path": "（engine 内无实现）",
+          "note": "全引擎无 sscanf efun（grep 确认）。LPC sscanf 返回成功匹配数，失败返回 0 触发 notify_fail。迁移用 try: num=int(arg) except ValueError: 失败分支。状态：无（trivial Python 替代）",
+          "status": "无"
+        },
+        {
+          "api": "sprintf(fmt, ...) [efun, 行216-217]",
+          "engine_path": "（engine 内无实现）",
+          "note": "全引擎无 sprintf efun。LPC sprintf 的 %-40s/%d/%s 格式与 Python % 操作符基本兼容，可直接 `\"[%d] %-40s %s(%s)\" % (...)` 或迁移为 f-string。状态：无（trivial Python 替代）",
+          "status": "无"
+        },
+        {
+          "api": "ctime(notes[num][\"time\"]) [efun, 行218]",
+          "engine_path": "（engine 内无实现）",
+          "note": "全引擎无 ctime efun。LPC ctime(timestamp) 返回 \"Day Mon DD HH:MM:SS YYYY\"，行218 取 [0..9]（日期段）。迁移用 time.ctime(ts)（语义一致，同格式）。状态：无（trivial Python 替代）",
+          "status": "无"
+        },
+        {
+          "api": "the_player->start_more(msg) [call_other 玩家方法, 行216]",
+          "engine_path": "（engine 内无实现）",
+          "note": "玩家对象分页显示长文本方法（LPC F_MORE）。全引擎无 start_more / 分页输出实现（grep start_more/more/paging 全空）。do_read 用它分页显示留言正文。迁移需新实现分页输出系统。状态：无",
+          "status": "无"
+        },
+        {
+          "api": "the_player->query(\"family\") [call_other, 行191]",
+          "engine_path": "src/xkx/runtime/dbase_map.py:54",
+          "note": "query 机制已有；“family” key 已映射 DBASE_KEY_MAP[:54] -> Attributes.family（str）。但 LPC query(\"family\") 返回 mapping（含 family_name/generation/title/...），greenfield 返回 str（family_name 投影）。do_read 行197 `fam[\"family_name\"]` 在 greenfield 会 TypeError，需改为直接用 Attributes.family。FamilyComp(7字段,components.py:313) 不经 dbase 路径访问。状态：部分",
+          "status": "部分"
+        },
+        {
+          "api": "the_player->set(\"board_last_read\", ([myid:time])) [call_other, 行224]",
+          "engine_path": "src/xkx/runtime/query.py:91",
+          "note": "dbase set 函数已实现（query.py:91）。但 \"board_last_read\" key 未映射（unknown），set() raise DbaseKeyError。且 LPC 值是嵌套 mapping（board_id->time），greenfield 需 board 专属存储组件承接。状态：部分（机制有，key 无映射）",
+          "status": "部分"
+        },
+        {
+          "api": "tune_channels()/open_channels() [bboard.c 本地函数, 行255-277, do_read 行215/220 调用]",
+          "engine_path": "src/xkx/runtime/dbase_map.py:177",
+          "note": "两函数在 bboard.c 内定义，依赖 me->query(\"channels\")/me->set(\"channels\",0)/me->set_temp(\"tuned_ch\",...)/me->query_temp(\"tuned_ch\")。set_temp/query_temp 已实现（query.py:82/115），但 \"channels\" 是后置 key（dbase_map.py:177 POSTPONED_KEYS，频道系统 ADR-0014 channeld 未实现）：query(\"channels\") warn+返回 None，set(\"channels\",...) raise DbaseKeyError。tune/open 在 greenfield 不可用。状态：无（频道系统后置）",
+          "status": "无"
+        },
+        {
+          "api": "inherit ITEM [行8]",
+          "engine_path": "src/xkx/runtime/components.py:177",
+          "note": "bboard 是 LPC 物品（ITEM 提供 name/id/short/long/no_get/move 等）。greenfield 有 Inventory 容器组件（components.py:177，持有物品 entity）+ entity 概念，但无 ItemComp 承载物品自身 dbase 字段（name/short/long/no_get 等）。layer_b_object_base spec 未含 board/ITEM 规格。状态：部分（有物品 entity 概念，缺物品 dbase 组件）",
+          "status": "部分"
+        },
+        {
+          "api": "inherit F_SAVE [行9]",
+          "engine_path": "src/xkx/runtime/storage.py:170",
+          "note": "bboard 用 save()/restore() 持久化留言 + query_save_file() 按 board_id 生成 DATA_DIR/board/<id> 路径。greenfield 有 StorageSystem（storage.py:170）+ JsonFileBackend 原子写 write-temp+os.replace（storage.py:90/126，符合 ADR 崩溃安全不变量），但针对 entity 组件全量存档，非 per-object save/restore 语义，无 query_save_file 等价。状态：部分（有持久化机制，非 F_SAVE 语义）",
+          "status": "部分"
+        }
+      ],
+      "file": "inherit/misc/bboard.c",
+      "func": "do_read",
+      "has_simplified_impl": false,
+      "id": 1,
+      "missing_apis": [
+        "query(\"board_id\")/query(\"notes\")/query(\"wizard_only\")/query(\"poster_family\") — bboard 物品自身 dbase，greenfield 无 ItemComp 承接（components.py 仅有 Inventory 容器:177 + RoomComp:257），key 全为 unknown→raise DbaseKeyError",
+        "the_player->start_more(msg) — 玩家对象分页显示长文本方法（LPC F_MORE），全引擎无实现（grep start_more/more/paging 全空）",
+        "tune_channels()/open_channels() — bboard.c 本地函数，依赖 'channels' 后置 key（dbase_map.py:177 POSTPONED_KEYS，channeld 未实现）；set(\"channels\",...) raise DbaseKeyError",
+        "pointerp/stringp/mapp/undefinedp/sizeof — LPC 类型/大小 efun，全引擎无兼容包装（迁移用 Python isinstance/len，trivial）",
+        "sscanf(arg,\"%d\",num) — LPC sscanf efun，全引擎无实现（迁移用 try:int(arg) except，trivial）",
+        "sprintf(...) — LPC sprintf efun，全引擎无实现（迁移用 f-string 或 % 操作符，格式兼容，trivial）",
+        "ctime(timestamp) — LPC ctime efun，全引擎无实现（迁移用 time.ctime，语义一致，trivial）"
+      ],
+      "notes": "do_read 函数体行167-230。整体迁移阻塞点：核心是缺 board/留言板子系统（无 ItemComp 承载物品 dbase、无 board_last_read 存储、无 start_more 分页、无 F_SAVE per-object save/restore），需新增 BoardItem 组件 + 留言存储映射 + 分页输出系统。次要：频道 tune/open 依赖后置 channeld（do_read 行215/220 调用，可暂跳过/桩化，do_read 主流程不依赖频道功能正确性）。可直接复用：dbase query/set 机制（query.py）、Abort 命令失败信号、WizLevel/CapabilityToken 权限模型、StorageSystem 原子写。纯 efun（pointerp/stringp/mapp/undefinedp/sizeof/sscanf/sprintf/ctime）全无 engine 实现但 Python 内建 trivial 替代。红线 ADR-0048 决策7：本分析仅作三态导航，未写任何迁移代码/测试。",
+      "partial_apis": [
+        "this_player() → ActionContext.actor（action_context.py:64），段7已注入 ctx；无全局 this_player() efun，迁移从 ctx.actor 取",
+        "the_player->query('board_last_read')/set('board_last_read') — query/set 机制已有（query.py:58/91），但 key 未映射（unknown→raise DbaseKeyError），需新增 board 读记录存储组件",
+        "SECURITY_D->cmp_wiz_level — WizLevel 层次+CapabilityToken 已有（capability.py:39/324），缺等级比较函数（LPC 返回 -1/0/1），迁移用 WizLevel 枚举序比较",
+        "notify_fail(msg) → Abort 信号（action_context.py:35）等价命令级失败，非 efun 级中途返回提示，do_read 内部需改为返回 messages/Abort",
+        "the_player->query('family') — 已映射 Attributes.family str（dbase_map.py:54），但 LPC 返回 mapping，fam['family_name'] 访问需改为直接用 Attributes.family str（FamilyComp 7字段不经 dbase 路径）",
+        "inherit ITEM — 有 Inventory 容器+entity 物品概念（components.py:177），缺 ItemComp dbase（name/short/long/no_get 等物品自身字段）",
+        "inherit F_SAVE — 有 StorageSystem 原子写+dirty-flag（storage.py:170/126，符合崩溃安全不变量），非 per-object save/restore 语义，无 query_save_file 等价"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "inherit NPC_TRAINEE",
+          "engine_path": "",
+          "note": "新引擎无 inherit 机制，用 ECS 组件+题材数据替代。全引擎无 trainable/trainee/wildness/auto_follow/msg_trained 等驯兽能力概念（grep train/tame/wildness 零命中运行时）。snake.c 顶部 inherit NPC_TRAINEE 提供的驯兽基类行为无等价。",
+          "status": "无"
+        },
+        {
+          "api": "::init() 父类 init 钩子",
+          "engine_path": "engine/src/xkx/runtime/commands.py:317",
+          "note": "LPC init() 在对象/玩家进入环境时调用。新引擎等价钩子是 go() 命令后调用的 _trigger_room_enter_fight(game, actor_id)（commands.py:317，注释明写‘对照 LPC init()’），遍历房间 NPC 触发反应。语义等价，但非 inherit:: 调用链。",
+          "status": "已有"
+        },
+        {
+          "api": "add_action(\"convert\",\"bian\")",
+          "engine_path": "engine/src/xkx/runtime/commands.py:2002",
+          "note": "COMMAND_REGISTRY（commands.py:2002）是全局 verb->adapter 映射表，由 s3_find_command 中间件查表。LPC add_action 是 per-object 注册（玩家在该 NPC 房间时 bian 可用）。新引擎无 per-NPC/per-object 自定义命令注册机制；bian 未在注册表中。convert 是 snake.c 自定义命令，无承接。",
+          "status": "无"
+        },
+        {
+          "api": "interactive(ob = this_player())",
+          "engine_path": "engine/src/xkx/runtime/components.py:18",
+          "note": "新引擎无 interactive/this_player efun。_trigger_room_enter_fight 用 Identity.is_player（components.py:18，commands.py:333 判定）近似。is_player 只区分玩家/NPC，缺 LPC interactive() 的 link-dead（断线但 body 仍在）区分语义。",
+          "status": "部分"
+        },
+        {
+          "api": "ob->query(\"family/family_name\")",
+          "engine_path": "engine/src/xkx/runtime/dbase_map.py:54",
+          "note": "DBASE_KEY_MAP 中 family 与 family_name 均映射到 Attributes.family 扁平 str 字段（dbase_map.py:54-55，注释明写‘LPC family/family_name 同义’）。LPC 路径 family/family_name（读 family mapping 的 family_name 子键）被扁平化为单字段，语义等价。调用方改用 query(world,eid,'family_name') 即可。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->query_kar()",
+          "engine_path": "",
+          "note": "kar 仅在 AccountRecord 账号层（account.py:52，random_gift 生成时算出）存在，未进入运行时角色组件。Attributes 组件只有 str_/dex_/int_/con_/age/gender/family，无 kar/per 字段；kar 不在 DBASE_KEY_MAP 也不在 POSTPONED_KEYS，故 query(world,eid,'kar') 会归类 unknown 并 raise DbaseKeyError（dbase_map.py classify_key）。运行时无 query_kar() 等价方法、无读取路径。",
+          "status": "无"
+        },
+        {
+          "api": "ob->query_per()",
+          "engine_path": "",
+          "note": "同 query_kar：per 仅在 AccountRecord 账号层（account.py:54，per=60-kar-pat）。不在 DBASE_KEY_MAP/POSTPONED_KEYS，运行时角色无组件字段，query('per') raise DbaseKeyError。无 query_per() 等价。",
+          "status": "无"
+        },
+        {
+          "api": "random(ob->query_kar()+ob->query_per())<30",
+          "engine_path": "",
+          "note": "标准库 random 可用作系统 RNG（非 combat 确定性 rng，符合 ADR 战斗确定性=combat-only 边界）。random 本身已有，但因 kar/per 无运行时读取路径，整个判定表达式无法执行。snake 特有的 attitude=peaceful 时按 kar+per 随机概率触发攻击的分支在新引擎无任何承接。",
+          "status": "无"
+        },
+        {
+          "api": "remove_call_out(\"kill_ob\")",
+          "engine_path": "engine/src/xkx/runtime/doors.py:165",
+          "note": "ADR-0027 将 call_out 翻译为 EffectComp 定时框架。doors.py:165 有特化的 _remove_door_close_effect（移除旧 door_close EffectComp 防重入，对齐 remove_call_out）。但无通用 remove_call_out API；EffectComp 是 effect 衰减/定时 effect 机制，非通用‘延迟调用对象方法’。snake init 的 remove_call_out 防重入语义需迁移时自构 EffectComp 取消。",
+          "status": "部分"
+        },
+        {
+          "api": "call_out(\"kill_ob\",1,ob)",
+          "engine_path": "engine/src/xkx/runtime/doors.py:99",
+          "note": "EffectComp（components.py:212，effect_id/duration/next_tick 字段）可承载定时 effect，doors.py:99 是 knock 开门后 schedule door_close 的用例。但无通用 call_out API；EffectComp 触发的是 ConditionHandler.on_tick 纯函数，非‘延迟调用对象方法’。snake 的 call_out('kill_ob',1,ob) 意为延迟 1 tick 调 NPC.kill_ob(player) 让 init 先返回，新引擎 NPC 主动攻击已同步即时化（_trigger_room_enter_fight 在 go() 后直接触发 auto_fight），‘延迟 1 tick 攻击’语义无直接等价。",
+          "status": "部分"
+        },
+        {
+          "api": "kill_ob (call_out 目标方法)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:454",
+          "note": "NPC 主动攻击玩家方法有等价：_start_combat(world,npc_eid,player_id,to_death=True)（commands.py:454，注释‘对齐 LPC kill_ob/fight_ob’）+ auto_fight.initiate_combat（auto_fight.py:105，B-2 ADR-0039 决策4，注释‘对齐 LPC kill_ob’）。建立双向敌对关系 + CombatBridge tick 驱动。",
+          "status": "已有"
+        }
+      ],
+      "file": "clone/beast/snake.c",
+      "func": "init",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "inherit NPC_TRAINEE（trainable/wildness/auto_follow/msg_trained 驯兽能力，全引擎无概念）",
+        "query_kar() / query_per() 运行时读取路径（kar/per 仅账号层生成，未进角色组件，query 抛 DbaseKeyError）",
+        "add_action per-object 自定义命令注册（如 bian/convert，COMMAND_REGISTRY 仅全局 verb 表）"
+      ],
+      "notes": "分析范围：clone/beast/snake.c 第 33-44 行 init 函数体（含 inherit 声明第 5 行）。红线遵守：仅分析导航，未写任何迁移代码/测试。三态判定依据：dbase_map.py 的 DBASE_KEY_MAP/POSTPONED_KEYS/classify_key、commands.py 的 _trigger_room_enter_fight/COMMAND_REGISTRY、components.py 的 Attributes/Identity/NpcBehavior、doors.py 的 EffectComp call_out 翻译惯例、account.py 的 kar/per 生成位置。关键缺口：snake 的 init 核心分支（attitude=peaceful 但按 kar+per 随机概率触发攻击）在新引擎无承接——_trigger_room_enter_fight 仅覆盖 hatred/vendetta/aggressive 三态（_decide_room_enter_fight 的 elif 链），无‘peaceful+属性概率’第四态。has_simplified_impl=true 指该‘进房间触发 NPC 攻击’主流程有简化版（_trigger_room_enter_fight），但 snake 特有的概率判定分支未补。",
+      "partial_apis": [
+        "interactive() -> Identity.is_player（缺 link-dead/断线区分语义）",
+        "call_out()/remove_call_out() -> EffectComp 定时框架（ADR-0027，doors 有特化用例；无通用 call_out API，无‘延迟调用对象方法’语义，init 触发已同步即时化）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "seteuid (efun)",
+          "engine_path": "engine/src/xkx/runtime/capability.py:133 + engine/src/xkx/runtime/ws_server.py:118",
+          "note": "euid/uid 字符串模型整体由 CapabilityToken 替代（capability.py:133 subject=entity_id 注释即'LPC euid 等价'）。setup 的 seteuid(getuid(this_object()))='授予对象自身 euid'等价于 ws_server.py:118 issue_token(body_eid, WizLevel.PLAYER) 签发 token。非 1:1 函数映射，但权限授予语义完整覆盖",
+          "status": "已有"
+        },
+        {
+          "api": "getuid (efun)",
+          "engine_path": "engine/src/xkx/runtime/capability.py:133",
+          "note": "getuid 取对象 uid -> CapabilityToken.subject (entity_id)。与 this_object 一同映射到 entity_id，无独立 getuid 调用但等价物存在",
+          "status": "已有"
+        },
+        {
+          "api": "this_object (efun)",
+          "engine_path": "engine/src/xkx/runtime/action_context.py:64-65",
+          "note": "action_context.py:8/65 明确 actor=命令发起者(LPC this_player()/this_object())。greenfield 无全局 this_object()（单进程 asyncio 无等价物，action_context.py:18 注释），由 ActionContext.actor 显式传递 entity_id",
+          "status": "已有"
+        },
+        {
+          "api": "set_heart_beat (efun)",
+          "engine_path": "engine/src/xkx/runtime/engine.py:132 (Engine.tick) + engine.py:100 (tick_interval=1.0)",
+          "note": "全局统一 tick 循环（tick=1s，CLAUDE.md 不变量）替代 per-object heart_beat；setup 的 set_heart_beat(1)'开启心跳'被全局循环隐式覆盖。缺：per-object set_heart_beat(0) 关闭心跳（heart_beat() 末尾和平时省 CPU 用，engine.py:157 注释），引擎始终 tick 全部 System，无 per-entity 心跳开关",
+          "status": "部分"
+        },
+        {
+          "api": "random (efun)",
+          "engine_path": "engine/src/xkx/runtime/race.py:141 (_rand) + engine/src/xkx/combat/rng.py:24 (DeterministicRNG.rand)",
+          "note": "非战斗 RNG 用 stdlib random.randrange（race._rand / title / commands）；战斗确定性范围用 DeterministicRNG.rand。setup 的 random(10)（tick 计数器随机）属非战斗，random.randrange(10) 直接等价。无统一 efun 包装层但等价实现分散可用",
+          "status": "已有"
+        },
+        {
+          "api": "enable_player (inherited F_COMMAND)",
+          "engine_path": "engine/src/xkx/runtime/ws_server.py:118 (issue_token) + engine/src/xkx/runtime/middleware/__init__.py (8 段管线) + engine/src/xkx/runtime/capability.py (WizLevel->capabilities) + engine/src/xkx/runtime/death.py:58-59 (DISABLED_FLAG)",
+          "note": "功能分布实现：issue_token=enable_commands 身份激活、middleware 8 段(command.c:104 add_action+command_hook)、WizLevel 能力集=set_path 按 wizhood 选路径、Marks.flags DISABLED_FLAG=disable_player 失能标记。缺：set_living_name/find_living 的 living-name 注册（全引擎未检索到）；无单一 enable_player() 入口函数",
+          "status": "部分"
+        },
+        {
+          "api": "CHAR_D->setup_char (call_other daemon, this_object() 入参)",
+          "engine_path": "engine/src/xkx/runtime/race.py:100 (setup_race) + engine/src/xkx/runtime/equipment.py:103 (reset_action 简化版)",
+          "note": "setup_race 覆盖 HUMAN_RACE->setup_human 通用主流程（属性随机/max_jing/max_qi/max_jingli/max_potential/max_encumbrance/weight）。缺：daemon 编排（chard.c 8 种族 switch dispatch，仅 human 覆盖）、dbase 兜底初始化（jing=max_jing/qi=max_qi/jingli=max_jingli 的 undefinedp 兜底，spawn_player 硬编码 Vitals 值而非调 setup）、eff_jing/eff_qi 钳位到 max、玩家 max_neili/max_jingli 超限钳位（chard.c:75-92）、shen 计算公式（chard.c:99-104 shen_type*combat_exp/10，TitleComp.shen 字段存在但 setup 不计算）、behavior_exp/quest_exp、reset_action 完整逻辑（equipment.py:103 仅传 skill/label 时更新 CombatState，注释'2.3 最小，不完整推断'）",
+          "status": "部分"
+        }
+      ],
+      "file": "inherit/char/char.c",
+      "func": "setup",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "set_living_name / find_living（living-name 注册，enable_player 依赖项，全引擎未实现）",
+        "CHAR_D->setup_char 完整 daemon 编排与 dbase 兜底初始化（jing=max_jing / qi=max_qi / jingli=max_jingli 的 undefinedp 兜底、eff 钳位、玩家 neili/jingli 超限钳位、shen 计算公式、behavior_exp/quest_exp）"
+      ],
+      "notes": "分析范围：inherit/char/char.c 的 setup() 函数（行 49-58），仅函数体内依赖。函数体：seteuid(getuid(this_object())) / set_heart_beat(1) / tick=5+random(10) / enable_player() / CHAR_D->setup_char(this_object())。LPC 规格源全程只读未修改。\n\n7 项依赖中：已有 4（seteuid/getuid/this_object/random），部分 3（set_heart_beat/enable_player/CHAR_D->setup_char）。无'全引擎未实现'的单个 API，但 enable_player 的子能力 set_living_name/find_living 全缺。\n\nhas_simplified_impl=true：enable_player 由 capability token+middleware+Marks 分布覆盖主流程（命令可执行身份+路径+失能标记），但 living-name 注册后置；CHAR_D->setup_char 由 setup_race 覆盖 human 主流程（属性/max 值/weight），但 daemon 编排+dbase 兜底初始化+shen 公式+reset_action 完整逻辑后置未补。\n\n关键导航：(1) set_heart_beat 的 per-object 开关缺失，迁移时需注意 heart_beat()（char.c:60-169）末尾 set_heart_beat(0) 省 CPU 优化在新引擎无对应，全局 tick 始终驱动。(2) tick=5+random(10) 的 per-object 非均匀计数器（heart_beat 每 5-14 tick 才 update_condition）未实现，ConditionSystem.update 每tick运行（conditions.py:519）。(3) spawn_player（world.py:243）与 _enter_world（ws_server.py:126）均硬编码 Vitals/Attributes 值，未调用 setup_race/setup_char，属性公式实际未在创建路径触发。(4) 红线遵守：仅做分析导航，未写任何迁移代码或测试。",
+      "partial_apis": [
+        "set_heart_beat（全局 tick 循环 engine.py:132 覆盖'开启心跳'语义，缺 per-object set_heart_beat(0) 关闭/省 CPU）",
+        "enable_player（capability token+middleware 8 段+Marks.flags 分布实现主流程，缺 set_living_name/find_living living-name 注册，无单一入口）",
+        "CHAR_D->setup_char（setup_race 简化版覆盖 human setup_human 主流程，缺 8 种族 daemon dispatch + dbase 兜底初始化 + shen 公式 + reset_action 完整逻辑）",
+        "reset_action（equipment.py:103 简化版，仅传 skill/label 时更新 CombatState，缺 feature/attack.c 完整 action mapping 推断）"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "userp(victim) efun",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/components.py:18",
+          "note": "已有等价：Identity.is_player。death_penalty 内部未做此门控，由 die 外层 is_player 判定后才调 death_penalty（death.py:207-208）",
+          "status": "已有"
+        },
+        {
+          "api": "wizardp(victim) efun",
+          "engine_path": "",
+          "note": "capability.py:39 仅 WizLevel 权限层枚举（PLAYER/IMMORTAL/.../ADMIN），运行时实体无 wiz_level 组件挂载。death.py:491 注释明确 wizard 判定后置（greenfield 无 wiz_level 组件），death_penalty 内未做 wizardp 门控",
+          "status": "无"
+        },
+        {
+          "api": "victim->clear_condition() call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/conditions.py:635",
+          "note": "clear_condition(world,eid) 已实现（清 target 所有 EffectComp），death.py:263 已调用",
+          "status": "已有"
+        },
+        {
+          "api": "victim->query(key) call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:58",
+          "note": "query 已实现。combat_exp/potential/shen 已映射（dbase_map.py:71-73,101）；但 death_times/behavior_exp/balance/death_count/thief 在 POSTPONED_KEYS（dbase_map.py:162-183），query 返回 None+warnings.warn（query.py:69-74）",
+          "status": "部分"
+        },
+        {
+          "api": "victim->add(key,val) call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:123",
+          "note": "add 已实现（query旧值+set新值）。combat_exp/potential/shen 可写；但 death_times/behavior_exp/balance/death_count 后置 key，set 会 raise DbaseKeyError（query.py:103-106）。thief 同样后置",
+          "status": "部分"
+        },
+        {
+          "api": "victim->delete(key) call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:139",
+          "note": "delete 已实现（恢复 dataclass 默认值）。但 vendetta 在 POSTPONED_KEYS（dbase_map.py:175），delete 会 raise DbaseKeyError（query.py:148-151）",
+          "status": "部分"
+        },
+        {
+          "api": "victim->delete_temp(key) call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:186",
+          "note": "delete_temp 是 delete 别名（query.py:186-188，greenfield 不区分 dbase/tmp_dbase）。rob_victim/initiator 不在 DBASE_KEY_MAP 也不在 POSTPONED_KEYS，classify_key 返回 unknown，delete 会 raise DbaseKeyError（query.py:75-78,152-155）",
+          "status": "部分"
+        },
+        {
+          "api": "victim->set(key,val) call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/query.py:91",
+          "note": "set 已实现。但 thief 在 POSTPONED_KEYS（dbase_map.py:166），set 会 raise DbaseKeyError（query.py:103-106）",
+          "status": "部分"
+        },
+        {
+          "api": "victim->skill_death_penalty() call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/death.py:479",
+          "note": "skill_death_penalty(world,eid) 已实现且比 LPC 更完整：含 learned 进度体系（对照 skill.c:121-147，LPC 无 learned 分支有 bug，greenfield 修正累加）。death.py:276 已调用。注：death.py 注释（行14）旧称简化 stub，但实际行479-526 已是完整 learned 公式实现",
+          "status": "已有"
+        },
+        {
+          "api": "victim->save() call_other",
+          "engine_path": "/home/gukt/github/xkx2001-utf8/engine/src/xkx/runtime/storage.py:311",
+          "note": "存档机制存在但调用路径有缺陷：storage.py persist_now(self, world: World) 是全量 async（标所有实体脏+await）；death.py:447 _save 调 persist_now(eid) 传单实体 int 且未 await，签名不匹配（eid vs world）。persist_now 存在则走错误调用，实际效果异常；无 persist_now 时 fallback mark_dirty（death.py:448-449）",
+          "status": "部分"
+        }
+      ],
+      "file": "/home/gukt/github/xkx2001-utf8/adm/daemons/s_combatd.c",
+      "func": "death_penalty",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "wizardp(victim) efun - 运行时实体维度无 wizard 判定（capability.py:39 仅 WizLevel 权限层枚举，未挂载 wiz_level 组件到实体），death.py 注释明确后置"
+      ],
+      "notes": "LPC death_penalty 位于 adm/daemons/s_combatd.c:874-907。新引擎 death.py:254-278 已有简化版 death_penalty 实现，覆盖主流程（clear_condition + combat_exp 三段扣减：amount=min(combat_exp//100,5000)，>50 扣 amount+potential 扣半，20<..<=5000 扣 20，<=20 不扣 + skill_death_penalty + save）。\n\n后置跳过分支（death.py:258 注释\"后置 2.5 TitleComp\"）：(1) death_times 递增判定（combat_exp>=10000*death_times）；(2) shen 扣 1/20；(3) behavior_exp 扣 1/20；(4) balance 超 10000 部分扣半；(5) death_count+1；(6) delete vendetta；(7) delete_temp rob_victim/initiator；(8) thief 减半（set）。其中 shen 已映射 TitleComp.shen 但 death_penalty 未使用；其余 key 在 POSTPONED_KEYS，写会 raise。\n\n门控缺失：userp（Identity.is_player 已有但 death_penalty 内未用，由 die 外层门控）；wizardp（运行时实体维度无实现，全引擎缺失）。\n\ninherit：s_combatd.c inherit F_DBASE（行21），但 death_penalty 函数体内所有 dbase 操作均为 victim->method（对象方法，作用于 victim 参数对象），未直接调用 inherit F_DBASE 提供的本地 query/set 等，故函数体无 inherit 依赖。\n\n潜在 bug（非依赖缺失，供人工迁移注意）：death.py:447 _save 调 persist_now(eid) 与 storage.py:311 persist_now(self,world) 签名不匹配（单实体 int vs 全量 World，且 async 未 await），单实体存档实际失效，仅 fallback mark_dirty。",
+      "partial_apis": [
+        "victim->query(key) - death_times/behavior_exp/balance/death_count/thief 后置 key 返回 None+warn",
+        "victim->add(key,val) - death_times/behavior_exp/balance/death_count/thief 后置 key 写会 raise DbaseKeyError",
+        "victim->delete(key) - vendetta 后置 key 会 raise DbaseKeyError",
+        "victim->delete_temp(key) - rob_victim/initiator 归类 unknown key 会 raise DbaseKeyError",
+        "victim->set(key,val) - thief 后置 key 写会 raise DbaseKeyError",
+        "victim->save() - persist_now 签名不匹配（eid 单实体 vs world 全量，async 未 await），仅 fallback mark_dirty"
+      ]
+    },
+    {
+      "dependencies": [
+        {
+          "api": "me->is_busy()",
+          "engine_path": "engine/src/xkx/runtime/skill.py:69",
+          "note": "is_busy(world, eid) 完整等价（对照 feature/action.c:21 is_busy），bai.c 行 15 调用。",
+          "status": "已有"
+        },
+        {
+          "api": "me->query() / ob->query()",
+          "engine_path": "engine/src/xkx/runtime/query.py:58",
+          "note": "核心 query 已有；但本函数用到的 key 多数不可用：'possessed'/'special_master' 为 unknown(raise DbaseKeyError)；'family/family_name'/'family/generation' 路径 key 为 unknown(raise，需直访 FamilyComp)；'family' 映射到 Attributes.family 返回 str 而非 mapping(与 LPC 行为不同)；'death_count' 为 postponed(set 时 raise，query 返回 None+warn)；仅 'jing'/'betrayer' 可用。",
+          "status": "部分"
+        },
+        {
+          "api": "me->query_temp() / ob->query_temp()",
+          "engine_path": "engine/src/xkx/runtime/query.py:82",
+          "note": "query_temp 已有(简化与 query 一致)；但 'pending/apprentice'/'pending/recruit' 路径 key 为 unknown(raise)。greenfield 用 marks/ 前缀存 flag，pending 机制被简化掉(commands.py:1288 注释)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->set()",
+          "engine_path": "engine/src/xkx/runtime/query.py:91",
+          "note": "核心 set 已有；但 'score'(行 68)为 unknown(raise)，'death_count'(行 69)为 postponed(set 时 raise DbaseKeyError)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->set_temp('pending/apprentice', ob)",
+          "engine_path": "engine/src/xkx/runtime/query.py:115",
+          "note": "set_temp 已有；但 'pending/apprentice' 路径 key 为 unknown(raise)；pending 二次确认机制在 greenfield bai 中被简化为直接求值收徒(commands.py:1288)。",
+          "status": "部分"
+        },
+        {
+          "api": "me->delete_temp()",
+          "engine_path": "engine/src/xkx/runtime/query.py:186",
+          "note": "delete_temp 已有；但 'pending/apprentice'/'pending/recruit' 路径 key 为 unknown(raise)，无法删除 pending 标记。",
+          "status": "部分"
+        },
+        {
+          "api": "me->add('jing', -50, '一头磕在地上磕死了。')",
+          "engine_path": "engine/src/xkx/runtime/query.py:123",
+          "note": "add(world,eid,key,val) 仅 2 参值；无 LPC 第 3 个死亡原因参数(jing 跌破 0 致死时用此 reason 作死因)。磕死 reason 分支未实现。",
+          "status": "部分"
+        },
+        {
+          "api": "ob->name() / old_app->name()",
+          "engine_path": "engine/src/xkx/runtime/query.py:375",
+          "note": "无独立 name() 函数；可用 Identity.name(原始名)或 short(raw=True)(query.py:375)。LPC name() 含可见性(对不可见 viewer 返回'某人')，greenfield 无可见性门控。",
+          "status": "部分"
+        },
+        {
+          "api": "ob->is_character()",
+          "engine_path": "engine/src/xkx/runtime/query.py:385",
+          "note": "greenfield 无 is_character 谓词；用 Identity 存在与否作 proxy(query.py:385-386 注释)。物品无 Identity 即非角色。无独立函数。",
+          "status": "部分"
+        },
+        {
+          "api": "living(ob)",
+          "engine_path": "engine/src/xkx/runtime/death.py:382",
+          "note": "_is_living 私有 helper(Marks.flags 不含 unconscious/disabled)；在 death.py:382 与 auto_fight.py:269 重复定义，非公共 efun。",
+          "status": "部分"
+        },
+        {
+          "api": "userp(ob)",
+          "engine_path": "engine/src/xkx/runtime/components.py:18",
+          "note": "无 userp efun；用 Identity.is_player 内联判断(skill.py:94、components.py:18)。bai.c 行 43/97 用。",
+          "status": "部分"
+        },
+        {
+          "api": "wizardp(ob)",
+          "engine_path": "engine/src/xkx/runtime/title.py:92",
+          "note": "核心引擎无 wizard 判定组件(title.py:92 仅占位注释)；capability.py:54 有 WIZARD token 但无实体查询。bai.c 行 43 依赖此判定(允许拜巫师玩家为师)无法实现。",
+          "status": "无"
+        },
+        {
+          "api": "me->is_apprentice_of(ob)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1160",
+          "note": "_is_apprentice_of(world,player_eid,master_eid) helper(非对象 method)；master_id+master_name 同时匹配。已覆盖 bai.c 行 46。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->recruit_apprentice(me)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1241",
+          "note": "_recruit_apprentice 简化版(含叛师 betrayer+1)；技能减半公式后置(commands.py:1248 注释)；LPC help 称叛师后所有技能减半+评价归零未补。",
+          "status": "已有"
+        },
+        {
+          "api": "ob->attempt_apprentice(me)",
+          "engine_path": "engine/src/xkx/runtime/commands.py:1175",
+          "note": "_eval_apprentice_conditions 声明式简化(reject_gender/min_combat_exp/min_skills/require_flags 等 5 条件)；NPC 钩子改为声明式 app_config，非 call_other 派发。",
+          "status": "已有"
+        },
+        {
+          "api": "present(arg, environment(me))",
+          "engine_path": "engine/src/xkx/runtime/query.py:338",
+          "note": "find_in_room 仅查房间内角色(Identity 实体)；find_item(query.py:350)/present_item(query.py:473) 仅查物品栏。LPC present 还查房间地面物品(本函数被 is_character 拒，无影响)；未统一为单一 present efun。",
+          "status": "部分"
+        },
+        {
+          "api": "environment(me)",
+          "engine_path": "engine/src/xkx/runtime/query.py:467",
+          "note": "environment(world,eid) 返回 Position.room_id，完整等价。",
+          "status": "已有"
+        },
+        {
+          "api": "objectp(old_app)",
+          "engine_path": "无",
+          "note": "无 objectp efun；greenfield 用 eid(int)标识实体。语义上等同'eid 是否解析到实体'。本处 pending/apprentice 返回 None 后 objectp 判断 moot。",
+          "status": "部分"
+        },
+        {
+          "api": "mapp(ob->query('family'))",
+          "engine_path": "无",
+          "note": "Python trivial(isinstance dict)；但 query('family') 返回 str(Attributes.family)而非 mapping，mapp 恒为 False——与 LPC 行为相反(LPC family 是 mapping)，行为差异显著。",
+          "status": "部分"
+        },
+        {
+          "api": "notify_fail()",
+          "engine_path": "engine/src/xkx/runtime/middleware/s7_execute_audit.py:101",
+          "note": "无 notify_fail efun；greenfield 命令返回 list[str]，deny 消息作为首条返回(s7:101 对齐默认提示)。本函数多处 notify_fail 需改写为返回 deny msg。",
+          "status": "部分"
+        },
+        {
+          "api": "message_vision()",
+          "engine_path": "engine/src/xkx/runtime/pronoun.py:359",
+          "note": "PronounService.render 仅做 $N/$n 等 10 变量字符串替换；LPC message_vision 还向房间内所有 viewer 广播(各 viewer 看各自代词版本)。房间广播未实现。",
+          "status": "部分"
+        },
+        {
+          "api": "tell_object()",
+          "engine_path": "engine/src/xkx/runtime/death.py:426",
+          "note": "私有 _tell(death.py:426 + governance.py:578 重复)写 world.pending_messages 最小缓冲；非 WS 推送，后置 M3。bai.c 行 28/79/92/98 用。",
+          "status": "部分"
+        },
+        {
+          "api": "write() / printf()",
+          "engine_path": "无",
+          "note": "无 efun；greenfield 命令返回 list[str] 由调用方渲染。write(行 27/51/81)/printf(行 81)需改写为返回消息。",
+          "status": "部分"
+        },
+        {
+          "api": "chinese_number()",
+          "engine_path": "无",
+          "note": "仅 spec 定义(layer_h_daemons.py:2562 CHINESE_D)，runtime 无实现。greenfield 用阿拉伯数字替代(commands.py:1232 注释)。",
+          "status": "无"
+        },
+        {
+          "api": "inherit F_CLEAN_UP",
+          "engine_path": "无",
+          "note": "greenfield 命令是纯函数(commands.py COMMAND_REGISTRY)，非 LPC 对象，无 inherit 概念。clean_up 机制后置(dbase_map.py:181 POSTPONED_KEYS 含 no_clean_up)。",
+          "status": "部分"
+        }
+      ],
+      "file": "cmds/skill/bai.c",
+      "func": "main",
+      "has_simplified_impl": true,
+      "id": 1,
+      "missing_apis": [
+        "query(\"possessed\") / query(\"special_master\") — unknown dbase key，classify_key 返回 unknown 直接 raise DbaseKeyError（dbase_map.py:264）",
+        "query(\"family/family_name\") / query(\"family/generation\") — 路径 key 前缀 family 非 apply/rank_info/dali，resolve_dbase_key 返回 None -> unknown -> raise；须直访 FamilyComp 组件",
+        "set(\"score\", 0) — score 为 unknown key，set 时 raise DbaseKeyError",
+        "set(\"death_count\", 0) — death_count 在 POSTPONED_KEYS(dbase_map.py:173)，set 时 raise DbaseKeyError",
+        "query_temp/set_temp/delete_temp(\"pending/apprentice\") — 路径 key unknown -> raise；pending 二次确认机制被简化为直接求值收徒(commands.py:1288)",
+        "query_temp/delete_temp(\"pending/recruit\") — 路径 key unknown -> raise；简化为直接求值",
+        "wizardp() — 核心引擎无 wizard 判定组件(title.py:92 占位)",
+        "chinese_number() — runtime 无实现，仅 spec(layer_h_daemons.py:2562)；greenfield 用阿拉伯数字(commands.py:1232)"
+      ],
+      "notes": "引擎已有简化版拜师命令 bai(commands.py:1283) + _recruit_apprentice/_eval_apprentice_conditions/_is_apprentice_of 三个 helper(commands.py:1160/1175/1241)，覆盖拜师主流程(找 NPC→已是徒弟请安→辈分检查→入门条件→收徒+叛师计数)，但后置分支未补：(1) pending 二次确认机制(apprentice.c 的 pending/apprentice + pending/recruit 双向握手)被简化为直接求值收徒，cancel 分支/玩家拜玩家路径未实现；(2) 叛师技能减半公式未补(commands.py:1248 注释)；(3) add 第 3 个死亡原因参数('磕死'reason)未实现，bai.c 行 47 磕头扣 50 jing 致死时死因丢失；(4) chinese_number 后置(用阿拉伯数字)；(5) wizardp 判定缺失，行 43 '玩家拜巫师' 分支无法实现；(6) 一批 dbase key 未映射：score/death_count(set raise)、possessed/special_master(query raise)、family/family_name 与 family/generation 路径(query raise，须直访 FamilyComp)、query('family') 返回 str 非 mapping 导致 mapp 检查行为反转；(7) 通信 efun(notify_fail/write/printf/message_vision/tell_object)无独立实现，命令返回 list[str] + PronounService.render + _tell 私有缓冲替代，房间广播(各 viewer 各看)未实现。完整迁移须先补这些 key 映射与 pending 握手机制。",
+      "partial_apis": [
+        "name() — 无独立函数，用 Identity.name/short(raw=True)，缺可见性('某人')门控",
+        "is_character() — 无独立谓词，用 Identity 存在与否作 proxy",
+        "living() — 私有 _is_living helper(death.py:382 + auto_fight.py:269 重复)，非公共 efun",
+        "userp() — 无 efun，用 Identity.is_player 内联",
+        "add() 第 3 死亡原因参数 — add(world,eid,key,val) 无 reason 参",
+        "query('family') — 映射到 Attributes.family 返回 str 而非 mapping，mapp 检查行为反转",
+        "present() — find_in_room(房间角色)+find_item(物品栏)未统一，无房间地面物品",
+        "objectp() — 无 efun，greenfield 用 eid(int)",
+        "mapp() — trivial(isinstance dict)但 query('family') str 不匹配",
+        "notify_fail()/write()/printf() — 命令返回 list[str] 替代，无 efun",
+        "message_vision() — PronounService.render 仅 $N/$n 替换，无房间广播",
+        "tell_object() — 私有 _tell 写 pending_messages(death.py:426 + governance.py:578 重复)，非 WS 推送",
+        "inherit F_CLEAN_UP — 命令是函数非对象，clean_up POSTPONED"
+      ]
+    }
+  ],
+  "summary": {
+    "per_sample_notes": "样本 id 映射：13 份 JSON 的 id 字段均为 1（模板残留），used_by 采用列表内位置序号 1-13：1=xue.c/main、2=center.c/do_check_menpai_job、3=tieyanling.c/do_qingjiao、4=murong.c/do_copy、5=songshan-jian.c/next_sword、6=damage.c/die、7=emoted.c/do_emote、8=shizi.c/bash_weapon、9=bboard.c/do_read、10=snake.c/init、11=char.c/setup、12=s_combatd.c/death_penalty、13=bai.c/main。\n\n基准校验：ADR-0048 点名 5 桩 + xue.c 新增 2 桩共 7 项全部命中——is_spouse_of(桩1)、recognize_apprentice(桩2)、prevent_learn(桩3)、SKILL_D.query_skill_name(桩4)、receive_damage 通用化(桩5)、to_chinese(桩6)；其中 query_skill_name(level) 与 SKILL_D.query_skill_name 是同一缺口（SkillData 无招式名字段，入参 my_skill 即玩家技能等级），合并为桩4。\n\n未单列建桩（已 stub / trivial / 架构替代，迁移按下列方式处理）：\n- 已有简化 stub（death.py）：样本6 的 unconcious/revive/COMBAT_D.announce/death_penalty/killer_reward/CHAR_D.make_corpse/DEATH_ROOM.start_death 均已有简化版，缺 shen/PKS/MKS/装备重穿/消息推送等分支后置 2.5 TitleComp/M3，无需新建桩只需后续补全。\n- 已有 stub 字段（SkillData）：type()/valid_learn(me)/valid_enable() 已是默认 stub（type=\\\"\\\"/valid_learn=True/valid_enable=空），真实武学数据后置内容生产；仅 valid_combine/query_skill_name 无字段，已列桩4、桩21。\n- trivial Python 替代（不建桩）：sizeof→len、objectp(None 判)→isinstance/None、mapp/stringp/pointerp/undefinedp→isinstance、keys→dict.keys、explode→str.split、sscanf→try int()、sprintf→f-string/%、ctime→time.ctime、capitalize→s[0].upper()+s[1:]、random(非战斗)→random.randint。样本9 的 pointerp/stringp/mapp/undefinedp/sizeof/sscanf/sprintf/ctime 全属此类。\n- 命令框架吸收（通信 efun）：见桩41/桩12，命令统一改为返回 list[str] / Abort(messages)，PronounService.render 已覆盖 $N/$n 占位替换。\n- 架构性 inherit（非 API 桩，ECS 替代）：inherit ROOM/F_DBASE 已由 RoomComp+八段管线+dbase 8 函数等价（已有）；inherit F_CLEAN_UP 概念不适用（命令是函数非对象）；inherit NPC/ITEM → 组件集（物品缺口见桩17）；inherit F_SAVE → StorageSystem 原子写（per-object 语义见桩43）。\n- 分布式实现无需新桩：enable_player（capability token+middleware+Marks 分布覆盖，缺 living-name 见桩29）、set_heart_beat 开（全局 tick 覆盖，per-object off 省 CPU 迁移可忽略）、call_out/remove_call_out（EffectComp+clear_one_condition 等价 ADR-0027，样本6/10）、destruct（die NPC 分支已覆盖）、getuid（account.account_id 等价，并入桩41 efun 适配层）。\n\n潜在 bug 提示（供迁移注意，非建桩）：样本6 death.py:447 _save 调 persist_now(eid) 与 storage.py:311 persist_now(self,world) 签名不匹配（单实体 int vs 全量 World，async 未 await），单实体存档实际失效仅 fallback mark_dirty；样本12 death_penalty 同一 persist 路径。",
+    "stubs_needed": [
+      {
+        "name": "spouse/婚姻系统 (is_spouse_of / query(\"married_times\") / query(\"spouse/title\") / MARRY_D.break_marriage)",
+        "reason": "配偶/婚姻系统整体未实现（spouse 后置 M3），is_spouse_of/married_times/spouse/title/break_marriage 全无承接；建桩 is_spouse_of 返回 False、break_marriage no-op、dbase 读返回 None，使学习/死亡分支可跳过配偶门控。",
+        "used_by": [
+          1,
+          6
+        ]
+      },
+      {
+        "name": "recognize_apprentice(me)",
+        "reason": "师傅认可徒弟的付费副作用未实现（commands.py:1456 标注后置）；建桩 no-op（默认认可）使请教主流程通过并保留钩子。",
+        "used_by": [
+          1,
+          3
+        ]
+      },
+      {
+        "name": "prevent_learn(me, skill)",
+        "reason": "师傅侧学习门控未实现（commands.py:1456 标注后置）；建桩返回 False（允许学习）使请教主流程通过并保留门控钩子。",
+        "used_by": [
+          1,
+          3
+        ]
+      },
+      {
+        "name": "SKILL_D.query_skill_name(level)（招式名查询）",
+        "reason": "SkillData 无招式名字段，SKILL_D(skill)->query_skill_name(my_skill) 后置内容生产；建桩返回空串或 skill_id 使消息组装不报错。query_skill_name(level) 与本项同一缺口，合并计一次。",
+        "used_by": [
+          1,
+          3
+        ]
+      },
+      {
+        "name": "receive_damage(type, n) 通用化",
+        "reason": "无独立 receive_damage 函数，仅 learn 内联 vitals.jing-=，缺 eff 钳位与死亡触发；建桩统一函数封装扣减+eff 钳位+check_death，供学习/战斗副作用复用。",
+        "used_by": [
+          1,
+          3
+        ]
+      },
+      {
+        "name": "to_chinese(skill)",
+        "reason": "技能 id->中文名映射未实现（chinese_number 后置）；建桩返回 skill_id（或查表占位）使显示不报错。",
+        "used_by": [
+          1,
+          3
+        ]
+      },
+      {
+        "name": "env/* dbase keys (env/no_teach / env/immortal / env/invisibility)",
+        "reason": "\"env\" 在 POSTPONED_KEYS，env/no_teach、env/immortal、env/invisibility 路径 query 会 raise DbaseKeyError；建桩返回 None（默认无效果）使门控分支可跳过。",
+        "used_by": [
+          1,
+          3,
+          6,
+          7
+        ]
+      },
+      {
+        "name": "wizardp(ob)",
+        "reason": "运行时实体无 wizard 判定组件（capability.py 仅 WizLevel 权限层枚举，title.py:92 占位）；建桩返回 False 使巫师早退/拜巫师/死亡免罚分支可跳过。",
+        "used_by": [
+          6,
+          7,
+          12,
+          13
+        ]
+      },
+      {
+        "name": "job_data 子系统 (query_family_jobdata / choose_of_player / restore)",
+        "reason": "门派任务数据对象 job_data 整体未迁移，query_family_jobdata/choose_of_player 三方法全无；建桩返回空统计/默认列表使 do_check_menpai_job 可运行。",
+        "used_by": [
+          2
+        ]
+      },
+      {
+        "name": "LPC 路径对象模型 (find_object / load_object / new / clone_object)",
+        "reason": "greenfield 实体系统用 entity_id 非 LPC 路径，无按路径加载/实例化单例对象语义；建桩返回 None 使分支可跳过。",
+        "used_by": [
+          2,
+          6
+        ]
+      },
+      {
+        "name": "start_more(msg) 分页显示",
+        "reason": "全引擎无 pager/分页输出（grep start_more/more/paging 零命中）；建桩直接返回/输出全文（不分页）使长文本显示可运行。",
+        "used_by": [
+          2,
+          9
+        ]
+      },
+      {
+        "name": "消息分发 facade (message / tell_room / tell_object 房间广播+定向)",
+        "reason": "无 message()/tell_room()/tell_object() facade，仅向 actor 返回 list[str]，房间广播与定向发送未实现；建桩基于 ConnectionSystem.push_event + room->sessions 解析实现房间可见者广播与目标定向发送。",
+        "used_by": [
+          1,
+          3,
+          5,
+          7,
+          13
+        ]
+      },
+      {
+        "name": "find_player(arg)",
+        "reason": "无按 id/name 全局查在线玩家 API（ConnectionSystem 持 body_eid 但无反查）；建桩查 active_sessions 返回 None/body_eid。",
+        "used_by": [
+          7
+        ]
+      },
+      {
+        "name": "relay_emote(me, verb)",
+        "reason": "NPC 感知 emote 回调接口未实现（仅 spec 描述）；建桩 no-op。",
+        "used_by": [
+          7
+        ]
+      },
+      {
+        "name": "ANSI 颜色 (normal_color / HIW / HIY / NOR / CYN)",
+        "reason": "runtime 无 ANSI 颜色内核（颜色码砍掉），无 normal_color strip；建桩 identity（原样返回/strip ANSI）使颜色宏不破坏输出。",
+        "used_by": [
+          5,
+          7
+        ]
+      },
+      {
+        "name": "INTERMUD_MUD_NAME",
+        "reason": "intermud 跨 Mud 网络，收缩约束单机排除；建桩返回空串占位。",
+        "used_by": [
+          7
+        ]
+      },
+      {
+        "name": "物品对象模型 (item-as-entity: weight / rigidity / value / weapon_prop / name / short / long / no_get / move / unequip / COMBINED_ITEM amount)",
+        "reason": "greenfield 物品仅是 str item_id 非实体，无自身 dbase 与对象方法；建桩物品组件+属性台账适配层使 ob->weight()/query(rigidity)/set(value)/move()/unequip()/amount() 等调用可用。",
+        "used_by": [
+          3,
+          5,
+          8,
+          9
+        ]
+      },
+      {
+        "name": "query_str() sefun",
+        "reason": "greenfield 无 query_str 派生（race.py:228 明确，缺基础 str+装备加成+系数项）；建桩返回 query(\"str\") 基础值使力量对抗计算可运行。",
+        "used_by": [
+          5,
+          8
+        ]
+      },
+      {
+        "name": "query(\"jiali\") 加力 dbase key",
+        "reason": "jiali dbase key 未映射，query raise DbaseKeyError；建桩返回 0 使加力项可计算。",
+        "used_by": [
+          5,
+          8
+        ]
+      },
+      {
+        "name": "reset_action() 完整重算",
+        "reason": "无 runtime reset_action，仅 wield/unequip 传 skill/label 时更新 CombatState（2.3 最小）；建桩最小重算 query(\"actions\") 招式映射使技能变更后动作集刷新。",
+        "used_by": [
+          4,
+          5,
+          8,
+          11
+        ]
+      },
+      {
+        "name": "SKILL_D.valid_combine(sname)",
+        "reason": "SkillData 无 valid_combine 字段（全引擎零命中）；建桩返回 False 使双 prepare 组合分支跳过。",
+        "used_by": [
+          4
+        ]
+      },
+      {
+        "name": "skill-feature 变更 API (set_skill / delete_skill / map_skill / prepare_skill / query_skills / query_skill_map / query_skill_prepare)",
+        "reason": "Skills 的 levels/skill_map/skill_prepare 三 dict 已就绪但无命名变更函数（feature/skill.c 方法 API 缺失）；建桩薄封装 dict 操作使 do_copy 技能复制可调用。",
+        "used_by": [
+          4
+        ]
+      },
+      {
+        "name": "remove_all_killer / remove_killer(obj) / remove_all_enemy",
+        "reason": "CombatState.enemy_ids 有数据无清理方法；建桩清空 enemy_ids 使死亡时战斗关系清理可运行。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "dismiss_team()",
+        "reason": "无 Team 组件/系统；建桩 no-op。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "interrupt_me()",
+        "reason": "is_busy 有但打断当前动作（dazuo/jingzuo）的 interrupt_me 未实现；建桩 no-op（或清 busy effect）。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "log_file(path, msg)",
+        "reason": "死亡日志 efun 未实现（death.py:13 注释后置 stub 跳过）；建桩写本地文件或 no-op。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "CHANNEL_D.do_channel()",
+        "reason": "频道谣言广播后置 M3（CHANNEL_D.do_channel 未实现）；建桩 no-op。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "CHAR_D.break_relation(obj)",
+        "reason": "师徒关系断裂后置 M3 stub（CHAR_D.break_relation 未实现）；建桩 no-op。",
+        "used_by": [
+          6
+        ]
+      },
+      {
+        "name": "set_living_name / find_living (living-name 注册)",
+        "reason": "living-name 注册未实现（enable_player 依赖项，全引擎无 set_living_name/find_living）；建桩 no-op 占位。",
+        "used_by": [
+          11
+        ]
+      },
+      {
+        "name": "CHAR_D.setup_char 完整编排 (8 种族 dispatch + dbase 兜底 init + eff 钳位 + shen 公式)",
+        "reason": "setup_race 仅覆盖 human 主流程，缺 8 种族 daemon dispatch + dbase 兜底初始化（jing=max_jing 等 undefinedp 兜底）+ eff 钳位 + shen 计算公式 + behavior_exp/quest_exp；建桩补兜底初始化与 shen 公式使 setup_char 完整。",
+        "used_by": [
+          11
+        ]
+      },
+      {
+        "name": "query_kar() / query_per() 运行时读取",
+        "reason": "kar/per 仅账号层生成未进运行时角色组件，query raise DbaseKeyError；建桩返回 0（或从 AccountRecord 取）使属性概率判定可运行。",
+        "used_by": [
+          10
+        ]
+      },
+      {
+        "name": "per-object 自定义命令注册 (add_action: bian / convert / tan)",
+        "reason": "COMMAND_REGISTRY 仅全局 verb 表，无 per-object/per-NPC 自定义命令注册；建桩在注册表或 NPC 配置中注册使自定义命令可派发。",
+        "used_by": [
+          8,
+          10
+        ]
+      },
+      {
+        "name": "NPC_TRAINEE 驯兽能力 (trainable / wildness / auto_follow / msg_trained)",
+        "reason": "NPC_TRAINEE 驯兽能力全引擎无概念；建桩 no-op/默认值使驯兽基类行为可跳过。",
+        "used_by": [
+          10
+        ]
+      },
+      {
+        "name": "bboard 物品 dbase (board_id / notes / wizard_only / poster_family / board_last_read)",
+        "reason": "bboard 物品自身 dbase 无 ItemComp 承接，key 全 unknown raise；建桩返回默认值（空 notes/空 last_read）使留言板可运行。",
+        "used_by": [
+          9
+        ]
+      },
+      {
+        "name": "tune_channels / open_channels + channels dbase key",
+        "reason": "channels 在 POSTPONED_KEYS（channeld 未实现），tune/open 不可用；建桩 no-op 使频道开关可跳过（do_read 主流程不依赖频道正确性）。",
+        "used_by": [
+          9
+        ]
+      },
+      {
+        "name": "SECURITY_D.cmp_wiz_level",
+        "reason": "WizLevel 层次+CapabilityToken 已有，缺 cmp_wiz_level 等级比较函数（LPC 返回 -1/0/1）；建桩用 WizLevel 枚举序比较返回结果。",
+        "used_by": [
+          9
+        ]
+      },
+      {
+        "name": "chinese_number()",
+        "reason": "chinese_number runtime 无实现（仅 spec），greenfield 用阿拉伯数字；建桩返回 str(number) 占位。",
+        "used_by": [
+          13
+        ]
+      },
+      {
+        "name": "bai/pending 握手机制 dbase keys (possessed / special_master / score / death_count / pending-apprentice / pending-recruit)",
+        "reason": "bai 特有 dbase keys：possessed/special_master（unknown raise）、score（unknown raise）、death_count（POSTPONED raise）、pending/apprentice 与 pending/recruit（unknown raise，pending 二次确认被简化）；建桩返回 None/no-op 使拜师分支可运行。",
+        "used_by": [
+          13
+        ]
+      },
+      {
+        "name": "family/ 子路径 dbase 路由 (family/family_name / family/generation / family/master_id)",
+        "reason": "family/ 子路径未接线（PATH_PREFIX_MAP 仅 skill/marks 等），resolve 判 unknown raise；建桩路由到 FamilyComp/Attributes.family 使门派门控可读。",
+        "used_by": [
+          1,
+          6,
+          13
+        ]
+      },
+      {
+        "name": "POSTPONED/统计 dbase key 默认回落 (id / death_times / behavior_exp / balance / death_count / thief / vendetta / rob_victim / poisoner)",
+        "reason": "一批 POSTPONED/统计 dbase key query 返回 None+warn、set/delete raise DbaseKeyError；建桩显式映射默认值（id→Identity.aliases[0]，统计项→0/no-op）使死亡扣罚/记录分支可运行。",
+        "used_by": [
+          6,
+          7,
+          12
+        ]
+      },
+      {
+        "name": "LPC efun 适配包装层 (userp / living / objectp / stringp / mapp / is_character / name / is_fighting / getuid)",
+        "reason": "LPC efun 以字段/Python 内建形式存在但无同名函数封装；建桩薄适配层（读组件字段）减少迁移改写量。",
+        "used_by": [
+          1,
+          3,
+          5,
+          6,
+          7,
+          12,
+          13
+        ]
+      },
+      {
+        "name": "命令输出 efun 适配 (notify_fail / write / printf)",
+        "reason": "notify_fail/write/printf 无独立 efun（命令框架用 return list[str] 吸收）；建桩薄适配层（append messages / Abort）减少迁移改写量。",
+        "used_by": [
+          1,
+          2,
+          3,
+          5,
+          7,
+          9,
+          13
+        ]
+      },
+      {
+        "name": "per-object save/restore (F_SAVE 语义: save / restore / query_save_file)",
+        "reason": "StorageSystem 全量快照存档，非 LPC per-object save/restore/query_save_file 语义；建桩 per-entity save/restore 封装（persist_now(eid) 修正签名）使 bboard 留言存档可独立持久化。",
+        "used_by": [
+          9
+        ]
+      }
+    ]
+  }
+}

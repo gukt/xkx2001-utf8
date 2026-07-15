@@ -181,6 +181,15 @@ def classify_func_kind(func_name: str) -> str:
     return "logic"
 
 
+def classify_tier(call_count: int) -> str:
+    """调用点数 -> 复杂度档（与抽样档一致：low ≤5 / mid ≤20 / high >20）。"""
+    if call_count <= 5:
+        return "low"
+    if call_count <= 20:
+        return "mid"
+    return "high"
+
+
 def func_status(cats: Counter) -> str:
     """函数调用点类别分布 -> 状态（pending 调用点数 >= implemented 即 pending，保守）。"""
     impl = sum(c for cat, c in cats.items() if cat in IMPLEMENTED_CATEGORIES)
@@ -357,6 +366,10 @@ def build_func_dist(all_funcs: list[dict]) -> dict:
     cross = defaultdict(int)
     for f in all_funcs:
         cross[f"{f['subsystem']}/{f['status']}/{f['func_kind']}"] += 1
+    status_kind_tier = defaultdict(int)
+    for f in all_funcs:
+        key = f"{f['status']}/{f['func_kind']}/{classify_tier(f['call_count'])}"
+        status_kind_tier[key] += 1
     return {
         "total_funcs": len(all_funcs),
         "by_subsystem": dict(by_subsystem.most_common()),
@@ -371,6 +384,7 @@ def build_func_dist(all_funcs: list[dict]) -> dict:
             "mean": round(sum(calls) / len(calls), 2) if calls else 0,
         },
         "subsystem_status_funckind": dict(sorted(cross.items())),
+        "status_kind_tier": dict(sorted(status_kind_tier.items())),
     }
 
 
