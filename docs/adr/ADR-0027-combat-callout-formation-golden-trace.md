@@ -1,7 +1,8 @@
 # ADR-0027：call_out -> Effect 翻译 + 阵法合击 CombatModifier + golden trace diff 协议
 
-- 状态：草案（Wave 3 2.4 Combat 前置）
+- 状态：Accepted（实现完成，2026-07-16 核对）
 - 日期：2026-07-12
+- 实现核对（2026-07-16）：产出全落地 + 测试全绿。[modifier.py](../../engine/src/xkx/combat/modifier.py) CombatModifier 载体 + [system.py](../../engine/src/xkx/combat/system.py) `_apply_formation_modifier`/`_build_context`（special_attack 调用点 + 阵法标记注入）+ [death.py](../../engine/src/xkx/runtime/death.py) revive / [auto_fight.py](../../engine/src/xkx/runtime/auto_fight.py) start_ 翻译为 EffectComp/同步（greenfield 无实际 call_out 调用，73 处引用全为翻译说明）+ [golden_trace/diff.py](../../engine/tools/golden_trace/diff.py) 三层 diff + [conformance.py](../../engine/src/xkx/combat/conformance.py) 8 项（13 tests passed）。**combat 迁移专项（2.4）核心完成**，后置项（阵法数据 2.7/M3、call_out 144 处全量、golden trace 全量录制 ADR-0009）按本 ADR 范围红线后置。
 - 阶段：阶段 2 Wave 3 2.4
 - 关联：[04](../xkx-arch/04-迁移路径与避坑清单.md) §三阶段 2 Combat 迁移专项（call_out 144 处 + s_combatd 阵法合击 + golden trace）/ [05](../xkx-arch/05-第三轮专家对抗复审报告.md) §五 dissent 1（CombatKernel 抽象时机）+ dissent 4（基线测试）+ dissent 7（派生变更审计）/ [15](../xkx-arch/15-阶段2-子系统实施计划.md) §三 2.4 / [ADR-0023](ADR-0023-combat-determinism-boundary-simplification-ledger.md)（combat-only 确定性 + 简化台账 6 项，已实现）/ [ADR-0017](ADR-0017-ecs-sparse-set-effect-component.md)（Effect 一等公民）/ [ADR-0022](ADR-0022-json-save-crash-recovery-dirty-flag.md)（Effect 崩溃恢复）/ [ADR-0003](ADR-0003-combatkernel-theme-neutrality.md)（主题无关性）/ [ADR-0009](ADR-0009-original-driver-runnable.md)（driver 可运行，golden trace 定点辅助）
 

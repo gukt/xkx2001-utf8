@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-16（wear 命令批完成，ADR-0064）
+**最后更新**：2026-07-16（combat 迁移专项探索确认完成 ADR-0027 Accepted；wear 批 ADR-0064）
 
 ## 当前状态速览
 
@@ -20,6 +20,7 @@
 
 > 早期 Done（规格补充 / pilot / 架构补全 / bboard / B 类，至 2312 tests）已归档至 [stage-0-pilot-arch-done.md](docs/progress-archive/stage-0-pilot-arch-done.md)。
 
+- [x] **2.4 Combat 迁移专项**（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md) + [ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)）：resolve_attack 七步+副作用账本交织 + DeterministicRNG 收口 29 random + CombatBridge apply_effects + call_out->EffectComp + CombatModifier 阵法载体 + golden_trace/diff 三层 + ConformanceChecker 8 项（探索确认已完成，ADR-0027 核对 Accepted；后置阵法数据 2.7/M3 + call_out 144 全量 + golden trace 全量）
 - [x] **wear 命令批**（[ADR-0064](docs/adr/ADR-0064-wear-command-batch.md)）：armor_extract+finalize 脚本（235->145 护甲 21 门派，marker merge 进 items.yaml 不覆盖武器，9 新门派 CPK 补 manifest）+ ItemDef 扩 armor_prop/armor_type + wear/remove 命令（armor_type 消息分支+all+remove 只管护甲槽）；+19 tests，2416 全绿
 - [x] **wield 命令批**（[ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)）：wield/unwield 命令（双路径 CLI+COMMAND_REGISTRY）+ weapon_prop 注入 apply/<key> + flag 槽位判定 + skill_type 桥接 CombatState.attack_skill + is_busy/perform 门控 + wield all；WeaponDef/SAMPLE_WEAPONS/get_weapon_def 删除；+16 -6 tests，2397 全绿
 - [x] **门派武器 CPK 接线**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2）：wuxia_weapons 搬 17 数据层 CPK（wuxia_common + 16 门派，manifest 无 entry_points + items.yaml）；cli.py `_load_theme_data_items` glob 按题材前缀发现合并进 item_registry（149 武器）；ThemeRegistry 未改；wield 未实现；+4 tests，2387 全绿
@@ -30,7 +31,7 @@
 
 ## In Progress
 
-**wear 命令批已完成（ADR-0064）。装备命令侧完备**（wield/unwield + wear/remove，149 武器 + 145 护甲 = 301 item_registry）。**下批转 2.4 Combat 迁移专项**（候选 2，装备侧已铺路 attack_skill/armor_prop 进 apply_*，combat 可切）。
+**wear 命令批 + combat 探索完成**。装备命令侧完备（wield/unwield + wear/remove，301 item_registry）；2.4 Combat 迁移专项探索确认**已完成**（ADR-0023/0027 全落地，见 Done）。下批从剩余 Next Up 定方向（job_data/bboard 命令需先核查基础设施就绪度）。
 
 ## Blocked
 
@@ -38,12 +39,12 @@
 
 ## Next Up
 
-> 装备命令侧完备（wield/unwield + wear/remove，ADR-0063/0064），301 item_registry（149 武器 + 145 护甲）。wield->combat 衔接已通（[resolve_attack.py:163](engine/src/xkx/combat/resolve_attack.py#L163) 用 `attack_skill`/`weapon_label`），无需额外衔接批。
+> 2.4 Combat 迁移专项已完成（ADR-0023/0027，见 Done）。装备命令侧完备（wield/unwield + wear/remove，301 item_registry），wield->combat 衔接已通。
 
-1. **2.4 Combat 迁移专项**（高价值大工程，装备侧已铺路）：do_attack 七步管线副作用账本 + 29 处 `random()` 收口 DeterministicRNG + 闭包 call_out->Effect + 阵法合击 CombatModifier（[04 §三 2.4](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
-2. **job_data/bboard 暂缓命令**（待基础设施）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）。
-3. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：数据层 CPK（现 26，含护甲新增 9）补 rooms/npcs。
-4. **迁 PG**（kill criteria 8）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
+1. **job_data/bboard 暂缓命令**（待基础设施核查）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）-- 需先核查 job_system/CHANNEL_D/input_to/EDITOR_D 基础设施就绪度。
+2. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：26 数据层 CPK（武器 17+护甲 9）补 rooms/npcs 成为正式 CPK（内容生产）。
+3. **迁 PG**（kill criteria 8，外部玩家测试前）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
+4. **combat 后置项**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 范围红线）：阵法数据 2.7/M3 / call_out 144 处全量 / golden trace 全量录制 ADR-0009。
 
 ## kill criteria 状态（开工必读）
 
