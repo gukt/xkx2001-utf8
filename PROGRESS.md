@@ -37,11 +37,13 @@
 
 ## Next Up
 
-1. **job_data 暂缓命令**（[ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)）：do_check_menpai_assess + do_setorg_*（待 job_menpai 数据层）/ do_start_system 等（待 job_system + CHANNEL_D）。
-2. **bboard 暂缓命令**：do_post（待 input_to）/ do_store（待 EDITOR_D）。
-3. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：公共层 CPK 加载机制 + cli.py 多 CPK 合并 + ThemeRegistry 公共层注册（wield 已用 glob 发现的数据层 CPK，正式化后搬目录补 manifest）。
-4. **迁 PG**（kill criteria 8）：DaemonStore 与 StorageSystem 同步策略切换。
-5. **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）：token/运行时间。
+> wield->combat 衔接已通（[resolve_attack.py:163](engine/src/xkx/combat/resolve_attack.py#L163) 已用 `attack_skill`/`weapon_label`），无需额外衔接批。
+
+1. **wear 命令批（推荐，wield 批配对）**：护甲穿脱，机制层 [equipment.py](engine/src/xkx/runtime/equipment.py) `wear` 就绪；门派护甲数据未提取填表（不像武器 149 条），需先 extract+finalize（类 [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)/[0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 武器流程）再 wear/unwear 命令。
+2. **2.4 Combat 迁移专项**（高价值大工程）：do_attack 七步管线副作用账本 + 29 处 `random()` 收口 DeterministicRNG + 闭包 call_out->Effect + 阵法合击 CombatModifier（[04 §三 2.4](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+3. **job_data/bboard 暂缓命令**（待基础设施）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）。
+4. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：16 门派数据层 CPK 补 manifest+rooms/npcs。
+5. **迁 PG**（kill criteria 8）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
 
 ## kill criteria 状态（开工必读）
 
