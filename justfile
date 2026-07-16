@@ -96,6 +96,10 @@ loadtest *args:
 measure scene:
     cd engine && uv run python tools/measure_revision.py "{{scene}}"
 
+# 门派武器草表 -> 去重分类 ItemDef YAML（ADR-0060 决策 6）：just weapons-load
+weapons-load *args:
+    cd engine && uv run python tools/weapon_finalize.py "$@"
+
 # golden trace 录制（连本地 FluffOS driver，ADR-0009）：just golden-record --login
 golden-record *args:
     cd engine && uv run python -m tools.golden_trace.recorder "$@"

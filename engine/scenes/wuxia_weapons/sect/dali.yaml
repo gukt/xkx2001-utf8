@@ -1,0 +1,243 @@
+# 门派武器 ItemDef（ADR-0060 决策 6 落地，weapon_finalize.py 产出）。
+# 纯数据台账：LPC create() 标量 + 静态 weapon_prop mapping（damage 走 weapon_prop/damage）。
+# 不含：wield_msg/unwield_msg（决策3 留 wield 命令批）/ hit_ob 特效（留 M3 招式表）
+# / do_cut/do_lian 命令（留命令批）/ COMBINED_ITEM 堆叠（留方案 A M3）。
+# 混合型武器条目前有 # 后置缺口 注释（ADR-0060 决策 4，标注不完整定义）。
+# 权威源去重：clone/weapon > clone/unique > d/*/obj；em 折叠到 emei（复制债）。
+# 人工校验重点：flag 位掩码 / weapon_prop 子键 / long 颜色码与转义。
+- id: axe1
+  name: 锈铁斧
+  aliases:
+  - xiu tiefu
+  - axe
+  skill_type: axe
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 500
+  value: 200
+  material: steel
+  unit: 柄
+  long: 这是一柄精钢打造的斧头。\n
+# 后置缺口(ADR-0060决策4): hit_ob(留M3招式表)
+- id: chain
+  name: 铁链
+  aliases:
+  - tie lian
+  - chain
+  skill_type: whip
+  weapon_prop:
+    damage: 10
+  flag: 0
+  value: 1000
+  material: steel
+  unit: 条
+  long: 这是一条明晃晃，沉甸甸的铁链。\n
+- id: dagger
+  name: 匕首
+  aliases:
+  - bishou
+  - dagger
+  skill_type: sword
+  weapon_prop:
+    damage: 5
+  flag: 4
+  weight: 5000
+  value: 250
+  material: steel
+  unit: 柄
+  long: 这是一柄普通的精钢匕首。\n
+- id: diaogan
+  name: 钓杆
+  aliases:
+  - diao gan
+  - gan
+  - staff
+  skill_type: staff
+  weapon_prop:
+    damage: 25
+  flag: 16
+  weight: 3000
+  value: 250
+  material: steel
+  unit: 根
+  long: 这是一根生铁铸成的钓杆，上面悬了根铁丝。\n
+- id: duandao
+  name: 短刀
+  aliases:
+  - blade
+  skill_type: blade
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 5000
+  value: 1000
+  material: steel
+  unit: 柄
+  long: 这是一柄刃身极阔的短刀，是神农帮帮众的标准武器。\n
+- id: gangchan
+  name: 钢铲
+  aliases:
+  - gang chan
+  - chan
+  skill_type: staff
+  weapon_prop:
+    damage: 25
+  flag: 16
+  weight: 20000
+  value: 350
+  material: steel
+  unit: 柄
+  long: 这是一柄精钢打造的铲子，形式和佛门弟子用的方便铲差不多，唯独铲头较厚较钝且略有弯曲。\n
+- id: gangfu
+  name: 钢斧
+  aliases:
+  - gang fu
+  skill_type: axe
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 500
+  value: 200
+  material: steel
+  unit: 柄
+  long: 这是一柄精钢打造的斧头。\n
+- id: huachu
+  name: 花锄
+  aliases:
+  - huachu
+  - chu
+  skill_type: hammer
+  weapon_prop:
+    damage: 10
+  flag: 0
+  weight: 1000
+  value: 10
+  material: wood
+  unit: 柄
+  long: 一柄小锄头，木把，铁头，是花匠种花除草的好工具。\n
+- id: hunterbow
+  name: 猎弓
+  aliases:
+  - hunter bow
+  - bow
+  skill_type: bow
+  weapon_prop:
+    damage: 12
+  flag: 0
+  weight: 2000
+  value: 2000
+  material: wood
+  unit: 张
+  long: 这是一张普通的木制猎弓。\n
+- id: jinsuanpan
+  name: 金算盘
+  aliases:
+  - jin suanpan
+  - suanpan
+  skill_type: hammer
+  weapon_prop:
+    damage: 25
+  flag: 0
+  weight: 50000
+  value: 10000
+  material: gold
+  unit: 把
+  long: 这是一把算帐用的算盘，却是纯金铸成的。\n
+- id: kandao
+  name: 砍刀
+  aliases:
+  - kan dao
+  - dao
+  skill_type: blade
+  weapon_prop:
+    damage: 10
+  flag: 4
+  weight: 3000
+  value: 250
+  material: steel
+  unit: 柄
+  long: 这是一柄小砍刀，刃身颇宽，没有护手，短小精悍。前端有一回钩，适合劈砍树木枝条。\n
+- id: letter
+  name: 钢斧
+  aliases:
+  - gang fu
+  skill_type: axe
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 500
+  value: 200
+  material: steel
+  unit: 柄
+  long: 这是一柄精钢打造的斧头。\n
+- id: mandao
+  name: 蛮刀
+  aliases:
+  - man dao
+  - dao
+  skill_type: blade
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 7000
+  value: 200
+  material: steel
+  unit: 柄
+  long: 这是一柄亮晃晃的精铁蛮刀。\n
+- id: shortbow
+  name: 短弩
+  aliases:
+  - short bow
+  - bow
+  skill_type: bow
+  weapon_prop:
+    damage: 8
+  flag: 0
+  weight: 2000
+  value: 500
+  material: wood
+  unit: 张
+  long: 这是一张普通的木制短弩。\n
+- id: tiedi
+  name: 铁笛
+  aliases:
+  - tie di
+  - di
+  skill_type: sword
+  weapon_prop:
+    damage: 20
+  flag: 4
+  weight: 1500
+  value: 100
+  material: iron
+  unit: 只
+  long: 这是一只生铁所铸的笛子，看起来沉掂掂的。\n
+- id: tonggun
+  name: 熟铜棍
+  aliases:
+  - tong gun
+  - gun
+  skill_type: club
+  weapon_prop:
+    damage: 10
+  flag: 16
+  weight: 7000
+  value: 100
+  material: iron
+  unit: 根
+  long: 这是一根黄澄澄的熟铜棍，看来没有几百斤臂力是难以使动的。\n
+- id: zhubian
+  name: 竹匾
+  aliases:
+  - zhubian
+  - basket
+  skill_type: blade
+  weapon_prop:
+    damage: 8
+  flag: 4
+  weight: 7000
+  value: 200
+  material: steel
+  unit: 个
+  long: 这是一个作工精细的竹匾。\n

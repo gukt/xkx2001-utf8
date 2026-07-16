@@ -1,0 +1,81 @@
+# 门派武器 ItemDef（ADR-0060 决策 6 落地，weapon_finalize.py 产出）。
+# 纯数据台账：LPC create() 标量 + 静态 weapon_prop mapping（damage 走 weapon_prop/damage）。
+# 不含：wield_msg/unwield_msg（决策3 留 wield 命令批）/ hit_ob 特效（留 M3 招式表）
+# / do_cut/do_lian 命令（留命令批）/ COMBINED_ITEM 堆叠（留方案 A M3）。
+# 混合型武器条目前有 # 后置缺口 注释（ADR-0060 决策 4，标注不完整定义）。
+# 权威源去重：clone/weapon > clone/unique > d/*/obj；em 折叠到 emei（复制债）。
+# 人工校验重点：flag 位掩码 / weapon_prop 子键 / long 颜色码与转义。
+- id: huocha
+  name: 火叉
+  aliases:
+  - huo cha
+  - cha
+  skill_type: pike
+  weapon_prop:
+    damage: 50
+  flag: 16
+  weight: 2000
+  value: 300
+  material: iron
+  unit: 柄
+  long: 这是一柄火叉，看上去钝钝的。\n
+# 后置缺口(ADR-0060决策4): 自定义命令(留命令批)
+- id: taomu
+  name: 桃木
+  aliases:
+  - taomu
+  skill_type: sword
+  weapon_prop:
+    damage: 2
+  flag: 4
+  weight: 1000
+  value: 0
+  material: wood
+  unit: 根
+  long: 这是一根三尺来长，刚砍下的桃木，略加雕琢(cut
+# 后置缺口(ADR-0060决策4): hit_ob(留M3招式表)
+- id: taomu-jian
+  name: 桃木剑
+  aliases:
+  - taomu jian
+  - taomu
+  - jian
+  skill_type: sword
+  weapon_prop:
+    damage: 3
+  flag: 4
+  weight: 1000
+  value: 0
+  material: wood
+  unit: 把
+  long: 这是一柄三尺来长，手工制成的桃木剑，似乎不是一件好兵器。\n
+# 后置缺口(ADR-0060决策4): hit_ob(留M3招式表)
+- id: taomujian
+  name: 桃木剑
+  aliases:
+  - taomu jian
+  - taomu
+  - jian
+  skill_type: sword
+  weapon_prop:
+    damage: 3
+  flag: 4
+  weight: 1000
+  value: 0
+  material: wood
+  unit: 把
+  long: 这是一柄三尺来长，手工制成的桃木剑，似乎不是一件好兵器。\n
+- id: xiaotiefu
+  name: 小铁斧
+  aliases:
+  - xiao tiefu
+  - axe
+  skill_type: axe
+  weapon_prop:
+    damage: 10
+  flag: 4
+  weight: 500
+  value: 200
+  material: steel
+  unit: 柄
+  long: 这是一柄精钢打造的小斧头，似乎不太适合战斗，木匠和樵夫很喜欢用的工具。\n

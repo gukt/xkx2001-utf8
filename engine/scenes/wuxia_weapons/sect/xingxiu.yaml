@@ -1,0 +1,83 @@
+# 门派武器 ItemDef（ADR-0060 决策 6 落地，weapon_finalize.py 产出）。
+# 纯数据台账：LPC create() 标量 + 静态 weapon_prop mapping（damage 走 weapon_prop/damage）。
+# 不含：wield_msg/unwield_msg（决策3 留 wield 命令批）/ hit_ob 特效（留 M3 招式表）
+# / do_cut/do_lian 命令（留命令批）/ COMBINED_ITEM 堆叠（留方案 A M3）。
+# 混合型武器条目前有 # 后置缺口 注释（ADR-0060 决策 4，标注不完整定义）。
+# 权威源去重：clone/weapon > clone/unique > d/*/obj；em 折叠到 emei（复制债）。
+# 人工校验重点：flag 位掩码 / weapon_prop 子键 / long 颜色码与转义。
+# 后置缺口(ADR-0060决策4): hit_ob(留M3招式表)
+- id: dushi
+  name: 毒尸
+  aliases:
+  - poison corpse
+  - corpse
+  skill_type: staff
+  weapon_prop:
+    damage: 25
+  flag: 16
+  weight: 28000
+  value: 0
+  material: steel
+  unit: 具
+  long: 这是一具经过药物熬炼的尸体，躯干四肢均已缩小，铜皮铁骨，坚韧无比，且周身布满剧毒。\n
+- id: lingshezhang
+  name: 灵蛇杖
+  aliases:
+  - lingshe zhang
+  - staff
+  - shezhang
+  skill_type: staff
+  weapon_prop:
+    damage: 55
+  flag: 16
+  weight: 4000
+  value: 4500
+  material: steel
+  unit: 根
+- id: staff1
+  name: 黑钢杖
+  aliases:
+  - heigang zhang
+  - zhang
+  - staff
+  skill_type: staff
+  weapon_prop:
+    damage: 55
+  flag: 16
+  weight: 8000
+  value: 350
+  material: steel
+  unit: 根
+  long: 这是一根黑钢杖，是件威力巨大的重兵器。\n
+# 后置缺口(ADR-0060决策4): hit_ob(留M3招式表)
+- id: xianglu-dao
+  name: 绿波香露刀
+  aliases:
+  - xianglu dao
+  - xianglu
+  - blade
+  skill_type: blade
+  weapon_prop:
+    damage: 88
+  flag: 4
+  weight: 5000
+  value: 10000
+  rigidity: 2000
+  material: steel
+  unit: 柄
+  long: 这是一柄厚背薄刃，锋锐异常的鬼头刀，刀口向外。\n刀刃上隐隐青光微闪，却是臭气熏天。\n
+- id: yujian
+  name: 玉剑
+  aliases:
+  - jade sword
+  - jian
+  - sword
+  skill_type: sword
+  weapon_prop:
+    damage: 25
+  flag: 4
+  weight: 2500
+  value: 10000
+  material: jade
+  unit: 柄
+  long: 一柄白色长剑，是白玉所造成，刃口磨得很是锋锐，和钢铁兵器不相上下。\n
