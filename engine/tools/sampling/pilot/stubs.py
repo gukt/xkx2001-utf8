@@ -40,7 +40,22 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from xkx.runtime.components import Attributes, Skills, Vitals
+from xkx.runtime.components import Attributes, Vitals
+
+# reset_action 已正式化到 runtime.equipment（B 类补全，对照 feature/attack.c）。
+from xkx.runtime.equipment import reset_action  # noqa: F401  re-export 供 pilot 样本
+
+# skill 读写 API 已正式化到 runtime.skill（B 类补全，对照 feature/skill.c）。
+# 此处 re-export 保持 pilot 样本 import 路径不变（ADR-0048 决策 8）。
+from xkx.runtime.skill import (  # noqa: F401  re-export 供 pilot 样本使用
+    delete_skill,
+    map_skill,
+    prepare_skill,
+    query_skill_map,
+    query_skill_prepare,
+    query_skills,
+    set_skill,
+)
 
 
 def is_spouse_of(world: Any, me_id: int, ob_id: int) -> bool:
@@ -197,72 +212,13 @@ def query_str(world: Any, eid: int) -> int:
     return attrs.str_ if attrs else 0
 
 
-def _skills(world: Any, eid: int) -> Skills:
-    """取 Skills 组件，无则建空（skill 变更 API 共用）。"""
-    s = world.get(eid, Skills)
-    if s is None:
-        s = Skills()
-        world.add(eid, s)
-    return s
+# skill 读写 API（set_skill / delete_skill / map_skill / prepare_skill /
+# query_skills / query_skill_map / query_skill_prepare）原为薄包装桩，已正式化
+# 到 runtime.skill 并在文件顶部 re-export（B 类补全，对照 feature/skill.c）。
 
 
-def query_skills(world: Any, eid: int) -> dict[str, int]:
-    """技能等级表 query_skills()（对照 murong.c:do_copy ob->query_skills()）。"""
-    s = world.get(eid, Skills)
-    return dict(s.levels) if s else {}
-
-
-def query_skill_map(world: Any, eid: int) -> dict[str, str]:
-    """技能映射 query_skill_map()（对照 murong.c:do_copy）。"""
-    s = world.get(eid, Skills)
-    return dict(s.skill_map) if s else {}
-
-
-def query_skill_prepare(world: Any, eid: int) -> dict[str, str]:
-    """技能准备 query_skill_prepare()（对照 murong.c:do_copy）。"""
-    s = world.get(eid, Skills)
-    return dict(s.skill_prepare) if s else {}
-
-
-def set_skill(world: Any, eid: int, name: str, level: int) -> None:
-    """设置技能等级 set_skill(name, level)（对照 murong.c me->set_skill(name,200)）。"""
-    _skills(world, eid).levels[name] = level
-
-
-def delete_skill(world: Any, eid: int, name: str) -> None:
-    """删除技能 delete_skill(name)（对照 murong.c me->delete_skill(name)）。"""
-    s = world.get(eid, Skills)
-    if s and name in s.levels:
-        del s.levels[name]
-
-
-def map_skill(world: Any, eid: int, cat: str, skill: str | None = None) -> None:
-    """设置/清除技能映射 map_skill(cat, skill)（对照 murong.c:do_copy）。
-
-    skill=None 表示清除该类别映射。
-    """
-    s = _skills(world, eid)
-    if skill is None:
-        s.skill_map.pop(cat, None)
-    else:
-        s.skill_map[cat] = skill
-
-
-def prepare_skill(world: Any, eid: int, cat: str, skill: str | None = None) -> None:
-    """设置/清除技能准备 prepare_skill(cat, skill)（对照 murong.c:do_copy）。"""
-    s = _skills(world, eid)
-    if skill is None:
-        s.skill_prepare.pop(cat, None)
-    else:
-        s.skill_prepare[cat] = skill
-
-
-def reset_action(world: Any, eid: int) -> None:
-    """重算动作集 reset_action()（对照 murong.c / songshan-jian.c / shizi.c / char.c）。
-
-    桩：no-op（完整 action mapping 推断后置 2.3，equipment.py:103 仅 wield/unequip
-    传 skill/label 时更新 CombatState）。迁移时不产生副作用即可。
-    """
+# reset_action 原为 no-op 桩，已正式化到 runtime.equipment 并在文件顶部 re-export
+# （B 类补全，对照 feature/attack.c:143-171）。
 
 
 def tell_object(world: Any, eid: int, msg: str) -> None:

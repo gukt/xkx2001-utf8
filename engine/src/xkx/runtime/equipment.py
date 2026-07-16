@@ -182,6 +182,46 @@ def unequip(world: World, eid: int, item_id: str) -> bool:
     return True
 
 
+def reset_action(world: World, eid: int) -> None:
+    """重算战斗动作集（对照 feature/attack.c:143-171）。
+
+    greenfield 等价范围（当前阶段，actions 闭包/招式表后置 M3 combat）：
+
+    - 无 CombatState 组件则 no-op（reset 仅刷新已有战斗状态，不建空）。
+    - 无武器时推断战斗类型 type（attack.c:152-156）：无 prepare -> ``unarmed``；
+      单 prepare -> 该 key；双 prepare -> 按 ``action_flag`` 选（action_flag
+      runtime 读写后置，默认取首个）。
+    - 有武器时 type = weapon skill_type，需 item_registry 桥接查武器 skill_type
+      （当前未桥接，保留 wield 已设的 attack_skill，后置）。
+    - mapped = ``skill_map[type]``，更新 ``CombatState.attack_skill = mapped or
+      type``（attack.c:158 query_skill_mapped）。
+    - actions 闭包（``SKILL_D(skill)->query_action`` / 武器自带 / default_actions）
+      后置 M3 combat（ADR-0023 裁决 perform/exert 后置；CombatState 招式字段
+      S1 简化固定）。
+    """
+
+    combat = world.get(eid, CombatState)
+    if combat is None:
+        return
+    equipment = world.get(eid, Equipment)
+    if equipment is not None and equipment.weapon:
+        # 有武器：type=weapon skill_type 需 item_registry 桥接（后置），
+        # 当前保留 wield 已设的 attack_skill
+        return
+    skills = world.get(eid, Skills)
+    prepare = skills.skill_prepare if skills else {}
+    if not prepare:
+        type_ = "unarmed"
+    elif len(prepare) == 1:
+        type_ = next(iter(prepare))
+    else:
+        # 双 prepare 按 action_flag 选（attack.c:156），action_flag 后置默认首个
+        type_ = next(iter(prepare))
+    mapped = skills.skill_map.get(type_) if skills else None
+    combat.attack_skill = mapped or type_
+    _mark_dirty(world, eid)
+
+
 # ──────────────────────── 辅助语义函数 ────────────────────────
 
 
