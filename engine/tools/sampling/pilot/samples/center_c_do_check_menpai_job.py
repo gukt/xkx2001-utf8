@@ -1,5 +1,9 @@
 """pilot 样本 id=2：d/wizard/center.c:do_check_menpai_job 迁移代码。
 
+**已被引擎层 do_check_menpai_job 替代**（ADR-0061 决策 2），权威实现
+在 ``engine/src/xkx/runtime/job_commands.py``。本样本保留作历史记录
+（ADR-0056 决策 2），桩不动（参照 ADR-0059 决策 6）。
+
 对照 LPC d/wizard/center.c L199-628。该函数对 11 个门派（武当/星宿/华山/
 桃花/丐帮/峨嵋/白驼/全真/雪山/大理/少林）做结构完全相同的重复处理：解析
 门派开关参数 -> 加载 job_data 单例 -> 每个选中门派查 query_family_jobdata
