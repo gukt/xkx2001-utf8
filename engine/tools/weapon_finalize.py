@@ -11,8 +11,9 @@
 6. 混合型（自定义命令/hit_ob）条目前插 ``# 后置缺口`` 注释（决策 4，标注不完整定义）。
 7. aliases 合并去重（多来源 aliases 保序合并）。
 
-产出 [scenes/wuxia_weapons/](../scenes/wuxia_weapons/) common.yaml + sect/<sect>.yaml。
-纯数据台账，不接 cli.py（CPK 接线后置，ADR-0062）。
+产出 [scenes/wuxia_common/items.yaml](../scenes/wuxia_common/) +
+scenes/wuxia_<sect>/items.yaml（ADR-0062 正式 CPK 化，17 个数据层 CPK 目录）。
+纯数据台账，manifest.yaml 手工维护（一次定稿），本脚本只刷 items.yaml（幂等）。
 
 用法：cd engine && uv run python tools/weapon_finalize.py [--in DRAFT] [--out-dir DIR]
 """
@@ -29,7 +30,7 @@ from weapon_extract import parse_weapon  # 同目录（tools/ 在 sys.path[0]）
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENGINE = Path(__file__).resolve().parents[1]
 _DEFAULT_IN = Path("/tmp/weapons_all.yaml")
-_DEFAULT_OUT = _ENGINE / "scenes" / "wuxia_weapons"
+_DEFAULT_OUT = _ENGINE / "scenes"
 
 
 def _rank(path: str) -> int:
@@ -181,10 +182,10 @@ def main() -> int:
     out_dir = Path(args.out_dir)
 
     common.sort(key=lambda e: e[0]["id"])
-    _dump_with_gaps(common, out_dir / "common.yaml", _HEADER)
+    _dump_with_gaps(common, out_dir / "wuxia_common" / "items.yaml", _HEADER)
     for sect in sorted(sects):
         items = sorted(sects[sect], key=lambda e: e[0]["id"])
-        _dump_with_gaps(items, out_dir / "sect" / f"{sect}.yaml", _HEADER)
+        _dump_with_gaps(items, out_dir / f"wuxia_{sect}" / "items.yaml", _HEADER)
 
     print(
         f"# 草表 {stats['draft']} -> 唯一 id {stats['unique_ids']} -> "

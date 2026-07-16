@@ -1,33 +1,55 @@
-"""门派武器 ItemDef 台账测试（ADR-0060 决策 6 落地）。
+"""门派武器 ItemDef 台账测试（ADR-0060 决策 6 + ADR-0062 CPK 接线）。
 
-覆盖 [scenes/wuxia_weapons/](../scenes/wuxia_weapons/) 产出的 common.yaml + sect/*.yaml：
+覆盖 [scenes/wuxia_common/](../scenes/wuxia_common/) +
+[scenes/wuxia_<sect>/](../scenes/) 17 个数据层 CPK 的 items.yaml：
 
 - load_items 加载所有武器 YAML -> ItemDef schema 校验通过（pydantic 不抛）。
 - compile_scene 编译 -> ir["items"] 含全部条目，kind=="item"。
 - 全部 id 唯一（权威源去重，clone/weapon > clone/unique > d/*/obj）。
-- 代表武器行为断言：倚天剑 flag=4(EDGED)/damage=150、血刀纯数据+do_lian 缺口、
-  通用钢刀/长剑在 common、em 折叠到 emei(zhudao)。
+- load_cpk 加载每个数据层 CPK（manifest 无 entry_points / theme=wuxia）。
+- 代表武器行为断言：倚天剑 flag=4/damage=150、血刀纯数据+do_lian 缺口、
+  通用钢刀/长剑在 wuxia_common、em 折叠到 wuxia_emei(zhudao)。
 - COMBINED_ITEM（falun/shizi/shizi2）整体不进本批（决策 4 留方案 A）。
 - damage 走 weapon_prop mapping（决策 1 不变量 2，非标量字段）。
 
-不接 cli.py（CPK 接线后置 ADR-0062），直接测 load_items + compile_scene。
+ADR-0062 接线：数据层 CPK 经 cli.py ``_load_theme_data_items`` 合并进
+game.item_registry（cli 接线测试见 test_cli_weapon_wiring.py）。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
+from xkx.dsl.cpk import CpkManifest
+from xkx.dsl.cpk_loader import load_cpk
 from xkx.dsl.ir import compile_scene
 from xkx.dsl.layer0 import load_items
+from xkx.themes import default_registry
 
-WEAPONS_DIR = Path(__file__).resolve().parents[1] / "scenes" / "wuxia_weapons"
+SCENES_DIR = Path(__file__).resolve().parents[1] / "scenes"
+
+
+def _data_layer_cpks() -> list[Path]:
+    """所有 wuxia_* 数据层 CPK 目录（manifest.entry_points 为空，跳过 wuxia_micro 场景）。
+
+    与 cli.py ``_load_theme_data_items`` 发现逻辑一致：glob wuxia_*/ 后按
+    entry_points 区分数据层（空）vs 场景（有 main_scene）。
+    """
+    dirs: list[Path] = []
+    for d in sorted(SCENES_DIR.glob("wuxia_*/")):
+        m = CpkManifest.model_validate(
+            yaml.safe_load((d / "manifest.yaml").read_text(encoding="utf-8"))
+        )
+        if not m.entry_points:
+            dirs.append(d)
+    return dirs
 
 
 def _all_weapon_files() -> list[Path]:
-    """common.yaml + sect/*.yaml。"""
-    files = [WEAPONS_DIR / "common.yaml"]
-    files += sorted((WEAPONS_DIR / "sect").glob("*.yaml"))
-    return files
+    """wuxia_common/items.yaml + wuxia_<sect>/items.yaml（数据层 CPK）。"""
+    return [d / "items.yaml" for d in _data_layer_cpks()]
 
 
 def _all_items():
@@ -39,6 +61,16 @@ def _all_items():
 
 def _items_by_id():
     return {i.id: i for i in _all_items()}
+
+
+def test_data_layer_cpks_count_17():
+    """数据层 CPK = 17（wuxia_common + 16 门派；em 折叠到 emei 不独立）。"""
+    cpks = _data_layer_cpks()
+    names = {p.name for p in cpks}
+    assert len(cpks) == 17
+    assert "wuxia_common" in names
+    assert "wuxia_emei" in names
+    assert "wuxia_em" not in names  # em 折叠到 emei
 
 
 def test_all_weapon_yaml_load_as_itemdef():
@@ -61,6 +93,18 @@ def test_all_ids_unique():
     items = _all_items()
     ids = [i.id for i in items]
     assert len(ids) == len(set(ids)), "存在重复 id"
+
+
+def test_each_data_layer_cpk_loads_via_load_cpk():
+    """每个数据层 CPK 经 load_cpk 加载（manifest 校验 + theme=wuxia 已注册）。"""
+    registry = default_registry()
+    for cpk_dir in _data_layer_cpks():
+        manifest, ir, _rules, _skills = load_cpk(cpk_dir, registry=registry)
+        assert manifest.theme == "wuxia"
+        assert not manifest.entry_points  # 数据层无入口房间
+        assert manifest.pack_type == "module_pack"
+        # items.yaml -> ir["items"]
+        assert len(ir["items"]) == len(load_items(cpk_dir / "items.yaml"))
 
 
 def test_yitian_jian():
@@ -92,8 +136,8 @@ def test_combined_item_skipped():
 
 
 def test_common_weapons_in_common():
-    """通用武器（钢刀 gangdao/长剑 changjian，多门派引用）在 common.yaml。"""
-    common = {i.id for i in load_items(WEAPONS_DIR / "common.yaml")}
+    """通用武器（钢刀 gangdao/长剑 changjian，多门派引用）在 wuxia_common/items.yaml。"""
+    common = {i.id for i in load_items(SCENES_DIR / "wuxia_common" / "items.yaml")}
     assert "gangdao" in common
     assert "changjian" in common
     assert "yitian-jian" in common  # clone/weapon 权威源
@@ -108,11 +152,10 @@ def test_gangdao_blade_edged():
 
 
 def test_em_folded_to_emei():
-    """em 折叠到 emei：zhudao 在 em/emei 复制，折叠成 1 条进 sect/emei。"""
-    emei = {i.id for i in load_items(WEAPONS_DIR / "sect" / "emei.yaml")}
+    """em 折叠到 emei：zhudao 在 wuxia_emei，无独立 wuxia_em 目录。"""
+    emei = {i.id for i in load_items(SCENES_DIR / "wuxia_emei" / "items.yaml")}
     assert "zhudao" in emei
-    # em 不应作为独立门派目录出现（已折叠到 emei）
-    assert not (WEAPONS_DIR / "sect" / "em.yaml").exists()
+    assert not (SCENES_DIR / "wuxia_em").exists()
 
 
 def test_bian_whip_flag_zero():
@@ -125,17 +168,16 @@ def test_bian_whip_flag_zero():
 def test_damage_in_weapon_prop_mapping():
     """damage 走 weapon_prop mapping（决策 1 不变量 2），非标量字段。"""
     items = _all_items()
-    # 有 weapon_prop 的武器，damage 在 mapping 内
     has_damage = [w for w in items if w.weapon_prop]
     assert len(has_damage) > 100
     for w in has_damage:
         assert "damage" in w.weapon_prop
 
 
-def test_sect_files_each_has_items():
-    """每个门派 sect 文件至少 1 条武器。"""
-    sect_files = list((WEAPONS_DIR / "sect").glob("*.yaml"))
-    assert len(sect_files) >= 10  # 16 门派
-    for f in sect_files:
-        items = load_items(f)
-        assert len(items) >= 1, f"{f.name} 无武器条目"
+def test_sect_cpks_each_has_items():
+    """每个门派数据层 CPK 至少 1 条武器。"""
+    sect_cpks = [d for d in _data_layer_cpks() if d.name != "wuxia_common"]
+    assert len(sect_cpks) >= 10  # 16 门派
+    for d in sect_cpks:
+        items = load_items(d / "items.yaml")
+        assert len(items) >= 1, f"{d.name} 无武器条目"

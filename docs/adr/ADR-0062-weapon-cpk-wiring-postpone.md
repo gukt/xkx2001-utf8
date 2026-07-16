@@ -59,6 +59,28 @@ game.item_registry 含全量武器数据时。届时：
 混合型武器（自定义命令 do_lian/do_cut、hit_ob 特效）的纯数据部分本批填，条目前 `# 后置缺口`
 注释标维度归属。COMBINED_ITEM（falun/shizi/shizi2）整体不进本批（决策 4 留方案 A）。
 
+### 4. 实施落地（接线批）
+
+本批执行决策 2 的 CPK 接线，武器数据正式 CPK 化并接入 `game.item_registry`：
+
+- **17 个数据层 CPK 目录落定**：`scenes/wuxia_common/`（公共 98 条）+
+  `scenes/wuxia_<sect>/` 16 门派（51 条），各含 `manifest.yaml`（`theme: wuxia` /
+  `pack_type: module_pack` / **无 `entry_points`**）+ `items.yaml`。原
+  `scenes/wuxia_weapons/` 已删除。
+- **数据层 CPK 发现约定**：数据层 CPK 无 `entry_points`（纯物品台账，无 rooms/入口），
+  与场景 CPK（有 `main_scene`，如 `wuxia_micro`）以此区分。cli.py
+  `_load_theme_data_items` 按 `manifest.theme` glob `scenes/<theme>_*/` 目录，预读
+  manifest 跳过有 entry_points 的场景 CPK，合并数据层 `ir["items"]` 进 `item_registry`。
+- **cli.py 接线**（[cli.py](../../engine/src/xkx/cli.py) `load_game`）：`item_registry`
+  = 场景 CPK items + 题材数据层 CPK items（149 武器）。非武侠题材（`default`）无数据层
+  CPK，不注入武侠武器。
+- **ThemeRegistry 未改**：glob 发现方案不需要 ThemeRegistry 扩展公共层注册（决策 2
+  "若加载校验需要"经评估不需要）。
+- **wield 命令未实现**：本批只接数据进 item_registry，为 wield 批铺路。wield_msg /
+  hit_ob / do_cut / do_lian 各归其批。
+- tests 2383 -> 2387（[test_weapons_catalog.py](../../engine/tests/test_weapons_catalog.py)
+  12 -> 14 + [test_cli_weapon_wiring.py](../../engine/tests/test_cli_weapon_wiring.py) 2）。
+
 ## 不做（收敛）
 
 - 不建公共层 CPK 加载机制 / ThemeRegistry 公共层注册（后置）。

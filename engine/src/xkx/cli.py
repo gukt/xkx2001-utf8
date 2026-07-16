@@ -15,6 +15,7 @@ import shlex
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from xkx.dsl.cpk_loader import load_cpk
 from xkx.runtime.commands import (
@@ -43,6 +44,9 @@ from xkx.runtime.commands import (
     tuna,
 )
 from xkx.runtime.world import build_world, spawn_player
+
+if TYPE_CHECKING:
+    from xkx.runtime.theme_registry import ThemeRegistry
 
 SCENES_DIR = Path(__file__).resolve().parent.parent.parent / "scenes"
 
@@ -90,6 +94,37 @@ HELP_TEXT = """\
 """
 
 
+def _load_theme_data_items(theme: str, registry: ThemeRegistry) -> list[dict]:
+    """加载题材数据层 CPK 的物品（ADR-0062 接线）。
+
+    glob ``scenes/<theme>_*/`` 目录，预读 manifest：``entry_points`` 为空的是数据层
+    CPK（纯物品台账，无 rooms/入口），``load_cpk`` 合并其 ``ir["items"]``。有
+    ``entry_points`` 的场景 CPK（如 ``wuxia_micro``）跳过。非武侠题材（``default``）
+    无匹配目录返回空。
+
+    ADR-0062 决策 2 落地：武器数据按公共/门派拆分为 17 个数据层 CPK
+    （``wuxia_common`` + 16 门派），本函数按题材前缀发现并合并进 ``item_registry``，
+    供 wield 命令批消费。
+    """
+    import yaml
+
+    from xkx.dsl.cpk import CpkManifest
+
+    items: list[dict] = []
+    for cpk_dir in sorted(SCENES_DIR.glob(f"{theme}_*/")):
+        mpath = cpk_dir / "manifest.yaml"
+        if not mpath.exists():
+            continue
+        manifest = CpkManifest.model_validate(
+            yaml.safe_load(mpath.read_text(encoding="utf-8"))
+        )
+        if manifest.entry_points:  # 场景 CPK（有入口房间）跳过
+            continue
+        _, ir, _, _ = load_cpk(cpk_dir, registry=registry)
+        items += ir.get("items", [])
+    return items
+
+
 def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     """加载场景 CPK + 创建玩家 + 接入 Engine，返回 (game, player_id)。
 
@@ -120,7 +155,9 @@ def load_game(scene: str = "xueshan_micro") -> tuple[Game, int]:
     )
     register_skill_defs(skills)
     # C4 ADR-0043：item_registry 存完整 item dict（name/aliases/consumable）
-    item_registry = {i["id"]: i for i in ir.get("items", [])}
+    # ADR-0062 接线：合并题材数据层 CPK 物品（wuxia_common + 16 门派武器 = 149）
+    data_items = _load_theme_data_items(manifest.theme, registry)
+    item_registry = {i["id"]: i for i in ir.get("items", []) + data_items}
     start_room = world.theme_config.start_room  # type: ignore[attr-defined]
     pid = spawn_player(world, "行者", start_room)
     # demo 试玩便利：给玩家初始潜能 + 基础 force，便于测通

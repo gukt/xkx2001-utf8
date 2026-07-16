@@ -124,7 +124,8 @@ def item_set(game: Game, item_id: str, key: str, val: Any) -> None:
 
 # ──────────────────────── WeaponDef schema（机制层，数据后置） ────────────────────────
 # DEPRECATED（ADR-0060 决策 1）：全量武器数据改由 ItemDef YAML 台账承载
-# （scenes/wuxia_weapons/，items.yaml -> load_items -> compile_item 链）。本 schema
+# （scenes/wuxia_common/ + scenes/wuxia_<sect>/ 数据层 CPK，items.yaml -> load_items
+# -> compile_item 链，ADR-0062 接线进 game.item_registry）。本 schema
 # 标量 damage 丢 weapon_prop 子键（speed/dodge，法轮实证），是错误建模。wield 命令批
 # 定夺去留：若需强类型武器视图从 ItemDef 台账投影重构，否则彻底删除；SAMPLE_WEAPONS
 # 2 样例届时迁为 ItemDef YAML 条目。本批不删代码（避免破坏现有引用）。
