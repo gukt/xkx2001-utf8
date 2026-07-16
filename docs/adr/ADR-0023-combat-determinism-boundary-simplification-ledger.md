@@ -11,7 +11,7 @@
 
 **现有资产（阶段 -1/0 已产出，T6 在此基础上扩展）**：
 
-- [combat/resolve_attack.py](../../engine/src/xkx/combat/resolve_attack.py) 纯函数七步管线，`DeterministicRNG` 替换 18 处 `random`，同 seed+同快照->同输出（hypothesis 验证，[ADR-0002](ADR-0002-resolve-attack-extraction.md)）。
+- [combat/resolve_attack.py](../../engine/src/xkx/combat/resolve_attack.py) 纯函数七步管线，`DeterministicRNG` 收口 `combatd.c` `do_attack` 31 处 `random()`（实现侧 16 处 rng 调用：rand×13/choice×1/chance×1/derive_seed×1；精确口径见 [rng.py](../../engine/src/xkx/combat/rng.py) docstring），同 seed+同快照->同输出（hypothesis 验证，[ADR-0002](ADR-0002-resolve-attack-extraction.md)）。
 - [combat/context.py](../../engine/src/xkx/combat/context.py) `CombatContext`/`CombatantSnapshot` 快照（战斗开始边界一次性拷贝，`resolve_attack` 只读不 mutate 现场）。
 - [combat/result.py](../../engine/src/xkx/combat/result.py) `CombatRoundResult` + `ledger`（message/effect 按交织真实顺序记录，`apply_effects` 按账本顺序 apply）。
 - [combat/rng.py](../../engine/src/xkx/combat/rng.py) `DeterministicRNG`（`random.Random(seed)`，非 hash，PYTHONHASHSEED 不影响）。

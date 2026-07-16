@@ -4,7 +4,7 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-16（combat 迁移专项探索确认完成 ADR-0027 Accepted；wear 批 ADR-0064）
+**最后更新**：2026-07-16（清战略债批次：strategy-review 复审提案 1/3/5/8 落地；wear 批 ADR-0064）
 
 ## 当前状态速览
 
@@ -20,6 +20,7 @@
 
 > 早期 Done（规格补充 / pilot / 架构补全 / bboard / B 类，至 2312 tests）已归档至 [stage-0-pilot-arch-done.md](docs/progress-archive/stage-0-pilot-arch-done.md)。
 
+- [x] **清战略债批次**（[strategy-review](docs/strategy-review/README.md) 提案1/3/5/8）：同步 04 文档 4 处不同步 + 性能核查归档（[perf](docs/progress-archive/perf-verification-2026-07-16.md)，双 GO：median 11-16μs / 1000+100 p99 10.3ms）+ rng 口径修正（18/29->31，[rng.py](engine/src/xkx/combat/rng.py) docstring + 04 + ADR-0023 + death.py）+ AI 成本回路（[batch_cost.py](engine/tools/batch_cost.py)+[台账](docs/batch-cost.md)，本批 12.1M token/27.5min）
 - [x] **2.4 Combat 迁移专项**（[ADR-0023](docs/adr/ADR-0023-combat-determinism-boundary-simplification-ledger.md) + [ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)）：resolve_attack 七步+副作用账本交织 + DeterministicRNG 收口 29 random + CombatBridge apply_effects + call_out->EffectComp + CombatModifier 阵法载体 + golden_trace/diff 三层 + ConformanceChecker 8 项（探索确认已完成，ADR-0027 核对 Accepted；后置阵法数据 2.7/M3 + call_out 144 全量 + golden trace 全量）
 - [x] **wear 命令批**（[ADR-0064](docs/adr/ADR-0064-wear-command-batch.md)）：armor_extract+finalize 脚本（235->145 护甲 21 门派，marker merge 进 items.yaml 不覆盖武器，9 新门派 CPK 补 manifest）+ ItemDef 扩 armor_prop/armor_type + wear/remove 命令（armor_type 消息分支+all+remove 只管护甲槽）；+19 tests，2416 全绿
 - [x] **wield 命令批**（[ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)）：wield/unwield 命令（双路径 CLI+COMMAND_REGISTRY）+ weapon_prop 注入 apply/<key> + flag 槽位判定 + skill_type 桥接 CombatState.attack_skill + is_busy/perform 门控 + wield all；WeaponDef/SAMPLE_WEAPONS/get_weapon_def 删除；+16 -6 tests，2397 全绿
@@ -31,7 +32,7 @@
 
 ## In Progress
 
-**wear 命令批 + combat 探索完成**。装备命令侧完备（wield/unwield + wear/remove，301 item_registry）；2.4 Combat 迁移专项探索确认**已完成**（ADR-0023/0027 全落地，见 Done）。下批从剩余 Next Up 定方向（job_data/bboard 命令需先核查基础设施就绪度）。
+**清战略债批次完成**。strategy-review 即时可做提案 1/3/5/8 已落地（04 同步 4 处 + 性能核查归档双 GO + rng 口径修正 18/29->31 + AI 成本回路建立）。job_data/bboard 基础设施核查已完成（四项现状见 Next Up）。需用户拍板的提案 2/4/6/7/9 待续。
 
 ## Blocked
 
@@ -39,16 +40,18 @@
 
 ## Next Up
 
-> 2.4 Combat 迁移专项已完成（ADR-0023/0027，见 Done）。装备命令侧完备（wield/unwield + wear/remove，301 item_registry），wield->combat 衔接已通。
+> 清战略债批次完成（strategy-review 提案1/3/5/8，见 Done）。AI 成本记录回路已建立（[batch-cost.md](docs/batch-cost.md)）。job_data/bboard 基础设施核查已完成，可迁清单已定。
 
-1. **job_data/bboard 暂缓命令**（待基础设施核查）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）-- 需先核查 job_system/CHANNEL_D/input_to/EDITOR_D 基础设施就绪度。
-2. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：26 数据层 CPK（武器 17+护甲 9）补 rooms/npcs 成为正式 CPK（内容生产）。
-3. **迁 PG**（kill criteria 8，外部玩家测试前）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
-4. **combat 后置项**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md) 范围红线）：阵法数据 2.7/M3 / call_out 144 处全量 / golden trace 全量录制 ADR-0009。
+1. **job_data/bboard 暂缓命令**（核查已完成）：可迁 = job_menpai 数据层（menpai.o 可读，解锁 do_check_menpai_assess/do_setorg_* 共 7 命令）/ editord daemon runtime（解锁 do_store）/ channeld daemon runtime（解锁 do_start_system 等）。硬阻塞 = do_post（input_to 行编辑器，客户端层）/ job_system（无源码无存档）。
+2. **strategy-review 需拍板提案**：2 保真分层 ADR / 4 全量迁移路径分解 / 6 receive_damage 缺口 / 7 技术债台账 / 9 运行时验证扩展（顺序见 [04-对抗评审记录](docs/strategy-review/04-对抗评审记录与综合裁决.md) §五，提案 2 为 4/6 框架前置）。
+3. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：26 数据层 CPK（武器 17+护甲 9）补 rooms/npcs。
+4. **迁 PG**（kill criteria 8，外部玩家测试前）/ **combat 后置项**（[ADR-0027](docs/adr/ADR-0027-combat-callout-formation-golden-trace.md)：阵法数据 2.7/M3 / call_out 144 全量 / golden trace 全量）。
 
 ## kill criteria 状态（开工必读）
 
 阶段 -1/0/1/2 与 M3 仍全部通过（详见 [stage-m2-mvp-done.md](docs/progress-archive/stage-m2-mvp-done.md)）。本次规格补充为阶段 0 后续补强，不引入新的 kill criteria 风险。
+
+**性能验证已核查归档**（2026-07-16 实测，详见 [perf-verification-2026-07-16.md](docs/progress-archive/perf-verification-2026-07-16.md)）：resolve_attack median 11-16μs（<50 阈值）/ 1000+100 完整配置（1300 实体+1000 会话+50 战斗对，300 tick）tick p99 10.3ms（<100ms 预算），双 GO，kill criteria 3/9 未触发。**缺口**：100 并发命令路径未压测（load_test 只压 combat tick）+ persist 全量 p99 1.5s（offload 不阻塞 tick，关联迁 PG 红线）。
 
 完整 9 条 kill criteria 见 [04 §四](docs/xkx-arch/04-迁移路径与避坑清单.md)。
 

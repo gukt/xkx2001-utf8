@@ -11,7 +11,8 @@ make_corpse / announce / check_death，对照 [spec/layer_f_death.py](_die_spec 
   §决策 6 衔接协议）。die 内仍只做 ghost=1 + move 阴间入口（theme_config.death_room）。
 - break_marriage / break_relation 后置 M3（die 中 stub 跳过）。
 - log_file 死亡日志 + 频道谣言后置 M3（stub 跳过）。
-- skill_death_penalty 简化 stub（所有技能 -1，真实 learned 公式后置 2.3/层 H）。
+- skill_death_penalty 已实现 learned 进度体系（greenfield 修正 LPC
+  `skill.c:133` 覆盖整个 mapping 的 bug；确定性无 random，详见该函数）。
 - PKS/MKS/shen/behavior_exp/balance 扣减后置 2.5 TitleComp（2.2 killer_reward
   只做 killer condition + pker 通缉机制核心）。
 - winner_reward（unconcious 胜者奖励）后置 stub。

@@ -1,7 +1,16 @@
 """combat 范围的 seeded RNG。
 
-替换 LPC ``combatd.c`` ``do_attack`` 的 18 处 ``random()`` 调用，
-使 ``resolve_attack`` 成为可重放的纯函数（同 seed + 同快照 -> 同输出）。
+收口 LPC ``combatd.c`` ``do_attack`` 函数体内的 31 处 ``random()`` 调用，使
+``resolve_attack`` 成为可重放的纯函数（同 seed + 同快照 -> 同输出）。
+
+精确口径（2026-07-16 核查，braces 平衡 L340-L780 排除注释）：
+- LPC 侧：``combatd.c`` ``do_attack`` 31 处 ``random()``（规格侧 random 点）。
+- 实现侧：``resolve_attack`` 收口为 16 处 ``DeterministicRNG`` 调用
+  （``rand``×13 + ``choice``×1 + ``chance``×1 + ``derive_seed``×1）。一处 rng 调用
+  可对应多个 LPC random 点（如循环内 ``rng.rand``），故 16 < 31 非"漏收口"。
+- ``s_combatd.c`` 36 处 ``random()`` 属阵法合击路径
+  （ADR-0027 后置 2.7/M3），**当前 combat 确定性基准仅 ``combatd.c`` 一版，
+  ``s_combatd.c`` 不纳入基准**。
 
 LPC ``random(n)`` 返回 ``[0, n)``；Python ``random.Random.randrange(n)`` 同语义。
 """
