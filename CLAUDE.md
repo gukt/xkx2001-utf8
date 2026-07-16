@@ -70,3 +70,17 @@
 - 根目录下是侠客行源码，engine 下是新引擎。所以当你要执行命令时要注意区分到底是在 engine 目录下还是根目录下。这个要牢记，我看到你反复把执行命令的路径层级搞错了。
 - 思考,回复和关键注释都用中文，中文与英文或数字之间加空格排版
 - 优先使用 just 命令（如果有）
+
+## Agent skills
+
+### Issue tracker
+
+本地 markdown（`.scratch/<effort>/`），沿用现有 ADR/PROGRESS 习惯，未用 GitHub Issues。见 [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)。
+
+### Triage labels
+
+默认五角色标签（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。见 [docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
+
+### Domain docs
+
+single-context：根目录 `CONTEXT.md`（惰性创建）+ 已有 [docs/adr/](docs/adr/)（`ADR-NNN-slug.md` 编号）+ [docs/xkx-arch/](docs/xkx-arch/) 架构基线。见 [docs/agents/domain.md](docs/agents/domain.md)。
