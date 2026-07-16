@@ -4,14 +4,14 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-16（wield 命令批完成，ADR-0063）
+**最后更新**：2026-07-16（wear 命令批完成，ADR-0064）
 
 ## 当前状态速览
 
 - **阶段**：阶段 0 pilot 收尾 -> 转 AI agent 按架构依赖分批迁移（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）
 - **分支**：feat/sampling-pilot
-- **tests**：2397 全绿，ruff 全过（wield 命令批 +16 -6 tests）
-- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)（bboard 范围）/ [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)（门派武器填表范围）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)（job_data 等价边界）/ [ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md)（武器 CPK 接线）/ [ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)（wield 命令批）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃工时改 AI 分批）
+- **tests**：2416 全绿，ruff 全过（wear 命令批 +19 tests + 数据层 CPK 17->26）
+- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)（bboard 范围）/ [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)（门派武器填表范围）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)（job_data 等价边界）/ [ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md)（武器 CPK 接线）/ [ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)（wield 命令批）/ [ADR-0064](docs/adr/ADR-0064-wear-command-batch.md)（wear 命令批）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃工时改 AI 分批）
 - **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（工时数据归档，副产出保留）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
@@ -20,6 +20,7 @@
 
 > 早期 Done（规格补充 / pilot / 架构补全 / bboard / B 类，至 2312 tests）已归档至 [stage-0-pilot-arch-done.md](docs/progress-archive/stage-0-pilot-arch-done.md)。
 
+- [x] **wear 命令批**（[ADR-0064](docs/adr/ADR-0064-wear-command-batch.md)）：armor_extract+finalize 脚本（235->145 护甲 21 门派，marker merge 进 items.yaml 不覆盖武器，9 新门派 CPK 补 manifest）+ ItemDef 扩 armor_prop/armor_type + wear/remove 命令（armor_type 消息分支+all+remove 只管护甲槽）；+19 tests，2416 全绿
 - [x] **wield 命令批**（[ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)）：wield/unwield 命令（双路径 CLI+COMMAND_REGISTRY）+ weapon_prop 注入 apply/<key> + flag 槽位判定 + skill_type 桥接 CombatState.attack_skill + is_busy/perform 门控 + wield all；WeaponDef/SAMPLE_WEAPONS/get_weapon_def 删除；+16 -6 tests，2397 全绿
 - [x] **门派武器 CPK 接线**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2）：wuxia_weapons 搬 17 数据层 CPK（wuxia_common + 16 门派，manifest 无 entry_points + items.yaml）；cli.py `_load_theme_data_items` glob 按题材前缀发现合并进 item_registry（149 武器）；ThemeRegistry 未改；wield 未实现；+4 tests，2387 全绿
 - [x] **ADR-0060/0061 定稿**：[ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md) 门派武器填表范围（填 ItemDef 非 WeaponDef/去重/四维拆分/flag 逐类型确认）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md) job_data 等价边界三档 + 纠正 ADR-0057 措辞
@@ -29,7 +30,7 @@
 
 ## In Progress
 
-**wield 命令批已完成（ADR-0063）。下批候选：job_data 暂缓命令 / 门派 CPK 正式化 / 更多门派内容批**--wield/unwield 已实现，149 武器可用；PronounContext 三元组已在 [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)/[pronoun.py](engine/src/xkx/runtime/pronoun.py) 落地（wield 单视角 `return list[str]` 不直接消费）；下批 plan 时定范围。
+**wear 命令批已完成（ADR-0064）。装备命令侧完备**（wield/unwield + wear/remove，149 武器 + 145 护甲 = 301 item_registry）。**下批转 2.4 Combat 迁移专项**（候选 2，装备侧已铺路 attack_skill/armor_prop 进 apply_*，combat 可切）。
 
 ## Blocked
 
@@ -37,13 +38,12 @@
 
 ## Next Up
 
-> wield->combat 衔接已通（[resolve_attack.py:163](engine/src/xkx/combat/resolve_attack.py#L163) 已用 `attack_skill`/`weapon_label`），无需额外衔接批。
+> 装备命令侧完备（wield/unwield + wear/remove，ADR-0063/0064），301 item_registry（149 武器 + 145 护甲）。wield->combat 衔接已通（[resolve_attack.py:163](engine/src/xkx/combat/resolve_attack.py#L163) 用 `attack_skill`/`weapon_label`），无需额外衔接批。
 
-1. **wear 命令批（推荐，wield 批配对）**：护甲穿脱，机制层 [equipment.py](engine/src/xkx/runtime/equipment.py) `wear` 就绪；门派护甲数据未提取填表（不像武器 149 条），需先 extract+finalize（类 [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)/[0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 武器流程）再 wear/unwear 命令。
-2. **2.4 Combat 迁移专项**（高价值大工程）：do_attack 七步管线副作用账本 + 29 处 `random()` 收口 DeterministicRNG + 闭包 call_out->Effect + 阵法合击 CombatModifier（[04 §三 2.4](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
-3. **job_data/bboard 暂缓命令**（待基础设施）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）。
-4. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：16 门派数据层 CPK 补 manifest+rooms/npcs。
-5. **迁 PG**（kill criteria 8）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
+1. **2.4 Combat 迁移专项**（高价值大工程，装备侧已铺路）：do_attack 七步管线副作用账本 + 29 处 `random()` 收口 DeterministicRNG + 闭包 call_out->Effect + 阵法合击 CombatModifier（[04 §三 2.4](docs/xkx-arch/04-迁移路径与避坑清单.md)）。
+2. **job_data/bboard 暂缓命令**（待基础设施）：do_check_menpai_assess/do_setorg_*（job_system+CHANNEL_D）/ do_post（input_to）/ do_store（EDITOR_D）。
+3. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：数据层 CPK（现 26，含护甲新增 9）补 rooms/npcs。
+4. **迁 PG**（kill criteria 8）/ **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）。
 
 ## kill criteria 状态（开工必读）
 

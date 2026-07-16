@@ -19,3 +19,270 @@
   value: 500
   unit: 面
   long: 一面白铜磨成的镜子，照出你的仪容；\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring-amber
+  name: 琥珀耳饰
+  aliases:
+  - amber earring
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 2
+  weight: 50
+  value: 3000
+  material: amber
+  unit: 对
+  long: 一对琥珀做坠的耳饰，散发着琉璃的光彩。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring-diamond
+  name: 钻石耳饰
+  aliases:
+  - diamond earring
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 6
+  weight: 50
+  value: 24000
+  material: diamond
+  unit: 对
+  long: 一对金质耳饰，其上串连泪滴形状的钻坠，闪烁著如梦似幻般的光彩。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring-ivory
+  name: 象牙耳饰
+  aliases:
+  - ivory earring
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 4
+  weight: 50
+  value: 5000
+  material: ivory
+  unit: 对
+  long: 一对以象牙做成的耳饰，形状非常巨大。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring-jade
+  name: 碧玉耳饰
+  aliases:
+  - jade earring
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 6
+  weight: 50
+  value: 7000
+  material: jade
+  unit: 对
+  long: 一对以碧玉做成的耳饰，凝视着它，有让人心广神怡的感觉。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring-pearl
+  name: 珍珠耳饰
+  aliases:
+  - pearl earring
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 5
+  weight: 50
+  value: 6000
+  material: pearl
+  unit: 对
+  long: 一对由美丽的小珍珠做成的耳饰，戴着它时可散发出迷人的光彩。\n
+- id: necklace-amber
+  name: 琥珀项链
+  aliases:
+  - amber necklace
+  - necklace
+  - lace
+  armor_type: neck
+  armor_prop:
+    armor: 3
+  weight: 500
+  value: 5000
+  material: amber
+  unit: 串
+  long: 一串以琥珀做成的项链，琥珀是树汁的结晶，让人感觉它蕴藏着神秘的力量。\n
+- id: necklace-diamond
+  name: 钻石项链
+  aliases:
+  - diamond necklace
+  - necklace
+  - lace
+  armor_type: neck
+  armor_prop:
+    armor: 7
+  weight: 500
+  value: 28000
+  material: diamond
+  unit: 串
+  long: 一串以钻石为主体的项链，坠子雕琢成水滴形，周围镶著一圈碎钻，能随著走路的摇曳轻摆，化出炫目的光芒。\n
+- id: necklace-ivory
+  name: 象牙项链
+  aliases:
+  - ivory necklace
+  - necklace
+  - lace
+  armor_type: neck
+  armor_prop:
+    armor: 4
+  weight: 500
+  value: 6000
+  material: ivory
+  unit: 串
+  long: 一串象牙项链，全部材质皆为象牙，非常珍贵。\n
+- id: necklace-pearl
+  name: 珍珠项链
+  aliases:
+  - pearl necklace
+  - necklace
+  - lace
+  armor_type: neck
+  armor_prop:
+    armor: 5
+  weight: 500
+  value: 7000
+  material: pearl
+  unit: 串
+  long: 一串明珠做成的项链，浑圆无瑕，发出柔和的光芒。\n
+- id: necklace-silver
+  name: 白银项链
+  aliases:
+  - silver necklace
+  - necklace
+  - lace
+  armor_type: neck
+  armor_prop:
+    armor: 2
+  weight: 500
+  value: 4000
+  material: silver
+  unit: 串
+  long: 一串白银制成的项链，民间相传，戴着它可以驱走一些妖魔。\n
+- id: pring
+  name: 白金戒指
+  aliases:
+  - platinum ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 1
+  weight: 400
+  value: 9900
+  material: platinum
+  unit: 个
+- id: qcloth
+  name: 青布衣
+  aliases:
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+- id: qingtong-hue
+  name: 青铜护额
+  aliases:
+  - qingtong hue
+  - hue
+  armor_type: head
+  armor_prop:
+    armor: 8
+  weight: 1200
+  value: 500
+  material: bronze
+  unit: 顶
+  long: 这是一顶青铜打制的护额。\n
+- id: ring-diamond
+  name: 钻石戒指
+  aliases:
+  - diamond ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 5
+  weight: 400
+  value: 18000
+  material: diamond
+  unit: 个
+  long: 一枚白银为环，钻石为体，由顶级工匠切磨成八边层阶形的华丽钻石戒指。\n
+- id: ring-iron
+  name: 铁戒指
+  aliases:
+  - iron ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 1
+  weight: 400
+  value: 2500
+  material: iron
+  unit: 个
+  long: 一个寻常的戒指，作为一般民间的装饰品，材质为铁。\n
+- id: ring-ivory
+  name: 象牙戒指
+  aliases:
+  - ivory ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 3
+  weight: 400
+  value: 4500
+  material: ivory
+  unit: 个
+  long: 一个象牙材质的戒指，给人朴素无邪的感觉。\n
+- id: ring-jade
+  name: 碧玉戒指
+  aliases:
+  - jade ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 4
+  weight: 400
+  value: 6500
+  material: jade
+  unit: 个
+  long: 一个碧玉戒指，材质是在某些地方才有产的奇玉，异常贵重。\n
+- id: ring-pearl
+  name: 珍珠戒指
+  aliases:
+  - pearl ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 3
+  weight: 400
+  value: 5500
+  material: pearl
+  unit: 个
+  long: 一个珍珠做成的戒指，上面镶着一颗指头大小的明珠，发出柔和珠光。\n
+- id: ring-silver
+  name: 银戒指
+  aliases:
+  - silver ring
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 2
+  weight: 400
+  value: 3500
+  material: silver
+  unit: 个
+  long: 一个银制的戒指，一般戴做装饰。\n
+- id: zi_shoes
+  name: 紫缎面鞋子
+  aliases:
+  - shoes
+  armor_type: boots
+  armor_prop:
+    dodge: 8
+  weight: 800
+  value: 5000
+  material: cloth
+  unit: 双
+  long: 这是一双绣著「寿」字的双梁紫缎面鞋子。\n

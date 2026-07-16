@@ -100,6 +100,11 @@ measure scene:
 weapons-load *args:
     cd engine && uv run python tools/weapon_finalize.py "$@"
 
+# 门派护甲草表 -> 去重分类 -> merge 进 items.yaml（ADR-0064 决策 6）：just armor-load
+# 草表不存在自动重跑提取；幂等（marker 剥离重追加护甲段，武器段保留）。
+armor-load *args:
+    cd engine && uv run python tools/armor_finalize.py "$@"
+
 # golden trace 录制（连本地 FluffOS driver，ADR-0009）：just golden-record --login
 golden-record *args:
     cd engine && uv run python -m tools.golden_trace.recorder "$@"

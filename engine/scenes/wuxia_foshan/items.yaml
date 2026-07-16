@@ -1,0 +1,32 @@
+
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: zhihuan
+  name: 指环
+  aliases:
+  - zhi huan
+  - huan
+  - ring
+  armor_type: finger
+  armor_prop:
+    armor: 1
+  weight: 400
+  value: 500
+  material: gold
+  unit: 枚
+  long: 一枚金指环，上面有一些细细的花纹。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: ziyi
+  name: 紫绸衫
+  aliases:
+  - zi yi
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+    personality: 3
+  weight: 1000
+  value: 300
+  material: cloth
+  unit: 件
+  long: 这件紫色的绸衫，闻起来有一股淡香。\n

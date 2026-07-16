@@ -20,3 +20,57 @@
   material: bamboo
   unit: 把
   long: 这是一柄精工制成的青竹短刀，峨嵋弟子习武均用此刀，以免伤人。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: emei-shoes
+  name: 青布女履
+  aliases:
+  - shoes
+  armor_type: boots
+  armor_prop:
+    armor: 1
+  weight: 400
+  material: cloth
+  unit: 双
+  long: 这是一双青布女履。\n
+- id: niupi
+  name: 牛皮
+  aliases:
+  - niu pi
+  - pi
+  - cow skin
+  armor_type: cloth
+  armor_prop:
+    armor: 2
+    dodge: -1
+  weight: 5000
+  value: 300
+  material: fur
+  unit: 块
+- id: nun-cloth
+  name: 青布缁衣
+  aliases:
+  - zi yi
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 8
+  weight: 2000
+  material: cloth
+  unit: 件
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: pinkcloth
+  name: 粉红绸衫
+  aliases:
+  - pink cloth
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+    personality: 3
+  weight: 1000
+  value: 600
+  material: cloth
+  unit: 件
+  long: 这件粉红色的绸衫上面绣着几只黄鹊，闻起来还有一股淡香。\n

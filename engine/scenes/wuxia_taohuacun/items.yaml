@@ -1,0 +1,19 @@
+
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: rose
+  name: 红玫瑰
+  aliases:
+  - rose
+  - mei gui
+  armor_type: head
+  armor_prop:
+    armor: 0
+    personality: 3
+  weight: 10
+  value: 0
+  material: plant
+  unit: 朵
+  long: '一株盛开的红玫瑰，鲜艳欲滴。花束上一条小小的粉红绶带，上有细细一行小
+
+    字：欢迎回到你的家。\n'

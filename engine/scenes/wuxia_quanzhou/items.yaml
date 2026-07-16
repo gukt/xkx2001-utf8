@@ -1,0 +1,30 @@
+
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: green_beixin
+  name: 青缎掐牙背心
+  aliases:
+  - qing beixin
+  - beixin
+  armor_type: cloth
+  armor_prop:
+    armor: 6
+  weight: 500
+  value: 300
+  material: cloth
+  unit: 件
+- id: shan
+  name: 石青银鼠褂
+  aliases:
+  - shiqing gua
+  - yinshu gua
+  - gua
+  armor_type: cloth
+  armor_prop:
+    armor: 3
+    personality: 3
+  weight: 700
+  value: 300
+  material: cloth
+  unit: 件
+  long: 这是一件做工精细的石青银鼠褂。\n

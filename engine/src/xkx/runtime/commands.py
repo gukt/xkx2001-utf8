@@ -1054,6 +1054,154 @@ def unwield(game: Game, actor_id: int, item_query: str) -> list[str]:
     return [f"你放下了{_item_name(game, item_id)}。"]
 
 
+def wear(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """穿戴护甲命令（对照 LPC cmds/std/wear.c，ADR-0064）。
+
+    解析物品 -> is_busy/perform 门控 -> 查 spec 取 armor_prop/armor_type ->
+    调 equipment.wear 注入 armor_prop apply/<key> + armor_type 槽位判定 ->
+    wear_msg 按 armor_type 分支单视角返回。``wear all`` 遍历 inventory 逐个穿。
+
+    消息渲染简化（ADR-0064 决策 1）：单视角 ``return list[str]``，按 armor_type
+    分支选动词（穿/戴/绑），不保真 message_vision 三段视角（房间广播后置 M3）。
+    """
+    world = game.world
+    if is_busy(world, actor_id) or query_condition(world, actor_id, "perform") > 0:
+        return ["你正忙着呢。"]
+    if item_query == "all":
+        return _wear_all(game, actor_id)
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你身上没有「{item_query}」。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    if equipment_comp is not None and equipment.is_equipped(equipment_comp, item_id):
+        return ["你已经装备著了。"]
+    return _do_wear(game, actor_id, item_id)
+
+
+def _do_wear(game: Game, actor_id: int, item_id: str) -> list[str]:
+    """单护甲穿戴核心（对照 wear.c do_wear，ADR-0064）。
+
+    查 spec 取 armor_prop/armor_type/name/unit -> 调 equipment.wear（prop 注入
+    apply/<key> + armor_type 槽位判定）-> 成功发 wear_msg（按 armor_type 分支），
+    失败发槽位冲突消息。前置：必须有 armor_prop/armor（对照 equip.c:25）。
+    """
+    world = game.world
+    spec = game.item_registry.get(item_id, {})
+    armor_prop = spec.get("armor_prop", {}) if isinstance(spec, dict) else {}
+    if not armor_prop.get("armor"):
+        return ["你只能穿戴可当作护具的东西。"]
+    armor_type = spec.get("armor_type", "") if isinstance(spec, dict) else ""
+    name = _item_name(game, item_id)
+    unit = spec.get("unit", "件") if isinstance(spec, dict) else "件"
+    ok = equipment.wear(
+        world, actor_id, item_id, props=armor_prop, armor_type=armor_type
+    )
+    if not ok:
+        return ["你已经穿戴了同类型的护具了。"]
+    return [_wear_msg(name, unit, armor_type)]
+
+
+def _wear_msg(name: str, unit: str, armor_type: str) -> str:
+    """wear_msg 按 armor_type 分支选动词（对照 wear.c:46-64，单视角直拼，ADR-0064 决策 1）。
+
+    cloth/armor/boots/surcoat 用"穿上"；head/neck/wrists/finger/hands 用"戴上"；
+    waist 用"绑腰间"；其余 default"装备"。
+    """
+    if armor_type in ("cloth", "armor", "boots", "surcoat"):
+        return f"你穿上一{unit}{name}。"
+    if armor_type in ("head", "neck", "wrists", "finger", "hands"):
+        return f"你戴上一{unit}{name}。"
+    if armor_type == "waist":
+        return f"你将一{unit}{name}绑在腰间。"
+    return f"你装备{name}。"
+
+
+def _wear_all(game: Game, actor_id: int) -> list[str]:
+    """wear all：遍历 inventory 逐个穿戴（对照 wear.c:17-25，ADR-0064 决策 5）。
+
+    跳过已装备，逐个 _do_wear 收集消息。全部已装备或无可穿戴 -> 提示；
+    否则汇总 + 末尾 "Ok。"。
+    """
+    world = game.world
+    inv = world.get(actor_id, Inventory)
+    if inv is None or not inv.items:
+        return ["你没有可穿戴的护具。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    messages: list[str] = []
+    for item_id in sorted(inv.items):
+        if equipment_comp is not None and equipment.is_equipped(equipment_comp, item_id):
+            continue
+        messages.extend(_do_wear(game, actor_id, item_id))
+    if not messages:
+        return ["你没有可穿戴的护具。"]
+    messages.append("Ok。")
+    return messages
+
+
+def remove(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """卸护甲命令（对照 LPC cmds/std/remove.c，ADR-0064）。
+
+    解析物品 -> is_busy/perform 门控 -> 检查护甲槽（equipment.armors）->
+    调 equipment.unequip 反向扣减 -> remove_msg 按 armor_type 分支单视角返回。
+    **remove 只管护甲槽**（LPC ``equipped=="worn"``），武器槽用 unwield。
+    """
+    world = game.world
+    if is_busy(world, actor_id) or query_condition(world, actor_id, "perform") > 0:
+        return ["你正忙着呢。"]
+    if item_query == "all":
+        return _remove_all(game, actor_id)
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你身上没有「{item_query}」。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    if equipment_comp is None or item_id not in equipment_comp.armors.values():
+        return ["你并没有装备这样东西。"]
+    spec = game.item_registry.get(item_id, {})
+    armor_type = spec.get("armor_type", "") if isinstance(spec, dict) else ""
+    name = _item_name(game, item_id)
+    ok = equipment.unequip(world, actor_id, item_id)
+    if not ok:
+        return ["你并没有装备这样东西。"]
+    return [_remove_msg(name, armor_type)]
+
+
+def _remove_all(game: Game, actor_id: int) -> list[str]:
+    """remove all：遍历已装备护甲逐个卸（对照 remove.c:17-25，ADR-0064 决策 5）。
+
+    复制 armors.values（unequip 会改 dict），逐个 unequip 收集 remove_msg + "Ok。"。
+    无护甲 -> 提示。
+    """
+    world = game.world
+    equipment_comp = world.get(actor_id, Equipment)
+    if equipment_comp is None or not equipment_comp.armors:
+        return ["你没有可脱下的护具。"]
+    messages: list[str] = []
+    for item_id in sorted(equipment_comp.armors.values()):
+        spec = game.item_registry.get(item_id, {})
+        armor_type = spec.get("armor_type", "") if isinstance(spec, dict) else ""
+        if equipment.unequip(world, actor_id, item_id):
+            messages.append(_remove_msg(_item_name(game, item_id), armor_type))
+    if not messages:
+        return ["你没有可脱下的护具。"]
+    messages.append("Ok。")
+    return messages
+
+
+def _remove_msg(name: str, armor_type: str) -> str:
+    """remove_msg 按 armor_type 分支（对照 remove.c:38-52，单视角直拼，ADR-0064 决策 1）。
+
+    cloth/armor/surcoat/boots 用"脱了下来"；其余 default"卸除"（bandage 特化
+    "从伤口处拆下来"后置医疗批）。
+    """
+    if armor_type in ("cloth", "armor", "surcoat", "boots"):
+        return f"你将{name}脱了下来。"
+    return f"你卸除{name}。"
+
+
 def look(game: Game, actor_id: int, target_name: str = "") -> list[str]:
     """查看命令（S5a + ADR-0051）：``look`` 房间视图；``look <target>`` NPC 详情 +
     邪派 NPC berserk flavor（对照 LPC look.c:189-193 + combatd.c start_berserk
@@ -1967,6 +2115,18 @@ def _adapter_unwield(game: Game, ctx: ActionContext) -> list[str]:
     return unwield(game, ctx.actor, item_query)
 
 
+def _adapter_wear(game: Game, ctx: ActionContext) -> list[str]:
+    """wear 命令适配器（ADR-0064）：wear <物品> | wear all。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return wear(game, ctx.actor, item_query)
+
+
+def _adapter_remove(game: Game, ctx: ActionContext) -> list[str]:
+    """remove 命令适配器（ADR-0064）：remove <物品> | remove all。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return remove(game, ctx.actor, item_query)
+
+
 def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
     """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
     direction = ctx.raw_args.strip()
@@ -2126,6 +2286,8 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "drink": _adapter_drink,
     "wield": _adapter_wield,
     "unwield": _adapter_unwield,
+    "wear": _adapter_wear,
+    "remove": _adapter_remove,
     "knock": _adapter_knock,
     "open": _adapter_open,
     "close": _adapter_close,

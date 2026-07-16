@@ -19,3 +19,18 @@
   material: steel
   unit: 柄
   long: 这是一柄精工打造的锋利菜刀。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: shiweicloth
+  name: 御前侍卫服
+  aliases:
+  - shiwei cloth
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 20
+  weight: 2000
+  value: 0
+  material: cloth
+  unit: 件
+  long: 这是一件御前侍卫统一穿着的军服。\n

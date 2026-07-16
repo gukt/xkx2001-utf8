@@ -258,6 +258,10 @@ class ItemDef(BaseModel):
     material: str = ""  # 材质（LPC set("material", "steel")）
     flag: int = 0  # 武器握持标记位掩码（LPC set("flag", EDGED)，weapon.h TWO_HANDED/EDGED/...）
     skill_type: str = ""  # 武器技能种类（LPC set("skill_type", "sword")，init_sword/blade 设）
+    # ADR-0064：护甲属性台账字段（对照 LPC 护甲 create() set("armor_prop/armor", N) +
+    # inherit HEAD/CLOTH/... 宏推断 armor_type）。wear 遍历 armor_prop 注入 apply/<key>。
+    armor_prop: dict[str, int] = Field(default_factory=dict)  # 护甲属性（armor/dodge 等）
+    armor_type: str = ""  # 护甲槽位类型（head/cloth/armor/boots/...，wear 槽位判定）
 
 
 class SkillDef(BaseModel):

@@ -1,0 +1,29 @@
+
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: wucan-yi
+  name: 乌蚕衣
+  aliases:
+  - wucan yi
+  - yi
+  armor_type: cloth
+  armor_prop:
+    armor: 200
+  weight: 2000
+  value: 50000
+  material: cloth
+  unit: 件
+  long: 这是一件由大雪山上的乌蚕蚕丝织成的黑衣，坚韧无比，刀剪不可裁，是以只是由前後两块衣料扣在一起。\n
+- id: yuyi
+  name: 鸟羽大氅
+  aliases:
+  - da chang
+  - chang
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 800
+  value: 100
+  material: cloth
+  unit: 件
+  long: 一件鸟羽织成的大氅，五颜六色，煞是好看。\n

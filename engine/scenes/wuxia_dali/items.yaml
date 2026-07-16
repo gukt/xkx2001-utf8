@@ -241,3 +241,244 @@
   material: steel
   unit: 个
   long: 这是一个作工精细的竹匾。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: bai_cloth
+  name: 白绸衫
+  aliases:
+  - white cloth
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+    personality: 3
+  weight: 1000
+  value: 300
+  material: cloth
+  unit: 件
+  long: 这件白色的绸衫上面绣着几只黄鹊，闻起来还有一股淡香。\n
+- id: baicloth
+  name: 白色对襟衣
+  aliases:
+  - bai guazi
+  - guazi
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 4
+    personality: 3
+  weight: 850
+  value: 350
+  material: cloth
+  unit: 件
+  long: 这是一件做工精细的白色对襟衣。\n
+- id: bcloth
+  name: 黑衣
+  aliases:
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 2
+    dodge: -1
+  weight: 3500
+  material: cloth
+  unit: 件
+- id: byskirt
+  name: 摆夷短裙
+  aliases:
+  - duan qun
+  - qun
+  - skirt
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 摆夷男女都喜穿这种长不过膝的白色丝织的短裙。\n
+- id: ccloth
+  name: 蜡染布衣
+  aliases:
+  - cloth
+  - ccloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+- id: gcloth
+  name: 淡绿稠衫
+  aliases:
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 2000
+  material: cloth
+  unit: 件
+- id: jcloth
+  name: 锦衣军服
+  aliases:
+  - junfu
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 50
+  weight: 2000
+  value: 500
+  material: cloth
+  unit: 件
+  long: 这是一件色彩炫澜的锦衣军服。\n
+- id: maozhan
+  name: 毛毡
+  aliases:
+  - mao zhan
+  - zhan
+  armor_type: cloth
+  armor_prop:
+    armor: 2
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 这一张摆夷人男子经常穿戴的用动物皮毛编织成的毛毡。\n
+- id: shelllace
+  name: 贝壳项链
+  aliases:
+  - shell lace
+  - lace
+  armor_type: head
+  armor_prop:
+    armor: 1
+  weight: 400
+  value: 1000
+  material: gold
+  unit: 串
+# 后置缺口(ADR-0064决策6): hit_by(留M3招式表)
+- id: tengjia
+  name: 藤甲
+  aliases:
+  - tengjia
+  - armor
+  armor_type: cloth
+  armor_prop:
+    armor: 75
+  weight: 2000
+  value: 10
+  material: wood
+  unit: 件
+  long: 这是一件用大理某处山区特产的藤条编织成的藤甲，又轻又结实，是护身佳品。\n
+- id: tqcloth
+  name: 天青夹绉纱褶子
+  aliases:
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+- id: tyduanqun
+  name: 台夷短裙
+  aliases:
+  - duan qun
+  - qun
+  - skirt
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 一件台夷男子穿的短裙。\n
+- id: tytongqun
+  name: 筒裙
+  aliases:
+  - tong qun
+  - qun
+  - skirt
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 一条台夷女子爱穿的五色筒裙，长及脚踝。\n
+- id: tytoujin
+  name: 台夷头巾
+  aliases:
+  - tou jin
+  - toujin
+  - jin
+  armor_type: head
+  armor_prop:
+    armor: 1
+  weight: 600
+  material: cloth
+  unit: 件
+  long: 一条台夷男子扎的头巾，一般和身上穿的短裙同色。\n
+- id: tyxiaoao
+  name: 圆领小袄
+  aliases:
+  - xiao ao
+  - ao
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 一件台夷男子穿的圆领小袄。\n
+- id: wyhui
+  name: 乌夷大麾
+  aliases:
+  - da hui
+  - hui
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 这是一黑色大麾，乌夷族男子都喜欢披此物。\n
+- id: wyskirt
+  name: 乌夷长裙
+  aliases:
+  - chang qun
+  - qun
+  - skirt
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+  long: 这是一件乌夷妇女常穿的丝织黑色长裙，其长曳地。\n
+- id: ycloth
+  name: 黄衣军服
+  aliases:
+  - junfu
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 50
+  weight: 2000
+  value: 500
+  material: cloth
+  unit: 件
+  long: 这是一件色彩炫澜的黄衣军服。\n
+- id: zipao
+  name: 紫袍
+  aliases:
+  - zi pao
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 15
+  weight: 2000
+  value: 1000
+  material: cloth
+  unit: 件
+  long: 这是一件生丝袍子，胸前精秀的刺了二龙含珠图，金丝裹边富贵非常。\n

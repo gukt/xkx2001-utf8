@@ -1,0 +1,17 @@
+
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: jiasha
+  name: 红衣袈裟
+  aliases:
+  - jiasha
+  - jia
+  - sha
+  armor_type: cloth
+  armor_prop:
+    armor: 10
+    dodge: -2
+  weight: 8000
+  material: cloth
+  unit: 件
+  long: 一件崭新的大红袈裟，精工制作而成。\n

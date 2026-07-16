@@ -1,7 +1,8 @@
-"""门派武器 ItemDef 台账测试（ADR-0060 决策 6 + ADR-0062 CPK 接线）。
+"""门派装备 ItemDef 台账测试（ADR-0060 决策 6 + ADR-0062 武器 CPK + ADR-0064 护甲追加）。
 
 覆盖 [scenes/wuxia_common/](../scenes/wuxia_common/) +
-[scenes/wuxia_<sect>/](../scenes/) 17 个数据层 CPK 的 items.yaml：
+[scenes/wuxia_<sect>/](../scenes/) 26 个数据层 CPK 的 items.yaml（武器 17
+ADR-0062 + 护甲新增 9 ADR-0064，items.yaml 含武器+护甲条目）：
 
 - load_items 加载所有武器 YAML -> ItemDef schema 校验通过（pydantic 不抛）。
 - compile_scene 编译 -> ir["items"] 含全部条目，kind=="item"。
@@ -63,21 +64,28 @@ def _items_by_id():
     return {i.id: i for i in _all_items()}
 
 
-def test_data_layer_cpks_count_17():
-    """数据层 CPK = 17（wuxia_common + 16 门派；em 折叠到 emei 不独立）。"""
+def test_data_layer_cpks_count_26():
+    """数据层 CPK = 26：武器 17（wuxia_common + 16 门派，ADR-0062）+ 护甲新增 9（ADR-0064）。
+
+    em 折叠到 emei 不独立。护甲批新增 foshan/shaolin/xueshan 等 9 个只有护甲无
+    武器的门派数据层 CPK（armor_finalize._ensure_manifest 自动补 manifest）。
+    """
     cpks = _data_layer_cpks()
     names = {p.name for p in cpks}
-    assert len(cpks) == 17
+    assert len(cpks) == 26  # 17 武器 + 9 护甲新增
     assert "wuxia_common" in names
     assert "wuxia_emei" in names
     assert "wuxia_em" not in names  # em 折叠到 emei
+    # 护甲新增门派（ADR-0064，武器批未覆盖，只有护甲无武器）
+    for sect in ("wuxia_shaolin", "wuxia_xueshan", "wuxia_foshan", "wuxia_heimuya"):
+        assert sect in names
 
 
 def test_all_weapon_yaml_load_as_itemdef():
-    """所有武器 YAML 经 load_items 加载为 ItemDef，schema 校验通过。"""
+    """所有装备 YAML（武器+护甲）经 load_items 加载为 ItemDef，schema 校验通过。"""
     items = _all_items()
-    # 149 条（草表 267 去重 152 - 3 COMBINED_ITEM 跳过 = 149）
-    assert len(items) >= 148
+    # 武器 149（ADR-0062）+ 护甲 145（ADR-0064）= 294
+    assert len(items) >= 290
 
 
 def test_compile_scene_includes_all_items():
@@ -175,9 +183,9 @@ def test_damage_in_weapon_prop_mapping():
 
 
 def test_sect_cpks_each_has_items():
-    """每个门派数据层 CPK 至少 1 条武器。"""
+    """每个门派数据层 CPK 至少 1 条装备（武器或护甲，护甲门派只有护甲）。"""
     sect_cpks = [d for d in _data_layer_cpks() if d.name != "wuxia_common"]
-    assert len(sect_cpks) >= 10  # 16 门派
+    assert len(sect_cpks) >= 20  # 25 门派（16 武器 + 9 护甲新增）
     for d in sect_cpks:
         items = load_items(d / "items.yaml")
-        assert len(items) >= 1, f"{d.name} 无武器条目"
+        assert len(items) >= 1, f"{d.name} 无装备条目"

@@ -34,3 +34,33 @@
   material: gold
   unit: 条
   long: 这是一对金铃索，是金丝打做的软兵器。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: baipao
+  name: 白袍
+  aliases:
+  - bai pao
+  - pao
+  armor_type: cloth
+  armor_prop:
+    armor: 8
+  weight: 2000
+  value: 100
+  material: silk
+  unit: 件
+  long: 这是件轻纱制成的白色长袍。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: jinsi-shoutao
+  name: 金丝手套
+  aliases:
+  - jinsi shoutao
+  - shoutao
+  armor_type: wrists
+  armor_prop:
+    armor: 5
+  weight: 300
+  value: 50000
+  material: gold
+  unit: 对
+  long: 这是一对金丝手套，莹滑温润，光洁无瑕，真是稀世罕有。\n

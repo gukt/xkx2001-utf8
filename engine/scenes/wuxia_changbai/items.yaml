@@ -61,3 +61,57 @@
   material: bonze
   unit: 个
   long: 这铜人只有独足，手却有一对，双手过顶合拢，正是一把厉害的闭穴撅。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: diaopi
+  name: 貂皮
+  aliases:
+  - diaopi
+  - pi
+  armor_type: cloth
+  armor_prop:
+    armor: 25
+  weight: 500
+  value: 2500
+  material: cloth
+  unit: 件
+  long: 长白山上的宝物，穿上它能够御寒保暖，并能有效的躲避攻击。\n
+- id: lupi
+  name: 鹿皮
+  aliases:
+  - hupi
+  - pi
+  armor_type: cloth
+  armor_prop:
+    armor: 28
+  weight: 400
+  value: 3000
+  material: cloth
+  unit: 块
+  long: 这是一块从东北野鹿身上取下的皮，穿上它能够御寒保暖，并能有效的躲避攻击。\n
+- id: piqiu
+  name: 皮裘
+  aliases:
+  - pi qiu
+  - qiu
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 5
+  weight: 3000
+  value: 500
+  material: cloth
+  unit: 件
+- id: xiongpi
+  name: 熊皮
+  aliases:
+  - xiongpi
+  - pi
+  armor_type: cloth
+  armor_prop:
+    armor: 60
+  weight: 900
+  value: 7000
+  material: cloth
+  unit: 块
+  long: 这是一块从北极熊身上取下的皮，穿上它能够御寒保暖，并能有效的躲避攻击。\n

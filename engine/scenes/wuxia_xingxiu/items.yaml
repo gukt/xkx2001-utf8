@@ -81,3 +81,162 @@
   material: jade
   unit: 柄
   long: 一柄白色长剑，是白玉所造成，刃口磨得很是锋锐，和钢铁兵器不相上下。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: chouqun
+  name: 绸裙
+  aliases:
+  - skirt
+  - chouqun
+  - qun
+  armor_type: cloth
+  armor_prop:
+    armor: 2
+  weight: 1000
+  value: 300
+  material: cloth
+  unit: 件
+  long: 这是一件色彩斑斓的绸裙\n
+- id: diaoqiu
+  name: 貂裘
+  aliases:
+  - diao qiu
+  - qiu
+  armor_type: neck
+  armor_prop:
+    armor: 5
+  weight: 700
+  value: 500
+  material: leather
+  unit: 条
+  long: 这是一条锦毛貂皮围脖。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: earring
+  name: 月牙耳坠
+  aliases:
+  - yueya erzhui
+  - erzhui
+  - zhui
+  - earring
+  armor_type: head
+  armor_prop:
+    armor: 2
+  weight: 100
+  value: 5000
+  material: jade
+  unit: 对
+  long: 一对精致的耳坠，月牙形圈环中间镶有一颗白如透明的圆宝石。。\n
+- id: ha-robe
+  name: 哈萨克长袍
+  aliases:
+  - hazakh robe
+  - robe
+  armor_type: cloth
+  armor_prop:
+    armor: 15
+  weight: 3000
+  value: 100
+  material: cloth
+  unit: 件
+  long: 这是一件黑色的哈萨克长袍\n
+- id: huamao1
+  name: 朵巴花帽
+  aliases:
+  - duoba huamao
+  - mao
+  - cap
+  armor_type: head
+  armor_prop:
+    armor: 5
+    personality: 3
+  weight: 1000
+  value: 500
+  material: cloth
+  unit: 顶
+  long: 一顶黑底白花的花帽，维吾尔族中年以上的男子常戴这种花帽，古朴大方，庄重典雅。\n
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: huamao2
+  name: 玛尔江花帽
+  aliases:
+  - maerjiang huamao
+  - mao
+  - cap
+  armor_type: head
+  armor_prop:
+    armor: 4
+    personality: 5
+  weight: 800
+  value: 400
+  material: cloth
+  unit: 顶
+  long: 这是维吾尔小女孩和姑娘们最为喜爱的一种花帽，帽上用各色小珍珠、亮片镶缀着各种各样的花样图案。\n
+- id: huamao3
+  name: 曲曼花帽
+  aliases:
+  - quman huamao
+  - mao
+  - cap
+  armor_type: head
+  armor_prop:
+    armor: 2
+    personality: 2
+  weight: 600
+  value: 300
+  material: cloth
+  unit: 顶
+  long: 这是维吾尔族中常见的花帽，形状下圆上方，黑金丝绒帽沿，绿底白花，素净淡雅。\n
+- id: jinjia
+  name: 黄金盔甲
+  aliases:
+  - golden armor
+  - armor
+  armor_type: cloth
+  armor_prop:
+    armor: 150
+    dodge: -8
+  weight: 26000
+  value: 50000
+  material: gold
+  unit: 件
+  long: 一副黄金盔甲，打造得十分精致，胸甲上刻着一头背生翅膀的骆驼。\n西域古国中，只有国王才能以飞骆驼作徽记。\n
+- id: pi-xue
+  name: 皮靴
+  aliases:
+  - pi xue
+  - xue
+  armor_type: boots
+  armor_prop:
+    armor: 6
+  weight: 1200
+  value: 300
+  material: boots
+  unit: 双
+  long: 一双哈萨克牧民常穿的马靴。
+- id: yellow-cloth
+  name: 黄葛布衫
+  aliases:
+  - gebu shan
+  - cloth
+  - gebu
+  - shan
+  armor_type: cloth
+  armor_prop:
+    armor: 3
+  weight: 3000
+  material: cloth
+  unit: 件
+# 后置缺口(ADR-0064决策6): female_only(留物品系统批)
+- id: yuzhuo
+  name: 翠玉手镯
+  aliases:
+  - jade bracelet
+  - bracelet
+  - zhuo
+  armor_type: wrists
+  armor_prop:
+    armor: 2
+  weight: 400
+  value: 6000
+  material: jade
+  unit: 个
+  long: 一个和阗翠玉造的手镯，色泽犹如翡翠。\n

@@ -1,0 +1,9 @@
+cpk_id: wuxia_heimuya
+schema_version: 1
+theme: wuxia
+pack_type: module_pack
+version: 0.1.0
+license: CC-BY-SA-4.0
+author: xkx-core
+dependencies: []
+capabilities_required: []

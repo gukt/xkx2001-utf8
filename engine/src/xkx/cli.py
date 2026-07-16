@@ -40,9 +40,11 @@ from xkx.runtime.commands import (
     look,
     practice,
     quest,
+    remove,
     take,
     tuna,
     unwield,
+    wear,
     wield,
 )
 from xkx.runtime.world import build_world, spawn_player
@@ -347,6 +349,18 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
             print("要脱掉什么武器？如：unwield 长剑")
             return True
         _print(unwield(game, pid, " ".join(args)))
+        return True
+    if cmd == "wear":
+        if not args:
+            print("要穿戴什么？如：wear 布衣 或 wear all")
+            return True
+        _print(wear(game, pid, " ".join(args)))
+        return True
+    if cmd == "remove":
+        if not args:
+            print("要脱掉什么？如：remove 布衣 或 remove all")
+            return True
+        _print(remove(game, pid, " ".join(args)))
         return True
     if cmd == "kill":
         if not args:

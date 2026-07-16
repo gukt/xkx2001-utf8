@@ -61,3 +61,18 @@
   material: steel
   unit: 柄
   long: 这是一柄明晃晃的雁翎刀，江湖上的盗贼很喜欢用它。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): 自定义命令(留命令批)
+- id: sg_mianzhao
+  name: 面罩
+  aliases:
+  - mianzhao
+  - mask
+  armor_type: head
+  armor_prop:
+    armor: 1
+  weight: 2000
+  value: 10
+  material: cloth
+  unit: 个

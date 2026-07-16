@@ -79,3 +79,16 @@
   material: steel
   unit: 柄
   long: 这是一柄精钢打造的小斧头，似乎不太适合战斗，木匠和樵夫很喜欢用的工具。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: amulet
+  name: 长命锁
+  aliases:
+  - amulet
+  armor_type: neck
+  armor_prop:
+    armor: 1
+  weight: 500
+  value: 1500
+  material: gold
+  unit: 串

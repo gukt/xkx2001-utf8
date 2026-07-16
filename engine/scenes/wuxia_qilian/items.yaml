@@ -23,3 +23,29 @@
   long: '一柄长长的缅刀，刀身不住颤动，宛如活蛇一般。引光望去，刀刃上一片暗
 
     红之色。\n'
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+- id: leather
+  name: 皮衣
+  aliases:
+  - pi yi
+  - leather jacket
+  - cloth
+  armor_type: cloth
+  armor_prop:
+    armor: 1
+  weight: 3000
+  material: cloth
+  unit: 件
+- id: pi-beixin
+  name: 皮背心
+  aliases:
+  - pi beixin
+  - beixin
+  armor_type: cloth
+  armor_prop:
+    armor: 6
+  weight: 1000
+  value: 300
+  material: leather
+  unit: 件

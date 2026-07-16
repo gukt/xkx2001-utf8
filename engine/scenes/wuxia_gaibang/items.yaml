@@ -24,3 +24,18 @@
   material: bamboo
   unit: 根
   long: 这根竹棒虽不如打狗棒坚韧，长短轻重却是一般无异，只是色作淡黄，以示与打狗棒有别。\n
+
+# ── 护甲（ADR-0064 wear 批，armor_finalize.py 追加）──
+# 后置缺口(ADR-0064决策6): 自定义命令(留命令批)
+- id: budai
+  name: 布袋
+  aliases:
+  - bu dai
+  - dai
+  - bag
+  armor_type: shield
+  armor_prop: {}
+  weight: 500
+  material: cloth
+  unit: 个
+  long: 一只用粗麻布织成的袋子，身上所带布袋的多少，是丐帮弟子江湖地位的标志。\n
