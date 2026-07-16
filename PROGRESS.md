@@ -27,17 +27,7 @@
 
 ## In Progress
 
-**下 session 接力：武器数据接入引擎（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) CPK 接线）**
-
-门派武器 149 条 ItemDef 已落 [scenes/wuxia_weapons/](engine/scenes/wuxia_weapons/)（common.yaml + sect/16 门派），但**未接入引擎**--[cli.py:116](engine/src/xkx/cli.py#L116) 只加载单 scene CPK、无公共层合并，武器不进 game.item_registry。下 session 把它接进去，为 wield 命令批铺路（ADR-0062 触发条件成立）：
-
-1. 正式 CPK 化：`scenes/wuxia_weapons/{common,sect/*}.yaml` 搬入 `scenes/wuxia_common/` + `scenes/wuxia_<sect>/` 目录，各补 `manifest.yaml`（`pack_type: module_pack` / `theme: wuxia`）。
-2. cli.py 多 CPK 合并：加载公共层 CPK + 注入每个 scene 的 item_registry（或 Game 构造时合并），让 game.item_registry 含全量 149 武器。
-3. ThemeRegistry 公共层注册（若加载校验需要）。
-4. 测试：cli 加载某 scene 后 `item_registry` 含公共武器（yitian-jian / gangdao / changjian）+ 门派专属（sect/emei 的 zhudao）；现有 [test_weapons_catalog.py](engine/tests/test_weapons_catalog.py) 12 tests 仍绿。
-5. 解锁 wield 命令批：weapon_registry 的 flag / weapon_prop / skill_type 就绪，承接 wield_msg/unwield_msg（ADR-0060 决策 3）+ PronounContext 三元组（[05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) 专家 3 承重论断 2）。
-
-**边界**：不删 WeaponDef（deprecated，wield 批定夺去留）；不碰 COMBINED_ITEM 3 个（falun/shizi/shizi2，留方案 A M3）；wield_msg 仍留 wield 批承接（本批只接数据）。
+**当前无进行中**。门派武器填表已完成（见 Done），下 session 接力点见 Next Up。
 
 ## Blocked
 
@@ -60,6 +50,7 @@
 ## 交接约定
 
 - 开工读：本文件 + [CLAUDE.md](CLAUDE.md) + [04](docs/xkx-arch/04-迁移路径与避坑清单.md) §三/§四。收工更新 Done/In Progress/Blocked/Next Up + 日期。
+- **commit & push 自主决定**：每完成一个可交付推进单元（子系统迁移 / 一批填表 / 一个 ADR / 测试全绿），可自行决定是否 commit & push 到当前分支，无需逐次询问用户。完整可交付单元即提交并推送；零散探索 / 调试 / 中间态不提交。仍遵守 master 分支先开分支（[CLAUDE.md](CLAUDE.md)）。
 - Done 单条 ≤2 行，细节进 ADR。每开新阶段归档 Done 到 [docs/progress-archive/](docs/progress-archive/) `stage-N-done.md`。
 - 偏离 00-04 基线写 ADR（编号递增），关联 [05](docs/xkx-arch/05-第三轮专家对抗复审报告.md) dissent。
 - 跑测试：`just test`（或 `cd engine && uv run pytest`）；lint：`just lint`（或 `cd engine && uv run ruff check src tests`）。统一用 `uv run`（.venv 未装 dev 依赖，裸 pytest/ruff 不可用）。全部命令见仓库根 [justfile](justfile)，`just --list` 自举。
