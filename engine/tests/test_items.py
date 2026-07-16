@@ -4,7 +4,6 @@
 - item_weight/item_query/item_move_to_room/item_set 函数族。
 - weight 双重语义区分（物品台账 weight vs 角色 dbase key "weight" -> Equipment.encumbrance）。
 - weapon_prop 返回 mapping（非 scalar，不复用 Equipment.weapon_props 槽位副本）。
-- WeaponDef schema + 2 手填武器（songshan-jian / shizi）。
 - 写副作用维持现状（item_set no-op，台账全局 item_id 定义不变）。
 """
 
@@ -14,9 +13,6 @@ from xkx.runtime.commands import Game
 from xkx.runtime.components import Equipment, RoomComp
 from xkx.runtime.ecs import World
 from xkx.runtime.items import (
-    SAMPLE_WEAPONS,
-    WeaponDef,
-    get_weapon_def,
     item_move_to_room,
     item_query,
     item_set,
@@ -227,82 +223,6 @@ def test_item_set_is_noop_global_definition_unchanged() -> None:
     assert item_query(game, "songshan-jian", "name") == "嵩山剑"
     assert item_query(game, "songshan-jian", "value") == 50000
     assert item_query(game, "songshan-jian", "weapon_prop") == {"damage": 80, "force": 20}
-
-
-# ──────────────────────── WeaponDef schema + 2 手填武器（ADR-0058 §6） ────────────────────────
-
-
-def test_weapon_def_schema_construction() -> None:
-    """WeaponDef schema 可构造（对照 LPC init_blade(damage, flag) + set 习惯）。"""
-    w = WeaponDef(
-        item_id="test-blade",
-        name="测试刀",
-        damage=20,
-        rigidity=30,
-        flag=4,  # EDGED
-        skill_type="blade",
-        weight=7000,
-        value=1000,
-        material="steel",
-    )
-    assert w.item_id == "test-blade"
-    assert w.damage == 20
-    assert w.rigidity == 30
-    assert w.flag == 4
-    assert w.skill_type == "blade"
-    assert w.weight == 7000
-    assert w.value == 1000
-    assert w.material == "steel"
-
-
-def test_weapon_def_defaults() -> None:
-    """WeaponDef 默认值（仅 item_id/name 必填，其余 0/空）。"""
-    w = WeaponDef(item_id="x", name="x")
-    assert w.damage == 0
-    assert w.rigidity == 0
-    assert w.flag == 0
-    assert w.skill_type == ""
-    assert w.weight == 0
-    assert w.value == 0
-    assert w.material == ""
-
-
-def test_sample_weapon_songshan_jian() -> None:
-    """id=5 场景武器 songshan-jian 手填数据（对照 LPC sword.c init_sword）。"""
-    w = get_weapon_def("songshan-jian")
-    assert w is not None
-    assert w.name == "嵩山剑"
-    assert w.damage == 80
-    assert w.rigidity == 50
-    assert w.flag == 4  # EDGED（sword.c init_sword 设 flag | EDGED）
-    assert w.skill_type == "sword"
-    assert w.weight == 5000
-    assert w.value == 50000
-    assert w.material == "steel"
-
-
-def test_sample_weapon_shizi() -> None:
-    """id=8 场景武器 shizi 小石子手填数据（对照 shizi.c create()）。"""
-    w = get_weapon_def("shizi")
-    assert w is not None
-    assert w.name == "小石子"
-    assert w.damage == 5  # 对照 shizi.c init_throwing(5)
-    assert w.rigidity == 0
-    assert w.flag == 0  # 投掷物无握持标记
-    assert w.skill_type == "throwing"
-    assert w.weight == 100
-    assert w.value == 0  # shizi.c set("value", 0)
-    assert w.material == "stone"
-
-
-def test_sample_weapons_count() -> None:
-    """SAMPLE_WEAPONS 含 2 个手填样例（songshan-jian / shizi）。"""
-    assert set(SAMPLE_WEAPONS.keys()) == {"songshan-jian", "shizi"}
-
-
-def test_get_weapon_def_unregistered_returns_none() -> None:
-    """未注册武器返回 None。"""
-    assert get_weapon_def("nonexistent-weapon") is None
 
 
 # ──────────────────────── ItemDef 扩展字段编译进 item_registry（ADR-0058 §1） ────

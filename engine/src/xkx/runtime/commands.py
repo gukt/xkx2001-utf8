@@ -28,12 +28,14 @@ from xkx.dsl.layer1 import (
     evaluate_ask,
 )
 from xkx.dsl.layer2 import InquiryNode
+from xkx.runtime import equipment
 from xkx.runtime.action_context import Abort, ActionContext, new_context
 from xkx.runtime.auto_fight import FightType, auto_fight, initiate_combat
 from xkx.runtime.capability import CapabilityToken, PermissionService
 from xkx.runtime.components import (
     Attributes,
     CombatState,
+    Equipment,
     FamilyComp,
     Identity,
     Inventory,
@@ -47,7 +49,7 @@ from xkx.runtime.components import (
     TitleComp,
     Vitals,
 )
-from xkx.runtime.conditions import apply_condition
+from xkx.runtime.conditions import apply_condition, query_condition
 from xkx.runtime.doors import close_door, knock_door, open_door, unlock_door
 from xkx.runtime.ecs import World
 from xkx.runtime.middleware.s0_flood_check import FloodState, flood_check
@@ -953,6 +955,105 @@ def drink(game: Game, actor_id: int, item_query: str) -> list[str]:
     return [f"你喝下{_item_name(game, item_id)}，顿觉神清气爽。"]
 
 
+def wield(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """装备武器命令（对照 LPC cmds/std/wield.c，ADR-0063）。
+
+    解析物品 -> is_busy/perform 门控 -> 调 equipment.wield 注入 weapon_prop +
+    flag 槽位判定 + skill_type 桥接 CombatState.attack_skill -> wield_msg
+    单视角返回。``wield all`` 遍历 inventory 逐个装备。
+
+    消息渲染简化（ADR-0063 决策 1）：单视角 ``return list[str]``，不保真 LPC
+    message_vision 三段视角（``$n``=武器非 entity 不适用；房间广播后置 M3）。
+    """
+    world = game.world
+    if is_busy(world, actor_id) or query_condition(world, actor_id, "perform") > 0:
+        return ["你正忙着呢。"]
+    if item_query == "all":
+        return _wield_all(game, actor_id)
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你身上没有「{item_query}」。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    if equipment_comp is not None and equipment.is_equipped(equipment_comp, item_id):
+        return ["你已经装备著了。"]
+    return _do_wield(game, actor_id, item_id)
+
+
+def _do_wield(game: Game, actor_id: int, item_id: str) -> list[str]:
+    """单武器装备核心（对照 wield.c do_wield，ADR-0063）。
+
+    查 spec 取 weapon_prop/flag/skill_type/name -> 调 equipment.wield（prop 注入
+    apply/<key> + flag 槽位判定 + skill 桥接 attack_skill）-> 成功发 wield_msg，
+    失败按 flag 分支发槽位冲突消息。
+    """
+    world = game.world
+    spec = game.item_registry.get(item_id, {})
+    if not isinstance(spec, dict) or not spec.get("weapon_prop"):
+        return ["你只能装备可当作武器的东西。"]
+    props = spec.get("weapon_prop", {})
+    flag = spec.get("flag", 0)
+    skill = spec.get("skill_type", "")
+    label = spec.get("name", item_id)
+    ok = equipment.wield(
+        world, actor_id, item_id, props=props, flag=flag, skill=skill, label=label
+    )
+    if not ok:
+        if flag & equipment.TWO_HANDED:
+            return ["你必须空出双手才能装备双手武器。"]
+        return ["你必须先放下你目前装备的武器。"]
+    return [f"你装备{_item_name(game, item_id)}作武器。"]
+
+
+def _wield_all(game: Game, actor_id: int) -> list[str]:
+    """wield all：遍历 inventory 逐个装备（对照 wield.c:18-25，ADR-0063）。
+
+    跳过已装备，逐个 _do_wield 收集消息。全部已装备或无可装备 -> 提示；
+    否则汇总 + 末尾 "Ok。"。
+    """
+    world = game.world
+    inv = world.get(actor_id, Inventory)
+    if inv is None or not inv.items:
+        return ["你没有可装备的武器。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    messages: list[str] = []
+    for item_id in sorted(inv.items):
+        if equipment_comp is not None and equipment.is_equipped(equipment_comp, item_id):
+            continue
+        messages.extend(_do_wield(game, actor_id, item_id))
+    if not messages:
+        return ["你没有可装备的武器。"]
+    messages.append("Ok。")
+    return messages
+
+
+def unwield(game: Game, actor_id: int, item_query: str) -> list[str]:
+    """卸下武器命令（对照 LPC cmds/std/unwield.c，ADR-0063）。
+
+    解析物品 -> is_busy/perform 门控 -> 检查武器槽（weapon/secondary_weapon，
+    非护甲）-> 调 equipment.unequip 反向扣减 -> unwield_msg 单视角返回。
+    """
+    world = game.world
+    if is_busy(world, actor_id) or query_condition(world, actor_id, "perform") > 0:
+        return ["你正忙着呢。"]
+    inv = world.get(actor_id, Inventory)
+    available = inv.items if inv else set()
+    item_id = _resolve_item_id(game, item_query, available)
+    if item_id is None:
+        return [f"你身上没有「{item_query}」。"]
+    equipment_comp = world.get(actor_id, Equipment)
+    if equipment_comp is None or (
+        equipment_comp.weapon != item_id
+        and equipment_comp.secondary_weapon != item_id
+    ):
+        return ["你并没有装备这样东西作为武器。"]
+    ok = equipment.unequip(world, actor_id, item_id)
+    if not ok:
+        return ["你并没有装备这样东西作为武器。"]
+    return [f"你放下了{_item_name(game, item_id)}。"]
+
+
 def look(game: Game, actor_id: int, target_name: str = "") -> list[str]:
     """查看命令（S5a + ADR-0051）：``look`` 房间视图；``look <target>`` NPC 详情 +
     邪派 NPC berserk flavor（对照 LPC look.c:189-193 + combatd.c start_berserk
@@ -1854,6 +1955,18 @@ def _adapter_drink(game: Game, ctx: ActionContext) -> list[str]:
     return drink(game, ctx.actor, item_query)
 
 
+def _adapter_wield(game: Game, ctx: ActionContext) -> list[str]:
+    """wield 命令适配器（ADR-0063）：wield <物品> | wield all。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return wield(game, ctx.actor, item_query)
+
+
+def _adapter_unwield(game: Game, ctx: ActionContext) -> list[str]:
+    """unwield 命令适配器（ADR-0063）：unwield <物品>。"""
+    item_query = ctx.parsed_args[0] if ctx.parsed_args else ctx.raw_args.strip()
+    return unwield(game, ctx.actor, item_query)
+
+
 def _adapter_knock(game: Game, ctx: ActionContext) -> list[str]:
     """knock 命令适配器（C5 ADR-0042）：knock <方向>。"""
     direction = ctx.raw_args.strip()
@@ -2011,6 +2124,8 @@ COMMAND_REGISTRY: dict[str, Any] = {
     "get": _adapter_get,
     "drop": _adapter_drop,
     "drink": _adapter_drink,
+    "wield": _adapter_wield,
+    "unwield": _adapter_unwield,
     "knock": _adapter_knock,
     "open": _adapter_open,
     "close": _adapter_close,

@@ -42,6 +42,8 @@ from xkx.runtime.commands import (
     quest,
     take,
     tuna,
+    unwield,
+    wield,
 )
 from xkx.runtime.world import build_world, spawn_player
 
@@ -333,6 +335,18 @@ def parse_and_run(game: Game, pid: int, line: str) -> bool:
             return True
         _print(drink(game, pid, " ".join(args)))
         _advance_heartbeat(game)
+        return True
+    if cmd == "wield":
+        if not args:
+            print("要装备什么武器？如：wield 长剑 或 wield all")
+            return True
+        _print(wield(game, pid, " ".join(args)))
+        return True
+    if cmd == "unwield":
+        if not args:
+            print("要脱掉什么武器？如：unwield 长剑")
+            return True
+        _print(unwield(game, pid, " ".join(args)))
         return True
     if cmd == "kill":
         if not args:

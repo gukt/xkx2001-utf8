@@ -4,14 +4,14 @@
 > 每个 session 结束前更新它。这是交接的唯一信源。
 > 历史 Done 已按阶段归档至 [docs/progress-archive/](docs/progress-archive/)，本文件只保留当前阶段滚动窗口 + 活状态。
 
-**最后更新**：2026-07-16（武器 CPK 接线完成，ADR-0062 决策 2 落地）
+**最后更新**：2026-07-16（wield 命令批完成，ADR-0063）
 
 ## 当前状态速览
 
 - **阶段**：阶段 0 pilot 收尾 -> 转 AI agent 按架构依赖分批迁移（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）
 - **分支**：feat/sampling-pilot
-- **tests**：2387 全绿，ruff 全过（武器 CPK 接线 +4 tests）
-- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)（bboard 范围）/ [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)（门派武器填表范围）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)（job_data 等价边界）/ [ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md)（武器 CPK 接线）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃工时改 AI 分批）
+- **tests**：2397 全绿，ruff 全过（wield 命令批 +16 -6 tests）
+- **关键 ADR**：[ADR-0057](docs/adr/ADR-0057-daemon-store-per-object-save.md)（DaemonStore）/ [ADR-0058](docs/adr/ADR-0058-item-catalog-transition-layer.md)（ItemCatalog 过渡层）/ [ADR-0059](docs/adr/ADR-0059-bboard-subsystem-migration-scope.md)（bboard 范围）/ [ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md)（门派武器填表范围）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)（job_data 等价边界）/ [ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md)（武器 CPK 接线）/ [ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)（wield 命令批）/ [ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)（弃工时改 AI 分批）
 - **pilot 报告**：[REPORT](engine/tools/sampling/pilot/REPORT.md)（工时数据归档，副产出保留）
 - **新增规格子层**：`H-2` 第二梯队守护进程 / `C-VOTE` 玩家投票 / `F-HELL` 阴间流程
 - **扩展现有子层**：`H-RACE` human.c 剩余规格 / 层 H `lpc_files` 补 rankd.c
@@ -20,6 +20,7 @@
 
 > 早期 Done（规格补充 / pilot / 架构补全 / bboard / B 类，至 2312 tests）已归档至 [stage-0-pilot-arch-done.md](docs/progress-archive/stage-0-pilot-arch-done.md)。
 
+- [x] **wield 命令批**（[ADR-0063](docs/adr/ADR-0063-wield-command-batch.md)）：wield/unwield 命令（双路径 CLI+COMMAND_REGISTRY）+ weapon_prop 注入 apply/<key> + flag 槽位判定 + skill_type 桥接 CombatState.attack_skill + is_busy/perform 门控 + wield all；WeaponDef/SAMPLE_WEAPONS/get_weapon_def 删除；+16 -6 tests，2397 全绿
 - [x] **门派武器 CPK 接线**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2）：wuxia_weapons 搬 17 数据层 CPK（wuxia_common + 16 门派，manifest 无 entry_points + items.yaml）；cli.py `_load_theme_data_items` glob 按题材前缀发现合并进 item_registry（149 武器）；ThemeRegistry 未改；wield 未实现；+4 tests，2387 全绿
 - [x] **ADR-0060/0061 定稿**：[ADR-0060](docs/adr/ADR-0060-weapon-data-extraction-scope.md) 门派武器填表范围（填 ItemDef 非 WeaponDef/去重/四维拆分/flag 逐类型确认）/ [ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md) job_data 等价边界三档 + 纠正 ADR-0057 措辞
 - [x] **job_data 子系统迁移**（[ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)）：daemons/job_data.py（JobData + DaemonSerializable + from_lpc_o + 12 API）+ job_server.py + job_commands.py（4 命令）+ daemons/__init__ 注释修正；算法级推断标注（choose_of_player/query_family_jobdata/query_list）；+50 tests，2371 全绿
@@ -28,7 +29,7 @@
 
 ## In Progress
 
-**武器 CPK 接线已完成（ADR-0062 决策 2）。下批候选：wield 命令批**--149 武器已接入 `game.item_registry`，flag/weapon_prop/skill_type 就绪，wield 批数据前提满足；下批 plan 时定 wield 范围（wield/unwield + PronounContext 三元组 + WeaponDef 去留定夺）。
+**wield 命令批已完成（ADR-0063）。下批候选：job_data 暂缓命令 / 门派 CPK 正式化 / 更多门派内容批**--wield/unwield 已实现，149 武器可用；PronounContext 三元组已在 [ADR-0028](docs/adr/ADR-0028-rank-d-spec-and-pronoun-context.md)/[pronoun.py](engine/src/xkx/runtime/pronoun.py) 落地（wield 单视角 `return list[str]` 不直接消费）；下批 plan 时定范围。
 
 ## Blocked
 
@@ -36,9 +37,9 @@
 
 ## Next Up
 
-1. **wield 命令批**：149 武器已接入 `game.item_registry`（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 接线完成），flag/weapon_prop/skill_type 就绪；下批实现 wield/unwield（weapon_prop 注入 `apply/<key>` + flag 握持判定 + skill_type 桥接 [equipment.py](engine/src/xkx/runtime/equipment.py)）+ PronounContext 三元组 + 定夺 WeaponDef 去留。
-2. **job_data 暂缓命令**（[ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)）：do_check_menpai_assess + do_setorg_*（待 job_menpai 数据层）/ do_start_system 等（待 job_system + CHANNEL_D）。
-3. **bboard 暂缓命令**：do_post（待 input_to）/ do_store（待 EDITOR_D）。
+1. **job_data 暂缓命令**（[ADR-0061](docs/adr/ADR-0061-job-data-binary-source-equivalence.md)）：do_check_menpai_assess + do_setorg_*（待 job_menpai 数据层）/ do_start_system 等（待 job_system + CHANNEL_D）。
+2. **bboard 暂缓命令**：do_post（待 input_to）/ do_store（待 EDITOR_D）。
+3. **门派 CPK 正式化**（[ADR-0062](docs/adr/ADR-0062-weapon-cpk-wiring-postpone.md) 决策 2 后置）：公共层 CPK 加载机制 + cli.py 多 CPK 合并 + ThemeRegistry 公共层注册（wield 已用 glob 发现的数据层 CPK，正式化后搬目录补 manifest）。
 4. **迁 PG**（kill criteria 8）：DaemonStore 与 StorageSystem 同步策略切换。
 5. **记 AI 成本**（[ADR-0056](docs/adr/ADR-0056-abandon-effort-estimation-ai-batched-migration.md)）：token/运行时间。
 
