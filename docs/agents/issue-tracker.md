@@ -31,4 +31,4 @@
 
 ## 为什么用本地 markdown 而不是 GitHub Issues
 
-`git remote` 指向 GitHub（`gukt/xkx2001-utf8`），这本是该 skill 的默认姿态。但本仓库覆盖了这个默认值：这里的工程决策一直全部记录在本地 markdown 里（`docs/adr/ADR-NNN-xxx.md`、`PROGRESS.md`），从未用 GitHub Issues 追踪过这类内部架构决策。用本地 markdown 能让 wayfinder 的地图和 ticket 与项目在每个 session 开工时读的其他文档保持同一种媒介。
+`git remote` 指向 GitHub（`gukt/xkx2001-utf8`），这本是该 skill 的默认姿态。但本仓库覆盖了这个默认值：这里的工程决策一直全部记录在本地 markdown 里（`docs/adr/`、`PROGRESS.md`，2026-07-17 重设前的历史见 [docs/archive/](../archive/README.md)），从未用 GitHub Issues 追踪过这类内部架构决策。用本地 markdown 能让 wayfinder 的地图和 ticket 与项目在每个 session 开工时读的其他文档保持同一种媒介。
