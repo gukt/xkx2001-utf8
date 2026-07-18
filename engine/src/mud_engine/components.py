@@ -9,6 +9,9 @@
 - ``Exits`` 只有房间会用到，但独立成组件，为"一个地点通向哪些其他地点"这条
   能力未来被其他实体（如载具内部空间）复用留空间；出口表在运行时可增删
   （04 号票验证），每个出口还能携带方向别名（``Exit.aliases``，02 号票）。
+- ``Doors`` 是房间出口的门状态集合（``DoorState`` 开/关/锁 + 可选钥匙物品），
+  按方向索引但独立于 ``Exits`` 存储--"可开合/上锁"是预期被箱子/密室入口等非
+  出口实体复用的能力，单独建模、不并入 ``Exits``（04 号票）。
 - ``Container`` 是"持有一堆物品"的通用能力--房间地面与玩家物品栏本质同一种
   能力，用同一种组件各挂一份，不做成两个专属命名的同构组件（03 号票，spec
   「对象模型」"通用能力提炼成独立组件"），顺带给未来的箱子/背包留复用。
@@ -23,6 +26,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from mud_engine.world import EntityId
 
@@ -85,6 +89,49 @@ class Exits:
     by_direction: dict[str, Exit] = field(
         default_factory=dict
     )  # 方向名 -> 出口；方向名如"north"/"east"，运行时可增删
+
+
+class DoorState(Enum):
+    """门的三种状态：开 / 关 / 锁。
+
+    用枚举而非裸字符串，让"状态只能取这三个值之一"在类型层就锁死，避免误传
+    ``"ajar"`` 之类非法值。值用小写字符串，方便 YAML 里直接 ``door: closed``
+    映射（``DoorState("closed")`` 即可由值构造）。
+    """
+
+    OPEN = "open"  # 开着，go 可通行
+    CLOSED = "closed"  # 关着，挡住 go；可 open 打开
+    LOCKED = "locked"  # 锁着，挡住 go；需先 unlock（可能需要匹配钥匙）
+
+
+@dataclass
+class Door:
+    """一条门的状态 + 可选钥匙引用：可复用的"可开合/上锁"数据单元。
+
+    独立于 ``Exit``（出口目标/方向别名）存在--门状态是预期会被出口之外的其他实体
+    （箱子、密室入口等）复用的能力，所以单独建模，不塞进 ``Exit``（04 号票
+    acceptance 第 7 条）。``state`` 运行时可变（``open``/``close``/``unlock``
+    直接改）；``key_item_id`` 是 LOCKED 状态解锁所需钥匙物品的 entity id，
+    ``None`` 表示该锁不绑定特定钥匙（或当前不是锁）。
+    """
+
+    state: DoorState
+    key_item_id: EntityId | None = None  # LOCKED 时解锁需要的钥匙物品 entity id；None=不绑定钥匙
+
+
+@dataclass
+class Doors:
+    """房间出口的门状态集合，按方向索引（与 ``Exits`` 同方向键）。
+
+    独立成组件、不并入 ``Exits``：``Exits`` 表达"通向哪里"（出口目标+别名），
+    ``Doors`` 表达"能不能过"（开/关/锁）--两条能力正交，分开存储让"可开合/上锁"
+    未来能被非出口实体复用（04 号票）。某个方向没有门时，该方向不在
+    ``by_direction`` 里即可，不强制每个出口都配门。
+    """
+
+    by_direction: dict[str, Door] = field(
+        default_factory=dict
+    )  # 方向名 -> 门状态；只含有门的方向，方向键与 Exits.by_direction 一致
 
 
 @dataclass

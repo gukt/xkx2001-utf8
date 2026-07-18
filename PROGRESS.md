@@ -5,16 +5,17 @@
 >
 > **2026-07-17 项目重设，2026-07-18 新目标定稿+CLAUDE.md 重写完成**：原目标与取舍战略已放弃，新目标已用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 9/10 票决策（[02](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 用户主动标"暂定"未拍板，不阻塞其他票）并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"章节。重设前的完整进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)（含更早的按阶段归档 [docs/archive/progress-archive/](docs/archive/progress-archive/)），仅作背景参考。
 
-**最后更新**：2026-07-18（M1 06 号票落地：场景数据迁移到 YAML + 静态展示型 NPC；02/03 号票已 resolved，102 测试全绿）
+**最后更新**：2026-07-18（M1 04 号票落地：门与动态出口机制；01/02/03/04/06 号票已 resolved，139 测试全绿）
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；M1 spec 已产出，`/to-tickets` 已拆出 6 张票（[.scratch/m1-core-engine-skeleton/issues/01~06](.scratch/m1-core-engine-skeleton/issues/)）；**01、02、03、06 号票已 resolved**（01 引擎骨架；02 解析执行解耦+别名；03 物品与容器；06 YAML 场景 DSL）。下一步：`/implement` 04（门/动态出口）或 05（存档骨架）。
+- **阶段**：M0 完成；M1 spec 已产出，`/to-tickets` 已拆出 6 张票（[.scratch/m1-core-engine-skeleton/issues/01~06](.scratch/m1-core-engine-skeleton/issues/)）；**01、02、03、04、06 号票已 resolved**（01 引擎骨架；02 解析执行解耦+别名；03 物品与容器；04 门与动态出口；06 YAML 场景 DSL）。下一步：`/implement` 05（存档骨架，04 已完成）。
 - **分支**：见当前 git 分支。
-- **engine/ 现状**：`src/mud_engine/` 下已有 `world.py`/`components.py`/`commands.py`/`parsing.py`/`intent.py`/`matching.py`/`scenes.py`/`scene_loader.py`/`cli.py`/`__main__.py`，场景数据在 `engine/data/m1_default_scene.yaml`（从 YAML 加载，不再内嵌 Python 元组）。`python -m mud_engine` 跑通真实终端闭环（`go`/`look`/`take`/`drop`/`inventory`(`i`)/`help`(`h`)/`quit` + 方向别名 `go 北道` + 物品别名 `take 石` + 静态 NPC 在 `look` 中可见）。102 条测试，`just gate` 全绿。
+- **engine/ 现状**：`src/mud_engine/` 下已有 `world.py`/`components.py`/`commands.py`/`parsing.py`/`intent.py`/`matching.py`/`scenes.py`/`scene_loader.py`/`cli.py`/`__main__.py`，场景数据在 `engine/data/m1_default_scene.yaml`（从 YAML 加载，不再内嵌 Python 元组）。`python -m mud_engine` 跑通真实终端闭环（`go`/`look`/`take`/`drop`/`inventory`(`i`)/`open`/`close`/`knock`/`unlock`/`help`(`h`)/`quit` + 方向别名 `go 北道` + 物品别名 `take 石` + 门状态在 `look` 出口列表标注 + 静态 NPC 在 `look` 中可见）。139 条测试，`just gate` 全绿。
 
 ## Done
 
+- **M1 04 号票：门与动态出口**（[04-doors-and-dynamic-exits](.scratch/m1-core-engine-skeleton/issues/04-doors-and-dynamic-exits.md)，resolved）：新增独立于 `Exits` 的 `Doors` 组件（`DoorState` 开/关/锁 + `Door` 钥匙物品 id）+ `open`/`close`/`knock`/`unlock` 命令（复用 02 的 `match_target` 方向解析，`_parse_go` 重构为 `_parse_direction(verb=...)`）；`go` 关/锁门拦截、`look` 出口标注门状态；YAML 加 `door`/`key` 字段（顺带补上 06 号票留的门/锁表达后续小补丁，loader 顺序改 rooms->items->exits 以让门锁引用物品 entity id）。默认场景 start_yard south 关门、corridor north 锁门 + iron_key 钥匙（放 corridor）、新增 storage_room。动态出口靠 `Exits.by_direction` 可变 dict（03 已设计）+ 测试验证增删后 look/go 反映。新增 `test_doors.py`（31）+ `test_scene_loader` 门加载测试（6），139 测试全绿，`/code-review` 双轴过（修了 `AfterOpening` 嵌套类不带 `When*` 前缀被 pytest 静默跳过的硬违规；3 个判断性 smell 接受）。
 - **M1 06 号票：YAML 场景 DSL**（[06-yaml-scene-dsl](.scratch/m1-core-engine-skeleton/issues/06-yaml-scene-dsl.md)，resolved）：场景数据从 `scenes.py` 内嵌 Python 元组迁移到 `engine/data/m1_default_scene.yaml`；新增 `scene_loader.py`（YAML 解析+加载期校验+建世界，抛 `SceneLoadError` 带文件路径与出错条目键，`__main__` 捕获打印干净错误不抛裸堆栈）；`scenes.py` 瘦身为"默认场景文件 + 调 loader"入口。覆盖房间/物品/**静态展示型 NPC**（`Identity`+`Description`+`Position`，无行为，`look` 在场可见、`take` 当不存在物品处理）；门/锁状态（04 号票）未完成，按票留后续小补丁。`_cmd_look` 增在场 NPC 展示行。新增 `test_scene_loader.py`（15 条）。`/code-review` 双轴过（0 硬违规、0 spec 缺失，仅 DRY 判断题为保信息清晰度未抽 helper）。02/03 票产出测试不改断言全过，102 测试全绿。新增 PyYAML 运行时依赖。
 - **代码质量调整**（用户要求）：① justfile 加 `run` recipe（`just run` -> `uv run python -m mud_engine` 启动真实终端 demo）；② `components.py` 每个字段加"是什么+例子"注释，面向未来 UGC 创作层 Agent 生成场景 DSL；③ `player: EntityId` 参数名 -> `player_id`（全 src+tests rename，`source="player"` 字符串值与 `_player_room`/`player_container` 保留），87 测试全绿。
 - **M1 03 号票：物品与容器**（[03-items-and-containers](.scratch/m1-core-engine-skeleton/issues/03-items-and-containers.md)，resolved）：新增 `Container` 组件（房间地面与玩家物品栏同一种组件各挂一份）+ `Identity.aliases`（物品别名）；`take`/`drop`/`inventory`(`i`) 复用 02 的 `Intent` 管线 + `match_target`（物品目标解析层 match，`Intent.target`=规范名）；`ParseFailure` 加 `verb` 字段让失败提示按命令分（go 那个方向/take 这里没有/drop 你没有）；`look` 加地面物品展示；scenes 预置石头物品（别名"石"）。`/code-review` 双轴过（提 `_sorted_item_names` 消重 + 补 drop 后 inventory 断言）。
@@ -39,10 +40,9 @@
 
 ## Next Up
 
-1. 新 session：读本文件 + [CLAUDE.md](CLAUDE.md) + [M1 spec](.scratch/m1-core-engine-skeleton/spec.md)（注意文末「范围修订记录」，07-18 加了 YAML DSL 范围）。
-2. `/implement` [04-doors-and-dynamic-exits](.scratch/m1-core-engine-skeleton/issues/04-doors-and-dynamic-exits.md)：blocked by 02 已解除，可独立做。复用方向别名 + 加 `DoorState` 独立组件（不碰 `Exits`）+ `open`/`close`/`knock`/`unlock` 命令。**04 完成后回头给 06 的 YAML 加门/锁状态表达**（06 号票留的后续小补丁：`Exits` 的出口可挂门状态，YAML 需表达开/关/锁+钥匙物品）。
-3. `/implement` [05-tick-loop-save-crash-recovery](.scratch/m1-core-engine-skeleton/issues/05-tick-loop-save-crash-recovery.md)：心跳循环 + 存档骨架，可与 04 并行。
-4. [02-engine-boundary-combat-effects](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md)（mvp-scope 里的票，不要跟 M1 的 02 号票搞混）建议在 M2 `/to-spec` 前用 `/prototype` 或 `/design-an-interface` 补上--不阻塞 M1。
+1. [M1 spec](.scratch/m1-core-engine-skeleton/spec.md)（注意文末「范围修订记录」，07-18 加了 YAML DSL 范围）。
+2. `/implement` [05-tick-loop-save-crash-recovery](.scratch/m1-core-engine-skeleton/issues/05-tick-loop-save-crash-recovery.md)：心跳循环 + 存档骨架。04 已 resolved，05 ticket 原文 `Blocked by 03、04` 现已解除，可开始；存档需覆盖 04 的门状态/动态出口（恢复门状态 + 出口表增删）。
+3. [02-engine-boundary-combat-effects](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md)（mvp-scope 里的票，不要跟 M1 的 02 号票搞混）建议在 M2 `/to-spec` 前用 `/prototype` 或 `/design-an-interface` 补上--不阻塞 M1。
 
 ## 交接约定
 

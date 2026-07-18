@@ -13,13 +13,26 @@
 各写特例分支。03 号票新增 take/drop/inventory 三个物品命令，复用同一管线：
 物品名匹配在解析层用 ``match_target`` 完成（``Intent.target`` = 物品规范名），
 本模块只按规范名在容器里找到 entity 引用并转移，不直接碰别名匹配。
+
+04 号票新增 open/close/knock/unlock 四个门命令，同样复用解析层的方向别名匹配
+（``Intent.target`` = 方向规范名，与 ``go`` 同一套候选）。门状态是独立于
+``Exits`` 的 ``Doors`` 组件，本模块只按方向读写它，不改 ``Exits``。
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from mud_engine.components import Container, Description, Exits, Identity, Position
+from mud_engine.components import (
+    Container,
+    Description,
+    Door,
+    Doors,
+    DoorState,
+    Exits,
+    Identity,
+    Position,
+)
 from mud_engine.intent import Intent
 from mud_engine.world import EntityId, World
 
@@ -111,7 +124,11 @@ def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId)
 
 @register("look", aliases=("l",))
 def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """展示玩家当前房间的简述、详细描述、地面物品、在场 NPC 与出口列表。"""
+    """展示玩家当前房间的简述、详细描述、地面物品、在场 NPC 与出口列表。
+
+    出口列表标注门状态（关/锁）--门状态来自独立于 ``Exits`` 的 ``Doors`` 组件，
+    look 综合两者展示（04 号票）。
+    """
     room = _player_room(world, player_id)
     description = world.require_component(room, Description)
     exits = world.require_component(room, Exits)
@@ -125,7 +142,8 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if npc_names:
         lines.append("你看到：" + "、".join(npc_names))
     if exits.by_direction:
-        lines.append("出口：" + "、".join(sorted(exits.by_direction)))
+        labels = [_exit_label(world, room, direction) for direction in sorted(exits.by_direction)]
+        lines.append("出口：" + "、".join(labels))
     else:
         lines.append("出口：无")
     return lines
@@ -133,7 +151,10 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 @register("go")
 def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把玩家移动到当前房间某个方向的出口指向的房间，并自动展示新房间。"""
+    """把玩家移动到当前房间某个方向的出口指向的房间，并自动展示新房间。
+
+    出口上若有门且非开（关/锁），拒绝移动并提示门状态（04 号票）。
+    """
     direction = intent.target
     if direction is None:
         return ["去哪个方向？用法：go <方向>"]
@@ -147,9 +168,89 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         # 兜底，防御手工构造的 Intent 带了不规范方向。
         return [f"那个方向（{direction}）没有出口。"]
 
+    door = _door_in_direction(world, room, direction)
+    if door is not None:
+        if door.state is DoorState.LOCKED:
+            return ["那个方向的门锁着，过不去。"]
+        if door.state is DoorState.CLOSED:
+            return ["那个方向的门关着，过不去。"]
+
     position = world.require_component(player_id, Position)
     position.room = passage.target
     return _cmd_look(world, player_id, Intent(verb="look", target=None))
+
+
+@register("open")
+def _cmd_open(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """打开当前房间某方向出口上的门（04 号票）。锁着的门需先 unlock。"""
+    direction = intent.target
+    if direction is None:
+        return ["开什么？用法：open <方向>"]
+    door = _door_at_player(world, player_id, direction)
+    if door is None:
+        return [f"那个方向（{direction}）没有门。"]
+    if door.state is DoorState.LOCKED:
+        return ["那扇门锁着，先用钥匙 unlock。"]
+    if door.state is DoorState.OPEN:
+        return ["那扇门已经开着。"]
+    door.state = DoorState.OPEN
+    return [f"你打开了{direction}方向的门。"]
+
+
+@register("close")
+def _cmd_close(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """关上当前房间某方向出口上的门（04 号票）。锁着的门视为已关，不另处理。"""
+    direction = intent.target
+    if direction is None:
+        return ["关什么？用法：close <方向>"]
+    door = _door_at_player(world, player_id, direction)
+    if door is None:
+        return [f"那个方向（{direction}）没有门。"]
+    if door.state is DoorState.LOCKED:
+        return ["那扇门锁着，关不了。"]
+    if door.state is DoorState.CLOSED:
+        return ["那扇门已经关着。"]
+    door.state = DoorState.CLOSED
+    return [f"你关上了{direction}方向的门。"]
+
+
+@register("knock")
+def _cmd_knock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """敲当前房间某方向出口上的门，按门状态给不同反馈（04 号票，纯展示）。"""
+    direction = intent.target
+    if direction is None:
+        return ["敲什么？用法：knock <方向>"]
+    door = _door_at_player(world, player_id, direction)
+    if door is None:
+        return [f"那个方向（{direction}）没有门。"]
+    if door.state is DoorState.LOCKED:
+        return [f"你敲了敲{direction}方向的门，门锁着，没人应。"]
+    if door.state is DoorState.CLOSED:
+        return [f"你敲了敲{direction}方向的门，咚咚作响。"]
+    return [f"{direction}方向的门开着，敲什么。"]
+
+
+@register("unlock")
+def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """解锁当前房间某方向出口上的门（04 号票）。
+
+    锁定门绑定钥匙（``key_item_id``）时，玩家物品栏需持有该钥匙物品才能解锁；
+    解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行（行为在实现中明确锁定）。
+    """
+    direction = intent.target
+    if direction is None:
+        return ["解锁什么？用法：unlock <方向>"]
+    door = _door_at_player(world, player_id, direction)
+    if door is None:
+        return [f"那个方向（{direction}）没有门。"]
+    if door.state is not DoorState.LOCKED:
+        return ["那扇门没上锁。"]
+    if door.key_item_id is not None:
+        player_container = world.get_component(player_id, Container)
+        if player_container is None or door.key_item_id not in player_container.items:
+            return ["你需要一把匹配的钥匙才能 unlock 那扇门。"]
+    door.state = DoorState.CLOSED
+    return [f"你解锁了{direction}方向的门。"]
 
 
 @register("take")
@@ -216,6 +317,33 @@ def _cmd_quit(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """请求 CLI 主循环结束（本票不含存档，见 05 号票）。"""
     world.should_quit = True
     return ["再见。"]
+
+
+def _door_in_direction(world: World, room: EntityId, direction: str) -> Door | None:
+    """读取某房间某方向的门状态；房间无 Doors 组件或该方向无门时返回 None。
+
+    门状态读自独立于 ``Exits`` 的 ``Doors`` 组件（04 号票）。不抛异常：玩家
+    引用一个没门的方向属于"可输入但无效"，应给提示而非崩溃。
+    """
+    doors = world.get_component(room, Doors)
+    if doors is None:
+        return None
+    return doors.by_direction.get(direction)
+
+
+def _door_at_player(world: World, player_id: EntityId, direction: str) -> Door | None:
+    """门命令共用：取玩家当前房间某方向的门（不存在返回 None 让命令给提示）。"""
+    room = _player_room(world, player_id)
+    return _door_in_direction(world, room, direction)
+
+
+def _exit_label(world: World, room: EntityId, direction: str) -> str:
+    """look 出口列表的单项：方向名 + 门状态标注（关/锁），无门或开着不加标注。"""
+    door = _door_in_direction(world, room, direction)
+    if door is not None and door.state is not DoorState.OPEN:
+        suffix = "（锁）" if door.state is DoorState.LOCKED else "（关）"
+        return direction + suffix
+    return direction
 
 
 def _find_item_in_container(world: World, container: Container, name: str) -> EntityId | None:

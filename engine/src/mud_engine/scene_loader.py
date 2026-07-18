@@ -2,8 +2,8 @@
 
 这是 06 号票落地的"M1 内部过渡格式"加载逻辑（见 M1 spec「场景数据与引擎能力
 的边界」2026-07-18 修订）--目标是非工程师也能改场景数据、跑通闭环优先，不是
-M3 要交给创作者的正式 UGC DSL。覆盖范围：房间 / 物品 / 静态展示型 NPC；门与
-锁状态（04 号票）尚未完成，留待 04 落地后作为后续小补丁纳入。
+M3 要交给创作者的正式 UGC DSL。覆盖范围：房间 / 物品 / 静态展示型 NPC / 门与
+锁状态（04 号票）。
 
 加载逻辑与命令调度（commands）/ ECS 存储（world）保持分离：本模块只依赖
 components + world + PyYAML，不 import commands，也不把加载逻辑写进 world.py
@@ -20,7 +20,17 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.components import Container, Description, Exit, Exits, Identity, Position
+from mud_engine.components import (
+    Container,
+    Description,
+    Door,
+    Doors,
+    DoorState,
+    Exit,
+    Exits,
+    Identity,
+    Position,
+)
 from mud_engine.world import EntityId, World
 
 
@@ -32,8 +42,9 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
 
     任何结构性错误（YAML 语法、缺字段、引用不存在的房间键）都收口成
-    ``SceneLoadError``，消息含文件路径与大致出错的条目键。先建全部房间，再连
-    出口/摆物品/放 NPC/放玩家，保证后置阶段引用的房间键都已存在。
+    ``SceneLoadError``，消息含文件路径与大致出错的条目键。先建全部房间，再摆
+    物品、连出口/门、放 NPC、放玩家--物品先于出口是因为出口的门锁可引用物品
+    作为钥匙（04 号票），建出口时需要物品的 entity id 已就绪。
     """
     data = _read_yaml(scene_path)
     rooms = _expect_mapping(data, scene_path, "rooms")
@@ -43,8 +54,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
 
     world = World()
     room_ids = _build_rooms(world, rooms, scene_path)
-    _build_exits(world, rooms, room_ids, scene_path)
-    _build_items(world, items, room_ids, scene_path)
+    item_ids = _build_items(world, items, room_ids, scene_path)
+    _build_exits(world, rooms, room_ids, item_ids, scene_path)
     _build_npcs(world, npcs, room_ids, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
     return world, player_id
@@ -110,9 +121,15 @@ def _build_exits(
     world: World,
     rooms: Mapping,
     room_ids: dict[str, EntityId],
+    item_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
-    """把每个房间的 exits 段连成 Exit 组件条目，校验目标房间键都已定义。"""
+    """把每个房间的 exits 段连成 Exit 组件条目，校验目标房间键都已定义。
+
+    出口可选挂门状态（``door``/``key`` 字段）：带门的出口同时往该房间的 ``Doors``
+    组件里记一条 ``Door``（04 号票）。``Doors`` 组件按需创建--只有至少一个出口
+    带门时才挂到房间上，纯通行出口的房间不挂空 ``Doors``。
+    """
     for room_key, raw in rooms.items():
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
         exits_data = data.get("exits")
@@ -123,7 +140,9 @@ def _build_exits(
                 f"场景文件 {scene_path} 的房间 '{room_key}' 的 'exits' 应是映射，"
                 f"实际是 {type(exits_data).__name__}"
             )
-        exits = world.require_component(room_ids[room_key], Exits)
+        room = room_ids[room_key]
+        exits = world.require_component(room, Exits)
+        doors: Doors | None = None
         for direction, exit_data in exits_data.items():
             target_key = _exit_target(exit_data, room_key, direction, scene_path)
             if target_key not in room_ids:
@@ -133,6 +152,12 @@ def _build_exits(
                 )
             aliases = _exit_aliases(exit_data, room_key, direction, scene_path)
             exits.by_direction[str(direction)] = Exit(target=room_ids[target_key], aliases=aliases)
+            door = _exit_door(exit_data, room_key, direction, item_ids, scene_path)
+            if door is not None:
+                if doors is None:
+                    doors = Doors()
+                    world.add_component(room, doors)
+                doors.by_direction[str(direction)] = door
 
 
 def _exit_target(exit_data: object, room_key: str, direction: object, scene_path: Path) -> str:
@@ -167,13 +192,65 @@ def _exit_aliases(
     return tuple(str(a) for a in aliases)
 
 
+def _exit_door(
+    exit_data: object,
+    room_key: str,
+    direction: object,
+    item_ids: dict[str, EntityId],
+    scene_path: Path,
+) -> Door | None:
+    """取出口可选的门状态：``door`` 字段缺失返回 None（该出口无门）。"""
+    if not isinstance(exit_data, Mapping):
+        return None
+    raw_state = exit_data.get("door")
+    if raw_state is None:
+        return None
+    state = _door_state(raw_state, room_key, direction, scene_path)
+    key_item_id = _door_key_item_id(exit_data.get("key"), room_key, direction, item_ids, scene_path)
+    return Door(state=state, key_item_id=key_item_id)
+
+
+def _door_state(raw_state: object, room_key: str, direction: object, scene_path: Path) -> DoorState:
+    """把 ``door`` 字段值映射成 DoorState；非法值抛定位明确的 SceneLoadError。"""
+    try:
+        return DoorState(str(raw_state).lower())
+    except ValueError:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+            f"的 'door' 应是 open/closed/locked，实际是 {raw_state!r}"
+        ) from None
+
+
+def _door_key_item_id(
+    raw_key: object,
+    room_key: str,
+    direction: object,
+    item_ids: dict[str, EntityId],
+    scene_path: Path,
+) -> EntityId | None:
+    """把门锁的 ``key`` 物品引用解析成 entity id；引用未定义物品时报错。"""
+    if raw_key is None:
+        return None
+    key = str(raw_key)
+    if key not in item_ids:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+            f"的 'key' 引用未定义的物品 '{key}'"
+        )
+    return item_ids[key]
+
+
 def _build_items(
     world: World,
     items: Mapping,
     room_ids: dict[str, EntityId],
     scene_path: Path,
-) -> None:
-    """建物品实体（Identity+Description）并放进 placed_in 房间的地面容器。"""
+) -> dict[str, EntityId]:
+    """建物品实体（Identity+Description）并放进 placed_in 房间的地面容器。
+
+    返回 item key -> entity id 映射，供出口的 ``door.key`` 引用钥匙物品（04 号票）。
+    """
+    item_ids: dict[str, EntityId] = {}
     for item_key, raw in items.items():
         data = _as_mapping(raw, label=f"物品 '{item_key}'", scene_path=scene_path)
         placed_in = data.get("placed_in")
@@ -190,6 +267,8 @@ def _build_items(
         )
         container = world.require_component(room_ids[str(placed_in)], Container)
         container.items.add(item)
+        item_ids[str(item_key)] = item
+    return item_ids
 
 
 def _build_npcs(

@@ -4,16 +4,17 @@
 # 目标是"非工程师也能改场景数据、跑通闭环优先"，不是 M3 要交给创作者的正式 UGC
 # DSL--M3 可能整体替换这份格式，本文件不追求向后兼容或完整校验。
 #
-# 覆盖范围：房间 / 物品 / 静态展示型 NPC。门与锁状态（04 号票）尚未完成，留待
-# 04 落地后作为后续小补丁纳入，本文件暂不表达。
+# 覆盖范围：房间 / 物品 / 静态展示型 NPC / 门与锁状态（04 号票）。
 
 # ── 房间 ──────────────────────────────────────────────
 # 每个 key 是场景图内部引用键（出口、物品摆放、NPC 所在都用它指代房间）。
 # name  -> Identity.name（玩家指代与展示用，必需）
 # short -> Description.short（可选，缺省取 name）
 # long  -> Description.long（详细描述，可选）
-# exits -> 方向 -> { to: 目标房间键, aliases: [方向别名...] }
+# exits -> 方向 -> { to: 目标房间键, aliases: [方向别名...], door: open|closed|locked, key: 钥匙物品键 }
 #          两个方向都显式声明（不做反向自动补全），单向出口（如掉进去的坑）也合法。
+#          door/key（04 号票）：door 指定该出口的门状态，locked 时 key 引用 items
+#          段的物品键作为解锁钥匙；不写 door 表示该出口无门、自由通行。
 rooms:
   start_yard:
     name: 起始庭院
@@ -22,19 +23,31 @@ rooms:
       north:
         to: corridor
         aliases: [北道]
+      south:
+        to: storage_room
+        door: closed
   corridor:
     name: 长廊
     long: 一条连接南北两侧的长廊，两侧墙壁空无一物。
     exits:
       south: { to: start_yard }
-      north: { to: quiet_room }
+      north:
+        to: quiet_room
+        door: locked
+        key: iron_key
   quiet_room:
     name: 静室
     long: 一间安静的房间，位于长廊的尽头。
+  storage_room:
+    name: 储藏室
+    long: 一间堆放杂物的小储藏室，光线昏暗。
+    exits:
+      north: { to: start_yard }
 
 # ── 物品 ──────────────────────────────────────────────
 # name/aliases -> Identity；short/long -> Description。
 # placed_in -> 初始摆放在哪个房间的地面容器里（必需）。
+# iron_key 是 corridor 北门（locked）的钥匙（04 号票 door.key 引用本物品键）。
 items:
   stone:
     name: 石头
@@ -42,6 +55,12 @@ items:
     short: 一块灰扑扑的石头
     long: 一块毫不起眼的石头，沉甸甸的，表面粗糙。
     placed_in: start_yard
+  iron_key:
+    name: 铁钥匙
+    aliases: [钥匙]
+    short: 一把铁钥匙
+    long: 一把锈迹斑斑的铁钥匙，齿纹独特。
+    placed_in: corridor
 
 # ── 静态展示型 NPC ────────────────────────────────────
 # 只用 Identity + Description + Position 三个已有组件表达"站在某个房间里、

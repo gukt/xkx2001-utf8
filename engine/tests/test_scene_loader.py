@@ -10,7 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Container, Description, Exits, Identity, Position
+from mud_engine.components import (
+    Container,
+    Description,
+    Doors,
+    DoorState,
+    Exits,
+    Identity,
+    Position,
+)
 from mud_engine.parsing import execute_line
 from mud_engine.scene_loader import SceneLoadError, load_scene
 from mud_engine.scenes import build_world
@@ -105,6 +113,95 @@ class TestStaticDisplayNpc:
         world, player_id = build_world()
         messages = execute_line(world, player_id, "take 石像守卫")
         assert any("这里没有" in m for m in messages)
+
+
+class TestDoorsInScene:
+    """04 号票：门/锁状态从 YAML 加载到独立的 Doors 组件（door/key 字段）。"""
+
+    def test_closed_door_state_is_loaded(self) -> None:
+        world, player_id = build_world()
+        start_room = world.require_component(player_id, Position).room
+        doors = world.require_component(start_room, Doors)
+        assert doors.by_direction["south"].state is DoorState.CLOSED
+        assert doors.by_direction["south"].key_item_id is None
+
+    def test_locked_door_state_binds_the_key_item_entity(self) -> None:
+        world, player_id = build_world()
+        start_room = world.require_component(player_id, Position).room
+        corridor = world.require_component(start_room, Exits).by_direction["north"].target
+        doors = world.require_component(corridor, Doors)
+        door = doors.by_direction["north"]
+        assert door.state is DoorState.LOCKED
+        assert door.key_item_id is not None
+        assert world.require_component(door.key_item_id, Identity).name == "铁钥匙"
+
+    def test_room_without_doors_has_no_doors_component(self) -> None:
+        world, player_id = build_world()
+        start_room = world.require_component(player_id, Position).room
+        corridor = world.require_component(start_room, Exits).by_direction["north"].target
+        quiet_room = world.require_component(corridor, Exits).by_direction["north"].target
+        assert not world.has_component(quiet_room, Doors)
+
+    def test_door_field_is_optional(self, tmp_path: Path) -> None:
+        # 不写 door 字段的出口 = 无门、自由通行，房间不挂 Doors 组件。
+        path = _write_scene(tmp_path, _MINIMAL_SCENE)
+        world, player_id = load_scene(path)
+        start_room = world.require_component(player_id, Position).room
+        assert not world.has_component(start_room, Doors)
+
+    def test_dangling_door_key_mentions_room_and_item(self, tmp_path: Path) -> None:
+        scene = """
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    exits:
+      north:
+        to: corridor
+        door: locked
+        key: missing_key
+  corridor:
+    name: 长廊
+    long: 长廊
+    exits:
+      south: { to: start_yard }
+player:
+  name: 你
+  start_room: start_yard
+"""
+        path = _write_scene(tmp_path, scene)
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "start_yard" in msg
+        assert "missing_key" in msg
+
+    def test_invalid_door_state_value_raises_with_location(self, tmp_path: Path) -> None:
+        scene = """
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    exits:
+      north:
+        to: corridor
+        door: ajar
+  corridor:
+    name: 长廊
+    long: 长廊
+    exits:
+      south: { to: start_yard }
+player:
+  name: 你
+  start_room: start_yard
+"""
+        path = _write_scene(tmp_path, scene)
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "start_yard" in msg
+        assert "ajar" in msg
+        assert "north" in msg
 
 
 class TestSceneLoadErrors:

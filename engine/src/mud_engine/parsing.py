@@ -8,7 +8,9 @@
 
 所有目标别名匹配（go 的方向、take/drop 的物品）都在解析阶段用 ``match_target``
 完成，``Intent.target`` 装已解析的规范名；执行层不感知原始文本或别名（03 号票
-延续 02 的分层：commands 不依赖 matching，目标解析统一在 parsing 层）。
+延续 02 的分层：commands 不依赖 matching，目标解析统一在 parsing 层）。04 号票
+的 open/close/knock/unlock 门命令复用 go 的方向解析（同一批方向候选 + 同一个
+``match_target``），门名即方向名，不另起一套目标匹配。
 
 ``execute_line`` 是 CLI 的入口：拿一行原始文本 -> 解析 -> 执行 -> 返回消息。
 解析失败时把 ``ParseFailure`` 翻译成给玩家的提示，不抛异常。
@@ -32,6 +34,10 @@ DIRECTION_SHORTCUTS: dict[str, str] = {
     "e": "east",
     "w": "west",
 }
+
+# 门命令（04 号票）：方向目标解析与 go 共用 _parse_direction，只是动词不同。
+# 门名即出口方向名，候选同 go（当前房间 Exits.by_direction），不另起一套匹配。
+DOOR_VERBS: frozenset[str] = frozenset({"open", "close", "knock", "unlock"})
 
 
 class Parser:
@@ -68,7 +74,9 @@ class DeterministicParser(Parser):
             return ParseFailure(Reason.UNKNOWN_VERB, original=head)
 
         if verb == "go":
-            return self._parse_go(rest, world, player_id)
+            return self._parse_direction(rest, world, player_id, verb="go")
+        if verb in DOOR_VERBS:
+            return self._parse_direction(rest, world, player_id, verb=verb)
         if verb == "take":
             return self._parse_item(rest, world, player_id, verb="take", source="room")
         if verb == "drop":
@@ -76,27 +84,30 @@ class DeterministicParser(Parser):
         # look / help / inventory / quit 无目标参数；多余参数本阶段忽略（M1 不校验）。
         return Intent(verb=verb, target=None, args=tuple(rest))
 
-    def _parse_go(
-        self, args: list[str], world: World, player_id: EntityId
+    def _parse_direction(
+        self, args: list[str], world: World, player_id: EntityId, *, verb: str
     ) -> Intent | ParseFailure:
+        """go 与门命令共用的方向目标解析：方向候选 + match_target（04 号票复用）。
+
+        缺方向参数：算可执行意图但 target 缺失，由执行层给用法提示（保持 01 号票
+        "go"无参的提示行为，不归为解析失败）。
+        """
         if not args:
-            # 缺方向参数：算可执行意图但 target 缺失，由执行层给用法提示
-            # （保持 01 号票"go"无参的提示行为，不归为解析失败）。
-            return Intent(verb="go", target=None)
+            return Intent(verb=verb, target=None)
 
         token = args[0]
         candidates = self._direction_candidates(world, player_id)
         result = match_target(token, candidates)
         if isinstance(result, Resolved):
-            return Intent(verb="go", target=result.canonical)
+            return Intent(verb=verb, target=result.canonical)
         if isinstance(result, Ambiguous):
             return ParseFailure(
                 Reason.AMBIGUOUS_TARGET,
                 original=token,
-                verb="go",
+                verb=verb,
                 candidates=result.canonicals,
             )
-        return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb="go")
+        return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb=verb)
 
     def _parse_item(
         self,
@@ -195,7 +206,7 @@ def _failure_message(failure: ParseFailure) -> list[str]:
         return [f"这里没有 {failure.original}。"]
     if failure.verb == "drop":
         return [f"你没有 {failure.original}。"]
-    return [f"那个方向（{failure.original}）没有出口。"]  # go / 默认
+    return [f"那个方向（{failure.original}）没有出口。"]  # go / 门命令 / 默认
 
 
 __all__ = ["DeterministicParser", "Parser", "ParserChain", "execute_line"]
