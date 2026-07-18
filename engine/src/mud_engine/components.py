@@ -2,13 +2,22 @@
 
 拆分依据是"能否被多种实体类型复用"，不是字段数量（见 M1 spec「对象模型」）：
 
-- ``Identity``、``Description`` 是房间与（未来）物品/NPC 等一切"需要被玩家
-  用名字指代/展示描述"的实体通用组件。
+- ``Identity``、``Description`` 是房间与物品/NPC 等一切"需要被玩家用名字指代/
+  展示描述"的实体通用组件。``Identity`` 自带 ``aliases``（03 号票起按需扩展：
+  物品/NPC 名称别名匹配走 ``matching.match_target``，规范名与别名同权）。
 - ``Position`` 是"存在于某个房间里"的实体（玩家等）通用组件。
 - ``Exits`` 只有房间会用到，但独立成组件，为"一个地点通向哪些其他地点"这条
-  能力未来被其他实体（如载具内部空间）复用留空间；出口表在运行时可增删。
+  能力未来被其他实体（如载具内部空间）复用留空间；出口表在运行时可增删
+  （04 号票验证），每个出口还能携带方向别名（``Exit.aliases``，02 号票）。
+- ``Container`` 是"持有一堆物品"的通用能力--房间地面与玩家物品栏本质同一种
+  能力，用同一种组件各挂一份，不做成两个专属命名的同构组件（03 号票，spec
+  「对象模型」"通用能力提炼成独立组件"），顺带给未来的箱子/背包留复用。
 
-别名（命令/目标的别名匹配）留给 02 号票，本票 ``Identity`` 暂不含别名字段。
+出口方向别名（``Exit.aliases``，方向维度）与实体指代别名（``Identity.aliases``，
+指代维度）是两个不同维度的别名，各放各的组件。
+
+字段注释面向未来 UGC 创作层的 Agent：它需要从组件字段读懂语义才能生成正确
+的场景 DSL，所以每个字段都标了"是什么 + 例子"，并说明运行时可变 vs 启动固定。
 """
 
 from __future__ import annotations
@@ -20,28 +29,73 @@ from mud_engine.world import EntityId
 
 @dataclass
 class Identity:
-    """给一个实体一个名字，供玩家用名字指代、CLI 用名字展示。"""
+    """给一个实体一个名字（+可选别名），供玩家用名字/别名指代、CLI 用名字展示。
 
-    name: str
+    挂在一切"需要被玩家用名字指代"的实体上：房间、物品、（未来）NPC。
+    """
+
+    name: str  # 规范名，玩家指代与展示用，如"石头"/"起始庭院"
+    aliases: tuple[str, ...] = ()  # 规范名的替代指代，匹配时与 name 同权，如 ("石","顽石")
 
 
 @dataclass
 class Description:
-    """展示文本：一句简述 + 一段详细描述，房间与（未来）物品共用同一形状。"""
+    """展示文本：一句简述 + 一段详细描述，房间与物品共用同一形状。
 
-    short: str
-    long: str
+    挂在房间与物品上（未来 NPC 也复用）；M1 的命令只展示房间的 short/long 与
+    物品的 name，物品的 short/long 留给未来 examine 命令消费。
+    """
+
+    short: str  # 一句简述，look 时第一行展示，如"一块灰扑扑的石头"
+    long: str  # 详细描述，look 时第二行展示，如"一块毫不起眼的石头，沉甸甸的……"
 
 
 @dataclass
 class Position:
-    """一个实体当前所在的房间。"""
+    """一个实体当前所在的房间。
 
-    room: EntityId
+    挂在"存在于某个房间里"的实体上（玩家等）；物品不挂它（物品被 Container
+    持有，位置隐含在哪个容器里）。
+    """
+
+    room: EntityId  # 所在房间的 entity id
+
+
+@dataclass(frozen=True)
+class Exit:
+    """一条出口：目标房间 id + 可选的方向别名（如"北道"/"前门"）。
+
+    别名参与 ``matching.match_target`` 的方向匹配，让玩家不必输入完全规范的
+    方向名。target 与 aliases 是同一个"通往哪里"概念的自然组成部分，留在一起
+    不强行拆（见 spec「对象模型」拆分标准）。
+    """
+
+    target: EntityId  # 出口指向的目标房间 entity id
+    aliases: tuple[str, ...] = ()  # 方向别名，如 ("北道","前门")，匹配时与规范方向名同权
 
 
 @dataclass
 class Exits:
-    """方向 -> 目标房间 id 的映射。运行时可增删条目（04 号票会验证这一点）。"""
+    """方向 -> 出口。运行时可增删条目（04 号票会验证这一点）。
 
-    by_direction: dict[str, EntityId] = field(default_factory=dict)
+    只挂在房间上（"一个地点通向哪些其他地点"），但独立成组件为未来载具内部
+    空间等实体复用留空间。某个出口暂时不存在时，直接不在 by_direction 里即可。
+    """
+
+    by_direction: dict[str, Exit] = field(
+        default_factory=dict
+    )  # 方向名 -> 出口；方向名如"north"/"east"，运行时可增删
+
+
+@dataclass
+class Container:
+    """一个实体持有的一堆物品（entity id 集合）。
+
+    房间地面与玩家物品栏都是这个组件的一个实例--同一个"持有一堆物品"的通用
+    能力，不是两个专属命名的同构组件（03 号票）。未来箱子/背包等容器类物品
+    直接复用同一组件即可。
+    """
+
+    items: set[EntityId] = field(
+        default_factory=set
+    )  # 持有的物品 entity id 集合；房间地面/玩家物品栏/未来箱子各挂一份

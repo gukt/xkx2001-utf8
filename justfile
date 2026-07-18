@@ -71,6 +71,12 @@ gate: lint test
 # 快速门禁：lint + test-quick
 gate-quick: lint test-quick
 
+# ── 运行 ────────────────────────────────────────────────
+
+# 启动 M1 demo：真实终端 CLI（python -m mud_engine）
+run:
+    cd engine && uv run python -m mud_engine
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

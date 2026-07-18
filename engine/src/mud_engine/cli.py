@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from typing import TextIO
 
-from mud_engine.commands import execute_line
+from mud_engine.parsing import execute_line
 from mud_engine.world import EntityId, World
 
 PROMPT = "> "
@@ -18,7 +18,7 @@ PROMPT = "> "
 
 def run_repl(
     world: World,
-    player: EntityId,
+    player_id: EntityId,
     input_stream: TextIO = sys.stdin,
     output_stream: TextIO = sys.stdout,
 ) -> None:
@@ -27,14 +27,14 @@ def run_repl(
     退出条件二选一：命令处理函数把 ``world.should_quit`` 置为真（如 `quit`），
     或输入流到达 EOF（如管道关闭、Ctrl+D）——EOF 不算异常退出，只是安静结束循环。
     """
-    _print_messages(execute_line(world, player, "look"), output_stream)
+    _print_messages(execute_line(world, player_id, "look"), output_stream)
 
     while not world.should_quit:
         output_stream.write(PROMPT)
         line = input_stream.readline()
         if line == "":  # EOF：真实终端里对应 Ctrl+D / 输入流关闭
             break
-        messages = execute_line(world, player, line)
+        messages = execute_line(world, player_id, line)
         _print_messages(messages, output_stream)
 
 

@@ -6,8 +6,8 @@ from mud_engine.scenes import build_world
 
 def main() -> None:
     """构造 M1 空场景，启动真实终端的 CLI 主循环。"""
-    world, player = build_world()
-    run_repl(world, player)
+    world, player_id = build_world()
+    run_repl(world, player_id)
 
 
 if __name__ == "__main__":

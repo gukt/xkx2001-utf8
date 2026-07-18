@@ -17,37 +17,43 @@ class TestRunRepl:
     def test_shows_the_starting_rooms_look_output_before_reading_any_input(self) -> None:
         # 与"玩家输入了什么"无关——不管接下来输入什么，循环启动时都先看一次
         # 当前房间，所以不归在任何 When 分支下。
-        world, player = build_world()
+        world, player_id = build_world()
         output_stream = io.StringIO()
-        run_repl(world, player, input_stream=io.StringIO("quit\n"), output_stream=output_stream)
+        run_repl(world, player_id, input_stream=io.StringIO("quit\n"), output_stream=output_stream)
         assert "起始庭院" in output_stream.getvalue()
 
     class WhenPlayerTypesQuit:
         def test_prints_the_quit_message(self) -> None:
-            world, player = build_world()
+            world, player_id = build_world()
             output_stream = io.StringIO()
-            run_repl(world, player, input_stream=io.StringIO("quit\n"), output_stream=output_stream)
+            run_repl(
+                world, player_id, input_stream=io.StringIO("quit\n"), output_stream=output_stream
+            )
             assert "再见" in output_stream.getvalue()
 
         def test_sets_should_quit_on_the_world(self) -> None:
-            world, player = build_world()
-            run_repl(world, player, input_stream=io.StringIO("quit\n"), output_stream=io.StringIO())
+            world, player_id = build_world()
+            run_repl(
+                world, player_id, input_stream=io.StringIO("quit\n"), output_stream=io.StringIO()
+            )
             assert world.should_quit is True
 
     class WhenInputStreamReachesEofWithoutQuit:
         def test_stops_the_loop_without_raising(self) -> None:
-            world, player = build_world()
+            world, player_id = build_world()
             output_stream = io.StringIO()
-            run_repl(world, player, input_stream=io.StringIO("look\n"), output_stream=output_stream)
+            run_repl(
+                world, player_id, input_stream=io.StringIO("look\n"), output_stream=output_stream
+            )
             assert "起始庭院" in output_stream.getvalue()
 
     class WhenPlayerTypesAnUnknownCommand:
         def test_reports_it_and_keeps_the_loop_going(self) -> None:
-            world, player = build_world()
+            world, player_id = build_world()
             output_stream = io.StringIO()
             run_repl(
                 world,
-                player,
+                player_id,
                 input_stream=io.StringIO("fly\nquit\n"),
                 output_stream=output_stream,
             )
