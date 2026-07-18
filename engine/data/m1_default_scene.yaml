@@ -1,0 +1,62 @@
+# M1 默认空场景--题材无关的最小房间图，仅用于验证引擎骨架。
+#
+# 这是 M1 内部过渡格式（见 M1 spec「场景数据与引擎能力的边界」2026-07-18 修订）：
+# 目标是"非工程师也能改场景数据、跑通闭环优先"，不是 M3 要交给创作者的正式 UGC
+# DSL--M3 可能整体替换这份格式，本文件不追求向后兼容或完整校验。
+#
+# 覆盖范围：房间 / 物品 / 静态展示型 NPC。门与锁状态（04 号票）尚未完成，留待
+# 04 落地后作为后续小补丁纳入，本文件暂不表达。
+
+# ── 房间 ──────────────────────────────────────────────
+# 每个 key 是场景图内部引用键（出口、物品摆放、NPC 所在都用它指代房间）。
+# name  -> Identity.name（玩家指代与展示用，必需）
+# short -> Description.short（可选，缺省取 name）
+# long  -> Description.long（详细描述，可选）
+# exits -> 方向 -> { to: 目标房间键, aliases: [方向别名...] }
+#          两个方向都显式声明（不做反向自动补全），单向出口（如掉进去的坑）也合法。
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 一片空荡荡的庭院，只搭了最基本的骨架，等待后续题材内容填充。
+    exits:
+      north:
+        to: corridor
+        aliases: [北道]
+  corridor:
+    name: 长廊
+    long: 一条连接南北两侧的长廊，两侧墙壁空无一物。
+    exits:
+      south: { to: start_yard }
+      north: { to: quiet_room }
+  quiet_room:
+    name: 静室
+    long: 一间安静的房间，位于长廊的尽头。
+
+# ── 物品 ──────────────────────────────────────────────
+# name/aliases -> Identity；short/long -> Description。
+# placed_in -> 初始摆放在哪个房间的地面容器里（必需）。
+items:
+  stone:
+    name: 石头
+    aliases: [石]
+    short: 一块灰扑扑的石头
+    long: 一块毫不起眼的石头，沉甸甸的，表面粗糙。
+    placed_in: start_yard
+
+# ── 静态展示型 NPC ────────────────────────────────────
+# 只用 Identity + Description + Position 三个已有组件表达"站在某个房间里、
+# 有名字有描述"的实体，无任何行为（不能对话/战斗/移动/被专门命令处理）。
+# in_room -> 所在房间键（必需）。NPC 不进房间的 Container，故不能被 take。
+npcs:
+  stone_guard:
+    name: 石像守卫
+    short: 一尊石像守卫
+    long: 一尊沉默的石像守卫，矗立在庭院一角，纹丝不动。
+    in_room: start_yard
+
+# ── 玩家初始状态 ──────────────────────────────────────
+# name       -> Identity.name
+# start_room -> 初始所在房间键（必需）
+player:
+  name: 你
+  start_room: start_yard

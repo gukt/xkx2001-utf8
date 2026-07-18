@@ -91,9 +91,27 @@ def _sorted_item_names(world: World, container: Container) -> list[str]:
     return sorted(world.require_component(item, Identity).name for item in container.items)
 
 
+def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId) -> list[str]:
+    """同房间内静态展示型 NPC 的规范名，按名排序（look 在场展示用）。
+
+    NPC 用 ``Position`` 表达"在房间里"，不进房间的 ``Container``（否则会被
+    take）；玩家也持有 Position，故排除玩家本人。物品无 Position，不会被收进。
+    """
+    names: list[str] = []
+    for entity in world.entities_with(Position):
+        if entity == player_id:
+            continue
+        if world.require_component(entity, Position).room != room:
+            continue
+        identity = world.get_component(entity, Identity)
+        if identity is not None:
+            names.append(identity.name)
+    return sorted(names)
+
+
 @register("look", aliases=("l",))
 def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """展示玩家当前房间的简述、详细描述、地面物品与出口列表。"""
+    """展示玩家当前房间的简述、详细描述、地面物品、在场 NPC 与出口列表。"""
     room = _player_room(world, player_id)
     description = world.require_component(room, Description)
     exits = world.require_component(room, Exits)
@@ -103,6 +121,9 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if container and container.items:
         names = _sorted_item_names(world, container)
         lines.append("这里有：" + "、".join(names))
+    npc_names = _sorted_npc_names_in_room(world, room, player_id)
+    if npc_names:
+        lines.append("你看到：" + "、".join(npc_names))
     if exits.by_direction:
         lines.append("出口：" + "、".join(sorted(exits.by_direction)))
     else:
