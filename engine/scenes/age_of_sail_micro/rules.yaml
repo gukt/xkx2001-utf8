@@ -1,9 +1,0 @@
-- id: dock_qualification_gate
-  event: valid_leave
-  condition:
-    kind: attr_lt
-    attr: int
-    value: 12
-  action: deny
-  priority: 0
-  message: 船长上下打量你一番：这点机灵劲儿，怕是上不得船。

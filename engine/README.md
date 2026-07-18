@@ -1,27 +1,27 @@
-# xkx - 侠客行 MUD 现代化重构引擎
+# xkx — 题材无关的核心 MUD 引擎
 
-greenfield Python 重写《侠客行》LPC MUD。LPC 是规格源（只读参考，在仓库根目录的 `adm/ cmds/ d/ kungfu/ ...`），本引擎从零按规格实现，行为等价验证。
+Greenfield Python 引擎。路径固定为仓库根下的 `engine/`。
 
-**当前阶段**：阶段 -1 垂直切片平台验证（2-3 月，★ 最高优先级）。详见 [../PROGRESS.md](../PROGRESS.md) 与 [架构文档](../docs/xkx-arch/README.md)。
+旧实现（约 45k 行，服务于「全量复刻侠客行 + 行为等价验证」）已从工作区移除，冻结于 git tag
+`archive/engine-pre-m1-rewrite`。查阅：`git show archive/engine-pre-m1-rewrite:engine/src/xkx/...`。
+禁止 import、禁止当重写起点。见 [ADR-0002](../docs/adr/0002-engine-workspace-greenfield-reset.md)。
+
+**当前阶段**：M1 核心引擎骨架（空场景 + 命令-移动-存档最小闭环）。见
+[M1 spec](../.scratch/m1-core-engine-skeleton/spec.md) 与根目录 [PROGRESS.md](../PROGRESS.md)。
 
 ## 开发
 
+优先用仓库根的 `just`（自带 `cd engine && uv run`）：
+
 ```bash
-# 安装 dev 依赖
-pip install -e ".[dev]"
-
-# 跑测试
-pytest
-
-# lint / format
-ruff check .
-ruff format .
+just install   # uv sync --all-extras
+just test
+just lint
+just gate      # lint + test
 ```
 
 ## 布局
 
-- `src/xkx/`：引擎源码
+- `src/xkx/`：引擎源码（绿场，从零写）
 - `tests/`：测试（pytest + hypothesis）
-- [../docs/adr/](../docs/adr/)：实现期决策日志（ADR，仓库级）
-
-> 阶段 -1 遵循"收敛优先"，子目录（combat/dsl/ecs 等）按第一个垂直切片规划后按需建立，不预先铺开。
+- `prototypes/`：throwaway 设计原型（不进正式包路径，可随时删）

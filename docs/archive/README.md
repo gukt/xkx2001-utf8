@@ -22,4 +22,12 @@
 
 以上文档之间大量互相引用（如 ADR 引用 strategy-review、strategy-review 引用 progress-archive），链接路径都是归档前的相对路径（`docs/adr/...`、`docs/xkx-arch/...`），归档后**未逐条修复**——这批文档已冻结，批量修复几百条链接的成本不划算。找不到目标时，去掉链接里的 `docs/archive/` 之外的路径前缀，在本目录下用文件名搜索即可定位。
 
-同理，`engine/` 源码里一些注释/docstring 引用了旧的 `docs/adr/ADR-NNNN.md` 路径（仅文档链接，非运行时依赖，不影响代码运行）——同样未批量修复。
+同理，旧 `engine/` 源码里一些注释/docstring 引用了旧的 `docs/adr/ADR-NNNN.md` 路径（仅文档链接，非运行时依赖）——同样未批量修复。
+
+## 旧引擎源码在哪
+
+工作区 `engine/` 已于 M1 第 0 步绿场清空（[ADR-0002](../adr/0002-engine-workspace-greenfield-reset.md)）。约 45k 行旧实现**不在本 archive 目录**，而在 git tag：
+
+```bash
+git show archive/engine-pre-m1-rewrite:engine/src/xkx/runtime/ecs.py
+```

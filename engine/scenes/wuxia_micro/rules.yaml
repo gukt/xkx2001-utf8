@@ -1,8 +1,0 @@
-- id: street_age_gate
-  event: valid_leave
-  condition:
-    kind: age_lt
-    value: 18
-  action: deny
-  priority: 0
-  message: 小毛孩子往这儿瞎凑合什么?!

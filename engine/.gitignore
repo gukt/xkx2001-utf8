@@ -17,21 +17,12 @@ venv/
 .coverage
 htmlcov/
 
-# JSON 存档（内存+JSON 阶段的本地存档目录，原子写临时文件不入库）
+# JSON 存档（内存 + JSON 阶段的本地存档目录，原子写临时文件不入库）
 saves/
 *.json.bak
 *.json.tmp
 
-# 密钥 / 环境配置（ADR-0036：ARK_API_KEY 等只准入 .env，绝不入库）
+# 密钥 / 环境配置（只准入 .env，绝不入库）
 .env
 .env.*
 !.env.example
-
-# content_gen LLM 生成输出（v0 草稿 + measure 对照，不入库）
-tools/content_gen/output/
-
-# sampling 调用点枚举输出（阶段 0 任务 6，可复现产物，不入库）
-tools/sampling/output/
-
-# content_review 预检报告（运行时产物，每次预检覆盖，不入库）
-**/_review.json

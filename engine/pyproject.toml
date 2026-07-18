@@ -1,28 +1,18 @@
 [project]
 name = "xkx"
-version = "0.0.0"
-description = "侠客行 MUD 现代化重构 - greenfield Python 引擎（阶段 -1 垂直切片）"
+version = "0.1.0"
+description = "题材无关的核心 MUD 引擎（M1 绿场重写）"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "TBD" }
 authors = [{ name = "gukt" }]
-dependencies = [
-    "pydantic>=2",
-    "pyyaml>=6",
-    "argon2-cffi>=21",
-    "websockets>=12",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "hypothesis>=6",
     "ruff>=0.6",
-    "httpx>=0.27",  # workbench / FastAPI TestClient 测试用
-]
-workbench = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
 ]
 
 [build-system]
@@ -47,6 +37,3 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["xkx"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/xkx/spec/layer_*.py" = ["E501"]
