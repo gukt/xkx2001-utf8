@@ -121,3 +121,65 @@ class TestEntitiesWith:
             world = World()
             world.create_entity()
             assert list(world.entities_with(Health)) == []
+
+
+# ── 05 号票：存档/恢复需要的 World 能力 ─────────────────
+# restore 要按存档里记录的 entity id 重建实体（stable id，让出口/门/容器引用
+# 直接生效，无需 remap）；serialize 要能遍历全部实体与每个实体的全部组件。
+
+
+class TestCreateEntityWithId:
+    """restore 路径：用存档记录的 id 重建实体，保持引用图稳定。"""
+
+    class WhenTheIdIsFree:
+        def test_creates_an_entity_with_that_exact_id(self) -> None:
+            world = World()
+            assert world.create_entity_with_id(42) == 42
+
+        def test_advances_the_counter_past_it(self) -> None:
+            # 之后普通 create_entity 不会复用这个 id。
+            world = World()
+            world.create_entity_with_id(42)
+            assert world.create_entity() == 43
+
+    class WhenTheIdIsAlreadyTaken:
+        def test_raises_a_clear_error(self) -> None:
+            world = World()
+            world.create_entity_with_id(7)
+            with pytest.raises(ValueError):
+                world.create_entity_with_id(7)
+
+
+class TestAllEntities:
+    def test_iterates_every_entity_ever_created(self) -> None:
+        world = World()
+        a = world.create_entity()
+        b = world.create_entity()
+        c = world.create_entity_with_id(100)
+        assert set(world.all_entities()) == {a, b, c}
+
+
+class TestComponentsOf:
+    """serialize 用：拿到某实体挂载的全部 (类型, 组件) 对。"""
+
+    def test_returns_each_component_paired_with_its_type(self) -> None:
+        world = World()
+        e = world.create_entity()
+        world.add_component(e, Name("甲"))
+        world.add_component(e, Health(5))
+        pairs = dict(world.components_of(e))
+        assert pairs[Name] == Name("甲")
+        assert pairs[Health] == Health(5)
+
+    def test_returns_empty_for_an_entity_with_no_components(self) -> None:
+        world = World()
+        e = world.create_entity()
+        assert list(world.components_of(e)) == []
+
+    def test_does_not_include_components_of_other_entities(self) -> None:
+        world = World()
+        a = world.create_entity()
+        b = world.create_entity()
+        world.add_component(a, Name("甲"))
+        world.add_component(b, Name("乙"))
+        assert dict(world.components_of(b)) == {Name: Name("乙")}

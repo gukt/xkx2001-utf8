@@ -17,7 +17,8 @@ venv/
 .coverage
 htmlcov/
 
-# JSON 存档（内存 + JSON 阶段的本地存档目录，原子写临时文件不入库）
+# 存档目录（05 号票：engine/save/ 为新引擎运行时存档；旧引擎用 saves/，均不入库）
+save/
 saves/
 *.json.bak
 *.json.tmp

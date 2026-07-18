@@ -1,14 +1,15 @@
 """最小 ECS 风格的世界状态容器：entity 只是一个不透明 id，组件数据按类型分散存储。
 
-只提供 M1 骨架需要的六种操作：新建实体 / 挂载组件 / 读取某类型组件 /
+提供 M1 骨架需要的核心操作：新建实体 / 挂载组件 / 读取某类型组件 /
 判断是否有某类型组件 / 移除组件 / 查询同时拥有多个指定组件类型的实体集合。
+05 号票另加按指定 id 重建实体（``create_entity_with_id``）、遍历全部实体
+（``all_entities``）与某实体的全部组件（``components_of``），供存档序列化与恢复使用。
 内部存储实现从零编写（参考 engine/prototypes/ecs_ugc/ 与旧引擎的形状，不搬迁代码）。
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
-from itertools import count
 from typing import TypeVar
 
 EntityId = int
@@ -25,7 +26,9 @@ class World:
 
     def __init__(self) -> None:
         """初始化一个空世界：没有实体、没有组件、未请求退出。"""
-        self._next_id = count(1)
+        # int 计数器（而非 itertools.count）：05 号票的 restore 路径需要把
+        # 计数器推过存档里已有的最大 id，用 int 才能任意 bump。
+        self._next_id = 1
         self._entities: set[EntityId] = set()
         self._components: dict[type, dict[EntityId, object]] = {}
         # 全局引擎态（不属于任何单个 entity，因此不建成组件）：命令处理函数
@@ -34,9 +37,25 @@ class World:
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""
-        entity = next(self._next_id)
+        entity = self._next_id
+        self._next_id += 1
         self._entities.add(entity)
         return entity
+
+    def create_entity_with_id(self, entity_id: EntityId) -> EntityId:
+        """用调用方指定的 id 重建实体（存档恢复路径，05 号票）。
+
+        restore 时按存档里记录的 entity id 重建，使出口/门/容器对 entity id
+        的引用在恢复后直接生效（stable id，无需 remap 翻译）。id 已存在时抛
+        ValueError（restore 容错层负责把它当作"单条目损坏"跳过记警告）；
+        同时把计数器推过该 id，之后普通 ``create_entity`` 不会与之冲突。
+        """
+        if entity_id in self._entities:
+            raise ValueError(f"entity id {entity_id} 已存在")
+        self._entities.add(entity_id)
+        if entity_id >= self._next_id:
+            self._next_id = entity_id + 1
+        return entity_id
 
     def add_component(self, entity: EntityId, component: object) -> None:
         """给实体挂载一个组件；同类型组件已存在时直接覆盖。"""
@@ -78,3 +97,18 @@ class World:
             return iter(())
         matching_sets = [set(self._components.get(t, {})) for t in component_types]
         return iter(set.intersection(*matching_sets))
+
+    def all_entities(self) -> Iterable[EntityId]:
+        """遍历全部已建实体（05 号票 serialize 全量存档用）。"""
+        return iter(self._entities)
+
+    def components_of(self, entity: EntityId) -> Iterable[tuple[type, object]]:
+        """遍历某实体挂载的全部 (组件类型, 组件实例) 对（05 号票 serialize 用）。
+
+        组件存储按类型索引（``dict[type, dict[eid, object]]``），因此"某实体的
+        全部组件"要扫一遍类型表；M1 实体与组件数量都小，O(类型数) 可接受。
+        """
+        for component_type, by_entity in self._components.items():
+            component = by_entity.get(entity)
+            if component is not None:
+                yield (component_type, component)

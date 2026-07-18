@@ -10,7 +10,9 @@
 import io
 
 from mud_engine.cli import run_repl
+from mud_engine.save import has_save, restore_world, save_world
 from mud_engine.scenes import build_world
+from mud_engine.tick import TickLoop
 
 
 class TestRunRepl:
@@ -59,3 +61,49 @@ class TestRunRepl:
             )
             assert "未知命令" in output_stream.getvalue()
             assert world.should_quit is True
+
+
+class TestTickLoopIntegration:
+    """05 号票：CLI 接入 TickLoop -- 周期存档（验收 #1）与 quit 立即存档（验收 #2）。"""
+
+    def test_quit_triggers_an_immediate_save(self, tmp_path) -> None:
+        # 验收 #2：quit 无论当前 tick 是否到周期，退出前都立即存档。
+        # interval=100 确保周期不会触发，只有 quit 的 force_save 存档。
+        world, player_id = build_world()
+        tick_loop = TickLoop(lambda: save_world(world, player_id, tmp_path), interval=100)
+        run_repl(
+            world,
+            player_id,
+            tick_loop=tick_loop,
+            input_stream=io.StringIO("quit\n"),
+            output_stream=io.StringIO(),
+        )
+        assert has_save(tmp_path) is True
+        assert restore_world(tmp_path) is not None
+
+    def test_periodic_save_fires_when_interval_reached(self, tmp_path) -> None:
+        # 验收 #1 端到端：达到 tick 间隔后触发一次存档（在 quit 之前已发生）。
+        # interval=2 + "look\nlook\nquit\n"：tick 2（第 2 条 look 后）周期存档，
+        # 之后 quit -> force_save；save_count>=2 说明周期与 force 各触发一次。
+        world, player_id = build_world()
+        tick_loop = TickLoop(lambda: save_world(world, player_id, tmp_path), interval=2)
+        run_repl(
+            world,
+            player_id,
+            tick_loop=tick_loop,
+            input_stream=io.StringIO("look\nlook\nquit\n"),
+            output_stream=io.StringIO(),
+        )
+        assert tick_loop.save_count >= 2
+        assert has_save(tmp_path) is True
+
+    def test_no_tick_loop_means_no_save(self, tmp_path) -> None:
+        # 不传 tick_loop 保持 01~04 号票旧行为：不触发存档。
+        world, player_id = build_world()
+        run_repl(
+            world,
+            player_id,
+            input_stream=io.StringIO("quit\n"),
+            output_stream=io.StringIO(),
+        )
+        assert has_save(tmp_path) is False

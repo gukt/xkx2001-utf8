@@ -11,6 +11,7 @@ import sys
 from typing import TextIO
 
 from mud_engine.parsing import execute_line
+from mud_engine.tick import TickLoop
 from mud_engine.world import EntityId, World
 
 PROMPT = "> "
@@ -19,13 +20,19 @@ PROMPT = "> "
 def run_repl(
     world: World,
     player_id: EntityId,
+    *,
+    tick_loop: TickLoop | None = None,
     input_stream: TextIO = sys.stdin,
     output_stream: TextIO = sys.stdout,
 ) -> None:
     """读一行输入 -> 解析并调度 -> 打印返回消息 -> 继续读下一行，直到退出。
 
-    退出条件二选一：命令处理函数把 ``world.should_quit`` 置为真（如 `quit`），
-    或输入流到达 EOF（如管道关闭、Ctrl+D）——EOF 不算异常退出，只是安静结束循环。
+    退出条件二选一：命令处理函数把 ``world.should_quit`` 置为真（如 ``quit``），
+    或输入流到达 EOF（如管道关闭、Ctrl+D）--EOF 不算异常退出，只是安静结束循环。
+
+    05 号票：传入 ``tick_loop`` 后，每条命令推进一个 tick（到间隔触发周期存档，
+    验收 #1），循环退出前再 force_save 一次（``quit`` 无论是否到周期都立即存档，
+    验收 #2）。不传则不触发存档，保持 01~04 号票测试的旧行为。
     """
     _print_messages(execute_line(world, player_id, "look"), output_stream)
 
@@ -36,6 +43,11 @@ def run_repl(
             break
         messages = execute_line(world, player_id, line)
         _print_messages(messages, output_stream)
+        if tick_loop is not None:
+            tick_loop.advance()
+
+    if tick_loop is not None:
+        tick_loop.force_save()
 
 
 def _print_messages(messages: list[str], output_stream: TextIO) -> None:
