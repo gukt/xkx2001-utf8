@@ -1,4 +1,4 @@
-# xkx — 题材无关的核心 MUD 引擎
+# mud_engine — 题材无关的核心 MUD 引擎
 
 Greenfield Python 引擎。路径固定为仓库根下的 `engine/`。
 
@@ -22,6 +22,6 @@ just gate      # lint + test
 
 ## 布局
 
-- `src/xkx/`：引擎源码（绿场，从零写）
+- `src/mud_engine/`：引擎源码（绿场，从零写；`import mud_engine`）
 - `tests/`：测试（pytest + hypothesis）
 - `prototypes/`：throwaway 设计原型（不进正式包路径，可随时删）

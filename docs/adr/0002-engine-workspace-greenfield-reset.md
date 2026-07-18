@@ -6,7 +6,7 @@ Status: accepted
 
 [04 号票](../../.scratch/mvp-scope/issues/04-engine-code-disposition.md) 已拍板「整体重写、旧代码只作参考」，但未定文件系统落点。M1 第 0 步拍板：
 
-- **保留路径名 `engine/`** 作为唯一活代码根（`src/xkx/`、`tests/`、`justfile`/`CLAUDE.md` 约定不变）。
+- **保留路径名 `engine/`** 作为唯一活代码根（`src/mud_engine/`、`tests/`、`justfile`/`CLAUDE.md` 约定；包路径见 [ADR-0003](0003-python-package-mud-engine.md)）。
 - **旧树不进工作区、不建 `engine_v2`、不整棵搬进 `docs/archive/`**——避免 coding agent 双真相、误复用、以及日常 grep/glob 扫到约 45k 行废代码的 token 浪费。
 - **冻结方式**：git tag `archive/engine-pre-m1-rewrite`（指向清空前的 commit）。按需查阅：`git show archive/engine-pre-m1-rewrite:engine/src/xkx/...`。
 - **例外保留**：`engine/prototypes/`（throwaway，如 `ecs_ugc`）可留在工作区，不进入正式包 import 路径。

@@ -24,11 +24,11 @@
 ## 仓库拓扑
 
 - `adm/ cmds/ d/ kungfu/ ...`（仓库根）：**LPC 规格源，只读参考，禁止修改**。无论新目标如何调整，这批文件的"只读参考"性质不变。
-- [engine/](engine/)：**唯一活的 Python 引擎工作区**（绿场）。`src/xkx/` 包，`tests/` 测试，`prototypes/` 为 throwaway。旧实现不在工作区，见 tag `archive/engine-pre-m1-rewrite` 与 [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)。
+- [engine/](engine/)：**唯一活的 Python 引擎工作区**（绿场）。`src/mud_engine/` 包（`import mud_engine`），`tests/` 测试，`prototypes/` 为 throwaway。旧实现不在工作区，见 tag `archive/engine-pre-m1-rewrite` 与 [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)。
 - [.scratch/mvp-scope/](.scratch/mvp-scope/)：**新目标定稿的完整决策记录**（`/wayfinder` 地图，9/10 票已解决，[02](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 暂定挂起）。本文件"架构不变量"是它的摘要；要看某条结论的完整论证/被否决的备选方案，去这里的 `map.md` 和 `issues/NN-*.md`。
 - [.scratch/m1-core-engine-skeleton/](.scratch/m1-core-engine-skeleton/)：**M1 里程碑** spec + issues（第 0 步工作区重置已完成，见 [00](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md)）。
 - [docs/archive/](docs/archive/)：**旧目标的完整历史归档**（架构基线、64 条 ADR、进度归档、战略复审、旧 `CLAUDE.md`/`PROGRESS.md`）。只读参考，不是当前基线，见 [docs/archive/README.md](docs/archive/README.md)。同目录下的《侠客行》架构拆解说明书（`docs/archive/xkx-arch/`）虽在"旧目标"归档里，但其设计灵感/术语参考价值在新目标下依然有效，见"架构不变量"第 4 条。旧引擎**源码**不在此目录，而在 git tag `archive/engine-pre-m1-rewrite`。
-- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)、[0002](docs/adr/0002-engine-workspace-greenfield-reset.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
+- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)～[0003](docs/adr/0003-python-package-mud-engine.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
 - [docs/agents/](docs/agents/)：engineering skills 的仓库级配置（issue tracker / triage 标签 / domain docs 消费规则），与目标本身无关，重设不影响。
 - `todo.md` / `README`：遗留的 LPC UTF-8 转码记录，与新项目无关，忽略。
 
@@ -36,7 +36,7 @@
 
 以下是纯工具链事实，与"目标是什么"无关，重设不改变这些，除非新方向明确要换语言/框架：
 
-- Python >=3.12，包名 `xkx`，代码在 [engine/src/xkx/](engine/src/xkx/)。
+- Python >=3.12，发行名 `mud-engine`，import 包名 `mud_engine`，代码在 [engine/src/mud_engine/](engine/src/mud_engine/)（见 [ADR-0003](docs/adr/0003-python-package-mud-engine.md)）。
 - **Python 命令目录**：所有 `python`/`pytest`/`ruff`/`uv` 命令在 [engine/](engine/) 下执行（`cd engine && ...`）。**优先用 task runner**：仓库根 [justfile](justfile) 封装了常用命令，自带 `cd engine && uv run`；`just --list` 列出全部命令。
 - 测试：pytest + hypothesis。lint/format：ruff，行长上限 100。
 - 注释/排版：中文回复，中英文之间加空格，类注释不带 `@author`/`@version`。

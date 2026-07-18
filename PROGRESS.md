@@ -5,16 +5,17 @@
 >
 > **2026-07-17 项目重设，2026-07-18 新目标定稿+CLAUDE.md 重写完成**：原目标与取舍战略已放弃，新目标已用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 9/10 票决策（[02](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 用户主动标"暂定"未拍板，不阻塞其他票）并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"章节。重设前的完整进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)（含更早的按阶段归档 [docs/archive/progress-archive/](docs/archive/progress-archive/)），仅作背景参考。
 
-**最后更新**：2026-07-18（M1 第 0 步：`engine/` 工作区绿场重置完成）
+**最后更新**：2026-07-18（Python 包 rename：`src/mud_engine/`，[ADR-0003](docs/adr/0003-python-package-mud-engine.md)）
 
 ## 当前状态速览
 
 - **阶段**：M0 完成；M1 spec 已产出；**M1 第 0 步（工作区重置）已完成**。下一步：`/to-tickets` 拆功能票再 `/implement`。
 - **分支**：见当前 git 分支。
-- **engine/ 现状**：绿场。旧实现冻结于 tag `archive/engine-pre-m1-rewrite`（[ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)）。工作区仅有最小包 + 冒烟测试 + `prototypes/ecs_ugc`。
+- **engine/ 现状**：绿场。旧实现冻结于 tag `archive/engine-pre-m1-rewrite`（[ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)）。工作区为 `src/mud_engine/` 最小包 + 冒烟测试 + `prototypes/ecs_ugc`。
 
 ## Done
 
+- **Python 包 rename**（[ADR-0003](docs/adr/0003-python-package-mud-engine.md)）：`src/xkx/` → `src/mud_engine/`（`import mud_engine`）；发行名 `mud-engine`；archive tag 内旧路径不变。
 - **M1 第 0 步：engine 工作区绿场重置**（[.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md)）：tag `archive/engine-pre-m1-rewrite`；移除旧 `src/tests/scenes/tools`；路径仍为 `engine/`；[ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)；CLAUDE/justfile/M1 spec 已同步。
 - **`/to-spec` 产出 M1 spec**：[.scratch/m1-core-engine-skeleton/spec.md](.scratch/m1-core-engine-skeleton/spec.md)（Status: ready-for-agent）。范围=移动/查看/拾取丢弃/门与动态出口/存档骨架；CLI 真终端；ECS 组件按复用性拆分；解析/执行两阶段 + 别名。
 - **`/wayfinder` mvp-scope 地图 9/10 票解决**（[.scratch/mvp-scope/map.md](.scratch/mvp-scope/map.md)，[02](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 暂定挂起）。结论摘要见 [CLAUDE.md](CLAUDE.md)「架构不变量」；[ADR-0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)。

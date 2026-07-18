@@ -79,7 +79,7 @@ proto-ecs-ugc:
 
 # ── 逃生口 / 杂项 ───────────────────────────────────────
 
-# 在 engine venv 跑任意 python：just python -c "import xkx; print(xkx.__version__)"
+# 在 engine venv 跑任意 python：just python -c "import mud_engine; print(mud_engine.__version__)"
 python *args:
     cd engine && uv run python "$@"
 
