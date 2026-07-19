@@ -17,12 +17,14 @@
 
 import json
 import logging
+from pathlib import Path
 
 import pytest
 
 from mud_engine.components import Container, Doors, Exits, Identity, Position
 from mud_engine.parsing import execute_line
 from mud_engine.save import has_save, restore_world, save_world
+from mud_engine.scene_loader import load_scene
 from mud_engine.scenes import build_world
 from mud_engine.world import EntityId, World
 
@@ -287,3 +289,75 @@ class TestNoSave:
     def test_restore_returns_none_when_no_save_exists(self, tmp_path) -> None:
         assert restore_world(tmp_path) is None
         assert has_save(tmp_path) is False
+
+
+# 含未识别段的场景（顶层 world_rules + 物品 on_use/rules），供"不进存档"测试加载。
+_PASSTHROUGH_SCENE = """
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    exits:
+      north: { to: corridor }
+  corridor:
+    name: 长廊
+    long: 长廊
+    exits:
+      south: { to: start_yard }
+items:
+  stone:
+    name: 石头
+    long: 一块石头
+    placed_in: start_yard
+    on_use:
+      effect:
+        heal: 5
+    rules:
+      - when: is_night
+        do: glow
+player:
+  name: 你
+  start_room: start_yard
+world_rules:
+  - when: phase == night
+    do: close_shops
+"""
+
+
+class TestPassthroughDataDoesNotEnterSave:
+    """11 号票：透传数据是声明式静态数据、非运行时可变态，不进存档。
+
+    场景数据里引擎不识别的段（顶层 world_rules/nature、物品 on_use/rules 等）由
+    scene_loader 透传到 ``world.extension_data`` / ``entity_extension_data``，但存档
+    只序列化运行时可变态（entities/components），故透传数据不落盘、restore 后为空。
+    """
+
+    @staticmethod
+    def _load_scene_with_unknowns(tmp_path: Path) -> tuple[World, EntityId]:
+        path = tmp_path / "scene.yaml"
+        path.write_text(_PASSTHROUGH_SCENE, encoding="utf-8")
+        return load_scene(path)
+
+    def test_save_files_do_not_contain_passthrough_data(self, tmp_path: Path) -> None:
+        world, player_id = self._load_scene_with_unknowns(tmp_path)
+        save_root = tmp_path / "save"
+        save_world(world, player_id, save_root)
+
+        snapshot_dir = (save_root / "current").resolve()
+        blob = "".join(f.read_text(encoding="utf-8") for f in snapshot_dir.glob("entity_*.json"))
+        # 透传内容（顶层 world_rules、物品 on_use/rules）不落进任何 entity 存档文件。
+        assert "on_use" not in blob
+        assert "world_rules" not in blob
+        assert "close_shops" not in blob
+        assert "is_night" not in blob
+
+    def test_restored_world_has_empty_extension_data(self, tmp_path: Path) -> None:
+        world, player_id = self._load_scene_with_unknowns(tmp_path)
+        save_root = tmp_path / "save"
+        save_world(world, player_id, save_root)
+
+        restored = restore_world(save_root)
+        assert restored is not None
+        world2, _ = restored
+        # restore 不读 YAML、不重建透传数据：world 级扩展数据为空。
+        assert world2.extension_data == {}

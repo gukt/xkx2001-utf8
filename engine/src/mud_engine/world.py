@@ -42,6 +42,15 @@ class World:
         # 订阅者由各子系统在启动 / restore 后重新注册（M1 save_fn 不依赖 events，
         # 故存档行为不受影响）。
         self.events = EventBus()
+        # 场景数据里引擎不识别的段（顶层 rules/world_rules/nature、实体级
+        # on_use/effect/dialogue/behaviors 等，11 号票）原样透传留在这里，M1 不解析
+        # 不执行，只留数据不丢，供 M3 规则引擎消费--这是"不锁死未来"的关键：引擎
+        # 升级后旧场景数据不必重写。透传的是声明式静态数据、非运行时可变态，故不
+        # 进存档（与 ``events`` 同：存档只序列化 entities/components，restore 后
+        # 为空，由下次 ``load_scene`` 重新填充；restore 路径不读 YAML 故不重建，
+        # M1 透传数据只供引擎内部留底、不参与运行时态）。
+        self.extension_data: dict[str, object] = {}
+        self._entity_extension_data: dict[EntityId, dict[str, object]] = {}
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""
@@ -120,3 +129,19 @@ class World:
             component = by_entity.get(entity)
             if component is not None:
                 yield (component_type, component)
+
+    def entity_extension_data(self, entity: EntityId) -> dict[str, object]:
+        """取（惰性创建并存储）某实体的扩展数据 dict 引用（11 号票）。
+
+        场景数据里引擎不识别的**实体级**段（物品 ``on_use``/``effect``、NPC
+        ``dialogue``/``behaviors`` 等）由 ``scene_loader`` 原样透传到这里。M1 不解析
+        不执行，只留数据不丢。惰性创建：查询一个从未被填过透传数据的实体返回空
+        dict（不报错），有数据时返回已填的引用供调用方读写。
+
+        与 ``extension_data`` 一样是声明式静态数据、非运行时可变态，不进存档
+        （存档只遍历 entities/components，碰不到这里）；故 restore 后为空、由
+        下次 ``load_scene`` 重新填充。透传数据按 entity 索引而非做成挂在 entity
+        上的组件，是为了让它天然游离于存档序列化之外（做成组件会触发 05 号票
+        "未注册 codec 报 TypeError"的护栏或被迫进存档，两难）。
+        """
+        return self._entity_extension_data.setdefault(entity, {})
