@@ -10,12 +10,12 @@
 
 **Blocked by:** 07 - 复用其事件总线注册领域事件 handler。
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-07-19 落地；288 测试全绿，`/code-review` 双轴过）
 
-- [ ] `_cmd_go` 前后挂 `on_before_enter_room`（可否决）/ `on_enter_room` / `on_leave_room`
-- [ ] `_cmd_take` / `_cmd_drop` 前后挂 `on_take` / `on_drop`（均可否决）
-- [ ] 门状态切换处挂 `on_door_state_change`
-- [ ] 注册测试 handler,触发 `go` / `take` / `drop` / 门命令,断言各 handler 被调用且收到正确参数
-- [ ] 注册 deny handler 拦截 `on_before_enter_room`,`go` 被否决
-- [ ] 不注册 handler 时现有命令行为不变
-- [ ] 现有测试全绿（不回归）
+- [x] `_cmd_go` 前后挂 `on_before_enter_room`（可否决）/ `on_enter_room` / `on_leave_room`
+- [x] `_cmd_take` / `_cmd_drop` 前后挂 `on_take` / `on_drop`（均可否决）
+- [x] 门状态切换处挂 `on_door_state_change`
+- [x] 注册测试 handler,触发 `go` / `take` / `drop` / 门命令,断言各 handler 被调用且收到正确参数
+- [x] 注册 deny handler 拦截 `on_before_enter_room`,`go` 被否决
+- [x] 不注册 handler 时现有命令行为不变
+- [x] 现有测试全绿（不回归）

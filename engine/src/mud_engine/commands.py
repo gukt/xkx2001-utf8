@@ -17,12 +17,24 @@
 04 号票新增 open/close/knock/unlock 四个门命令，同样复用解析层的方向别名匹配
 （``Intent.target`` = 方向规范名，与 ``go`` 同一套候选）。门状态是独立于
 ``Exits`` 的 ``Doors`` 组件，本模块只按方向读写它，不改 ``Exits``。
+
+08 号票给 ``execute`` 外包命令级 before/after 生命周期钩子
+（``on_command_before``/``on_command_after``，可否决 / 替换意图 / 修饰消息）；
+09 号票在移动 / 物品 / 门命令路径埋**领域语义级**事件点
+（``on_before_enter_room``/``on_enter_room``/``on_leave_room``/``on_traverse_blocked``/
+``on_take``/``on_drop``/``on_door_state_change``），全部空挂复用 07 号票的
+``world.events`` 事件总线，M1 默认放行不改现有命令行为。两者层次不同：命令级
+钩子看 ``intent``（粗粒度，任何命令）、领域级事件点看领域上下文（细粒度，特定
+语义发生时--如"门被打开"由 open/close/unlock 三处收敛到 ``on_door_state_change``
+一个事件名）。可否决的 before 事件点复用 08 的 ``Allow``/``Deny``（领域级无
+``Replace`` 改写语义）。
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from mud_engine.components import (
     Container,
@@ -74,6 +86,88 @@ CommandBeforeResult = Allow | Deny | Replace
 # 消息列表，按注册顺序折叠（前一个的输出是后一个的输入）。
 CommandBeforeHook = Callable[[World, EntityId, Intent], CommandBeforeResult | None]
 CommandAfterHook = Callable[[World, EntityId, Intent, list[str]], list[str]]
+
+# 领域事件点事件名（09 号票）：挂在 07 号票的 ``world.events`` 上，复用同一个
+# EventBus。与 08 号票的命令级 ``on_command_before``/``on_command_after`` 不同，
+# 这是**领域语义级**事件点--在"移动 / 拿取 / 丢 / 门状态变化"这些领域事实发生时
+# 触发，handler 收到的是领域上下文（房间 / 物品 / 门状态），而非命令意图。两者
+# 互补：08 是"任何命令执行前后"的粗粒度环绕（handler 要自己从 intent 反推语义），
+# 09 是"特定语义发生时"的细粒度触发点（如"门被打开"这个事实由 open/close/unlock
+# 三处都能产生，收敛到一个事件名 ``on_door_state_change``，而非在命令钩子里逐个
+# 判断动词）。spec 块 A user story 3/4/5/12。
+ON_BEFORE_ENTER_ROOM = "on_before_enter_room"
+ON_ENTER_ROOM = "on_enter_room"
+ON_LEAVE_ROOM = "on_leave_room"
+ON_TRAVERSE_BLOCKED = "on_traverse_blocked"
+ON_TAKE = "on_take"
+ON_DROP = "on_drop"
+ON_DOOR_STATE_CHANGE = "on_door_state_change"
+
+
+@dataclass(frozen=True)
+class EnterRoomContext:
+    """移动事件点上下文：``on_before_enter_room`` / ``on_enter_room`` /
+    ``on_leave_room`` 共用同一形状。
+
+    before 在移动前触发（玩家仍在 ``from_room``）、可否决；enter/leave 在移动后
+    触发（玩家已在 ``to_room``）、fire-and-forget。``from_room`` 是离开的旧房间、
+    ``to_room`` 是进入的新房间。形状被契约测试锁定（test_domain_events），未来加
+    字段不破坏 ``handler(ctx)`` 签名（同 ``TickContext`` 思路，spec 块 A user story 6）。
+    """
+
+    player_id: EntityId
+    from_room: EntityId
+    to_room: EntityId
+
+
+@dataclass(frozen=True)
+class TraverseBlockedContext:
+    """``on_traverse_blocked`` 上下文：出口存在但被门挡住时触发（go 走不通）。
+
+    ``door_state`` 区分是关还是锁挡住了通行，handler 据此给不同反馈（如"锁住"
+    触发 NPC 提示钥匙线索）。出口本身不存在（无门无出口）不触发此事件--那是输入
+    无效，不是领域阻塞。
+    """
+
+    player_id: EntityId
+    from_room: EntityId
+    direction: str
+    door_state: DoorState
+
+
+@dataclass(frozen=True)
+class TransferContext:
+    """``on_take`` / ``on_drop`` 上下文：物品转移前触发，可否决。
+
+    ``src``/``dst`` 是持有容器的 entity id（take: src=房间, dst=玩家；drop:
+    src=玩家, dst=房间；未来 put/give 的 src/dst 是箱子 / 其他 NPC）。全 EntityId
+    无 mutable 引用，形状直接喂给块 C 的转移统一原语 ``transfer(item, src, dst)``
+    （C2 号票，spec 块 A user story 23）。
+    """
+
+    player_id: EntityId
+    item: EntityId
+    src: EntityId
+    dst: EntityId
+
+
+@dataclass(frozen=True)
+class DoorStateChangeContext:
+    """``on_door_state_change`` 上下文：门状态实际变化时触发
+    （open/close/unlock 改 ``door.state`` 处）。
+
+    ``old_state``/``new_state`` 用 ``DoorState`` 枚举，handler 据此判断"开->关"
+    还是"锁->关"等。knock 不改状态不触发；open 已开 / close 已关 / unlock 未锁
+    等无变化路径不触发（"门被打开触发机关""门状态联动出口增删"等规则的挂载点，
+    spec 块 A user story 5）。
+    """
+
+    player_id: EntityId
+    room: EntityId
+    direction: str
+    old_state: DoorState
+    new_state: DoorState
+
 
 # 规范动词 -> 处理函数
 _REGISTRY: dict[str, CommandHandler] = {}
@@ -199,6 +293,23 @@ def _run_after_hooks(
     return messages
 
 
+def _run_vetoable(world: World, event_name: str, ctx: Any) -> str | None:
+    """跑可否决领域事件点的全部 handler，返回首个 ``Deny`` 的 message 或 ``None``。
+
+    与 08 号票的 ``_run_before_hooks`` 同模式（按注册顺序遍历、首个 ``Deny`` 短路、
+    ``Allow``/``None`` 容错为放行），区别是 handler 收单个领域上下文
+    （``EnterRoomContext`` / ``TransferContext``）而非 ``(world, player, intent)``，
+    且无 ``Replace``（领域级不改写语义--领域钩子不能把"进 A 房间"改写成"进 B"）。
+    M1 默认无 handler 注册时返回 ``None``（放行，零回归）。
+    """
+    for handler in world.events.handlers_for(event_name):
+        result = handler(ctx)
+        if isinstance(result, Deny):
+            return result.message
+        # Allow / None：放行，继续下一个
+    return None
+
+
 def _sorted_item_names(world: World, container: Container) -> list[str]:
     """容器内物品的规范名，按名排序（look 地面展示与 inventory 共用）。"""
     return sorted(world.require_component(item, Identity).name for item in container.items)
@@ -253,7 +364,10 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """把玩家移动到当前房间某个方向的出口指向的房间，并自动展示新房间。
 
-    出口上若有门且非开（关/锁），拒绝移动并提示门状态（04 号票）。
+    出口上若有门且非开（关/锁），拒绝移动并提示门状态（04 号票），并分发
+    ``on_traverse_blocked``（09 号票：出口存在但被门挡住的领域阻塞事件）。移动前
+    分发可否决的 ``on_before_enter_room``，否决则不移动；移动后分发 ``on_leave_room``
+    （离开旧房间）与 ``on_enter_room``（进入新房间）。
     """
     direction = intent.target
     if direction is None:
@@ -269,48 +383,83 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         return [f"那个方向（{direction}）没有出口。"]
 
     door = _door_in_direction(world, room, direction)
-    if door is not None:
+    if door is not None and door.state is not DoorState.OPEN:
+        # 出口存在但被门挡住：分发 on_traverse_blocked（door_state 区分锁/关）。
+        world.events.dispatch(
+            ON_TRAVERSE_BLOCKED,
+            TraverseBlockedContext(
+                player_id=player_id,
+                from_room=room,
+                direction=direction,
+                door_state=door.state,
+            ),
+        )
         if door.state is DoorState.LOCKED:
             return ["那个方向的门锁着，过不去。"]
-        if door.state is DoorState.CLOSED:
-            return ["那个方向的门关着，过不去。"]
+        return ["那个方向的门关着，过不去。"]
 
+    # before：可否决（"封城不能进""进房触发 NPC 反应前先校验"等规则挂载点）。
+    # 否决则不移动、不触发 enter/leave。
+    denial = _run_vetoable(
+        world,
+        ON_BEFORE_ENTER_ROOM,
+        EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target),
+    )
+    if denial is not None:
+        return [denial]
+
+    # 移动发生。
     position = world.require_component(player_id, Position)
     position.room = passage.target
+    # after：先离开旧房间、再进入新房间（对应 LPC move 先 leave 旧环境再 enter 新）。
+    # 两者共用 EnterRoomContext 形状，事件名区分语义。fire-and-forget 不短路。
+    enter_ctx = EnterRoomContext(
+        player_id=player_id, from_room=room, to_room=passage.target
+    )
+    world.events.dispatch(ON_LEAVE_ROOM, enter_ctx)
+    world.events.dispatch(ON_ENTER_ROOM, enter_ctx)
     return _cmd_look(world, player_id, Intent(verb="look", target=None))
 
 
 @register("open")
 def _cmd_open(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """打开当前房间某方向出口上的门（04 号票）。锁着的门需先 unlock。"""
+    """打开当前房间某方向出口上的门（04 号票）。锁着的门需先 unlock。
+
+    门状态实际变化时（CLOSED->OPEN）分发 ``on_door_state_change``（09 号票）。
+    """
     direction = intent.target
     if direction is None:
         return ["开什么？用法：open <方向>"]
-    door = _door_at_player(world, player_id, direction)
+    room = _player_room(world, player_id)
+    door = _door_in_direction(world, room, direction)
     if door is None:
         return [f"那个方向（{direction}）没有门。"]
     if door.state is DoorState.LOCKED:
         return ["那扇门锁着，先用钥匙 unlock。"]
     if door.state is DoorState.OPEN:
         return ["那扇门已经开着。"]
-    door.state = DoorState.OPEN
+    _set_door_state(world, player_id, room, direction, door, DoorState.OPEN)
     return [f"你打开了{direction}方向的门。"]
 
 
 @register("close")
 def _cmd_close(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """关上当前房间某方向出口上的门（04 号票）。锁着的门视为已关，不另处理。"""
+    """关上当前房间某方向出口上的门（04 号票）。锁着的门视为已关，不另处理。
+
+    门状态实际变化时（OPEN->CLOSED）分发 ``on_door_state_change``（09 号票）。
+    """
     direction = intent.target
     if direction is None:
         return ["关什么？用法：close <方向>"]
-    door = _door_at_player(world, player_id, direction)
+    room = _player_room(world, player_id)
+    door = _door_in_direction(world, room, direction)
     if door is None:
         return [f"那个方向（{direction}）没有门。"]
     if door.state is DoorState.LOCKED:
         return ["那扇门锁着，关不了。"]
     if door.state is DoorState.CLOSED:
         return ["那扇门已经关着。"]
-    door.state = DoorState.CLOSED
+    _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
     return [f"你关上了{direction}方向的门。"]
 
 
@@ -336,11 +485,13 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
     锁定门绑定钥匙（``key_item_id``）时，玩家物品栏需持有该钥匙物品才能解锁；
     解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行（行为在实现中明确锁定）。
+    门状态实际变化时（LOCKED->CLOSED）分发 ``on_door_state_change``（09 号票）。
     """
     direction = intent.target
     if direction is None:
         return ["解锁什么？用法：unlock <方向>"]
-    door = _door_at_player(world, player_id, direction)
+    room = _player_room(world, player_id)
+    door = _door_in_direction(world, room, direction)
     if door is None:
         return [f"那个方向（{direction}）没有门。"]
     if door.state is not DoorState.LOCKED:
@@ -349,13 +500,17 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         player_container = world.get_component(player_id, Container)
         if player_container is None or door.key_item_id not in player_container.items:
             return ["你需要一把匹配的钥匙才能 unlock 那扇门。"]
-    door.state = DoorState.CLOSED
+    _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
     return [f"你解锁了{direction}方向的门。"]
 
 
 @register("take")
 def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把当前房间地面容器里匹配的物品移到玩家物品栏（03 号票）。"""
+    """把当前房间地面容器里匹配的物品移到玩家物品栏（03 号票）。
+
+    转移前分发可否决的 ``on_take``（09 号票："诅咒物品拿不起""任务物品不能拿"
+    等规则挂载点），否决则不转移。
+    """
     name = intent.target
     if name is None:
         return ["拿什么？用法：take <物品>"]
@@ -367,6 +522,14 @@ def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if item is None:
         # 解析阶段已 match，正常不会走到；保留兜底防御手工构造的 Intent。
         return [f"这里没有 {name}。"]
+    # before：可否决。TransferContext 形状喂给块 C 的转移统一原语（src=房间, dst=玩家）。
+    denial = _run_vetoable(
+        world,
+        ON_TAKE,
+        TransferContext(player_id=player_id, item=item, src=room, dst=player_id),
+    )
+    if denial is not None:
+        return [denial]
     room_container.items.discard(item)
     player_container.items.add(item)
     return [f"你拿起 {name}。"]
@@ -374,7 +537,11 @@ def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 @register("drop")
 def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把玩家物品栏里匹配的物品放到当前房间地面容器（03 号票）。"""
+    """把玩家物品栏里匹配的物品放到当前房间地面容器（03 号票）。
+
+    转移前分发可否决的 ``on_drop``（09 号票："任务物品不能丢"等规则挂载点，
+    ``no_drop`` 支持字符串自定义提示），否决则不转移。
+    """
     name = intent.target
     if name is None:
         return ["放下什么？用法：drop <物品>"]
@@ -385,6 +552,14 @@ def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     item = _find_item_in_container(world, player_container, name)
     if item is None:
         return [f"你没有 {name}。"]
+    # before：可否决（src=玩家, dst=房间）。
+    denial = _run_vetoable(
+        world,
+        ON_DROP,
+        TransferContext(player_id=player_id, item=item, src=player_id, dst=room),
+    )
+    if denial is not None:
+        return [denial]
     player_container.items.discard(item)
     room_container.items.add(item)
     return [f"你放下 {name}。"]
@@ -437,6 +612,35 @@ def _door_at_player(world: World, player_id: EntityId, direction: str) -> Door |
     return _door_in_direction(world, room, direction)
 
 
+def _set_door_state(
+    world: World,
+    player_id: EntityId,
+    room: EntityId,
+    direction: str,
+    door: Door,
+    new_state: DoorState,
+) -> None:
+    """改门状态并分发 ``on_door_state_change``（open/close/unlock 共用，09 号票）。
+
+    记录 ``old_state``、改 ``door.state``、dispatch 事件。调用方已在分支里确认
+    状态会实际变化（open 前是 CLOSED、close 前是 OPEN、unlock 前是 LOCKED），故
+    old/new 必不同。集中在此使 ``on_door_state_change`` 的触发只有一处，避免三处
+    命令各自 dispatch 漏挂（"门被打开触发机关""门状态联动出口增删"等规则的挂载点）。
+    """
+    old_state = door.state
+    door.state = new_state
+    world.events.dispatch(
+        ON_DOOR_STATE_CHANGE,
+        DoorStateChangeContext(
+            player_id=player_id,
+            room=room,
+            direction=direction,
+            old_state=old_state,
+            new_state=new_state,
+        ),
+    )
+
+
 def _exit_label(world: World, room: EntityId, direction: str) -> str:
     """look 出口列表的单项：方向名 + 门状态标注（关/锁），无门或开着不加标注。"""
     door = _door_in_direction(world, room, direction)
@@ -464,14 +668,25 @@ def _player_room(world: World, player_id: EntityId) -> EntityId:
 
 
 __all__ = [
-    "ON_COMMAND_AFTER",
-    "ON_COMMAND_BEFORE",
     "Allow",
     "CommandAfterHook",
     "CommandBeforeHook",
     "CommandBeforeResult",
     "Deny",
+    "DoorStateChangeContext",
+    "EnterRoomContext",
+    "ON_BEFORE_ENTER_ROOM",
+    "ON_COMMAND_AFTER",
+    "ON_COMMAND_BEFORE",
+    "ON_DOOR_STATE_CHANGE",
+    "ON_DROP",
+    "ON_ENTER_ROOM",
+    "ON_LEAVE_ROOM",
+    "ON_TAKE",
+    "ON_TRAVERSE_BLOCKED",
     "Replace",
+    "TransferContext",
+    "TraverseBlockedContext",
     "canonical_verbs",
     "execute",
     "register",
