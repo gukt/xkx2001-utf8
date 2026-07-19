@@ -20,7 +20,16 @@
 指代维度）是两个不同维度的别名，各放各的组件。
 
 字段注释面向未来 UGC 创作层的 Agent：它需要从组件字段读懂语义才能生成正确
-的场景 DSL，所以每个字段都标了"是什么 + 例子"，并说明运行时可变 vs 启动固定。
+的场景 DSL，所以每个字段都标了"是什么 + 例子"，并标注三态之一（避坑清单 §28，
+12 号票）：
+
+- **启动固定**：加载时定、之后不变（如 ``Identity.name``、``Description`` 文案）。
+- **运行时可变进存档**：运行时会改、且要跨重启保留（如 ``Door.state``、
+  ``Container.items``、动态增删的 ``Exits.by_direction``）--save.py 序列化保留。
+- **瞬时（运行时可变不进存档）**：运行时派生/累加、重启后从默认值或真实时钟
+  重算（如未来 Nature 的当前时辰）--用 ``transient_field()`` 标注，save.py
+  序列化时一律剔除，恢复后回到默认值。为避坑清单 §37"短延迟内存态 vs 长周期
+  持久态"分层铺路。
 """
 
 from __future__ import annotations
@@ -29,6 +38,21 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from mud_engine.world import EntityId
+
+# 组件字段三态中"瞬时"态的 dataclass field metadata key（12 号票）。
+# ``transient_field()`` 写入此 key 标注，save.py 的序列化 chokepoint 读它过滤剔除。
+TRANSIENT = "transient"
+
+
+def transient_field(default):
+    """标注一个组件字段为第三态"瞬时"：运行时可变、不进存档。
+
+    用法 ``ticks_alive: int = transient_field(0)``。save.py 序列化时通过
+    ``dataclasses.fields()`` 读 metadata，瞬时字段一律不进存档，恢复后回到默认值。
+    Nature 衍生态（B 块）会是第一个真实用例。与"运行时可变进存档 / 启动固定"
+    两态并列（见模块 docstring 三态说明，避坑清单 §28）。
+    """
+    return field(default=default, metadata={TRANSIENT: True})
 
 
 @dataclass
