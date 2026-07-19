@@ -58,7 +58,41 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
     _build_npcs(world, npcs, room_ids, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
+    _capture_top_level_unknown_sections(world, data)
     return world, player_id
+
+
+# 引擎认识的顶层段与每类实体的字段：不在这些集合里的段/字段是"未识别"的，
+# 原样透传到扩展数据容器留着不丢，M1 不解析不执行（11 号票）。透传不是设计、
+# 只是不丢弃，故不违反"M1 不预支 M3 设计"--M3 引入规则引擎时旧场景数据不必重写。
+_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player"})
+_ROOM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
+_ITEM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "placed_in"})
+_NPC_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "in_room"})
+_PLAYER_KNOWN_FIELDS = frozenset({"name", "start_room"})
+
+
+def _capture_top_level_unknown_sections(world: World, data: Mapping) -> None:
+    """顶层未识别段（rules/world_rules/nature 等）原样透传到 ``world.extension_data``。
+
+    M1 引擎只认识 rooms/items/npcs/player 四个顶层段，其余顶层段（未来规则引擎、
+    Nature、世界级触发器等）一概不识别。透传留底而非报错，供 M3 消费。透传数据是
+    声明式静态数据、非运行时可变态，挂在 ``World.extension_data`` 上天然不进存档
+    （save.py 只序列化 entities/components）。
+    """
+    for key, value in data.items():
+        if key not in _TOP_LEVEL_KNOWN_SECTIONS:
+            world.extension_data[key] = value
+
+
+def _capture_entity_unknown_fields(
+    world: World, entity: EntityId, data: Mapping, known: frozenset[str]
+) -> None:
+    """实体级未识别字段（物品 on_use/effect、NPC dialogue/behaviors 等）透传到
+    该实体的扩展数据容器。与顶层透传同语义（11 号票）：只在有未识别字段时才填。"""
+    extras = {k: v for k, v in data.items() if k not in known}
+    if extras:
+        world.entity_extension_data(entity).update(extras)
 
 
 def _read_yaml(scene_path: Path) -> dict:
@@ -113,6 +147,7 @@ def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, En
         )
         world.add_component(room, Exits())
         world.add_component(room, Container())
+        _capture_entity_unknown_fields(world, room, data, _ROOM_KNOWN_FIELDS)
         room_ids[room_key] = room
     return room_ids
 
@@ -267,6 +302,7 @@ def _build_items(
         )
         container = world.require_component(room_ids[str(placed_in)], Container)
         container.items.add(item)
+        _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
         item_ids[str(item_key)] = item
     return item_ids
 
@@ -292,6 +328,7 @@ def _build_npcs(
             world, npc, data, label=f"NPC '{npc_key}'", scene_path=scene_path
         )
         world.add_component(npc, Position(room=room_ids[str(in_room)]))
+        _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
 def _build_player(
@@ -315,6 +352,7 @@ def _build_player(
     world.add_component(player_id, Identity(name=str(name)))
     world.add_component(player_id, Position(room=room_ids[str(start_room)]))
     world.add_component(player_id, Container())
+    _capture_entity_unknown_fields(world, player_id, player, _PLAYER_KNOWN_FIELDS)
     return player_id
 
 

@@ -284,6 +284,111 @@ npcs:
         assert str(path) in str(exc_info.value)
 
 
+# 含未识别段的场景：顶层 world_rules/nature（world 级）+ 物品 on_use/rules（实体级）。
+# 这些段 M1 引擎不识别，透传留底而非报错（11 号票）。
+_SCENE_WITH_UNKNOWN_SECTIONS = """
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    exits:
+      north: { to: corridor }
+  corridor:
+    name: 长廊
+    long: 长廊
+    exits:
+      south: { to: start_yard }
+items:
+  stone:
+    name: 石头
+    long: 一块石头
+    placed_in: start_yard
+    on_use:
+      effect:
+        heal: 5
+    rules:
+      - when: is_night
+        do: glow
+player:
+  name: 你
+  start_room: start_yard
+world_rules:
+  - when: phase == night
+    do: close_shops
+nature:
+  phases:
+    - name: night
+      length: 30
+"""
+
+
+class TestUnknownSectionPassthrough:
+    """11 号票：场景数据里引擎不识别的段（顶层 rules/world_rules/nature、实体级
+    on_use/effect/dialogue/behaviors 等）原样透传到扩展数据容器留着不丢，M1 不
+    解析不执行。已识别段非法值（如 door: ajar）仍照常报错；透传数据不进存档
+    （存档边界验证见 test_save.py 的 TestPassthroughDataDoesNotEnterSave）。"""
+
+    def test_top_level_unknown_section_loads_without_error(self, tmp_path: Path) -> None:
+        path = _write_scene(tmp_path, _SCENE_WITH_UNKNOWN_SECTIONS)
+        # 顶层 world_rules/nature 段被透传而非当加载错误。
+        load_scene(path)
+
+    def test_entity_level_unknown_section_loads_without_error(self, tmp_path: Path) -> None:
+        # 物品 stone 挂了 on_use/rules（M1 物品无此能力，是 M2+/M3 的钩子点）。
+        path = _write_scene(tmp_path, _SCENE_WITH_UNKNOWN_SECTIONS)
+        load_scene(path)
+
+    def test_top_level_unknown_section_is_queryable(self, tmp_path: Path) -> None:
+        path = _write_scene(tmp_path, _SCENE_WITH_UNKNOWN_SECTIONS)
+        world, _ = load_scene(path)
+        assert world.extension_data["world_rules"] == [
+            {"when": "phase == night", "do": "close_shops"}
+        ]
+        assert world.extension_data["nature"] == {"phases": [{"name": "night", "length": 30}]}
+
+    def test_entity_level_unknown_section_is_queryable(self, tmp_path: Path) -> None:
+        path = _write_scene(tmp_path, _SCENE_WITH_UNKNOWN_SECTIONS)
+        world, player_id = load_scene(path)
+        start_room = world.require_component(player_id, Position).room
+        stone = next(iter(world.require_component(start_room, Container).items))
+        extras = world.entity_extension_data(stone)
+        assert extras["on_use"] == {"effect": {"heal": 5}}
+        assert extras["rules"] == [{"when": "is_night", "do": "glow"}]
+
+    def test_known_sections_load_normally_alongside_unknown_ones(self, tmp_path: Path) -> None:
+        # 未识别段不影响已识别段：房间/出口/物品摆放/玩家位置/物品 name 都正常。
+        path = _write_scene(tmp_path, _SCENE_WITH_UNKNOWN_SECTIONS)
+        world, player_id = load_scene(path)
+        start = world.require_component(player_id, Position).room
+        assert world.require_component(start, Identity).name == "起始庭院"
+        corridor = world.require_component(start, Exits).by_direction["north"].target
+        assert world.require_component(corridor, Exits).by_direction["south"].target == start
+        floor = world.require_component(start, Container)
+        assert len(floor.items) == 1
+        stone = next(iter(floor.items))
+        assert world.require_component(stone, Identity).name == "石头"
+
+    def test_invalid_value_in_known_section_still_raises(self, tmp_path: Path) -> None:
+        # 未识别段存在不放松已识别段校验：door: ajar 仍抛 SceneLoadError 带定位。
+        scene = _SCENE_WITH_UNKNOWN_SECTIONS.replace(
+            "      north: { to: corridor }",
+            "      north:\n        to: corridor\n        door: ajar",
+        )
+        path = _write_scene(tmp_path, scene)
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "ajar" in msg
+        assert "start_yard" in msg
+
+    def test_entity_without_unknown_sections_queries_as_empty(self, tmp_path: Path) -> None:
+        # 无未识别字段的实体查询返回空 dict（惰性创建），不报 KeyError。
+        path = _write_scene(tmp_path, _MINIMAL_SCENE)
+        world, player_id = load_scene(path)
+        start = world.require_component(player_id, Position).room
+        assert world.entity_extension_data(start) == {}
+
+
 def _find_npc_in_start_room(world: World, player_id: EntityId) -> EntityId | None:
     """玩家起始房间里、除玩家本人外的 Position 持有者（即静态展示型 NPC）。"""
     start_room = world.require_component(player_id, Position).room
