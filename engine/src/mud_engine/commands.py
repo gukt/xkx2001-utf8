@@ -413,9 +413,7 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     position.room = passage.target
     # after：先离开旧房间、再进入新房间（对应 LPC move 先 leave 旧环境再 enter 新）。
     # 两者共用 EnterRoomContext 形状，事件名区分语义。fire-and-forget 不短路。
-    enter_ctx = EnterRoomContext(
-        player_id=player_id, from_room=room, to_room=passage.target
-    )
+    enter_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)
     world.events.dispatch(ON_LEAVE_ROOM, enter_ctx)
     world.events.dispatch(ON_ENTER_ROOM, enter_ctx)
     return _cmd_look(world, player_id, Intent(verb="look", target=None))

@@ -401,9 +401,7 @@ class TestOnTake:
             world, player_id = build_world()
             execute_line(world, player_id, "take 石头")
             inv = world.require_component(player_id, Container)
-            assert any(
-                world.require_component(i, Identity).name == "石头" for i in inv.items
-            )
+            assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
 
     class WhenADenyHandlerVetoesTake:
         def test_the_item_is_not_taken(self) -> None:
@@ -418,9 +416,7 @@ class TestOnTake:
             assert messages == ["诅咒物品拿不起。"]
             # 物品仍在房间地面
             floor = world.require_component(room, Container)
-            assert any(
-                world.require_component(i, Identity).name == "石头" for i in floor.items
-            )
+            assert any(world.require_component(i, Identity).name == "石头" for i in floor.items)
             # 物品栏空
             assert not world.require_component(player_id, Container).items
 
