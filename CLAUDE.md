@@ -15,7 +15,7 @@
 1. **单机承载，不做分布式**（[05](.scratch/mvp-scope/issues/05-six-constraints-continuation.md)）：不搞分布式架构/网关，单机 1000 在线 + 100 并发；运维观测后置（只上基础 OpenTelemetry + Grafana，不上 K8s/Helm）；纯 Python（暂不考虑 Rust/Go）；内存数据 + 本地 JSON 定时存档（不上 PG/Redis）。这五条延续自旧方案，是通用工程判断，跟"复刻不复刻"无关。
 2. **不做行为等价验证**（[ADR-0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)）：无论是位等价、统计行为等价还是 golden trace 运行时对照，都不做，连一次性验证也不做。
 3. **`engine/` 整体重写，工作区已绿场清空**（[04](.scratch/mvp-scope/issues/04-engine-code-disposition.md) + [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)）：不逐段复用；路径名仍是 `engine/`（不建 `engine_v2`）。旧实现（约 45k 行）冻结于 git tag `archive/engine-pre-m1-rewrite`，按需 `git show` 查阅，禁止 import / 禁止当重写起点。`engine/prototypes/` 可留 throwaway 原型。
-4. **子系统四档归类**（[01](.scratch/mvp-scope/issues/01-subsystem-classification-framework.md)/[08](.scratch/mvp-scope/issues/08-subsystem-classification-research.md)/[09](.scratch/mvp-scope/issues/09-subsystem-classification-confirm.md)）：36+5 个已发现子系统（详见 [00-子系统发现报告](docs/archive/xkx-arch/_archive/_侠客行%20MUD%20架构拆解说明书/00-子系统发现报告.md)）全部归类为 MVP 必做（18）/ 可选（4）/ 现代化改造（10）/ 丢弃（10），归类依据是"对新引擎与 MVP 题材包的设计参考价值"，不是保真度。完整清单 + 每条理由见 [08 号票](.scratch/mvp-scope/issues/08-subsystem-classification-research.md)。**遗留跨票依赖**（未最终定论，`/to-spec` 前建议补上）：[02-engine-boundary-combat-effects](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md)（战斗结算流程/效果生命周期机制该归引擎还是题材包，暂定倾向"流程归引擎"但未拍板）一旦改判，战斗/状态/技能/死亡与轮回四个子系统的归类要回头重评；[03](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统的归类要回头核对。
+4. **子系统四档归类**（[01](.scratch/mvp-scope/issues/01-subsystem-classification-framework.md)/[08](.scratch/mvp-scope/issues/08-subsystem-classification-research.md)/[09](.scratch/mvp-scope/issues/09-subsystem-classification-confirm.md)）：36+5 个已发现子系统（详见 [00-子系统发现报告](docs/archive/xkx-arch/_archive/_侠客行%20MUD%20架构拆解说明书/00-子系统发现报告.md)）全部归类为 MVP 必做（18）/ 可选（4）/ 现代化改造（10）/ 丢弃（10），归类依据是"对新引擎与 MVP 题材包的设计参考价值"，不是保真度。完整清单 + 每条理由见 [08 号票](.scratch/mvp-scope/issues/08-subsystem-classification-research.md)。**遗留跨票依赖**：[02-engine-boundary-combat-effects](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 已拍板（2026-07-19）：战斗结算流程框架 + 效果生命周期机制归引擎，精确边界见 [ADR-0004](docs/adr/0004-combat-effects-boundary-engine.md)；战斗/状态/技能/死亡轮回四子系统归类维持 MVP 必做不变；[03](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统的归类要回头核对。
 5. **UGC/DSL 创作层从零设计**（[03](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md)）：不直接沿用旧方案的 DSL 四层结构，但旧方案与 [关键修正与避坑清单](docs/archive/xkx-arch/_archive/01-关键修正与避坑清单.md) 中已用真实代码验证过的教训（如"UGC 脚本用受限 Python 非 WASM"）是重要参考输入，不能忽略。
 6. **商业化架构支撑点，MVP 不要求实现**（[06](.scratch/mvp-scope/issues/06-scaling-commercialization-support-points.md)）：玩家侧双货币+订阅+不 pay-to-win（参考 Iron Realms），创作者侧按题材包消费分成（参考 Roblox/Fortnite）；承载扩展靠题材包数量横向扩展，不是单世界做大。要留位置但不强制 MVP 实现的四个支撑点：货币/账本抽象、题材包资产元数据（创作者归属+版本溯源）、消费/参与度埋点（可打点到题材包 ID）、世界实例隔离（每个题材包独立进程）。
 7. **MVP 场景清单**（[10](.scratch/mvp-scope/issues/10-mvp-scenes-selection.md)）：新手村（华山村，不绑定门派）+ 城镇（扬州丰富子集）+ 门派（少林寺）+ 野外（扬州↔少林沿途）+ 官道（跨区域连接）+ 水陆交通（渡口/渡船）+ 坐骑（官道/野外可骑乘）。坐骑与交通系统因这条要求从"现代化改造"改判为"MVP 必做"，是四档归类中唯一被二次改判的子系统。
@@ -25,38 +25,12 @@
 
 - `adm/ cmds/ d/ kungfu/ ...`（仓库根）：**LPC 规格源，只读参考，禁止修改**。无论新目标如何调整，这批文件的"只读参考"性质不变。
 - [engine/](engine/)：**唯一活的 Python 引擎工作区**（绿场）。`src/mud_engine/` 包（`import mud_engine`），`tests/` 测试，`prototypes/` 为 throwaway。旧实现不在工作区，见 tag `archive/engine-pre-m1-rewrite` 与 [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)。
-- [.scratch/mvp-scope/](.scratch/mvp-scope/)：**新目标定稿的完整决策记录**（`/wayfinder` 地图，9/10 票已解决，[02](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md) 暂定挂起）。本文件"架构不变量"是它的摘要；要看某条结论的完整论证/被否决的备选方案，去这里的 `map.md` 和 `issues/NN-*.md`。
+- [.scratch/mvp-scope/](.scratch/mvp-scope/)：**新目标定稿的完整决策记录**（`/wayfinder` 地图，10/10 票已解决）。本文件"架构不变量"是它的摘要；要看某条结论的完整论证/被否决的备选方案，去这里的 `map.md` 和 `issues/NN-*.md`。
 - [.scratch/m1-core-engine-skeleton/](.scratch/m1-core-engine-skeleton/)：**M1 里程碑** spec + issues（第 0 步工作区重置已完成，见 [00](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md)）。
 - [docs/archive/](docs/archive/)：**旧目标的完整历史归档**（架构基线、64 条 ADR、进度归档、战略复审、旧 `CLAUDE.md`/`PROGRESS.md`）。只读参考，不是当前基线，见 [docs/archive/README.md](docs/archive/README.md)。同目录下的《侠客行》架构拆解说明书（`docs/archive/xkx-arch/`）虽在"旧目标"归档里，但其设计灵感/术语参考价值在新目标下依然有效，见"架构不变量"第 4 条。旧引擎**源码**不在此目录，而在 git tag `archive/engine-pre-m1-rewrite`。
-- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)～[0003](docs/adr/0003-python-package-mud-engine.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
+- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)～[0004](docs/adr/0004-combat-effects-boundary-engine.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
 - [docs/agents/](docs/agents/)：engineering skills 的仓库级配置（issue tracker / triage 标签 / domain docs 消费规则），与目标本身无关，重设不影响。
 - `todo.md` / `README`：遗留的 LPC UTF-8 转码记录，与新项目无关，忽略。
-
-## 开发工具链（重设前的约定，暂沿用）
-
-以下是纯工具链事实，与"目标是什么"无关，重设不改变这些，除非新方向明确要换语言/框架：
-
-- Python >=3.12，发行名 `mud-engine`，import 包名 `mud_engine`，代码在 [engine/src/mud_engine/](engine/src/mud_engine/)（见 [ADR-0003](docs/adr/0003-python-package-mud-engine.md)）。
-- **Python 命令目录**：所有 `python`/`pytest`/`ruff`/`uv` 命令在 [engine/](engine/) 下执行（`cd engine && ...`）。**优先用 task runner**：仓库根 [justfile](justfile) 封装了常用命令，自带 `cd engine && uv run`；`just --list` 列出全部命令。
-- 测试：pytest + hypothesis。lint/format：ruff，行长上限 100。
-- 注释/排版：中文回复，中英文之间加空格，类注释不带 `@author`/`@version`。
-- 提交：只在用户要求时 commit/push；在 master 分支时先开分支。
-
-## 决策日志（ADR）
-
-对"架构不变量"章节列出的既定结论的偏离，在 [docs/adr/](docs/adr/) 写一条 ADR（`NNNN-slug.md`，不带前缀，格式见上）。旧 ADR-0001～0064 在 [docs/archive/adr/](docs/archive/adr/)，只做背景参考，不作为新决策的约束。
-
-## session 交接
-
-- 开工第一件事：读 [PROGRESS.md](PROGRESS.md) + 本文件。
-- 收工前：更新 [PROGRESS.md](PROGRESS.md) 的 Done / In Progress / Blocked / Next Up + 日期。
-- 长任务跨 session：在 PROGRESS.md 的 In Progress 写清"当前子任务 + 卡在哪 + 下一步具体动作"。
-
-## 其他注意事项
-
-- 根目录下是侠客行源码，engine 下是新引擎。执行命令时注意区分工作目录层级。
-- 思考、回复和关键注释都用中文，中文与英文或数字之间加空格排版。
-- 优先使用 `just` 命令（如果有）。
 
 ## Agent skills
 
@@ -71,11 +45,4 @@
 ### Domain docs
 
 single-context：根目录 `CONTEXT.md`（惰性创建）+ [docs/adr/](docs/adr/)（新决策，惰性创建）+ [docs/archive/](docs/archive/)（旧背景参考）。见 [docs/agents/domain.md](docs/agents/domain.md)。
-
-## 待办（重设已完成，进入落地阶段）
-
-- [x] M1 第 0 步：`engine/` 工作区绿场重置（[00](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md) / [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)）。
-- [x] `/to-spec` 产出 [M1 spec](.scratch/m1-core-engine-skeleton/spec.md)。
-- [ ] 对 M1 spec 跑 `/to-tickets` → 逐票 `/implement`（从第 1 张功能票起）。
-- [ ] 补上 [02-engine-boundary-combat-effects](.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md)（战斗结算流程/效果生命周期该归引擎还是题材包），建议用 `/prototype` 或 `/design-an-interface`，不阻塞 M1 启动但影响战斗/状态/技能/死亡轮回四个子系统的最终设计细节。
 - [ ] `/to-spec` / M3 前核对 [03-ugc-dsl-design-inheritance](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后，编辑器系统（子系统 9）的归类是否仍准确。
