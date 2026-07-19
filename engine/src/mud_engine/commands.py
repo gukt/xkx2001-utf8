@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from mud_engine.components import (
     Container,
@@ -37,6 +38,42 @@ from mud_engine.intent import Intent
 from mud_engine.world import EntityId, World
 
 CommandHandler = Callable[[World, EntityId, Intent], list[str]]
+
+# 命令生命周期钩子事件名（08 号票）：挂在 07 号票的 ``world.events`` 上，复用同一
+# 个 EventBus（``register`` 与 ``commands.register`` 同构）。on_command_before 在
+# 处理函数前跑（可否决 / 替换意图），on_command_after 在返回后跑（修饰消息列表）。
+ON_COMMAND_BEFORE = "on_command_before"
+ON_COMMAND_AFTER = "on_command_after"
+
+
+@dataclass(frozen=True)
+class Allow:
+    """前置钩子放行：按（被 ``Replace`` 改写后的）意图继续执行处理函数。无载荷。"""
+
+
+@dataclass(frozen=True)
+class Deny:
+    """前置钩子否决：不执行处理函数，把 ``message`` 作为拒绝提示返回给玩家。"""
+
+    message: str
+
+
+@dataclass(frozen=True)
+class Replace:
+    """前置钩子替换：用 ``intent`` 取代本次执行的意图，后续 before 钩子与执行都用它。"""
+
+    intent: Intent
+
+
+# 前置钩子返回值三态（Allow 放行 / Deny 否决 / Replace 替换）。形状被契约测试锁定
+# （test_command_hooks 的 TestCommandLifecycleContract），防 M2 引入真实规则时改接口。
+CommandBeforeResult = Allow | Deny | Replace
+
+# 钩子签名（契约测试锁定形状）：before 收 (world, player, intent) 返回三态之一
+# （返回 None 容错视为 Allow）；after 收 (world, player, 生效意图, 当前消息) 返回
+# 消息列表，按注册顺序折叠（前一个的输出是后一个的输入）。
+CommandBeforeHook = Callable[[World, EntityId, Intent], CommandBeforeResult | None]
+CommandAfterHook = Callable[[World, EntityId, Intent, list[str]], list[str]]
 
 # 规范动词 -> 处理函数
 _REGISTRY: dict[str, CommandHandler] = {}
@@ -87,16 +124,79 @@ def aliases_for(verb: str) -> list[str]:
 
 
 def execute(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """执行一个已解析的意图：查注册表调对应处理函数并产出消息。
+    """执行一个已解析的意图：经 before/after 生命周期钩子环绕调处理函数。
 
     执行阶段完全不关心某个意图是被哪个解析器解析出来的（spec 用户故事 25）。
     未知动词本不该走到这里（解析阶段已拦截成 ParseFailure），但手工构造的
     Intent 若带了未注册动词，这里仍给一句提示而非抛 KeyError。
+
+    08 号票：``execute`` 外包一层命令生命周期钩子（Inform 7 四段式的"前置校验
+    -> 执行 -> 后置通知"精炼，是"夜里 NPC 不卖酒""诅咒物品拿不起"等前置否决
+    规则的挂载点--不补则 M2 引入时要改 ``execute`` 签名）。``on_command_before``
+    在处理函数前跑：``Deny`` 否决并返回拒绝消息（跳过处理函数与 after）、
+    ``Replace`` 改写本次意图（后续 before 钩子与执行都用新意图，故 ``Replace``
+    改写动词后按生效意图重新解析处理函数）、``Allow`` 放行；M1 默认无 handler 即
+    放行，现有 11 个命令行为零回归。``on_command_after`` 在处理函数返回后跑，
+    按注册顺序折叠消息列表。原动词未知时无处理函数，before/after 不挂（否决一个
+    不存在的命令无意义）；``Replace`` 改写到未知动词时按生效意图给未知命令提示。
+    钩子复用 07 号票的 ``world.events`` 注册表；before 的否决短路 / after 的消息
+    折叠都不是 fire-and-forget，故走 ``handlers_for`` 自取 handler 列表自行聚合
+    （07 已为此预留空间）。
     """
-    handler = _REGISTRY.get(intent.verb)
+    if intent.verb not in _REGISTRY:
+        # 未知动词无处理函数：before/after 不挂（否决一个不存在的命令无意义）。
+        return _unknown_verb_message(intent.verb)
+
+    denial, effective_intent = _run_before_hooks(world, player_id, intent)
+    if denial is not None:
+        # 否决：不执行处理函数，after 也不挂（处理函数没跑就没有"后置"可通知）。
+        return [denial]
+
+    # Replace 可能改写动词：按生效意图重新解析处理函数（改写到未知动词给提示）。
+    handler = _REGISTRY.get(effective_intent.verb)
     if handler is None:
-        return [f"未知命令：{intent.verb}。输入 help 查看当前支持的命令列表。"]
-    return handler(world, player_id, intent)
+        return _unknown_verb_message(effective_intent.verb)
+
+    messages = handler(world, player_id, effective_intent)
+    return _run_after_hooks(world, player_id, effective_intent, messages)
+
+
+def _unknown_verb_message(verb: str) -> list[str]:
+    """未知动词给玩家的提示（原动词未知 / ``Replace`` 改写到未知动词共用）。"""
+    return [f"未知命令：{verb}。输入 help 查看当前支持的命令列表。"]
+
+
+def _run_before_hooks(
+    world: World, player_id: EntityId, intent: Intent
+) -> tuple[str | None, Intent]:
+    """跑 ``on_command_before`` 全部钩子，返回 (否决消息或 None, 生效意图)。
+
+    聚合：按注册顺序遍历，``Replace`` 改写"生效意图"（后续钩子看到改写后的）、
+    首个 ``Deny`` 即否决并短路（其后的钩子不再跑）。``Allow`` 与 ``None``（容错
+    忘写 return）都视为放行。M1 默认无钩子注册时直接返回 (None, 原意图)。
+    """
+    effective = intent
+    for hook in world.events.handlers_for(ON_COMMAND_BEFORE):
+        result = hook(world, player_id, effective)
+        if isinstance(result, Deny):
+            return result.message, effective
+        if isinstance(result, Replace):
+            effective = result.intent
+        # Allow / None：放行，继续下一个
+    return None, effective
+
+
+def _run_after_hooks(
+    world: World, player_id: EntityId, intent: Intent, messages: list[str]
+) -> list[str]:
+    """跑 ``on_command_after`` 全部钩子，按注册顺序折叠消息列表。
+
+    每个 after 钩子收 (world, player, 生效意图, 当前消息) 返回新消息列表，前一
+    个的输出是后一个的输入。M1 默认无钩子注册时原样返回（零回归）。
+    """
+    for hook in world.events.handlers_for(ON_COMMAND_AFTER):
+        messages = hook(world, player_id, intent, messages)
+    return messages
 
 
 def _sorted_item_names(world: World, container: Container) -> list[str]:
@@ -363,4 +463,17 @@ def _player_room(world: World, player_id: EntityId) -> EntityId:
     return world.require_component(player_id, Position).room
 
 
-__all__ = ["canonical_verbs", "execute", "register", "resolve_verb"]
+__all__ = [
+    "ON_COMMAND_AFTER",
+    "ON_COMMAND_BEFORE",
+    "Allow",
+    "CommandAfterHook",
+    "CommandBeforeHook",
+    "CommandBeforeResult",
+    "Deny",
+    "Replace",
+    "canonical_verbs",
+    "execute",
+    "register",
+    "resolve_verb",
+]

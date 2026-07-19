@@ -3,7 +3,9 @@
 EventBus 是 ADR-0004"注册表注入"手法在非战斗系统的地基（``register(name, handler)``
 与 ``commands.register`` 同构、与 ``register_condition`` 同源）。TickContext 是
 on_tick 事件点分发给订阅者的上下文，形状被契约测试锁定（防 M2 引入真实规则时
-改接口，spec 块 A user story 6）。
+改接口，spec 块 A user story 6）。08 号票为命令 before/after 钩子的"返回值收集 /
+自定义聚合"给 EventBus 加了 ``handlers_for``，其契约也在这里测（EventBus 方法归
+EventBus 测试）。
 
 测试只验证外部可观察行为（handler 被调用、收到正确参数、注册顺序），不测
 ``_handlers`` 字典内部结构。按 Given/When 场景分组成嵌套类，方法名只写 Then
@@ -120,3 +122,48 @@ class TestTickContextContract:
     def test_on_tick_constant_is_a_stable_string_key(self) -> None:
         # 事件名常量锁定：注册与分发用同一个常量，避免拼写漂移。
         assert ON_TICK == "on_tick"
+
+
+class TestHandlersFor:
+    """08 号票：``handlers_for`` 暴露某事件 key 的 handler 列表副本，供需要收集
+    返回值或自定义聚合（命令 before/after 钩子）的调用方使用。``dispatch`` 现复用
+    它；返回副本保证 handler 内部 ``register`` 不影响调用方已取的快照。"""
+
+    def test_returns_handlers_in_registration_order(self) -> None:
+        bus = EventBus()
+
+        def h1() -> None: ...
+
+        def h2() -> None: ...
+
+        bus.register("e", h1)
+        bus.register("e", h2)
+        assert bus.handlers_for("e") == (h1, h2)
+
+    def test_returns_empty_tuple_when_no_handler_registered(self) -> None:
+        bus = EventBus()
+        assert bus.handlers_for("nobody") == ()
+
+    def test_returns_a_snapshot_not_a_live_view(self) -> None:
+        # 取快照后再 register 不影响已拿到的这份（与 dispatch 遍历副本同语义）。
+        bus = EventBus()
+
+        def h1() -> None: ...
+
+        bus.register("e", h1)
+        snapshot = bus.handlers_for("e")
+
+        def h2() -> None: ...
+
+        bus.register("e", h2)
+        assert snapshot == (h1,)  # 旧快照不变
+        assert bus.handlers_for("e") == (h1, h2)  # 新取的含新 handler
+
+    def test_returns_only_handlers_for_the_named_event(self) -> None:
+        bus = EventBus()
+
+        def h() -> None: ...
+
+        bus.register("on_a", h)
+        assert bus.handlers_for("on_b") == ()
+        assert bus.handlers_for("on_a") == (h,)
