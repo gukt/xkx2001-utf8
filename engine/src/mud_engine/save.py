@@ -26,6 +26,7 @@ save 先写一个全新的 staging 快照目录（``snapshots/<新 seq>/``），
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -34,6 +35,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from mud_engine.components import (
+    TRANSIENT,
     Container,
     Description,
     Door,
@@ -216,6 +218,39 @@ def restore_world(save_root: Path | str) -> tuple[World, EntityId] | None:
     return world, player_id
 
 
+def _transient_field_names(component_type: type) -> frozenset[str]:
+    """该组件类型上被标为"瞬时"（运行时可变、不进存档）的字段名（12 号票）。
+
+    通过 ``transient_field()`` 写入的 dataclass field metadata（``TRANSIENT`` key）
+    识别。非 dataclass 类型无瞬时字段（返回空）。
+    """
+    if not dataclasses.is_dataclass(component_type):
+        return frozenset()
+    return frozenset(
+        f.name for f in dataclasses.fields(component_type) if f.metadata.get(TRANSIENT) is True
+    )
+
+
+def _strip_transient(component_type: type, payload: dict) -> dict:
+    """三态过滤 chokepoint：从序列化 payload 里剔除瞬时字段（12 号票）。
+
+    瞬时字段（``transient_field()`` 标注）一律不进存档。codec 本应省略它们；若
+    codec 误带，这里兜底剔除并记警告（surfacing 编码 bug，不静默吞，但也不让一个
+    codec 失误破坏整次存档）。无瞬时字段的组件是 no-op 快路径，不改 payload。
+    """
+    transient = _transient_field_names(component_type)
+    if not transient:
+        return payload
+    leaked = transient & payload.keys()
+    if leaked:
+        logger.warning(
+            "组件 %s 的瞬时字段 %s 被 codec 误带入存档，已剔除",
+            component_type.__name__,
+            sorted(leaked),
+        )
+    return {k: v for k, v in payload.items() if k not in transient}
+
+
 def _serialize_entity(world: World, entity_id: EntityId, player_id: EntityId) -> dict:
     """把一个实体序列化成存档记录（id + 各组件 dict + 玩家标记）。"""
     components: dict[str, dict] = {}
@@ -226,7 +261,9 @@ def _serialize_entity(world: World, entity_id: EntityId, player_id: EntityId) ->
                 f"无法序列化 entity {entity_id} 的组件 {component_type.__name__}：未注册 codec"
             )
         serialize, _ = codec
-        components[component_type.__name__] = serialize(component)
+        payload = serialize(component)
+        payload = _strip_transient(component_type, payload)  # 三态过滤：瞬时字段不进存档
+        components[component_type.__name__] = payload
     record: dict = {"id": entity_id, "components": components}
     if entity_id == player_id:
         record["is_player"] = True
