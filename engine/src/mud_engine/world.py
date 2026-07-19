@@ -12,6 +12,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TypeVar
 
+from mud_engine.events import EventBus
+
 EntityId = int
 
 TComponent = TypeVar("TComponent")
@@ -34,6 +36,12 @@ class World:
         # 全局引擎态（不属于任何单个 entity，因此不建成组件）：命令处理函数
         # 通过它请求 CLI 循环结束；05 号票的 tick 计数会用同样的方式挂在这里。
         self.should_quit = False
+        # 事件总线 / 钩子注册表（07 号票，块 A 地基）：按事件 key 路由到 handler
+        # 列表，``TickLoop.advance`` 用它分发 on_tick。挂 world 上做实例隔离；不进
+        # 存档（存档只序列化 entities/components，见 save.py），restore 后为空，
+        # 订阅者由各子系统在启动 / restore 后重新注册（M1 save_fn 不依赖 events，
+        # 故存档行为不受影响）。
+        self.events = EventBus()
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""

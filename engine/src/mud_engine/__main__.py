@@ -27,7 +27,7 @@ def main() -> None:
     except SceneLoadError as exc:
         print(f"场景数据加载失败：{exc}", file=sys.stderr)
         sys.exit(1)
-    tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir))
+    tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir), world=world)
     run_repl(world, player_id, tick_loop=tick_loop)
 
 
