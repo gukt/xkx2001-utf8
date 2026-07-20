@@ -24,16 +24,13 @@ import pytest
 from mud_engine.commands import (
     ON_BEFORE_ENTER_ROOM,
     ON_DOOR_STATE_CHANGE,
-    ON_DROP,
     ON_ENTER_ROOM,
     ON_LEAVE_ROOM,
-    ON_TAKE,
     ON_TRAVERSE_BLOCKED,
     Allow,
     Deny,
     DoorStateChangeContext,
     EnterRoomContext,
-    TransferContext,
     TraverseBlockedContext,
 )
 from mud_engine.components import (
@@ -45,6 +42,7 @@ from mud_engine.components import (
 )
 from mud_engine.parsing import execute_line
 from mud_engine.scenes import build_world
+from mud_engine.transfer import ON_DROP, ON_TAKE, TransferContext
 from mud_engine.world import EntityId, World
 
 

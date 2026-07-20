@@ -210,10 +210,8 @@ class DeterministicParser(Parser):
         if isinstance(container_matched, ParseFailure):
             return container_matched
 
-        # 物品候选来自已解析的容器实体（按规范名找）。
-        container_id = self._find_reachable_container_id(
-            world, player_id, container_matched
-        )
+        # 物品候选来自已解析的容器实体（按规范名找，走共享 lookup，30 号票）。
+        container_id = find_reachable_container(world, player_id, container_matched)
         if container_id is None:
             return ParseFailure(
                 Reason.NO_TARGET_MATCH, original=container_token, verb="take"
@@ -365,14 +363,6 @@ class DeterministicParser(Parser):
                 identity = world.require_component(item, Identity)
                 candidates.append((identity.name, identity.aliases))
         return candidates
-
-    @staticmethod
-    def _find_reachable_container_id(
-        world: World, player_id: EntityId, name: str
-    ) -> EntityId | None:
-        # 走共享的 lookup（30 号票与 commands._find_reachable_container 去重，两处原
-        # 逻辑逐字同构）。保留薄壳维持本类内调用名不变。
-        return find_reachable_container(world, player_id, name)
 
     @staticmethod
     def _look_item_candidates(world: World, player_id: EntityId) -> list[Candidate]:

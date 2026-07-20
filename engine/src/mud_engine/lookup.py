@@ -1,16 +1,11 @@
 """物品查找共享逻辑（30 号票去重：Duplicated Code）。
 
-commands 与 parsing 两处重复了同构查找：
+commands 与 parsing 原先各自内联同构查找：按 room/player 找挂 ``Container`` 的
+同名物品，以及 look 用的 room/player + 一层嵌套遍历。本模块收敛为单一实现。
 
-- ``commands._find_reachable_container`` 与 ``parsing._find_reachable_container_id``
-  同构遍历 room/player 找挂 ``Container`` 的同名物品。
-- ``commands._find_lookable_item`` 与 ``parsing._look_item_candidates`` 同形遍历
-  room/player + 一层嵌套容器（前者找首个匹配 entity，后者收集去重候选）。
-
-本模块收敛遍历为单一实现。抽第三处而非放 commands 或 parsing：parsing 已
-``from mud_engine.commands import execute, resolve_verb``，commands 不 import
-parsing，若查找放任一侧都会引入反向依赖或循环，故放独立叶子模块（只依赖
-world + components，无下游 import）。
+抽第三处而非放 commands 或 parsing：parsing 已 ``from mud_engine.commands import
+execute, resolve_verb``，commands 不 import parsing，查找放任一侧都会引入反向
+依赖或循环，故放独立叶子模块（只依赖 world + components）。
 """
 
 from __future__ import annotations
@@ -26,8 +21,7 @@ def find_reachable_container(
 ) -> EntityId | None:
     """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 ``Container`` 的物品。
 
-    ``commands._find_reachable_container`` 与 ``parsing._find_reachable_container_id``
-    的单一实现（两处原逻辑逐字同构）。take-from / put 用它解析容器目标。
+    take-from / put（commands）与 take-from 解析（parsing）共用。
     """
     room = world.require_component(player_id, Position).room
     for holder in (room, player_id):

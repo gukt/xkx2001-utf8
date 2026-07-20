@@ -234,7 +234,8 @@ class TestTransferPrimitive:
         assert any("放下" in m and "石头" in m for m in messages)
 
     def test_on_take_deny_still_blocks(self) -> None:
-        from mud_engine.commands import ON_TAKE, Deny
+        from mud_engine.events import Deny
+        from mud_engine.transfer import ON_TAKE
 
         world, player_id = build_world()
         world.events.register(ON_TAKE, lambda ctx: Deny(message="诅咒挡住了你。"))

@@ -54,22 +54,15 @@ from mud_engine.components import (
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
 from mud_engine.npc_query import is_askable_npc
-from mud_engine.transfer import (
-    ON_DROP,
-    ON_TAKE,
-    TransferContext,
-    item_weight,
-    transfer,
-)
+from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
 CommandHandler = Callable[[World, EntityId, Intent], list[str]]
 
-# 32/33 号票：``Deny`` / ``run_vetoable`` 的规范定义在 ``events``，``ON_TAKE`` /
-# ``ON_DROP`` / ``TransferContext`` 在 ``transfer``（转移域概念归转移模块，消除
-# transfer -> commands 反向 import）。commands 重新导出它们以保持命令钩子 API 表面
-# 不变（``from mud_engine.commands import Deny, ON_TAKE, TransferContext`` 等仍可用，
-# 见 test_command_hooks / test_domain_events / test_items_extension 的契约测试）。
+# 32/33 号票：``Deny`` / ``run_vetoable`` 规范在 ``events``；``ON_TAKE`` / ``ON_DROP`` /
+# ``TransferContext`` 规范在 ``transfer``（消除 transfer -> commands 反向 import）。
+# ``Deny`` 仍由本模块再导出：它与 ``Allow`` / ``Replace`` 同属命令钩子三态 API。
+# 转移域符号请从 ``mud_engine.transfer`` 导入，不再经本模块空壳转发。
 
 # 命令生命周期钩子事件名（08 号票）：挂在 07 号票的 ``world.events`` 上，复用同一
 # 个 EventBus（``register`` 与 ``commands.register`` 同构）。on_command_before 在
@@ -514,7 +507,7 @@ def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     room = _player_room(world, player_id)
     from_container_name, amount = _parse_take_args(intent.args)
     if from_container_name is not None:
-        holder = _find_reachable_container(world, player_id, from_container_name)
+        holder = lookup.find_reachable_container(world, player_id, from_container_name)
         if holder is None:
             return [f"这里没有容器 {from_container_name}。"]
         src = holder
@@ -590,7 +583,7 @@ def _cmd_put(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     item = _find_item_in_container(world, player_container, name)
     if item is None:
         return [f"你没有 {name}。"]
-    holder = _find_reachable_container(world, player_id, container_name)
+    holder = lookup.find_reachable_container(world, player_id, container_name)
     if holder is None:
         return [f"这里没有容器 {container_name}。"]
     if holder == item:
@@ -780,17 +773,6 @@ def _parse_take_args(args: tuple[str, ...]) -> tuple[str | None, int | None]:
     return container_name, amount
 
 
-def _find_reachable_container(
-    world: World, player_id: EntityId, name: str
-) -> EntityId | None:
-    """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 Container 的物品。
-
-    走共享的 ``lookup.find_reachable_container``（30 号票与 parsing 去重，两处原逻辑
-    逐字同构）。保留本薄壳维持 commands 内调用名不变。
-    """
-    return lookup.find_reachable_container(world, player_id, name)
-
-
 def _door_in_direction(world: World, room: EntityId, direction: str) -> Door | None:
     """读取某房间某方向的门状态；房间无 Doors 组件或该方向无门时返回 None。
 
@@ -879,14 +861,11 @@ __all__ = [
     "ON_COMMAND_AFTER",
     "ON_COMMAND_BEFORE",
     "ON_DOOR_STATE_CHANGE",
-    "ON_DROP",
     "ON_ENTER_ROOM",
     "ON_HEAR_SAY",
     "ON_LEAVE_ROOM",
-    "ON_TAKE",
     "ON_TRAVERSE_BLOCKED",
     "Replace",
-    "TransferContext",
     "TraverseBlockedContext",
     "canonical_verbs",
     "execute",

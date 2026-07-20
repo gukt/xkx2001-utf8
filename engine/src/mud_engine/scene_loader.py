@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 from mud_engine.ai import attach_ai_system
-from mud_engine.capabilities import CAPABILITIES, SceneLoadError
+from mud_engine.capabilities import CAPABILITIES
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -39,13 +39,12 @@ from mud_engine.components import (
     PlayerSession,
     Position,
 )
+from mud_engine.errors import SceneLoadError
 from mud_engine.nature import attach_nature
 from mud_engine.world import EntityId, World
 
-# ``SceneLoadError`` 规范定义在 ``mud_engine.capabilities``（31 号票能力注册表需要它，
-# 而 scene_loader 又消费注册表；为避免 scene_loader <-> capabilities 循环依赖，
-# 错误类型放在 capabilities）。本模块重新导出保持 ``from mud_engine.scene_loader
-# import SceneLoadError`` 向后兼容。
+# ``SceneLoadError`` 规范在 ``mud_engine.errors``；本模块再导出以保持
+# ``from mud_engine.scene_loader import SceneLoadError`` 向后兼容。
 
 
 def load_scene(scene_path: Path) -> tuple[World, EntityId]:
