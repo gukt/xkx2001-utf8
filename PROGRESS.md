@@ -9,8 +9,8 @@
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；M1 01~29 全 resolved（骨架 01–06 + 扩展 A 07–12 + B Nature 13–17 + C 物品 18–24 + D NPC 25–29）；mvp-scope 10/10 票全解决。下一步：合回 `master` 后准备 M2（一个 MVP 场景端到端可玩）`/to-spec`。
-- **engine/ 现状**：`src/mud_engine/` 含 `world`/`components`/`commands`/`conditions`/`nature`/`transfer`/`ai`/`parsing`/`intent`/`matching`/`scenes`/`scene_loader`/`save`/`tick`/`events`/`cli`/`__main__`。场景 `engine/data/m1_default_scene.yaml`（户外庭院 + nature 相位 + 石像守卫 inquiry）。闭环：移动/查看/拾取丢弃/put/容器容量重量/堆叠/no_take·no_drop、门与锁、Nature 时辰天气与户外 look/广播、ask/say/Chatter、存档与崩溃恢复、事件总线与钩子。364 测试，`just gate` 全绿。工作分支：`feat/m1-extension-bcd`。
+- **阶段**：M0 完成；M1 01~29 全 resolved（骨架 01–06 + 扩展 A 07–12 + B Nature 13–17 + C 物品 18–24 + D NPC 25–29）；mvp-scope 10/10 票全解决。**M1 扩展已合入 `master`**。下一步：M2（一个 MVP 场景端到端可玩）`/to-spec`。
+- **engine/ 现状**：`src/mud_engine/` 含 `world`/`components`/`commands`/`conditions`/`nature`/`transfer`/`ai`/`parsing`/`intent`/`matching`/`scenes`/`scene_loader`/`save`/`tick`/`events`/`cli`/`__main__`。场景 `engine/data/m1_default_scene.yaml`（户外庭院 + nature 相位 + 石像守卫 inquiry）。闭环：移动/查看/拾取丢弃/put/容器容量重量/堆叠/no_take·no_drop、门与锁、Nature 时辰天气与户外 look/广播、ask/say/Chatter、存档与崩溃恢复、事件总线与钩子。364 测试，`just gate` 全绿。
 
 ## Done
 
