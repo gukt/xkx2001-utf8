@@ -6,7 +6,10 @@
 
 **From:** BCD re-pass code-review 物品批 Standards #6（commit 79b831ef）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 两处查找逻辑收敛到单一实现，无行为回归
-- [ ] just gate 全绿
+- [x] 两处查找逻辑收敛到单一实现，无行为回归
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `d739c48a`。
+新建 `engine/src/mud_engine/lookup.py`，收敛 `find_reachable_container`（commands/parsing 同构可达容器查找）与 `iter_lookable_containers`（look 遍历结构）。commands 与 parsing 改调共享实现，402 绿。

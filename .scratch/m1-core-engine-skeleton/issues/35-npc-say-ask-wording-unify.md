@@ -6,7 +6,10 @@
 
 **From:** BCD re-pass code-review NPC 批 Standards #8（commit bab2f44f）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 文案统一或明确语义区分理由
-- [ ] just gate 全绿
+- [x] 文案统一或明确语义区分理由
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `7d603c51`。
+经评估统一为「说：」：ask 响应的「说道：」改为与 say/room_say/Chatter 一致的「说：」。test_ask_uses_alias 断言改为「石像守卫说：」以同时验证别名解析与统一文案。29 绿。

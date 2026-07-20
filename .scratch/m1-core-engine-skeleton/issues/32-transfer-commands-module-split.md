@@ -6,7 +6,10 @@
 
 **From:** BCD re-pass code-review 物品批 Standards #8（commit 79b831ef）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] transfer 不再 import commands，惰性 import 注释删除
-- [ ] just gate 全绿
+- [x] transfer 不再 import commands，惰性 import 注释删除
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `b67a9f06`。
+ON_TAKE/ON_DROP/TransferContext 移至 `transfer.py`（转移域概念归转移模块），Deny 与共享的 `run_vetoable` 移至 `events.py`。transfer.py 删除对 commands 的惰性 import 及循环依赖注释；commands 重新导出这些符号保持命令钩子 API 不变（兼容 test_domain_events / test_items_extension 的 import）。398 绿。

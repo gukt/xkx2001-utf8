@@ -6,7 +6,10 @@
 
 **From:** BCD re-pass code-review 物品批 Standards #7（commit 79b831ef）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 新增能力组件的改动点收敛（不再散落三文件四点）
-- [ ] just gate 全绿
+- [x] 新增能力组件的改动点收敛（不再散落三文件四点）
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `82d0c334`。
+经评估后实现统一注册表：新建 `engine/src/mud_engine/capabilities.py`，7 个 item 能力（Stackable/Valuable/Equippable/Consumable/ItemFlags/Container/Weight）自描述 parse/ser/des/known_fields；scene_loader 遍历注册表挂载，_ITEM_KNOWN_FIELDS 由注册表聚合；save 的 item 能力 codec 来自注册表。新增能力只需：1) components.py 定义类；2) capabilities.py 注册一条 spec。Weight/Stackable 互斥通过 attached 上下文处理，注册表顺序保证 Stackable 先于 Weight。402 绿。

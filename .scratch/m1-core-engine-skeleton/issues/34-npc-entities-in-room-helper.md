@@ -8,8 +8,11 @@
 
 **From:** BCD re-pass code-review NPC 批 Standards #7（commit bab2f44f）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 4 处查找收敛到 `world.entities_in_room`
-- [ ] import 无循环
-- [ ] just gate 全绿
+- [x] 4 处查找收敛到 `world.entities_in_room`
+- [x] import 无循环
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `2461fde0`。
+commands（_sorted_npc_names_in_room / room_say / _find_npc_in_room）与 parsing（_npc_candidates）改调 `world.entities_in_room(room, exclude=...)`。components.py 将 `EntityId` 改为 TYPE_CHECKING 导入（所有使用处均为注解，配合 `from __future__ import annotations`），world.py 可运行时 import Position 而无循环依赖。新增 test_world.TestEntitiesInRoom 直接覆盖。402 绿。

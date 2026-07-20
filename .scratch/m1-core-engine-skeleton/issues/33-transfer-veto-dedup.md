@@ -6,7 +6,10 @@
 
 **From:** BCD re-pass code-review 物品批 Standards #9 / Spec #4（commit 79b831ef，两轴共识）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] veto 逻辑单一实现，两处调用
-- [ ] just gate 全绿
+- [x] veto 逻辑单一实现，两处调用
+- [x] just gate 全绿
+
+**Resolved:** 2026-07-20，commit `b67a9f06`（与 #32 同 commit 一起拆）。
+原 `commands._run_vetoable` 与 `transfer._run_transfer_veto` 两处同语义重复实现收敛为 `events.run_vetoable(world, event_name, ctx)`；commands._cmd_go 与 transfer() 均调用该单一实现。398 绿。
