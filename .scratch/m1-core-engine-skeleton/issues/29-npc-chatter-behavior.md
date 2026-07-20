@@ -4,11 +4,18 @@
 
 **Blocked by:** 25 - Behavior/AIController 骨架；28 - say 广播通道；10 - 条件求值器（行为条件）。
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-07-20：经批量 review-fix 认证，未走独立 /implement；398 测试绿）
 
-- [ ] Chatter 行为可经 YAML/组件配置（消息列表 + 概率）
-- [ ] `advance()` 驱动下 Chatter 会触发 say（测试用确定性概率或断言至少触发）
-- [ ] 行为条件用条件求值器表达（如只在夜里才闲聊）
-- [ ] 无 AIController / 无 Chatter 的 NPC 不说话
-- [ ] 经 `tick_loop.advance` seam 可观察
-- [ ] 现有测试全绿（不回归）
+- [x] Chatter 行为可经 YAML/组件配置（消息列表 + 概率）
+- [x] `advance()` 驱动下 Chatter 会触发 say（测试用确定性概率或断言至少触发）
+- [x] 行为条件用条件求值器表达（如只在夜里才闲聊）
+- [x] 无 AIController / 无 Chatter 的 NPC 不说话
+- [x] 经 `tick_loop.advance` seam 可观察
+- [x] 现有测试全绿（不回归）
+
+
+## Comments
+
+### 2026-07-20 review-fix 认证
+
+经上一 session 批量 code-review + fix 认证（commits eca7830c / e687d43f / 79b831ef / cbfe8084 / bab2f44f）：代码已在 fc74e73b 首轮落地、bug 已修、398 测试绿。**未走独立 /implement TDD seam**，AC 勾选基于 review-fix 后代码状态，非逐条 TDD 验证；如需逐条独立认证仍可后续补 /implement。

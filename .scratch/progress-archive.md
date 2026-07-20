@@ -3,6 +3,9 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M1 扩展 `/to-tickets` 拆 B/C/D**（票 13–29，[issues](m1-core-engine-skeleton/issues/)）：B Nature（13-17）/ C 物品（18-24）/ D NPC（25-29），阻塞关系见各票。
+- [x] **M1 扩展 B/C/D 首轮落地**（commit `fc74e73b`，已合 `master`）：13-29 首轮并行冲刺落地；后改纪律化 re-pass（清 Status 逐票 `/implement` + `/code-review`）。
+
 - [x] **M1 10 号票：通用条件表达式求值器最小版**（[10](m1-core-engine-skeleton/issues/10-condition-expression-evaluator.md)，resolved）：`conditions.py` + StubContext；B 块 Nature 接真实查询。
 - [x] **M1 08 号票：命令生命周期钩子 before/after**（[08](m1-core-engine-skeleton/issues/08-command-lifecycle-hooks.md)，resolved）：Allow/Deny/Replace；`handlers_for`。
 - [x] **M1 07 号票：事件总线 + on_tick 分发**（[07](m1-core-engine-skeleton/issues/07-event-bus-and-on-tick-dispatch.md)，resolved）：`events.py` + TickLoop on_tick。

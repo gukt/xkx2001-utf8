@@ -4,11 +4,18 @@
 
 **Blocked by:** 19 - 嵌套转移走统一 `transfer`。
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-07-20：经批量 review-fix 认证，未走独立 /implement；398 测试绿）
 
-- [ ] 场景 YAML 物品可声明为容器（挂 Container）
-- [ ] `put <物品> in <容器>` 将物品从玩家栏移入容器
-- [ ] `take <物品> from <容器>` 从容器取到玩家栏
-- [ ] 容器须在同房间或玩家栏内可达
-- [ ] 经 `execute_line` 端到端可验证
-- [ ] 现有测试全绿（不回归）
+- [x] 场景 YAML 物品可声明为容器（挂 Container）
+- [x] `put <物品> in <容器>` 将物品从玩家栏移入容器
+- [x] `take <物品> from <容器>` 从容器取到玩家栏
+- [x] 容器须在同房间或玩家栏内可达
+- [x] 经 `execute_line` 端到端可验证
+- [x] 现有测试全绿（不回归）
+
+
+## Comments
+
+### 2026-07-20 review-fix 认证
+
+经上一 session 批量 code-review + fix 认证（commits eca7830c / e687d43f / 79b831ef / cbfe8084 / bab2f44f）：代码已在 fc74e73b 首轮落地、bug 已修、398 测试绿。**未走独立 /implement TDD seam**，AC 勾选基于 review-fix 后代码状态，非逐条 TDD 验证；如需逐条独立认证仍可后续补 /implement。
