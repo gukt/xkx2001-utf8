@@ -112,7 +112,14 @@ _PHASE_LABELS = {
     "day": "白天",
     "dusk": "黄昏",
     "night": "夜晚",
+    "midnight": "午夜",
 }
+
+# 高阶谓词相位集合（14 号票）。对齐 research「夜里」条件：
+# night / midnight / dawn 算夜里（户外夜事件、NPC 闲聊等）；day / dusk 算白天。
+# 精确时辰仍用 ``phase == X``（Equals），不依赖这两集合是否互斥完备。
+NIGHT_PHASES: frozenset[str] = frozenset({"night", "midnight", "dawn"})
+DAY_PHASES: frozenset[str] = frozenset({"day", "dusk"})
 
 _DEFAULT_RAIN_SUFFIX = "下着小雨。"
 _WEATHER_CLEAR_MSG = "雨停了，天空放晴。"
@@ -161,13 +168,20 @@ class NatureState:
 
     @property
     def is_night(self) -> bool:
-        """是否夜里：仅 ``phase == "night"``（dawn/dusk 都不是夜里）。"""
-        return self.phase == "night"
+        """是否夜里：``phase`` ∈ ``NIGHT_PHASES``（night / midnight / dawn）。
+
+        高阶概念，不止 ``phase == "night"``。黎明算夜里（对齐 research
+        「只在夜里闲聊」类条件）；精确时辰用 ``Equals("phase", ...)``。
+        """
+        return self.phase in NIGHT_PHASES
 
     @property
     def is_day(self) -> bool:
-        """是否白天：仅 ``phase == "day"``。"""
-        return self.phase == "day"
+        """是否白天：``phase`` ∈ ``DAY_PHASES``（day / dusk）。
+
+        黄昏算白天侧（与 ``is_night`` 互补覆盖默认四相）；未知相位两者皆 False。
+        """
+        return self.phase in DAY_PHASES
 
     @property
     def is_raining(self) -> bool:
@@ -436,8 +450,10 @@ def _push_outdoor_messages(world: World, messages: Sequence[str]) -> None:
 
 
 __all__ = [
+    "DAY_PHASES",
     "DEFAULT_PHASES",
     "DEFAULT_WEATHER_CHANGE_CHANCE",
+    "NIGHT_PHASES",
     "ON_NATURE_CHANGE",
     "Clock",
     "DayPhase",

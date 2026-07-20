@@ -182,7 +182,12 @@ nature:
 
 
 class TestQueryPredicates:
-    """14 号票：结构化查询谓词 + ConditionContext。"""
+    """14 号票：结构化查询谓词 + ConditionContext。
+
+    高阶谓词语义（对齐 research「夜里」条件，含 dawn / midnight）：
+    - ``is_night``：phase ∈ {night, midnight, dawn}
+    - ``is_day``：phase ∈ {day, dusk}
+    """
 
     def test_nature_implements_condition_context_protocol(self) -> None:
         nature = NatureState(_SHORT_PHASES)
@@ -190,17 +195,58 @@ class TestQueryPredicates:
 
     def test_evaluate_works_with_real_nature(self) -> None:
         world, _ = build_world()
-        nature = _attach(world, clock_minutes=0)  # dawn
+        nature = _attach(world, clock_minutes=0)  # dawn → 夜里（含黎明）
         assert evaluate(Equals("phase", "dawn"), nature) is True
-        assert evaluate(Predicate("is_night"), nature) is False
+        assert evaluate(Predicate("is_night"), nature) is True
         assert evaluate(Predicate("is_day"), nature) is False
+
+    def test_dawn_is_night_not_day(self) -> None:
+        nature = NatureState(_SHORT_PHASES, phase_index=0)  # dawn
+        assert nature.phase == "dawn"
+        assert nature.is_night is True
+        assert nature.is_day is False
+
+    def test_day_is_day_not_night(self) -> None:
+        nature = NatureState(_SHORT_PHASES, phase_index=1)  # day
+        assert nature.is_day is True
+        assert nature.is_night is False
+
+    def test_dusk_is_day_not_night(self) -> None:
+        nature = NatureState(_SHORT_PHASES, phase_index=2)  # dusk
+        assert nature.phase == "dusk"
+        assert nature.is_day is True
+        assert nature.is_night is False
+
+    def test_night_is_night_not_day(self) -> None:
+        nature = NatureState(_SHORT_PHASES, phase_index=3)  # night
+        assert nature.is_night is True
+        assert nature.is_day is False
+
+    def test_midnight_counts_as_night(self) -> None:
+        # 题材包可自定义 midnight；research 夜条件含 midnight。
+        phases = (
+            DayPhase("day", 2, "", ""),
+            DayPhase("midnight", 2, "", ""),
+        )
+        nature = NatureState(phases, phase_index=1)
+        assert nature.phase == "midnight"
+        assert nature.is_night is True
+        assert nature.is_day is False
 
     def test_predicates_change_after_advance(self) -> None:
         world, _ = build_world()
         nature = _attach(world, clock_minutes=0)
+        assert nature.is_night is True  # dawn
         loop = _tick_loop(world)
-        # 推到 night：dawn(2)+day(2)+dusk(2)=6 ticks 到 night 起点
-        for _ in range(6):
+        # dawn(2) → day
+        loop.advance()
+        loop.advance()
+        assert nature.phase == "day"
+        assert nature.is_night is False
+        assert nature.is_day is True
+        assert evaluate(Predicate("is_day"), nature) is True
+        # 再推到 night：day(2)+dusk(2)=4 ticks
+        for _ in range(4):
             loop.advance()
         assert nature.phase == "night"
         assert nature.is_night is True
@@ -212,6 +258,9 @@ class TestQueryPredicates:
         world, _ = build_world()
         nature = _attach(world, clock_minutes=2)  # day
         assert "白天" in nature.game_time_str
+        # dawn / dusk 中文标签也可观察
+        dawn = _attach(build_world()[0], clock_minutes=0)
+        assert "黎明" in dawn.game_time_str
 
     def test_stub_context_still_works_for_unit_tests(self) -> None:
         # 14 验收：现有 StubContext 测试不破。
