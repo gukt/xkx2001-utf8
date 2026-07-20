@@ -317,14 +317,21 @@ class TestOutdoorLook:
         messages = execute_line(world, player_id, "look")
         assert any("黎明将至" in m for m in messages)
 
-    def test_look_indoors_does_not_append_nature_desc(self) -> None:
+    def test_go_indoors_does_not_append_nature_desc(self) -> None:
+        # 进入室内：go 响应本身不带 Nature 时辰/天气文案。
         world, player_id = build_world()
         _attach(world, clock_minutes=0)
-        # 进储藏室（室内）
         execute_line(world, player_id, "open south")
         messages = execute_line(world, player_id, "go south")
         assert not any("黎明将至" in m for m in messages)
         assert not any("日正当空" in m for m in messages)
+
+    def test_look_indoors_does_not_append_nature_desc(self) -> None:
+        # 室内 look：不追加户外才有的 Nature 时辰/天气描述。
+        world, player_id = build_world()
+        _attach(world, clock_minutes=0)
+        execute_line(world, player_id, "open south")
+        execute_line(world, player_id, "go south")  # 室内
         look = execute_line(world, player_id, "look")
         assert not any("黎明将至" in m for m in look)
 

@@ -62,6 +62,11 @@ class NatureChangeContext:
 
     frozen dataclass：字段全为值 / 枚举 / 实体 id，无 mutable 引用（与
     ``TickContext`` / 09 号票领域事件上下文同风格）。
+
+    ``phase_msgs`` 携带本次 tick 跨越的**全部**相位切换文案（含中间相位，
+    一个 tick 跨多相位时不丢），``weather_msg`` 是天气切换文案。户外广播
+    订阅者用这俩组装推送内容；``time_msg`` 是向后兼容的"代表文案"（最后一
+    相文案，或仅天气变时的天气文案），供只需一条文案的订阅者。
     """
 
     world: World
@@ -69,7 +74,9 @@ class NatureChangeContext:
     new_phase: str
     old_weather: Weather
     new_weather: Weather
-    time_msg: str  # 本次切换要广播的文案（可能为空：仅天气变且无文案时）
+    time_msg: str  # 代表文案：phase_msgs[-1] 或 weather_msg
+    phase_msgs: tuple[str, ...] = ()  # 本次跨越的全部相位切换文案（含中间相位）
+    weather_msg: str = ""  # 天气切换文案；未切换为空
 
 
 # 题材无关默认四相，总长 1440 游戏分钟 = 1 游戏日。
@@ -231,15 +238,16 @@ class NatureState:
                 self.elapsed = remaining
                 return
             remaining -= phase.length
-        # 防御：取模后理论上总能落入某相位；落空则落到最后一相末尾。
-        self.phase_index = len(self.phases) - 1
-        self.elapsed = self.phases[self.phase_index].length - 1
+        # minutes ∈ [0, total)，各相位 length>0，循环内必 return，此处不可达。
+        raise AssertionError("unreachable: clock modulo must fall into a phase")
 
-    def advance_tick(self, world: World) -> list[str]:
+    def advance_tick(self, world: World) -> None:
         """推进一个 tick：累加游戏分钟，可能切换相位 / 天气。
 
-        返回本次应广播给户外玩家的文案列表（已写入 ``world.pending_messages``
-        当且仅当存在户外玩家）；相位或天气变化时分发 ``on_nature_change``。
+        相位或天气变化时分发 ``on_nature_change``（携带本次跨越的全部相位
+        文案 ``phase_msgs`` + 天气文案 ``weather_msg``，多相位不丢中间）；
+        户外广播由 ``on_nature_change`` 订阅者 ``_broadcast_nature_change``
+        推送，不在此内联（spec US 21：广播挂事件点以便复用于未来天气变化）。
         """
         old_phase = self.phase
         old_weather = self.weather
@@ -251,41 +259,28 @@ class NatureState:
             self.phase_index = (self.phase_index + 1) % len(self.phases)
             phase_msgs.append(self.current_phase.time_msg)
 
-        weather_msg = self._maybe_change_weather()
+        weather_msg = self._maybe_change_weather() or ""
 
         new_phase = self.phase
         new_weather = self.weather
-        phase_changed = new_phase != old_phase
-        weather_changed = new_weather is not old_weather
+        if new_phase == old_phase and new_weather is old_weather:
+            return
 
-        broadcast: list[str] = []
-        if phase_changed:
-            broadcast.extend(phase_msgs)
-        if weather_changed and weather_msg:
-            broadcast.append(weather_msg)
-
-        if phase_changed or weather_changed:
-            # 事件里的 time_msg：相位切换用最后一相的 time_msg；仅天气变用天气文案。
-            event_msg = ""
-            if phase_changed and phase_msgs:
-                event_msg = phase_msgs[-1]
-            elif weather_msg:
-                event_msg = weather_msg
-            world.events.dispatch(
-                ON_NATURE_CHANGE,
-                NatureChangeContext(
-                    world=world,
-                    old_phase=old_phase,
-                    new_phase=new_phase,
-                    old_weather=old_weather,
-                    new_weather=new_weather,
-                    time_msg=event_msg,
-                ),
-            )
-
-        if broadcast:
-            _push_outdoor_messages(world, broadcast)
-        return broadcast
+        # 代表文案：相位变取最后一相，否则取天气文案（进此分支必有一者非空）。
+        time_msg = phase_msgs[-1] if phase_msgs else weather_msg
+        world.events.dispatch(
+            ON_NATURE_CHANGE,
+            NatureChangeContext(
+                world=world,
+                old_phase=old_phase,
+                new_phase=new_phase,
+                old_weather=old_weather,
+                new_weather=new_weather,
+                time_msg=time_msg,
+                phase_msgs=tuple(phase_msgs),
+                weather_msg=weather_msg,
+            ),
+        )
 
     def _maybe_change_weather(self) -> str | None:
         """按概率翻转天气；未翻转返回 None，翻转返回广播文案。"""
@@ -343,10 +338,12 @@ def attach_nature(
     )
     state.align_from_clock(clock if clock is not None else time.time)
 
-    already = getattr(world, "_nature_tick_registered", False)
-    if not already:
+    # 重复 attach 不重复注册：EventBus.register 不去重（见 events.py），用
+    # handlers_for 查重避免同一 handler 注册多次（替代 world 上的哨兵猴补丁）。
+    if _on_tick_nature not in world.events.handlers_for(ON_TICK):
         world.events.register(ON_TICK, _on_tick_nature)
-        world._nature_tick_registered = True  # type: ignore[attr-defined]
+    if _broadcast_nature_change not in world.events.handlers_for(ON_NATURE_CHANGE):
+        world.events.register(ON_NATURE_CHANGE, _broadcast_nature_change)
 
     world.nature = state
     return state
@@ -366,7 +363,7 @@ def _parse_nature_config(
     """从 YAML 透传的 nature 段解析相位序列；无法解析时返回 None（回退默认）。"""
     if not isinstance(config, dict):
         return None
-    raw_phases = config.get("day_phases", config.get("phases"))
+    raw_phases = config.get("day_phases")
     if not isinstance(raw_phases, list) or not raw_phases:
         return None
     phases: list[DayPhase] = []
@@ -417,18 +414,25 @@ def _outdoor_player_ids(world: World) -> list[EntityId]:
     return result
 
 
-def _push_outdoor_messages(world: World, messages: Sequence[str]) -> None:
-    """把广播文案推给每个户外玩家（写入 ``world.pending_messages``）。
+def _broadcast_nature_change(ctx: NatureChangeContext) -> None:
+    """``on_nature_change`` 订阅者：把切换文案推给每个户外玩家。
 
-    每位户外玩家各收一份；室内玩家不收到。CLI 在 tick 后 drain 打印。
+    广播挂在事件点上（spec US 21），题材包可注册自己的 ``on_nature_change``
+    订阅者替换/扩展广播。每位户外玩家各收 ``phase_msgs`` + ``weather_msg``
+    一份；室内玩家不收。CLI 在 tick 后 drain 打印。
     """
-    outdoor_players = _outdoor_player_ids(world)
+    messages = [*ctx.phase_msgs]
+    if ctx.weather_msg:
+        messages.append(ctx.weather_msg)
+    if not messages:
+        return
+    outdoor_players = _outdoor_player_ids(ctx.world)
     if not outdoor_players:
         return
     for _ in outdoor_players:
         for msg in messages:
             if msg:
-                world.pending_messages.append(msg)
+                ctx.world.pending_messages.append(msg)
 
 
 __all__ = [

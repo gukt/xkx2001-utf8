@@ -72,12 +72,13 @@ class Description:
 
     挂在房间与物品上（未来 NPC 也复用）；房间 look 展示 short/long，物品
     ``look <物品>``（23 号票）展示 long 与数值细节。``outdoors`` 标记户外房间
-    （块 B Nature）：look 时才追加时辰/天气文案；启动固定。
+    （块 B Nature，spec US 20 决策：挂 Description 而非新建专属组件）：look 时
+    追加时辰/天气文案；启动固定。
     """
 
     short: str  # 一句简述，look 时第一行展示，如"一块灰扑扑的石头"
     long: str  # 详细描述，look 时第二行展示，如"一块毫不起眼的石头，沉甸甸的……"
-    outdoors: bool = False  # 是否户外房间；True 时 look 追加 Nature 时辰/天气 desc
+    outdoors: bool = False  # 户外房间标记；True 时 look 追加 Nature 时辰/天气 desc
 
 
 @dataclass

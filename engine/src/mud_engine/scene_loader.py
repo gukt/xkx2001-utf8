@@ -221,7 +221,12 @@ def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, En
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
         room = world.create_entity()
         _attach_identity_and_description(
-            world, room, data, label=f"房间 '{room_key}'", scene_path=scene_path
+            world,
+            room,
+            data,
+            label=f"房间 '{room_key}'",
+            scene_path=scene_path,
+            outdoors=bool(data.get("outdoors", False)),
         )
         world.add_component(room, Exits())
         world.add_component(room, Container())
@@ -776,10 +781,14 @@ def _attach_identity_and_description(
     *,
     label: str,
     scene_path: Path,
+    outdoors: bool = False,
 ) -> None:
     """给实体挂 Identity + Description：name 必需、short 缺省取 name、long 缺省空。
 
     房间/物品/NPC 共用这一份"名字+描述"装配（玩家除外，玩家不挂 Description）。
+    ``outdoors`` 仅房间路径传 True（spec US 20 限定户外标记只挂房间 Description）；
+    物品/NPC 不读 YAML 的 ``outdoors`` 键到 Description，避免无消费者的冗余字段
+    （物品/NPC YAML 的 ``outdoors`` 键仍按未识别段透传进 entity_extension_data）。
     """
     name = data.get("name")
     if not name:
@@ -798,7 +807,7 @@ def _attach_identity_and_description(
         Description(
             short=str(data.get("short", name)),
             long=str(data.get("long", "")),
-            outdoors=bool(data.get("outdoors", False)),
+            outdoors=outdoors,
         ),
     )
 
