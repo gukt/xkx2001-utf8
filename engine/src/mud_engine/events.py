@@ -105,4 +105,40 @@ class TickContext:
     world: World
 
 
-__all__ = ["EventBus", "EventHandler", "ON_TICK", "TickContext"]
+# 可否决事件点的否决信号与聚合（32/33 号票）：领域 before 事件点
+# （``on_before_enter_room`` / ``on_take`` / ``on_drop``）的 handler 返回 ``Deny``
+# 即否决本次操作；``run_vetoable`` 按 ``handlers_for`` 遍历、首个 ``Deny`` 短路。
+# ``Deny`` 跨命令前置钩子（``on_command_before``，commands._run_before_hooks）与领域
+# before 事件点共用--两者都是"执行前可否决"语义；命令前置钩子的另两个返回态
+# ``Allow``/``Replace`` 是命令前置钩子专属，留在 commands。``Deny`` 定义归 events
+# （commands re-import 保持命令钩子 API），``run_vetoable`` 是 commands 与 transfer
+# 的公共聚合（原 commands._run_vetoable / transfer._run_transfer_veto 两处重复实现，
+# 33 号票收敛为单一实现）。
+@dataclass(frozen=True)
+class Deny:
+    """否决信号：可否决事件点的 handler 返回它即否决本次操作。
+
+    ``message`` 作为拒绝提示返回给玩家。
+    """
+
+    message: str
+
+
+def run_vetoable(world: World, event_name: str, ctx: Any) -> str | None:
+    """跑可否决领域事件点的全部 handler，返回首个 ``Deny`` 的 message 或 ``None``。
+
+    与 ``commands._run_before_hooks`` 同模式（按注册顺序遍历、首个 ``Deny`` 短路、
+    ``Allow``/``None`` 容错为放行），区别是 handler 收单个领域上下文
+    （如 ``EnterRoomContext`` / ``TransferContext``）而非 ``(world, player, intent)``，
+    且无 ``Replace``--领域级不改写语义（领域钩子不能把"进 A 房间"改写成"进 B"）。
+    M1 默认无 handler 注册时返回 ``None``（放行，零回归）。
+    """
+    for handler in world.events.handlers_for(event_name):
+        result = handler(ctx)
+        if isinstance(result, Deny):
+            return result.message
+        # Allow / None：放行，继续下一个
+    return None
+
+
+__all__ = ["Deny", "EventBus", "EventHandler", "ON_TICK", "TickContext", "run_vetoable"]

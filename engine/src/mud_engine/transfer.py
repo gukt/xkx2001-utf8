@@ -18,6 +18,7 @@ from mud_engine.components import (
     Stackable,
     Weight,
 )
+from mud_engine.events import run_vetoable
 from mud_engine.world import EntityId, World
 
 
@@ -51,6 +52,30 @@ class TransferResult:
     success: bool
     reason: str | None = None
     message: str | None = None
+
+
+# 转移事件点事件名（09 号票）：挂在 ``world.events`` 上。``on_take`` / ``on_drop``
+# 在物品进入 / 离开玩家持有时触发，handler 收 ``TransferContext``、返回 ``Deny``
+# 可否决（``events.run_vetoable`` 聚合）。32 号票从 commands 移至 transfer：这些是
+# 转移域事件，由 ``transfer()`` 触发，归 transfer 模块（原住 commands 导致 transfer
+# 反向 import commands 成循环依赖）。
+ON_TAKE = "on_take"
+ON_DROP = "on_drop"
+
+
+@dataclass(frozen=True)
+class TransferContext:
+    """``on_take`` / ``on_drop`` 上下文：物品转移前触发，可否决。
+
+    ``src``/``dst`` 是持有容器的 entity id（take: src=房间, dst=玩家；drop:
+    src=玩家, dst=房间；未来 put/give 的 src/dst 是箱子 / 其他 NPC）。全 EntityId
+    无 mutable 引用，形状直接喂给 ``transfer()``（spec 块 A user story 23）。
+    """
+
+    player_id: EntityId
+    item: EntityId
+    src: EntityId
+    dst: EntityId
 
 
 def item_weight(world: World, item: EntityId) -> float:
@@ -158,12 +183,12 @@ def transfer(
         return weight_fail
 
     # 否决钩子：进入玩家 → on_take；离开玩家 → on_drop（与 take/drop 基线一致）。
-    # 惰性导入 commands，避免 transfer ↔ commands 循环依赖。
+    # ON_TAKE/ON_DROP/TransferContext 本模块定义（32 号票从 commands 移出，消除
+    # transfer -> commands 反向 import）；run_vetoable 来自 events（33 号票与
+    # commands._run_vetoable 共用的单一聚合实现，原 transfer._run_transfer_veto 删除）。
     if player_id is not None:
-        from mud_engine.commands import ON_DROP, ON_TAKE, TransferContext
-
         if entering_player:
-            denial = _run_transfer_veto(
+            denial = run_vetoable(
                 world,
                 ON_TAKE,
                 TransferContext(player_id=player_id, item=item, src=src, dst=dst),
@@ -173,7 +198,7 @@ def transfer(
                     success=False, reason=TransferFailReason.DENIED, message=denial
                 )
         if leaving_player:
-            denial = _run_transfer_veto(
+            denial = run_vetoable(
                 world,
                 ON_DROP,
                 TransferContext(player_id=player_id, item=item, src=src, dst=dst),
@@ -334,18 +359,10 @@ def _clone_component(component: object) -> object:
     return copy.copy(component)
 
 
-def _run_transfer_veto(world: World, event_name: str, ctx: object) -> str | None:
-    """跑可否决转移钩子，返回首个 Deny.message 或 None。与 commands._run_vetoable 同语义。"""
-    from mud_engine.commands import Deny
-
-    for handler in world.events.handlers_for(event_name):
-        result = handler(ctx)
-        if isinstance(result, Deny):
-            return result.message
-    return None
-
-
 __all__ = [
+    "ON_DROP",
+    "ON_TAKE",
+    "TransferContext",
     "TransferFailReason",
     "TransferResult",
     "container_total_weight",

@@ -34,7 +34,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from mud_engine.components import (
     Container,
@@ -51,12 +50,25 @@ from mud_engine.components import (
     Valuable,
     Weight,
 )
+from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
 from mud_engine.npc_query import is_askable_npc
-from mud_engine.transfer import item_weight, transfer
+from mud_engine.transfer import (
+    ON_DROP,
+    ON_TAKE,
+    TransferContext,
+    item_weight,
+    transfer,
+)
 from mud_engine.world import EntityId, World
 
 CommandHandler = Callable[[World, EntityId, Intent], list[str]]
+
+# 32/33 号票：``Deny`` / ``run_vetoable`` 的规范定义在 ``events``，``ON_TAKE`` /
+# ``ON_DROP`` / ``TransferContext`` 在 ``transfer``（转移域概念归转移模块，消除
+# transfer -> commands 反向 import）。commands 重新导出它们以保持命令钩子 API 表面
+# 不变（``from mud_engine.commands import Deny, ON_TAKE, TransferContext`` 等仍可用，
+# 见 test_command_hooks / test_domain_events / test_items_extension 的契约测试）。
 
 # 命令生命周期钩子事件名（08 号票）：挂在 07 号票的 ``world.events`` 上，复用同一
 # 个 EventBus（``register`` 与 ``commands.register`` 同构）。on_command_before 在
@@ -68,13 +80,6 @@ ON_COMMAND_AFTER = "on_command_after"
 @dataclass(frozen=True)
 class Allow:
     """前置钩子放行：按（被 ``Replace`` 改写后的）意图继续执行处理函数。无载荷。"""
-
-
-@dataclass(frozen=True)
-class Deny:
-    """前置钩子否决：不执行处理函数，把 ``message`` 作为拒绝提示返回给玩家。"""
-
-    message: str
 
 
 @dataclass(frozen=True)
@@ -106,8 +111,6 @@ ON_BEFORE_ENTER_ROOM = "on_before_enter_room"
 ON_ENTER_ROOM = "on_enter_room"
 ON_LEAVE_ROOM = "on_leave_room"
 ON_TRAVERSE_BLOCKED = "on_traverse_blocked"
-ON_TAKE = "on_take"
-ON_DROP = "on_drop"
 ON_DOOR_STATE_CHANGE = "on_door_state_change"
 # 房间广播事件（28 号票，D4）：``say`` / Chatter 经 ``room_say`` 触发，
 # handler 收 ``HearSayContext``（speaker / room / text）。
@@ -143,22 +146,6 @@ class TraverseBlockedContext:
     from_room: EntityId
     direction: str
     door_state: DoorState
-
-
-@dataclass(frozen=True)
-class TransferContext:
-    """``on_take`` / ``on_drop`` 上下文：物品转移前触发，可否决。
-
-    ``src``/``dst`` 是持有容器的 entity id（take: src=房间, dst=玩家；drop:
-    src=玩家, dst=房间；未来 put/give 的 src/dst 是箱子 / 其他 NPC）。全 EntityId
-    无 mutable 引用，形状直接喂给块 C 的转移统一原语 ``transfer(item, src, dst)``
-    （C2 号票，spec 块 A user story 23）。
-    """
-
-    player_id: EntityId
-    item: EntityId
-    src: EntityId
-    dst: EntityId
 
 
 @dataclass(frozen=True)
@@ -316,23 +303,6 @@ def _run_after_hooks(
     return messages
 
 
-def _run_vetoable(world: World, event_name: str, ctx: Any) -> str | None:
-    """跑可否决领域事件点的全部 handler，返回首个 ``Deny`` 的 message 或 ``None``。
-
-    与 08 号票的 ``_run_before_hooks`` 同模式（按注册顺序遍历、首个 ``Deny`` 短路、
-    ``Allow``/``None`` 容错为放行），区别是 handler 收单个领域上下文
-    （``EnterRoomContext`` / ``TransferContext``）而非 ``(world, player, intent)``，
-    且无 ``Replace``（领域级不改写语义--领域钩子不能把"进 A 房间"改写成"进 B"）。
-    M1 默认无 handler 注册时返回 ``None``（放行，零回归）。
-    """
-    for handler in world.events.handlers_for(event_name):
-        result = handler(ctx)
-        if isinstance(result, Deny):
-            return result.message
-        # Allow / None：放行，继续下一个
-    return None
-
-
 def _sorted_item_names(world: World, container: Container) -> list[str]:
     """容器内物品的规范名，按名排序（look 地面展示与 inventory 共用）。"""
     return sorted(world.require_component(item, Identity).name for item in container.items)
@@ -429,7 +399,7 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
     # before：可否决（"封城不能进""进房触发 NPC 反应前先校验"等规则挂载点）。
     # 否决则不移动、不触发 enter/leave。
-    denial = _run_vetoable(
+    denial = run_vetoable(
         world,
         ON_BEFORE_ENTER_ROOM,
         EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target),
