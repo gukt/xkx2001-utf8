@@ -340,6 +340,13 @@ def save_world(
         if on_entity_saved is not None:
             on_entity_saved(entity_id)
 
+    # 场景路径 meta：restore 后重读题材包 nature 配置（不写死默认场景）。
+    if world.scene_path is not None:
+        _write_json_atomic(
+            snapshot_dir / "world_meta.json",
+            {"scene_path": str(world.scene_path)},
+        )
+
     _fsync_dir(snapshot_dir)
     _publish(root, snapshot_dir)
     _cleanup_old_snapshots(snapshots_dir, snapshot_dir)
@@ -375,6 +382,16 @@ def restore_world(save_root: Path | str) -> tuple[World, EntityId] | None:
             continue
         if record.get("is_player"):
             player_id = entity_id
+
+    meta_path = snapshot_dir / "world_meta.json"
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            raw_scene = meta.get("scene_path") if isinstance(meta, dict) else None
+            if isinstance(raw_scene, str) and raw_scene:
+                world.scene_path = Path(raw_scene)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("跳过损坏的 world_meta.json：%s", exc)
 
     if player_id is None:
         logger.warning("存档 %s 缺少可用的玩家实体，回退到 fresh scene", snapshot_dir)

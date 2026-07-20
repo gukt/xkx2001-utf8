@@ -29,11 +29,10 @@ from mud_engine.nature import (
     NatureState,
     Weather,
     attach_nature,
-    load_nature_config_from_scene,
 )
 from mud_engine.parsing import execute_line
 from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
+from mud_engine.scene_loader import load_scene, read_nature_config
 from mud_engine.scenes import build_world
 from mud_engine.tick import TickLoop
 from mud_engine.world import World
@@ -174,9 +173,13 @@ nature:
         restored = restore_world(save_dir)
         assert restored is not None
         world2, _ = restored
+        assert world2.scene_path == scene_path.resolve()
         # 模拟 __main__ restore 路径：从场景文件重挂，而非裸 attach_nature。
-        config = load_nature_config_from_scene(scene_path)
-        attach_nature(world2, config_from_yaml=config, clock=lambda: 0.0)
+        attach_nature(
+            world2,
+            config_from_yaml=read_nature_config(world2.scene_path),
+            clock=lambda: 0.0,
+        )
         assert world2.nature is not None
         assert [p.name for p in world2.nature.phases] == ["morning", "evening"]
 
@@ -193,79 +196,107 @@ class TestQueryPredicates:
         nature = NatureState(_SHORT_PHASES)
         assert isinstance(nature, ConditionContext)
 
-    def test_evaluate_works_with_real_nature(self) -> None:
-        world, _ = build_world()
-        nature = _attach(world, clock_minutes=0)  # dawn → 夜里（含黎明）
-        assert evaluate(Equals("phase", "dawn"), nature) is True
-        assert evaluate(Predicate("is_night"), nature) is True
-        assert evaluate(Predicate("is_day"), nature) is False
-
-    def test_dawn_is_night_not_day(self) -> None:
-        nature = NatureState(_SHORT_PHASES, phase_index=0)  # dawn
-        assert nature.phase == "dawn"
-        assert nature.is_night is True
-        assert nature.is_day is False
-
-    def test_day_is_day_not_night(self) -> None:
-        nature = NatureState(_SHORT_PHASES, phase_index=1)  # day
-        assert nature.is_day is True
-        assert nature.is_night is False
-
-    def test_dusk_is_day_not_night(self) -> None:
-        nature = NatureState(_SHORT_PHASES, phase_index=2)  # dusk
-        assert nature.phase == "dusk"
-        assert nature.is_day is True
-        assert nature.is_night is False
-
-    def test_night_is_night_not_day(self) -> None:
-        nature = NatureState(_SHORT_PHASES, phase_index=3)  # night
-        assert nature.is_night is True
-        assert nature.is_day is False
-
-    def test_midnight_counts_as_night(self) -> None:
-        # 题材包可自定义 midnight；research 夜条件含 midnight。
-        phases = (
-            DayPhase("day", 2, "", ""),
-            DayPhase("midnight", 2, "", ""),
-        )
-        nature = NatureState(phases, phase_index=1)
-        assert nature.phase == "midnight"
-        assert nature.is_night is True
-        assert nature.is_day is False
-
-    def test_predicates_change_after_advance(self) -> None:
-        world, _ = build_world()
-        nature = _attach(world, clock_minutes=0)
-        assert nature.is_night is True  # dawn
-        loop = _tick_loop(world)
-        # dawn(2) → day
-        loop.advance()
-        loop.advance()
-        assert nature.phase == "day"
-        assert nature.is_night is False
-        assert nature.is_day is True
-        assert evaluate(Predicate("is_day"), nature) is True
-        # 再推到 night：day(2)+dusk(2)=4 ticks
-        for _ in range(4):
-            loop.advance()
-        assert nature.phase == "night"
-        assert nature.is_night is True
-        assert nature.is_day is False
-        assert evaluate(Predicate("is_night"), nature) is True
-        assert evaluate(Equals("phase", "night"), nature) is True
-
-    def test_game_time_str_is_readable(self) -> None:
-        world, _ = build_world()
-        nature = _attach(world, clock_minutes=2)  # day
-        assert "白天" in nature.game_time_str
-        # dawn / dusk 中文标签也可观察
-        dawn = _attach(build_world()[0], clock_minutes=0)
-        assert "黎明" in dawn.game_time_str
-
     def test_stub_context_still_works_for_unit_tests(self) -> None:
         # 14 验收：现有 StubContext 测试不破。
         stub = StubContext(phase="night", is_night=True, is_day=False, is_raining=False)
         assert evaluate(Predicate("is_night"), stub) is True
+
+    class WhenDawn:
+        def test_dawn_is_night_not_day(self) -> None:
+            nature = NatureState(_SHORT_PHASES, phase_index=0)  # dawn
+            assert nature.phase == "dawn"
+            assert nature.is_night is True
+            assert nature.is_day is False
+
+        def test_evaluate_phase_equals(self) -> None:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=0)
+            assert evaluate(Equals("phase", "dawn"), nature) is True
+
+        def test_evaluate_is_night(self) -> None:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=0)
+            assert evaluate(Predicate("is_night"), nature) is True
+
+    class WhenDay:
+        def test_day_is_day_not_night(self) -> None:
+            nature = NatureState(_SHORT_PHASES, phase_index=1)  # day
+            assert nature.is_day is True
+            assert nature.is_night is False
+
+    class WhenDusk:
+        def test_dusk_is_day_not_night(self) -> None:
+            nature = NatureState(_SHORT_PHASES, phase_index=2)  # dusk
+            assert nature.phase == "dusk"
+            assert nature.is_day is True
+            assert nature.is_night is False
+
+    class WhenNight:
+        def test_night_is_night_not_day(self) -> None:
+            nature = NatureState(_SHORT_PHASES, phase_index=3)  # night
+            assert nature.is_night is True
+            assert nature.is_day is False
+
+    class WhenMidnight:
+        def test_midnight_counts_as_night(self) -> None:
+            # 题材包可自定义 midnight；research 夜条件含 midnight。
+            phases = (
+                DayPhase("day", 2, "", ""),
+                DayPhase("midnight", 2, "", ""),
+            )
+            nature = NatureState(phases, phase_index=1)
+            assert nature.phase == "midnight"
+            assert nature.is_night is True
+            assert nature.is_day is False
+
+    class WhenAdvancedFromDawnToDay:
+        def _nature_after_advance(self) -> NatureState:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=0)
+            loop = _tick_loop(world)
+            loop.advance()
+            loop.advance()  # dawn(2) → day
+            return nature
+
+        def test_phase_is_day(self) -> None:
+            assert self._nature_after_advance().phase == "day"
+
+        def test_is_day_true(self) -> None:
+            assert self._nature_after_advance().is_day is True
+
+        def test_evaluate_is_day(self) -> None:
+            assert evaluate(Predicate("is_day"), self._nature_after_advance()) is True
+
+    class WhenAdvancedToNight:
+        def _nature_after_advance(self) -> NatureState:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=0)
+            loop = _tick_loop(world)
+            # dawn(2) → day；再 day(2)+dusk(2)=4 ticks → night
+            for _ in range(6):
+                loop.advance()
+            return nature
+
+        def test_phase_is_night(self) -> None:
+            assert self._nature_after_advance().phase == "night"
+
+        def test_is_night_true(self) -> None:
+            assert self._nature_after_advance().is_night is True
+
+        def test_evaluate_is_night(self) -> None:
+            assert evaluate(Predicate("is_night"), self._nature_after_advance()) is True
+
+    class WhenPhaseIsDay:
+        def test_game_time_str_contains_day_label(self) -> None:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=2)  # day
+            assert "白天" in nature.game_time_str
+
+    class WhenPhaseIsDawn:
+        def test_game_time_str_contains_dawn_label(self) -> None:
+            world, _ = build_world()
+            nature = _attach(world, clock_minutes=0)
+            assert "黎明" in nature.game_time_str
 
 
 class TestOutdoorLook:

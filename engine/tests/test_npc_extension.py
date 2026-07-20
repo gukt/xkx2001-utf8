@@ -198,7 +198,7 @@ class TestAskInquiry:
         messages = execute_line(world, player_id, "ask")
         assert any("用法" in m for m in messages)
 
-    def test_inquiry_handler_placeholder_from_yaml(self, tmp_path: Path) -> None:
+    def _sage_with_handler(self, tmp_path: Path) -> tuple[World, EntityId]:
         """``handler`` 声明式字符串占位（同 Equippable.apply_hook）；M1 不执行。"""
         scene = (
             _BASE_ROOMS
@@ -215,13 +215,26 @@ npcs:
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         npc = _find_npc(world, player_id, "智者")
         assert npc is not None
-        inquiry = world.require_component(npc, Inquiry)
-        assert inquiry.handler == "sage_on_topic"
-        assert "handler" not in inquiry.topics
+        return world, player_id
+
+    def test_handler_stored_from_yaml(self, tmp_path: Path) -> None:
+        world, player_id = self._sage_with_handler(tmp_path)
+        npc = _find_npc(world, player_id, "智者")
+        assert npc is not None
+        assert world.require_component(npc, Inquiry).handler == "sage_on_topic"
+
+    def test_handler_not_in_topics(self, tmp_path: Path) -> None:
+        world, player_id = self._sage_with_handler(tmp_path)
+        npc = _find_npc(world, player_id, "智者")
+        assert npc is not None
+        assert "handler" not in world.require_component(npc, Inquiry).topics
+
+    def test_ask_still_uses_string_map(self, tmp_path: Path) -> None:
+        world, player_id = self._sage_with_handler(tmp_path)
         messages = execute_line(world, player_id, "ask 智者 about 天道")
         assert any("天行有常" in m for m in messages)
 
-    def test_ask_ignores_bare_position_entities(self) -> None:
+    def test_bare_position_not_askable(self) -> None:
         """ask 候选收窄为 Inquiry / NpcSpawnMeta，不把任意 Position 实体当 NPC。"""
         world, player_id = build_world()
         room = world.require_component(player_id, Position).room
@@ -230,9 +243,16 @@ npcs:
         world.add_component(decoy, Position(room=room))
         messages = execute_line(world, player_id, "ask 路人甲 about 天气")
         assert any("没有" in m for m in messages)
-        # 真正的 NPC 仍可 ask
-        ok = execute_line(world, player_id, "ask 石像守卫 about 天气")
-        assert any("晴朗" in m for m in ok)
+
+    def test_real_npc_still_askable(self) -> None:
+        """同房有裸 Position 诱饵时，真正的 NPC 仍可 ask。"""
+        world, player_id = build_world()
+        room = world.require_component(player_id, Position).room
+        decoy = world.create_entity()
+        world.add_component(decoy, Identity(name="路人甲", aliases=["路人"]))
+        world.add_component(decoy, Position(room=room))
+        messages = execute_line(world, player_id, "ask 石像守卫 about 天气")
+        assert any("晴朗" in m for m in messages)
 
 
 class TestSayBroadcast:

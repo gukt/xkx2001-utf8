@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 from mud_engine.events import EventBus
@@ -60,6 +61,9 @@ class World:
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []
+        # 本 world 由哪份场景 YAML 加载（``load_scene`` 写入）。进存档 meta，供
+        # restore 后重读题材包 ``nature:`` 配置（不能写死 DEFAULT_SCENE_PATH）。
+        self.scene_path: Path | None = None
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""

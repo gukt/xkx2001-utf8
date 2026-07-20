@@ -45,7 +45,6 @@ from mud_engine.components import (
     Exits,
     Identity,
     Inquiry,
-    NpcSpawnMeta,
     PlayerSession,
     Position,
     Stackable,
@@ -53,6 +52,7 @@ from mud_engine.components import (
     Weight,
 )
 from mud_engine.intent import Intent
+from mud_engine.npc_query import is_askable_npc
 from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
@@ -712,17 +712,14 @@ def _is_player_entity(world: World, entity: EntityId) -> bool:
 
 
 def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
-    """在玩家当前房间找规范名等于 name 的 NPC（需挂 Inquiry 或 NpcSpawnMeta）。"""
+    """在玩家当前房间找规范名等于 name 的可 ask NPC（见 ``npc_query.is_askable_npc``）。"""
     room = _player_room(world, player_id)
     for entity in world.entities_with(Position):
         if entity == player_id:
             continue
         if world.require_component(entity, Position).room != room:
             continue
-        if not (
-            world.has_component(entity, Inquiry)
-            or world.has_component(entity, NpcSpawnMeta)
-        ):
+        if not is_askable_npc(world, entity):
             continue
         identity = world.get_component(entity, Identity)
         if identity is not None and identity.name == name:

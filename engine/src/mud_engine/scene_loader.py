@@ -67,6 +67,7 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     player = _expect_mapping(data, scene_path, "player")
 
     world = World()
+    world.scene_path = scene_path.resolve()
     room_ids = _build_rooms(world, rooms, scene_path)
     item_ids = _build_items(world, items, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
@@ -79,6 +80,25 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     # NPC AI（25 号票）：挂 on_tick 遍历 AIController；幂等，无行为 NPC 时为空转。
     attach_ai_system(world)
     return world, player_id
+
+
+def read_nature_config(scene_path: Path | str) -> dict | None:
+    """从场景 YAML 读取顶层 ``nature:`` 段（场景 I/O 属本模块，不放 nature 运行时）。
+
+    Nature 运行时态不进存档；崩溃恢复后 ``extension_data`` 为空，须从
+    ``world.scene_path`` 指向的场景文件再读配置。文件缺失 / 无段 / 非 mapping
+    时返回 ``None``（调用方回退默认四相）。
+    """
+    path = Path(scene_path)
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    raw = data.get("nature")
+    return raw if isinstance(raw, dict) else None
 
 
 # 引擎认识的顶层段与每类实体的字段：不在这些集合里的段/字段是"未识别"的，
@@ -783,4 +803,4 @@ def _attach_identity_and_description(
     )
 
 
-__all__ = ["SceneLoadError", "load_scene"]
+__all__ = ["SceneLoadError", "load_scene", "read_nature_config"]
