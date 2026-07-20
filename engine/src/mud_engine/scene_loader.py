@@ -21,35 +21,31 @@ from pathlib import Path
 import yaml
 
 from mud_engine.ai import attach_ai_system
+from mud_engine.capabilities import CAPABILITIES, SceneLoadError
 from mud_engine.components import (
     AIController,
     Behaviors,
     BehaviorSpec,
-    Consumable,
     Container,
     Description,
     Door,
     Doors,
     DoorState,
-    Equippable,
     Exit,
     Exits,
     Identity,
     Inquiry,
-    ItemFlags,
     NpcSpawnMeta,
     PlayerSession,
     Position,
-    Stackable,
-    Valuable,
-    Weight,
 )
 from mud_engine.nature import attach_nature
 from mud_engine.world import EntityId, World
 
-
-class SceneLoadError(Exception):
-    """场景数据加载/校验失败：消息带文件路径与出错的数据键定位。"""
+# ``SceneLoadError`` 规范定义在 ``mud_engine.capabilities``（31 号票能力注册表需要它，
+# 而 scene_loader 又消费注册表；为避免 scene_loader <-> capabilities 循环依赖，
+# 错误类型放在 capabilities）。本模块重新导出保持 ``from mud_engine.scene_loader
+# import SceneLoadError`` 向后兼容。
 
 
 def load_scene(scene_path: Path) -> tuple[World, EntityId]:
@@ -107,8 +103,8 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 # nature 顶层段继续走透传（不列入已知段），由 attach_nature 消费 extension_data。
 _TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player"})
 _ROOM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "outdoors"})
-# 物品能力字段（18/21/22/24 号票）：stackable/valuable/equippable/consumable/
-# no_take/no_drop/container/weight 等按需挂载；未声明不挂对应组件。
+# 物品能力字段（18/21/22/24 号票 + 31 号票注册表）：从 ``CAPABILITIES``
+# 聚合每个能力的 known_fields，避免新增能力时漏改 _ITEM_KNOWN_FIELDS 导致透传误吞字段。
 _ITEM_KNOWN_FIELDS = frozenset(
     {
         "name",
@@ -116,21 +112,8 @@ _ITEM_KNOWN_FIELDS = frozenset(
         "short",
         "long",
         "placed_in",
-        "stackable",
-        "amount",
-        "unit_weight",
-        "valuable",
-        "value",
-        "equippable",
-        "consumable",
-        "no_take",
-        "no_drop",
-        "no_drop_message",
-        "container",
-        "max_capacity",
-        "max_weight",
-        "weight",
     }
+    | {field for spec in CAPABILITIES for field in spec.known_fields}
 )
 _NPC_KNOWN_FIELDS = frozenset(
     {
@@ -402,181 +385,18 @@ def _attach_item_capabilities(
     label: str,
     scene_path: Path,
 ) -> None:
-    """按 YAML 声明挂载 Stackable/Valuable/Equippable/Consumable/ItemFlags/Container/Weight。"""
-    stackable = _parse_stackable(data, label=label, scene_path=scene_path)
-    if stackable is not None:
-        world.add_component(item, stackable)
+    """按 YAML 声明挂载物品能力组件（31 号票改走统一注册表 CAPABILITIES）。
 
-    valuable = _parse_valuable(data, label=label, scene_path=scene_path)
-    if valuable is not None:
-        world.add_component(item, valuable)
-
-    equippable = _parse_equippable(data, label=label, scene_path=scene_path)
-    if equippable is not None:
-        world.add_component(item, equippable)
-
-    consumable = _parse_consumable(data, label=label, scene_path=scene_path)
-    if consumable is not None:
-        world.add_component(item, consumable)
-
-    flags = _parse_item_flags(data, label=label, scene_path=scene_path)
-    if flags is not None:
-        world.add_component(item, flags)
-
-    item_container = _parse_item_container(data, label=label, scene_path=scene_path)
-    if item_container is not None:
-        world.add_component(item, item_container)
-
-    if "weight" in data and stackable is None:
-        try:
-            world.add_component(item, Weight(value=float(data["weight"])))
-        except (TypeError, ValueError) as exc:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的{label}的 'weight' 应是数字，实际是 {data['weight']!r}"
-            ) from exc
-
-
-def _parse_stackable(
-    data: Mapping, *, label: str, scene_path: Path
-) -> Stackable | None:
-    """``stackable: true|{amount, unit_weight}`` 或顶层 ``amount`` / ``unit_weight``。"""
-    raw = data.get("stackable")
-    amount = data.get("amount")
-    unit_weight = data.get("unit_weight")
-    if raw is None and amount is None and unit_weight is None:
-        return None
-    if isinstance(raw, Mapping):
-        amount = raw.get("amount", amount)
-        unit_weight = raw.get("unit_weight", unit_weight)
-    elif raw is False:
-        return None
-    # raw is True / None with top-level amount / mapping already handled
-    if amount is None:
-        amount = 1
-    try:
-        amt = int(amount)
-        uw = 1.0 if unit_weight is None else float(unit_weight)
-    except (TypeError, ValueError) as exc:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 stackable 字段非法：{exc}"
-        ) from exc
-    if amt < 1:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 stackable.amount 应 >= 1，实际是 {amt}"
-        )
-    return Stackable(amount=amt, unit_weight=uw)
-
-
-def _parse_valuable(data: Mapping, *, label: str, scene_path: Path) -> Valuable | None:
-    """``valuable: <int>`` / ``valuable: {value: N}`` / 顶层 ``value: N``。"""
-    raw = data.get("valuable", data.get("value") if "valuable" not in data else None)
-    if "valuable" not in data and "value" not in data:
-        return None
-    if "valuable" in data:
-        raw = data["valuable"]
-    elif "value" in data:
-        raw = data["value"]
-    else:
-        return None
-    if isinstance(raw, Mapping):
-        raw = raw.get("value")
-    if raw is None or raw is False:
-        return None
-    try:
-        return Valuable(value=int(raw))
-    except (TypeError, ValueError) as exc:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 valuable/value 应是整数，实际是 {raw!r}"
-        ) from exc
-
-
-def _parse_equippable(
-    data: Mapping, *, label: str, scene_path: Path
-) -> Equippable | None:
-    """``equippable: true|{slot, apply_hook}`` 占位。"""
-    raw = data.get("equippable")
-    if raw is None or raw is False:
-        return None
-    if raw is True:
-        return Equippable()
-    if isinstance(raw, Mapping):
-        slot = str(raw.get("slot", "") or "")
-        apply_hook = raw.get("apply_hook")
-        hook = None if apply_hook is None else str(apply_hook)
-        return Equippable(slot=slot, apply_hook=hook)
-    raise SceneLoadError(
-        f"场景文件 {scene_path} 的{label}的 'equippable' 应是 true 或映射，"
-        f"实际是 {type(raw).__name__}"
-    )
-
-
-def _parse_consumable(
-    data: Mapping, *, label: str, scene_path: Path
-) -> Consumable | None:
-    """``consumable: true|{uses}`` 占位。"""
-    raw = data.get("consumable")
-    if raw is None or raw is False:
-        return None
-    if raw is True:
-        return Consumable()
-    if isinstance(raw, Mapping):
-        uses = raw.get("uses", 1)
-        try:
-            return Consumable(uses=int(uses))
-        except (TypeError, ValueError) as exc:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的{label}的 consumable.uses 应是整数，实际是 {uses!r}"
-            ) from exc
-    raise SceneLoadError(
-        f"场景文件 {scene_path} 的{label}的 'consumable' 应是 true 或映射，"
-        f"实际是 {type(raw).__name__}"
-    )
-
-
-def _parse_item_flags(
-    data: Mapping, *, label: str, scene_path: Path
-) -> ItemFlags | None:
-    """``no_take`` / ``no_drop`` / ``no_drop_message``；全缺省则不挂组件。"""
-    if not any(k in data for k in ("no_take", "no_drop", "no_drop_message")):
-        return None
-    no_take = bool(data.get("no_take", False))
-    no_drop = bool(data.get("no_drop", False))
-    msg = data.get("no_drop_message")
-    if msg is not None:
-        msg = str(msg)
-    if not no_take and not no_drop and msg is None:
-        return None
-    return ItemFlags(no_take=no_take, no_drop=no_drop, no_drop_message=msg)
-
-
-def _parse_item_container(
-    data: Mapping, *, label: str, scene_path: Path
-) -> Container | None:
-    """``container: true|{max_capacity, max_weight}`` 或顶层 max_* 且 container 真。"""
-    raw = data.get("container")
-    max_capacity = data.get("max_capacity")
-    max_weight = data.get("max_weight")
-    if raw is None and max_capacity is None and max_weight is None:
-        return None
-    if raw is False:
-        return None
-    if isinstance(raw, Mapping):
-        max_capacity = raw.get("max_capacity", max_capacity)
-        max_weight = raw.get("max_weight", max_weight)
-    elif raw is None and (max_capacity is not None or max_weight is not None):
-        # 仅顶层上限、未写 container: 不自动变容器（避免误挂）。
-        return None
-    # raw is True / mapping / 显式 container
-    if raw is None:
-        return None
-    try:
-        cap = None if max_capacity is None else int(max_capacity)
-        w = None if max_weight is None else float(max_weight)
-    except (TypeError, ValueError) as exc:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的容器上限字段非法：{exc}"
-        ) from exc
-    return Container(max_capacity=cap, max_weight=w)
+    遍历 CAPABILITIES，调用每条 spec 的 from_yaml；返回非 None 则挂载。
+    attached 记录已挂载组件，供 Weight 判断是否与 Stackable 互斥。注册表顺序
+    重要：Stackable 必须在 Weight 之前处理。
+    """
+    attached: dict[type, object] = {}
+    for spec in CAPABILITIES:
+        component = spec.from_yaml(data, label, scene_path, attached)
+        if component is not None:
+            world.add_component(item, component)
+            attached[type(component)] = component
 
 
 def _build_npcs(

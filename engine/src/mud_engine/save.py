@@ -34,29 +34,23 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
+from mud_engine.capabilities import CAPABILITIES
 from mud_engine.components import (
     TRANSIENT,
     AIController,
     Behaviors,
     BehaviorSpec,
-    Consumable,
-    Container,
     Description,
     Door,
     Doors,
     DoorState,
-    Equippable,
     Exit,
     Exits,
     Identity,
     Inquiry,
-    ItemFlags,
     NpcSpawnMeta,
     PlayerSession,
     Position,
-    Stackable,
-    Valuable,
-    Weight,
 )
 from mud_engine.world import EntityId, World
 
@@ -137,80 +131,6 @@ def _des_doors(d: dict) -> Doors:
     return doors
 
 
-def _ser_container(c: Container) -> dict:
-    # max_* 仅在非默认时写出，兼容旧存档（只有 items）。
-    payload: dict = {"items": sorted(c.items)}
-    if c.max_capacity is not None:
-        payload["max_capacity"] = c.max_capacity
-    if c.max_weight is not None:
-        payload["max_weight"] = c.max_weight
-    return payload
-
-
-def _des_container(d: dict) -> Container:
-    return Container(
-        items=set(d.get("items", [])),
-        max_capacity=d.get("max_capacity"),
-        max_weight=d.get("max_weight"),
-    )
-
-
-def _ser_stackable(c: Stackable) -> dict:
-    return {"amount": c.amount, "unit_weight": c.unit_weight}
-
-
-def _des_stackable(d: dict) -> Stackable:
-    return Stackable(amount=int(d["amount"]), unit_weight=float(d.get("unit_weight", 1.0)))
-
-
-def _ser_valuable(c: Valuable) -> dict:
-    return {"value": c.value}
-
-
-def _des_valuable(d: dict) -> Valuable:
-    return Valuable(value=int(d["value"]))
-
-
-def _ser_equippable(c: Equippable) -> dict:
-    return {"slot": c.slot, "apply_hook": c.apply_hook}
-
-
-def _des_equippable(d: dict) -> Equippable:
-    return Equippable(slot=str(d.get("slot", "")), apply_hook=d.get("apply_hook"))
-
-
-def _ser_consumable(c: Consumable) -> dict:
-    return {"uses": c.uses}
-
-
-def _des_consumable(d: dict) -> Consumable:
-    return Consumable(uses=int(d.get("uses", 1)))
-
-
-def _ser_item_flags(c: ItemFlags) -> dict:
-    return {
-        "no_take": c.no_take,
-        "no_drop": c.no_drop,
-        "no_drop_message": c.no_drop_message,
-    }
-
-
-def _des_item_flags(d: dict) -> ItemFlags:
-    return ItemFlags(
-        no_take=bool(d.get("no_take", False)),
-        no_drop=bool(d.get("no_drop", False)),
-        no_drop_message=d.get("no_drop_message"),
-    )
-
-
-def _ser_weight(c: Weight) -> dict:
-    return {"value": c.value}
-
-
-def _des_weight(d: dict) -> Weight:
-    return Weight(value=float(d.get("value", 0.0)))
-
-
 def _ser_ai_controller(c: AIController) -> dict:
     return {"tick_interval": c.tick_interval}
 
@@ -285,25 +205,26 @@ def _des_player_session(d: dict) -> PlayerSession:
     return PlayerSession()
 
 
+# 31 号票：物品能力组件的 codec 来自 ``capabilities.CAPABILITIES`` 注册表；
+# 非物品组件（Identity/Description/Position/Exits/Doors/NPC 相关）仍直接在此声明。
+# 这样新增 item 能力只需在 capabilities 注册一条 spec，不再改 save.py 三处。
 _CODECS: dict[type, _Codec] = {
-    Identity: (_ser_identity, _des_identity),
-    Description: (_ser_description, _des_description),
-    Position: (_ser_position, _des_position),
-    Exits: (_ser_exits, _des_exits),
-    Doors: (_ser_doors, _des_doors),
-    Container: (_ser_container, _des_container),
-    Stackable: (_ser_stackable, _des_stackable),
-    Valuable: (_ser_valuable, _des_valuable),
-    Equippable: (_ser_equippable, _des_equippable),
-    Consumable: (_ser_consumable, _des_consumable),
-    ItemFlags: (_ser_item_flags, _des_item_flags),
-    Weight: (_ser_weight, _des_weight),
-    AIController: (_ser_ai_controller, _des_ai_controller),
-    Behaviors: (_ser_behaviors, _des_behaviors),
-    Inquiry: (_ser_inquiry, _des_inquiry),
-    NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
-    PlayerSession: (_ser_player_session, _des_player_session),
+    spec.component_type: (spec.to_dict, spec.from_dict) for spec in CAPABILITIES
 }
+_CODECS.update(
+    {
+        Identity: (_ser_identity, _des_identity),
+        Description: (_ser_description, _des_description),
+        Position: (_ser_position, _des_position),
+        Exits: (_ser_exits, _des_exits),
+        Doors: (_ser_doors, _des_doors),
+        AIController: (_ser_ai_controller, _des_ai_controller),
+        Behaviors: (_ser_behaviors, _des_behaviors),
+        Inquiry: (_ser_inquiry, _des_inquiry),
+        NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
+        PlayerSession: (_ser_player_session, _des_player_session),
+    }
+)
 
 # 按组件类名索引（存档文件用类名作 key，反序列化时按名查 codec）。
 _CODECS_BY_NAME: dict[str, _Codec] = {ctype.__name__: codec for ctype, codec in _CODECS.items()}
