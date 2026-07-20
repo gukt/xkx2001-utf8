@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, fields, is_dataclass
+from enum import StrEnum
 
 from mud_engine.components import (
     Container,
@@ -20,8 +21,13 @@ from mud_engine.components import (
 from mud_engine.world import EntityId, World
 
 
-class TransferFailReason:
-    """转移失败原因字符串常量（契约测试锁定；命令层按 reason 选默认文案）。"""
+class TransferFailReason(StrEnum):
+    """转移失败原因枚举（契约测试锁定；命令层按 reason 选默认文案）。
+
+    ``StrEnum`` 成员既是枚举又是字符串值，``reason == "no_take"`` 与
+    ``reason == TransferFailReason.NO_TAKE`` 等价（``TransferResult.reason``
+    类型仍为 ``str | None``，比较/存档无回归）。
+    """
 
     NO_TAKE = "no_take"
     NO_DROP = "no_drop"
