@@ -3,6 +3,9 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **code-review 跟进（13/14/16/18/27/28 批）**（2026-07-20）：Standards 测拆分 + Spec restore 场景路径 + ask 共享谓词 + nature YAML 读盘收回 `scene_loader`；父 spec D3 收窄写进 [spec-extension](m1-core-engine-skeleton/spec-extension.md)。
+- [x] **票 13/14/16/18/27/28 re-pass resolved**：时辰循环、谓词、广播+PlayerSession、物品能力组件、ask、say。
+- [x] **清空 13–29 Status**（commit `5b206224`）准备逐票 re-pass。
 - [x] **M1 扩展 `/to-tickets` 拆 B/C/D**（票 13–29，[issues](m1-core-engine-skeleton/issues/)）：B Nature（13-17）/ C 物品（18-24）/ D NPC（25-29），阻塞关系见各票。
 - [x] **M1 扩展 B/C/D 首轮落地**（commit `fc74e73b`，已合 `master`）：13-29 首轮并行冲刺落地；后改纪律化 re-pass（清 Status 逐票 `/implement` + `/code-review`）。
 
