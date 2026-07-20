@@ -557,6 +557,21 @@ def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         src_container = world.require_component(room, Container)
         missing = f"这里没有 {name}。"
 
+    # spec C3：地面多堆同名 Stackable 自动合并拿走（无数量全拿，有数量从一堆拆）。
+    if amount is None:
+        stackables = [
+            it
+            for it in src_container.items
+            if world.get_component(it, Stackable) is not None
+            and world.require_component(it, Identity).name == name
+        ]
+        if stackables:
+            for it in stackables:
+                r = transfer(world, it, src, player_id, player_id=player_id)
+                if not r.success:
+                    return [r.message or "拿不起来。"]
+            return [f"你拿起 {name}。"]
+
     item = _find_item_in_container(world, src_container, name)
     if item is None:
         return [missing]
@@ -883,8 +898,10 @@ def _exit_label(world: World, room: EntityId, direction: str) -> str:
 def _find_item_in_container(world: World, container: Container, name: str) -> EntityId | None:
     """在容器里找规范名等于 name 的物品 entity id；不存在返回 None。
 
-    解析阶段已确认 name 在候选里且唯一（同名物品会先被 match_target 判歧义
-    拦下），这里按规范名匹配拿到 entity 引用。M1 假设容器内物品规范名唯一。
+    返回第一个匹配项。同名 Stackable 已在解析阶段去重为一堆（spec C3 自动
+    合并），此处可能命中其中任一实体；take 无数量走多堆合并路径不调本函数，
+    take <数量> 从这一堆拆。同名非 Stackable 仍会被 match_target 判 Ambiguous
+    拦下，不会到此。
     """
     for item in container.items:
         if world.require_component(item, Identity).name == name:

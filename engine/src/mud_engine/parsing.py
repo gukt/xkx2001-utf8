@@ -26,6 +26,7 @@ from mud_engine.components import (
     Exits,
     Identity,
     Position,
+    Stackable,
 )
 from mud_engine.intent import Intent, ParseFailure, Reason
 from mud_engine.matching import Ambiguous, Candidate, Resolved, match_target
@@ -333,9 +334,16 @@ class DeterministicParser(Parser):
 
     @staticmethod
     def _candidates_from_container(world: World, container: Container) -> list[Candidate]:
+        # 同名 Stackable 视为一堆（spec C3 自动合并）：去重避免 match_target
+        # 判 Ambiguous；同名非 Stackable 仍多候选 -> Ambiguous（同名不同物需歧义）。
         candidates: list[Candidate] = []
+        seen_stackable: set[str] = set()
         for item in container.items:
             identity = world.require_component(item, Identity)
+            if world.get_component(item, Stackable) is not None:
+                if identity.name in seen_stackable:
+                    continue
+                seen_stackable.add(identity.name)
             candidates.append((identity.name, identity.aliases))
         return candidates
 

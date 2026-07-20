@@ -14,7 +14,6 @@ import pytest
 from mud_engine.components import (
     Consumable,
     Container,
-    Description,
     Equippable,
     Identity,
     ItemFlags,
@@ -270,7 +269,7 @@ class TestStacking:
     """20 号票：堆叠合并与拆分。"""
 
     def test_take_merges_same_name_stackables(self, tmp_path: Path) -> None:
-        # 地面同时放两堆同名会歧义；先拿一堆，再往地面补一堆后第二次 take 合并。
+        # 地面两堆同名 Stackable：take 一次自动合并拿走（spec C3）。
         world, player_id = _load(
             tmp_path,
             """
@@ -278,16 +277,14 @@ class TestStacking:
     name: 铜钱
     placed_in: yard
     stackable: {amount: 3, unit_weight: 0.1}
+  b:
+    name: 铜钱
+    placed_in: yard
+    stackable: {amount: 2, unit_weight: 0.1}
 """,
         )
-        execute_line(world, player_id, "take 铜钱")
-        room = _player_room(world, player_id)
-        extra = world.create_entity()
-        world.add_component(extra, Identity(name="铜钱"))
-        world.add_component(extra, Description(short="铜钱", long=""))
-        world.add_component(extra, Stackable(amount=2, unit_weight=0.1))
-        world.require_component(room, Container).items.add(extra)
-        execute_line(world, player_id, "take 铜钱")
+        messages = execute_line(world, player_id, "take 铜钱")
+        assert any("铜钱" in m for m in messages)
         inv = world.require_component(player_id, Container)
         coins = [
             i
