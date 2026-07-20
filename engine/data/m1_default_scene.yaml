@@ -129,7 +129,7 @@ items:
     placed_in: storage_room
     no_get: true
 
-# ── NPC（06 号票静态展示 + 27 号票 inquiry）────────────────
+# ── NPC（06 静态 + 27 inquiry；verify/m1-npc 夹具）────────
 # Identity + Description + Position；可选 inquiry / behaviors / count / respawn。
 # in_room -> 所在房间键（或 startroom 别名）。NPC 不进房间 Container，故不能被 take。
 npcs:
@@ -142,6 +142,43 @@ npcs:
     inquiry:
       天气: 石像沉默不语，庭院上空一片晴朗。
       default: 石像守卫纹丝不动，没有回答。
+
+  # 闲聊夹具（D5）：无 when；手感概率约 5%（对齐 LPC chat_chance 小百分比）。
+  # 一键矩阵注入确定性 rng（random()==0）仍必触发，不依赖本值拉满。
+  yard_gossip:
+    name: 庭院闲人
+    aliases: [闲人]
+    short: 一个爱说话的闲人
+    long: 一个在庭院里踱步闲聊的人，嘴里总念叨着什么。
+    in_room: start_yard
+    behaviors:
+      - kind: chatter
+        chat_msgs: ["庭院真清静啊。"]
+        chat_chance: 0.05
+
+  # 条件闲聊夹具（D5）：只在夜里开口；矩阵强制 phase=day/night 验证。
+  night_owl:
+    name: 夜猫子
+    aliases: [夜猫]
+    short: 一个昼伏夜出的人
+    long: 此人白天打瞌睡，夜里才精神。
+    in_room: start_yard
+    behaviors:
+      - kind: chatter
+        chat_msgs: ["夜深了，该歇歇了。"]
+        chat_chance: 1.0
+        when:
+          predicate: is_night
+
+  # 多实例 spawn 夹具（D2）：count=2；respawn 扫描 M1 空转不补齐。
+  patrol_pair:
+    name: 巡逻兵
+    aliases: [兵]
+    short: 一名巡逻兵
+    long: 负责庭院巡逻的士兵。
+    in_room: start_yard
+    count: 2
+    respawn: true
 
 
 # ── 玩家初始状态 ──────────────────────────────────────

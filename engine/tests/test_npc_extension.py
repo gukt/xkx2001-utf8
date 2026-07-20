@@ -440,7 +440,7 @@ class TestAttachIdempotent:
         world, _ = build_world()
         attach_ai_system(world)
         attach_ai_system(world)
-        # 不应因重复注册导致双倍 chatter；默认场景无 AIController，空转即可。
+        # 不应因重复注册导致双倍 chatter；幂等只挂一次 on_tick。
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         loop.advance()
 

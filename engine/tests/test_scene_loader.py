@@ -87,7 +87,7 @@ class TestStaticDisplayNpc:
 
     def test_creates_an_entity_with_identity_description_and_position(self) -> None:
         world, player_id = build_world()
-        npc = _find_npc_in_start_room(world, player_id)
+        npc = _find_npc_in_start_room(world, player_id, name="石像守卫")
         assert npc is not None
         assert world.require_component(npc, Identity).name == "石像守卫"
         assert world.has_component(npc, Description)
@@ -96,7 +96,7 @@ class TestStaticDisplayNpc:
     def test_npc_is_not_in_the_rooms_item_container(self) -> None:
         # NPC 用 Position 表达"在房间里"，不进房间的 Container--否则会被 take。
         world, player_id = build_world()
-        npc = _find_npc_in_start_room(world, player_id)
+        npc = _find_npc_in_start_room(world, player_id, name="石像守卫")
         assert npc is not None
         start_room = world.require_component(player_id, Position).room
         floor = world.require_component(start_room, Container)
@@ -389,12 +389,22 @@ class TestUnknownSectionPassthrough:
         assert world.entity_extension_data(start) == {}
 
 
-def _find_npc_in_start_room(world: World, player_id: EntityId) -> EntityId | None:
-    """玩家起始房间里、除玩家本人外的 Position 持有者（即静态展示型 NPC）。"""
+def _find_npc_in_start_room(
+    world: World, player_id: EntityId, *, name: str | None = None
+) -> EntityId | None:
+    """玩家起始房间里、除玩家本人外的 Position 持有者（NPC）。
+
+    ``name`` 若给出则按 Identity 规范名匹配（默认场景有多名 NPC 夹具）。
+    """
     start_room = world.require_component(player_id, Position).room
     for entity in world.entities_with(Position):
         if entity == player_id:
             continue
-        if world.require_component(entity, Position).room == start_room:
+        if world.require_component(entity, Position).room != start_room:
+            continue
+        if name is None:
+            return entity
+        identity = world.get_component(entity, Identity)
+        if identity is not None and identity.name == name:
             return entity
     return None

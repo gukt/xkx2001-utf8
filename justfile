@@ -82,6 +82,11 @@ run:
 verify-items:
     cd engine && uv run python scripts/verify_m1_items.py
 
+# M1 NPC 命令/行为矩阵（默认场景，含 tick 驱动 Chatter；不读写存档）
+# 手测步骤见 .scratch/m1-core-engine-skeleton/verify-npc-cli.md
+verify-npc:
+    cd engine && uv run python scripts/verify_m1_npc.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）
