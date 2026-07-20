@@ -10,13 +10,13 @@
 
 **Blocked by:** None - 可立即开始（独立纯函数,不依赖 07-09;B 块 Nature 落地时接真实查询）。
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-07-20：落地 `conditions.py` + `test_conditions.py`；14 号票 Nature 接真实 `ConditionContext`；2026-07-21 verify-nature 矩阵复核）
 
-- [ ] `evaluate(condition, context) -> bool` 纯函数存在,独立模块
-- [ ] 支持 `is_night` / `is_day` / `is_raining` 字面量谓词
-- [ ] 支持 `phase == X` 相等比较
-- [ ] 支持 `and` / `or` / `not` 布尔组合
-- [ ] context 定义 Nature 查询协议,M1 用 stub 可注入
-- [ ] 表达式形状不引入裸 Python lambda（结构化字面量占位,按受限 AST 可解析设计）
-- [ ] 多规则按 any/all 聚合
-- [ ] 纯函数直接测:`evaluate` 各种条件表达式返回正确 bool
+- [x] `evaluate(condition, context) -> bool` 纯函数存在,独立模块
+- [x] 支持 `is_night` / `is_day` / `is_raining` 字面量谓词
+- [x] 支持 `phase == X` 相等比较
+- [x] 支持 `and` / `or` / `not` 布尔组合
+- [x] context 定义 Nature 查询协议,M1 用 stub 可注入
+- [x] 表达式形状不引入裸 Python lambda（结构化字面量占位,按受限 AST 可解析设计）
+- [x] 多规则按 any/all 聚合
+- [x] 纯函数直接测:`evaluate` 各种条件表达式返回正确 bool

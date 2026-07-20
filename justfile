@@ -87,6 +87,11 @@ verify-items:
 verify-npc:
     cd engine && uv run python scripts/verify_m1_npc.py
 
+# M1 Nature 时辰/天气矩阵（默认场景，含 tick 驱动相位/天气；不读写存档）
+# 手测步骤见 .scratch/m1-core-engine-skeleton/verify-nature-cli.md
+verify-nature:
+    cd engine && uv run python scripts/verify_m1_nature.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）
