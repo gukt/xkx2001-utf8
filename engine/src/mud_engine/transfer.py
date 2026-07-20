@@ -85,6 +85,14 @@ def transfer(
             reason=TransferFailReason.SAME_CONTAINER,
             message="已经在那里了。",
         )
+    # 防嵌套循环：dst 在 item 的容器链里时（如 put A in B 而 B 已在 A 内）拒绝，
+    # 否则 A 与 B 互含成不可达循环，物品永久丢失且 container_total_weight 递归爆栈。
+    if _is_descendant(world, item, dst):
+        return TransferResult(
+            success=False,
+            reason=TransferFailReason.SAME_CONTAINER,
+            message="不能把东西放进它自己或它的内容物里。",
+        )
 
     src_container = world.get_component(src, Container)
     dst_container = world.get_component(dst, Container)
@@ -273,6 +281,23 @@ def _find_merge_target(
         if world.require_component(other, Identity).name == name:
             return other
     return None
+
+
+def _is_descendant(world: World, ancestor: EntityId, candidate: EntityId) -> bool:
+    """``candidate`` 是否在 ``ancestor`` 的容器链里（含多层嵌套）。
+
+    防 ``put A in B`` 而 ``B`` 已在 ``A`` 内时成互含循环：物品永久丢失且
+    ``container_total_weight`` 递归会爆栈。M1 嵌套浅，递归深度可控。
+    """
+    container = world.get_component(ancestor, Container)
+    if container is None:
+        return False
+    for child in container.items:
+        if child == candidate:
+            return True
+        if _is_descendant(world, child, candidate):
+            return True
+    return False
 
 
 def _split_stack(world: World, item: EntityId, amount: int) -> EntityId:

@@ -221,12 +221,16 @@ class TestTransferPrimitive:
         with pytest.raises(FrozenInstanceError):
             ok.success = False  # type: ignore[misc]
 
-    def test_take_and_drop_still_work_via_transfer(self) -> None:
+    def test_take_works_via_transfer(self) -> None:
         world, player_id = build_world()
         messages = execute_line(world, player_id, "take 石头")
         assert any("拿" in m and "石头" in m for m in messages)
         inv = world.require_component(player_id, Container)
         assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
+
+    def test_drop_works_via_transfer(self) -> None:
+        world, player_id = build_world()
+        execute_line(world, player_id, "take 石头")
         messages = execute_line(world, player_id, "drop 石头")
         assert any("放下" in m and "石头" in m for m in messages)
 
@@ -242,6 +246,24 @@ class TestTransferPrimitive:
             world.require_component(i, Identity).name == "石头"
             for i in world.require_component(room, Container).items
         )
+
+    def test_transfer_rejects_cyclic_nesting(self) -> None:
+        # put A in B 而 B 已在 A 内：transfer 拒绝，防互含循环爆栈（Spec #3）。
+        from mud_engine.transfer import TransferFailReason, transfer
+
+        world, player_id = build_world()
+        # 玩家栏持有容器 A，A 内有容器 B；transfer(A, player, B) 应拒绝。
+        a = world.create_entity()
+        world.add_component(a, Identity(name="大箱"))
+        world.add_component(a, Container())
+        b = world.create_entity()
+        world.add_component(b, Identity(name="小盒"))
+        world.add_component(b, Container())
+        world.require_component(player_id, Container).items.add(a)
+        world.require_component(a, Container).items.add(b)
+        result = transfer(world, a, player_id, b, player_id=player_id)
+        assert not result.success
+        assert result.reason == TransferFailReason.SAME_CONTAINER
 
 
 class TestStacking:
@@ -353,7 +375,8 @@ class TestNoTakeNoDrop:
 class TestNestedContainers:
     """22 号票：put / take from。"""
 
-    def test_put_and_take_from_box(self, tmp_path: Path) -> None:
+    def test_put_into_box(self, tmp_path: Path) -> None:
+        # put <物品> in <容器>：物品栏物品放入可达容器，触发 transfer。
         world, player_id = _load(
             tmp_path,
             """
@@ -375,6 +398,24 @@ class TestNestedContainers:
             world.require_component(i, Identity).name == "宝石"
             for i in world.require_component(box, Container).items
         )
+
+    def test_take_from_box(self, tmp_path: Path) -> None:
+        # take <物品> from <容器>：从容器取出到物品栏。
+        world, player_id = _load(
+            tmp_path,
+            """
+  box:
+    name: 木箱
+    aliases: [箱子]
+    placed_in: yard
+    container: true
+  gem:
+    name: 宝石
+    placed_in: yard
+""",
+        )
+        execute_line(world, player_id, "take 宝石")
+        execute_line(world, player_id, "put 宝石 in 木箱")
         messages = execute_line(world, player_id, "take 宝石 from 木箱")
         assert any("拿" in m and "宝石" in m for m in messages)
         assert any(
