@@ -247,11 +247,15 @@ def _des_behaviors(d: dict) -> Behaviors:
 
 
 def _ser_inquiry(c: Inquiry) -> dict:
-    return {"topics": dict(c.topics), "default": c.default}
+    return {"topics": dict(c.topics), "default": c.default, "handler": c.handler}
 
 
 def _des_inquiry(d: dict) -> Inquiry:
-    return Inquiry(topics=dict(d.get("topics", {})), default=d.get("default"))
+    return Inquiry(
+        topics=dict(d.get("topics", {})),
+        default=d.get("default"),
+        handler=d.get("handler"),
+    )
 
 
 def _ser_npc_spawn_meta(c: NpcSpawnMeta) -> dict:

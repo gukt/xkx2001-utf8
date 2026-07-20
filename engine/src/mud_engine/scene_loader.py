@@ -644,7 +644,7 @@ def _npc_tick_interval(raw: object, npc_key: object, scene_path: Path) -> int:
 
 
 def _parse_inquiry(raw: object, npc_key: object, scene_path: Path) -> Inquiry | None:
-    """解析 inquiry 映射：``{ topic: 文案, default: 兜底 }``；缺省返回 None。"""
+    """解析 inquiry：``{ topic: 文案, default: 兜底, handler: 钩子名 }``；缺省 None。"""
     if raw is None:
         return None
     if not isinstance(raw, Mapping):
@@ -654,13 +654,17 @@ def _parse_inquiry(raw: object, npc_key: object, scene_path: Path) -> Inquiry | 
         )
     topics: dict[str, str] = {}
     default: str | None = None
+    handler: str | None = None
     for key, value in raw.items():
         key_s = str(key)
         if key_s == "default":
             default = str(value)
             continue
+        if key_s == "handler":
+            handler = None if value is None else str(value)
+            continue
         topics[key_s] = str(value)
-    return Inquiry(topics=topics, default=default)
+    return Inquiry(topics=topics, default=default, handler=handler)
 
 
 def _parse_behaviors(raw: object, npc_key: object, scene_path: Path) -> Behaviors | None:

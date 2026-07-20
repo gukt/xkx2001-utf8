@@ -21,7 +21,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from mud_engine.commands import execute, resolve_verb
-from mud_engine.components import Container, Exits, Identity, Position
+from mud_engine.components import (
+    Container,
+    Exits,
+    Identity,
+    Inquiry,
+    NpcSpawnMeta,
+    Position,
+)
 from mud_engine.intent import Intent, ParseFailure, Reason
 from mud_engine.matching import Ambiguous, Candidate, Resolved, match_target
 from mud_engine.world import EntityId, World
@@ -277,7 +284,7 @@ class DeterministicParser(Parser):
     def _parse_ask(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """``ask <npc> about <topic>``：NPC 候选为同房间 Position 实体（排除玩家）。"""
+        """``ask <npc> about <topic>``：NPC 候选为同房间挂 Inquiry/NpcSpawnMeta 的实体。"""
         about_idx = _index_of(args, "about")
         if about_idx is None or about_idx == 0 or about_idx >= len(args) - 1:
             # 缺 about / 缺 npc / 缺 topic：交给执行层给用法提示。
@@ -394,13 +401,18 @@ class DeterministicParser(Parser):
 
     @staticmethod
     def _npc_candidates(world: World, player_id: EntityId) -> list[Candidate]:
-        """同房间可 ask 的 NPC：有 Position+Identity、非玩家。"""
+        """同房间可 ask 的 NPC：挂 Inquiry 或 NpcSpawnMeta（收窄，排除裸 Position）。"""
         room = world.require_component(player_id, Position).room
         candidates: list[Candidate] = []
         for entity in world.entities_with(Position):
             if entity == player_id:
                 continue
             if world.require_component(entity, Position).room != room:
+                continue
+            if not (
+                world.has_component(entity, Inquiry)
+                or world.has_component(entity, NpcSpawnMeta)
+            ):
                 continue
             identity = world.get_component(entity, Identity)
             if identity is not None:

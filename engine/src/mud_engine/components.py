@@ -285,11 +285,14 @@ class Inquiry:
     """ask 对话的 topic -> 响应字符串映射（27 号票，D3）。
 
     启动固定（从 YAML 加载后不变）。``default`` 是未知 topic 的兜底文案；
-    ``None`` 表示未知 topic 时用引擎内置提示。
+    ``None`` 表示未知 topic 时用引擎内置提示。``handler`` 是可选的
+    DialogueHandler 钩子名引用占位（同 ``Equippable.apply_hook``）；M1 不执行，
+    供 M2 接入 ``on_topic``，不实现 RestrictedPython。
     """
 
     topics: dict[str, str] = field(default_factory=dict)  # topic -> 响应文案
     default: str | None = None  # 未知 topic 兜底；None=用引擎内置提示
+    handler: str | None = None  # DialogueHandler 钩子名占位；启动固定；M1 未用
 
 
 @dataclass

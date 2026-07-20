@@ -715,12 +715,17 @@ def _is_player_entity(world: World, entity: EntityId) -> bool:
 
 
 def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
-    """在玩家当前房间找规范名等于 name 的 NPC（Position 持有者，排除玩家）。"""
+    """在玩家当前房间找规范名等于 name 的 NPC（需挂 Inquiry 或 NpcSpawnMeta）。"""
     room = _player_room(world, player_id)
     for entity in world.entities_with(Position):
         if entity == player_id:
             continue
         if world.require_component(entity, Position).room != room:
+            continue
+        if not (
+            world.has_component(entity, Inquiry)
+            or world.has_component(entity, NpcSpawnMeta)
+        ):
             continue
         identity = world.get_component(entity, Identity)
         if identity is not None and identity.name == name:
