@@ -14,9 +14,11 @@ from mud_engine.ai import attach_ai_system, condition_from_data
 from mud_engine.commands import ON_HEAR_SAY, HearSayContext, room_say
 from mud_engine.components import (
     AIController,
+    Container,
     Identity,
     Inquiry,
     NpcSpawnMeta,
+    PlayerSession,
     Position,
 )
 from mud_engine.conditions import Predicate, StubContext, evaluate
@@ -267,6 +269,31 @@ class TestSayBroadcast:
         world.pending_messages.clear()
         room_say(world, npc, "石像低语。")
         assert "石像守卫说：石像低语。" in world.pending_messages
+
+    def test_player_has_player_session(self) -> None:
+        world, player_id = build_world()
+        assert world.has_component(player_id, PlayerSession)
+
+    def test_container_without_player_session_not_in_broadcast(self) -> None:
+        """Position+Container 但无 PlayerSession 的实体不应收到房间广播。"""
+        world, player_id = build_world()
+        room = world.require_component(player_id, Position).room
+        decoy = world.create_entity()
+        world.add_component(decoy, Identity(name="假人"))
+        world.add_component(decoy, Position(room=room))
+        world.add_component(decoy, Container())
+        world.pending_messages.clear()
+        room_say(world, player_id, "只给真玩家")
+        # M1 单玩家：说话者本人不进 pending；decoy 也不得进。
+        assert world.pending_messages == []
+
+    def test_player_session_survives_save_restore(self, tmp_path: Path) -> None:
+        world, player_id = build_world()
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
+        assert restored is not None
+        rworld, rplayer = restored
+        assert rworld.has_component(rplayer, PlayerSession)
 
 
 class TestChatter:

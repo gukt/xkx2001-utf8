@@ -52,6 +52,7 @@ from mud_engine.components import (
     Inquiry,
     ItemFlags,
     NpcSpawnMeta,
+    PlayerSession,
     Position,
     Stackable,
     Valuable,
@@ -276,6 +277,14 @@ def _des_npc_spawn_meta(d: dict) -> NpcSpawnMeta:
     )
 
 
+def _ser_player_session(c: PlayerSession) -> dict:
+    return {}
+
+
+def _des_player_session(d: dict) -> PlayerSession:
+    return PlayerSession()
+
+
 _CODECS: dict[type, _Codec] = {
     Identity: (_ser_identity, _des_identity),
     Description: (_ser_description, _des_description),
@@ -293,6 +302,7 @@ _CODECS: dict[type, _Codec] = {
     Behaviors: (_ser_behaviors, _des_behaviors),
     Inquiry: (_ser_inquiry, _des_inquiry),
     NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
+    PlayerSession: (_ser_player_session, _des_player_session),
 }
 
 # 按组件类名索引（存档文件用类名作 key，反序列化时按名查 codec）。

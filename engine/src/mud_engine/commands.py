@@ -46,6 +46,7 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     NpcSpawnMeta,
+    PlayerSession,
     Position,
     Stackable,
     Valuable,
@@ -706,12 +707,8 @@ def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:
 
 
 def _is_player_entity(world: World, entity: EntityId) -> bool:
-    """玩家启发式：有 Position+Container、无 NpcSpawnMeta（NPC 均挂 spawn meta）。"""
-    return (
-        world.has_component(entity, Position)
-        and world.has_component(entity, Container)
-        and not world.has_component(entity, NpcSpawnMeta)
-    )
+    """玩家判定：挂 ``PlayerSession``（US33；28 号票起取代 Container 启发式）。"""
+    return world.has_component(entity, PlayerSession)
 
 
 def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:

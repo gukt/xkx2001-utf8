@@ -38,6 +38,7 @@ from mud_engine.components import (
     Inquiry,
     ItemFlags,
     NpcSpawnMeta,
+    PlayerSession,
     Position,
     Stackable,
     Valuable,
@@ -728,7 +729,7 @@ def _build_player(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> EntityId:
-    """建玩家实体（Identity+Position+Container）。玩家不挂 Description。"""
+    """建玩家实体（Identity+Position+Container+PlayerSession）。玩家不挂 Description。"""
     name = player.get("name")
     if not name:
         raise SceneLoadError(f"场景文件 {scene_path} 的 player 缺少必需字段 'name'")
@@ -743,6 +744,7 @@ def _build_player(
     world.add_component(player_id, Identity(name=str(name)))
     world.add_component(player_id, Position(room=room_ids[str(start_room)]))
     world.add_component(player_id, Container())
+    world.add_component(player_id, PlayerSession())
     _capture_entity_unknown_fields(world, player_id, player, _PLAYER_KNOWN_FIELDS)
     return player_id
 

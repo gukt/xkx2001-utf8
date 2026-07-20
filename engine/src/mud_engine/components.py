@@ -236,9 +236,20 @@ class Weight:
     value: float = 0.0  # 物品重量；启动固定
 
 
-# ── NPC 系统组件（块 D，25~29 号票）────────────────────────────────
+# ── NPC / 玩家驱动源组件（块 D，25~29 号票）──────────────────────────
 # 玩家与 NPC 挂同一批基础组件（Identity/Description/Position/Container），
-# 区别只在驱动源：NPC 挂 ``AIController``，玩家不挂（spec 块 D user story 33）。
+# 区别只在驱动源：NPC 挂 ``AIController``，玩家挂 ``PlayerSession``
+# （spec 块 D user story 33；28 号票落地）。
+
+
+@dataclass
+class PlayerSession:
+    """玩家驱动源标记（US33 / 28 号票）。
+
+    空 marker dataclass：有本组件即视为在线玩家会话实体。与 ``AIController``
+    对仗——玩家与 NPC 共用组件池，靠驱动源组件区分。房间广播 / Nature 户外
+    推送等"只发给玩家"的路径一律查本组件，不用 Container 启发式。
+    """
 
 
 @dataclass
