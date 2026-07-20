@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Description, Exits, Position
+from mud_engine.components import Container, Description, Exits, Identity, Position
 from mud_engine.conditions import (
     ConditionContext,
     Equals,
@@ -359,6 +359,22 @@ class TestPhaseBroadcast:
         loop.advance()
         loop.advance()
         assert world.pending_messages == []
+
+    def test_container_npc_does_not_receive_phase_broadcast(self) -> None:
+        """户外 Position+Container 但无 PlayerSession 的实体不应触发广播副本。"""
+        world, player_id = build_world()
+        _attach(world, clock_minutes=0)
+        room = world.require_component(player_id, Position).room
+        decoy = world.create_entity()
+        world.add_component(decoy, Identity(name="背包石像"))
+        world.add_component(decoy, Position(room=room))
+        world.add_component(decoy, Container())
+        world.pending_messages.clear()
+        loop = _tick_loop(world)
+        loop.advance()
+        loop.advance()  # phase change
+        # 仅真玩家一份；若仍用 Container 启发式会得到两份。
+        assert world.pending_messages.count("天光大亮。") == 1
 
 
 class TestWeather:

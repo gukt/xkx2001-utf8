@@ -24,7 +24,7 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.components import Container, Description, Position
+from mud_engine.components import Description, PlayerSession, Position
 from mud_engine.events import ON_TICK, TickContext
 from mud_engine.world import EntityId, World
 
@@ -425,9 +425,13 @@ def _parse_nature_config(
 
 
 def _outdoor_player_ids(world: World) -> list[EntityId]:
-    """在户外房间的玩家实体（Position + Container；NPC 无 Container）。"""
+    """在户外房间的玩家实体（PlayerSession + Position + 房间 outdoors）。
+
+    28 号票起玩家判定走 ``PlayerSession``，不再用 Container 启发式（NPC 将来
+    也可挂 Container）。
+    """
     result: list[EntityId] = []
-    for entity in world.entities_with(Position, Container):
+    for entity in world.entities_with(PlayerSession, Position):
         room = world.require_component(entity, Position).room
         desc = world.get_component(room, Description)
         if desc is not None and desc.outdoors:
