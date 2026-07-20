@@ -29,6 +29,7 @@ from mud_engine.components import (
     Stackable,
 )
 from mud_engine.intent import Intent, ParseFailure, Reason
+from mud_engine.lookup import find_reachable_container, iter_lookable_containers
 from mud_engine.matching import Ambiguous, Candidate, Resolved, match_target
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.world import EntityId, World
@@ -369,41 +370,27 @@ class DeterministicParser(Parser):
     def _find_reachable_container_id(
         world: World, player_id: EntityId, name: str
     ) -> EntityId | None:
-        room = world.require_component(player_id, Position).room
-        for holder in (room, player_id):
-            container = world.get_component(holder, Container)
-            if container is None:
-                continue
-            for item in container.items:
-                if world.require_component(item, Identity).name != name:
-                    continue
-                if world.get_component(item, Container) is not None:
-                    return item
-        return None
+        # 走共享的 lookup（30 号票与 commands._find_reachable_container 去重，两处原
+        # 逻辑逐字同构）。保留薄壳维持本类内调用名不变。
+        return find_reachable_container(world, player_id, name)
 
     @staticmethod
     def _look_item_candidates(world: World, player_id: EntityId) -> list[Candidate]:
-        """look 物品候选：房间地面、玩家栏、以及其中一层嵌套容器内的物品。"""
-        room = world.require_component(player_id, Position).room
+        """look 物品候选：房间地面、玩家栏、以及其中一层嵌套容器内的物品。
+
+        遍历结构走共享的 ``iter_lookable_containers``（30 号票与
+        ``commands._find_lookable_item`` 去重）；候选去重按规范名（同名 Stackable
+        视为一堆）。遍历顺序由 holder 分组（原为 per-item 交错，候选集合不变、
+        顺序变为直接容器先于其嵌套；无测试断言候选顺序）。
+        """
         candidates: list[Candidate] = []
         seen: set[str] = set()
-        for holder in (room, player_id):
-            container = world.get_component(holder, Container)
-            if container is None:
-                continue
-            for item in list(container.items):
+        for container in iter_lookable_containers(world, player_id):
+            for item in container.items:
                 identity = world.require_component(item, Identity)
                 if identity.name not in seen:
                     candidates.append((identity.name, identity.aliases))
                     seen.add(identity.name)
-                nested = world.get_component(item, Container)
-                if nested is None:
-                    continue
-                for inner in nested.items:
-                    inner_id = world.require_component(inner, Identity)
-                    if inner_id.name not in seen:
-                        candidates.append((inner_id.name, inner_id.aliases))
-                        seen.add(inner_id.name)
         return candidates
 
     @staticmethod

@@ -35,6 +35,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from mud_engine import lookup
 from mud_engine.components import (
     Container,
     Description,
@@ -750,22 +751,16 @@ def _look_item(world: World, player_id: EntityId, name: str) -> list[str]:
 
 
 def _find_lookable_item(world: World, player_id: EntityId, name: str) -> EntityId | None:
-    """在房间地面、玩家物品栏及其直接嵌套容器中按规范名找物品。"""
-    room = _player_room(world, player_id)
-    for holder in (room, player_id):
-        container = world.get_component(holder, Container)
-        if container is None:
-            continue
+    """在房间地面、玩家物品栏及其直接嵌套容器中按规范名找物品。
+
+    遍历结构走共享的 ``lookup.iter_lookable_containers``（30 号票与 parsing 去重），
+    在此基础上做"首个规范名匹配"。``iter_lookable_containers`` 的 holder 分组顺序
+    保证结果与原内联遍历一致（直接容器先于其嵌套）。
+    """
+    for container in lookup.iter_lookable_containers(world, player_id):
         found = _find_item_in_container(world, container, name)
         if found is not None:
             return found
-        for nested_id in container.items:
-            nested = world.get_component(nested_id, Container)
-            if nested is None:
-                continue
-            found = _find_item_in_container(world, nested, name)
-            if found is not None:
-                return found
     return None
 
 
@@ -795,18 +790,12 @@ def _parse_take_args(args: tuple[str, ...]) -> tuple[str | None, int | None]:
 def _find_reachable_container(
     world: World, player_id: EntityId, name: str
 ) -> EntityId | None:
-    """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 Container 的物品。"""
-    room = _player_room(world, player_id)
-    for holder in (room, player_id):
-        container = world.get_component(holder, Container)
-        if container is None:
-            continue
-        for item in container.items:
-            if world.require_component(item, Identity).name != name:
-                continue
-            if world.get_component(item, Container) is not None:
-                return item
-    return None
+    """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 Container 的物品。
+
+    走共享的 ``lookup.find_reachable_container``（30 号票与 parsing 去重，两处原逻辑
+    逐字同构）。保留本薄壳维持 commands 内调用名不变。
+    """
+    return lookup.find_reachable_container(world, player_id, name)
 
 
 def _door_in_direction(world: World, room: EntityId, direction: str) -> Door | None:
