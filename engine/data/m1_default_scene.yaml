@@ -11,6 +11,7 @@
 # name  -> Identity.name（玩家指代与展示用，必需）
 # short -> Description.short（可选，缺省取 name）
 # long  -> Description.long（详细描述，可选）
+# outdoors -> Description.outdoors（15 号票：户外房间 look 追加时辰/天气文案）
 # exits -> 方向 -> { to: 目标房间键, aliases: [方向别名...], door: open|closed|locked, key: 钥匙物品键 }
 #          两个方向都显式声明（不做反向自动补全），单向出口（如掉进去的坑）也合法。
 #          door/key（04 号票）：door 指定该出口的门状态，locked 时 key 引用 items
@@ -19,6 +20,7 @@ rooms:
   start_yard:
     name: 起始庭院
     long: 一片空荡荡的庭院，只搭了最基本的骨架，等待后续题材内容填充。
+    outdoors: true
     exits:
       north:
         to: corridor
@@ -62,16 +64,20 @@ items:
     long: 一把锈迹斑斑的铁钥匙，齿纹独特。
     placed_in: corridor
 
-# ── 静态展示型 NPC ────────────────────────────────────
-# 只用 Identity + Description + Position 三个已有组件表达"站在某个房间里、
-# 有名字有描述"的实体，无任何行为（不能对话/战斗/移动/被专门命令处理）。
-# in_room -> 所在房间键（必需）。NPC 不进房间的 Container，故不能被 take。
+# ── NPC（06 号票静态展示 + 27 号票 inquiry）────────────────
+# Identity + Description + Position；可选 inquiry / behaviors / count / respawn。
+# in_room -> 所在房间键（或 startroom 别名）。NPC 不进房间 Container，故不能被 take。
 npcs:
   stone_guard:
     name: 石像守卫
+    aliases: [守卫, 石像]
     short: 一尊石像守卫
     long: 一尊沉默的石像守卫，矗立在庭院一角，纹丝不动。
     in_room: start_yard
+    inquiry:
+      天气: 石像沉默不语，庭院上空一片晴朗。
+      default: 石像守卫纹丝不动，没有回答。
+
 
 # ── 玩家初始状态 ──────────────────────────────────────
 # name       -> Identity.name
@@ -79,3 +85,29 @@ npcs:
 player:
   name: 你
   start_room: start_yard
+
+# ── Nature（13 号票）：顶层未识别段透传 + attach_nature 消费 ──
+# day_phases：相位名 / length 游戏分钟 / time_msg 切换文案 / desc_msg 晴天文案 /
+# rain_desc_msg 雨天文案（时辰 × 天气二维）。不写则用引擎 DEFAULT_PHASES。
+nature:
+  day_phases:
+    - name: dawn
+      length: 240
+      time_msg: 东方的天空中开始出现一丝微曦。
+      desc_msg: 东方的天空已逐渐发白。
+      rain_desc_msg: 东方微曦，细雨蒙蒙。
+    - name: day
+      length: 720
+      time_msg: 天光大亮。
+      desc_msg: 日正当空，天色晴朗。
+      rain_desc_msg: 白天，下着小雨。
+    - name: dusk
+      length: 240
+      time_msg: 天色渐渐暗了下来。
+      desc_msg: 夕阳西下，暮色四合。
+      rain_desc_msg: 黄昏时分，细雨连绵。
+    - name: night
+      length: 240
+      time_msg: 夜幕降临了。
+      desc_msg: 夜深了，四下一片寂静。
+      rain_desc_msg: 夜雨潇潇，四野寂然。

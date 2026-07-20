@@ -70,12 +70,14 @@ class Identity:
 class Description:
     """展示文本：一句简述 + 一段详细描述，房间与物品共用同一形状。
 
-    挂在房间与物品上（未来 NPC 也复用）；M1 的命令只展示房间的 short/long 与
-    物品的 name，物品的 short/long 留给未来 examine 命令消费。
+    挂在房间与物品上（未来 NPC 也复用）；房间 look 展示 short/long，物品
+    ``look <物品>``（23 号票）展示 long 与数值细节。``outdoors`` 标记户外房间
+    （块 B Nature）：look 时才追加时辰/天气文案；启动固定。
     """
 
     short: str  # 一句简述，look 时第一行展示，如"一块灰扑扑的石头"
     long: str  # 详细描述，look 时第二行展示，如"一块毫不起眼的石头，沉甸甸的……"
+    outdoors: bool = False  # 是否户外房间；True 时 look 追加 Nature 时辰/天气 desc
 
 
 @dataclass
@@ -163,10 +165,143 @@ class Container:
     """一个实体持有的一堆物品（entity id 集合）。
 
     房间地面与玩家物品栏都是这个组件的一个实例--同一个"持有一堆物品"的通用
-    能力，不是两个专属命名的同构组件（03 号票）。未来箱子/背包等容器类物品
-    直接复用同一组件即可。
+    能力，不是两个专属命名的同构组件（03 号票）。箱子/背包等容器类物品直接
+    复用同一组件（22 号票）。``max_capacity`` / ``max_weight`` 为可选上限
+    （24 号票）：``None`` 表示不限制；超限由 ``transfer`` 拒绝放入。M1 容器
+    始终可打开（不做 open/closed）。
     """
 
     items: set[EntityId] = field(
         default_factory=set
-    )  # 持有的物品 entity id 集合；房间地面/玩家物品栏/未来箱子各挂一份
+    )  # 持有的物品 entity id 集合；房间地面/玩家物品栏/箱子各挂一份
+    # 运行时可变进存档：上限本身启动固定，但放在组件上便于 YAML 声明与存档恢复。
+    max_capacity: int | None = None  # 最多容纳几个物品实体（堆叠合并不占新槽）；None=不限
+    max_weight: float | None = None  # 容器内总重量上限；None=不限
+
+
+@dataclass
+class Stackable:
+    """可堆叠：数量 + 单位重量（18/20 号票）。
+
+    按需挂载；``transfer`` 到已有同名 Stackable 的容器时自动合并 amount。
+    ``unit_weight * amount`` 参与重量校验（24 号票）。amount 运行时可变进存档。
+    """
+
+    amount: int  # 堆叠数量，运行时可变进存档
+    unit_weight: float = 1.0  # 单件重量；启动固定
+
+
+@dataclass
+class Valuable:
+    """有价值：纯数据占位（18 号票）。M1 不做买卖，value 仅供 look 展示与存档。"""
+
+    value: int  # 价值数值；启动固定（M1 无改价命令）
+
+
+@dataclass
+class Equippable:
+    """可装备占位（18 号票）。M1 不实现 wield/wear；slot / apply_hook 供 M2 接入。"""
+
+    slot: str = ""  # 装备槽位名占位，如 "hand"；启动固定
+    apply_hook: str | None = None  # 装备效果钩子名引用占位；启动固定
+
+
+@dataclass
+class Consumable:
+    """可消耗占位（18 号票）。M1 不实现 eat/drink；uses 供 M2 状态系统接入。"""
+
+    uses: int = 1  # 剩余使用次数；运行时可变进存档（M2 消耗时改）
+
+
+@dataclass
+class ItemFlags:
+    """物品流转标志位（21 号票）：no_take / no_drop。
+
+    声明式数据字段（非闭包）。``no_drop_message`` 为自定义拒绝提示；缺省时用
+    引擎默认文案。挂在需要限制流转的物品上，无标志则不挂本组件。
+    """
+
+    no_take: bool = False  # True 时不能拿起（如固定家具）；启动固定
+    no_drop: bool = False  # True 时不能丢弃/放入容器；启动固定
+    no_drop_message: str | None = None  # no_drop 时的自定义提示；None 用默认文案
+
+
+@dataclass
+class Weight:
+    """物品自重（24 号票）。非 Stackable 物品用本组件；Stackable 用 unit_weight*amount。
+
+    两者都不挂时重量视为 0（不参与超重拒绝）。
+    """
+
+    value: float = 0.0  # 物品重量；启动固定
+
+
+# ── NPC 系统组件（块 D，25~29 号票）────────────────────────────────
+# 玩家与 NPC 挂同一批基础组件（Identity/Description/Position/Container），
+# 区别只在驱动源：NPC 挂 ``AIController``，玩家不挂（spec 块 D user story 33）。
+
+
+@dataclass
+class AIController:
+    """NPC 驱动源标记 + tick 频率（25 号票，D1）。
+
+    挂在需要由引擎 tick 驱动行为的实体上（有行为的 NPC）。``TickLoop.advance``
+    经 ``on_tick`` 遍历带本组件的实体，按 ``tick_interval`` 跳过不足间隔的 tick，
+    再对其 ``Behaviors`` 逐条调度。玩家与静态展示型 NPC（无行为）不挂本组件。
+    """
+
+    tick_interval: int = 1  # 启动固定：每隔多少 tick 评估一次行为；1=每 tick
+
+
+@dataclass(frozen=True)
+class BehaviorSpec:
+    """单条行为的声明式规格（纯数据，可序列化；25/29 号票）。
+
+    ``kind`` 区分行为类型（M1 仅 ``"chatter"``；M2 可扩 ``aggro`` 等）。Chatter
+    字段（``chat_msgs`` / ``chat_chance`` / ``when``）对其他 kind 可为空。
+    ``when`` 是条件表达式的结构化 dict 占位（喂给 ``conditions`` 求值），**不**
+    放裸 Python lambda（避坑清单 §F）。形状为未来可变状态进存档留好（§L）。
+    """
+
+    kind: str  # 行为类型名，如 "chatter"
+    chat_msgs: tuple[str, ...] = ()  # Chatter：闲聊消息列表
+    chat_chance: float = 0.0  # Chatter：触发概率 [0, 1]
+    when: dict | None = None  # 可选条件（如 {"predicate": "is_night"}）；None=无条件
+
+
+@dataclass
+class Behaviors:
+    """行为列表组件：挂在带 ``AIController`` 的实体上（25 号票，D1）。
+
+    ``entries`` 是声明式 ``BehaviorSpec`` 列表；M1 Chatter 无可变状态，但组件
+    形状预留未来"对话进度 / 库存计数"等可变态进存档的空间（避坑清单 §L）。
+    """
+
+    entries: list[BehaviorSpec] = field(default_factory=list)
+
+
+@dataclass
+class Inquiry:
+    """ask 对话的 topic -> 响应字符串映射（27 号票，D3）。
+
+    启动固定（从 YAML 加载后不变）。``default`` 是未知 topic 的兜底文案；
+    ``None`` 表示未知 topic 时用引擎内置提示。
+    """
+
+    topics: dict[str, str] = field(default_factory=dict)  # topic -> 响应文案
+    default: str | None = None  # 未知 topic 兜底；None=用引擎内置提示
+
+
+@dataclass
+class NpcSpawnMeta:
+    """NPC 生成/重生元数据（26 号票，D2）。
+
+    场景加载时按模板挂到每个实例上；低频 Spawn/Reset 扫描用 ``template_key``
+    聚合并对照 ``desired_count`` / ``respawn``。M1 NPC 不死，扫描多为空转，
+    机制地基先埋。``startroom`` 是出生房间（与加载时 ``in_room`` 通常相同）。
+    """
+
+    template_key: str  # 启动固定：YAML npcs 段的模板键，如 "stone_guard"
+    startroom: EntityId  # 启动固定：出生房间 entity id
+    desired_count: int = 1  # 启动固定：该模板期望存活实例数
+    respawn: bool = False  # 启动固定：不足 desired_count 时是否补齐

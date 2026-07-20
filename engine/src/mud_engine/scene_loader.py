@@ -20,17 +20,30 @@ from pathlib import Path
 
 import yaml
 
+from mud_engine.ai import attach_ai_system
 from mud_engine.components import (
+    AIController,
+    Behaviors,
+    BehaviorSpec,
+    Consumable,
     Container,
     Description,
     Door,
     Doors,
     DoorState,
+    Equippable,
     Exit,
     Exits,
     Identity,
+    Inquiry,
+    ItemFlags,
+    NpcSpawnMeta,
     Position,
+    Stackable,
+    Valuable,
+    Weight,
 )
+from mud_engine.nature import attach_nature
 from mud_engine.world import EntityId, World
 
 
@@ -59,16 +72,60 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     _build_npcs(world, npcs, room_ids, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
     _capture_top_level_unknown_sections(world, data)
+    # Nature（13 号票）：从透传的 nature 段（若有）挂载时辰循环；无配置则用默认四相。
+    # nature 仍留在 extension_data（透传不丢），attach_nature 只读不删。
+    attach_nature(world)
+    # NPC AI（25 号票）：挂 on_tick 遍历 AIController；幂等，无行为 NPC 时为空转。
+    attach_ai_system(world)
     return world, player_id
 
 
 # 引擎认识的顶层段与每类实体的字段：不在这些集合里的段/字段是"未识别"的，
 # 原样透传到扩展数据容器留着不丢，M1 不解析不执行（11 号票）。透传不是设计、
 # 只是不丢弃，故不违反"M1 不预支 M3 设计"--M3 引入规则引擎时旧场景数据不必重写。
+# nature 顶层段继续走透传（不列入已知段），由 attach_nature 消费 extension_data。
 _TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player"})
-_ROOM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
-_ITEM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "placed_in"})
-_NPC_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "in_room"})
+_ROOM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "outdoors"})
+# 物品能力字段（18/21/22/24 号票）：stackable/valuable/equippable/consumable/
+# no_take/no_drop/container/weight 等按需挂载；未声明不挂对应组件。
+_ITEM_KNOWN_FIELDS = frozenset(
+    {
+        "name",
+        "aliases",
+        "short",
+        "long",
+        "placed_in",
+        "stackable",
+        "amount",
+        "unit_weight",
+        "valuable",
+        "value",
+        "equippable",
+        "consumable",
+        "no_take",
+        "no_drop",
+        "no_drop_message",
+        "container",
+        "max_capacity",
+        "max_weight",
+        "weight",
+    }
+)
+_NPC_KNOWN_FIELDS = frozenset(
+    {
+        "name",
+        "aliases",
+        "short",
+        "long",
+        "in_room",
+        "startroom",
+        "count",
+        "respawn",
+        "inquiry",
+        "behaviors",
+        "tick_interval",
+    }
+)
 _PLAYER_KNOWN_FIELDS = frozenset({"name", "start_room"})
 
 
@@ -281,9 +338,10 @@ def _build_items(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> dict[str, EntityId]:
-    """建物品实体（Identity+Description）并放进 placed_in 房间的地面容器。
+    """建物品实体（Identity+Description+按需能力组件）并放进 placed_in 房间地面。
 
     返回 item key -> entity id 映射，供出口的 ``door.key`` 引用钥匙物品（04 号票）。
+    能力组件（18/21/22/24 号票）按 YAML 字段按需挂载，未声明不挂。
     """
     item_ids: dict[str, EntityId] = {}
     for item_key, raw in items.items():
@@ -300,11 +358,199 @@ def _build_items(
         _attach_identity_and_description(
             world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
         )
-        container = world.require_component(room_ids[str(placed_in)], Container)
-        container.items.add(item)
+        _attach_item_capabilities(
+            world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
+        )
+        room_container = world.require_component(room_ids[str(placed_in)], Container)
+        room_container.items.add(item)
         _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
         item_ids[str(item_key)] = item
     return item_ids
+
+
+def _attach_item_capabilities(
+    world: World,
+    item: EntityId,
+    data: Mapping,
+    *,
+    label: str,
+    scene_path: Path,
+) -> None:
+    """按 YAML 声明挂载 Stackable/Valuable/Equippable/Consumable/ItemFlags/Container/Weight。"""
+    stackable = _parse_stackable(data, label=label, scene_path=scene_path)
+    if stackable is not None:
+        world.add_component(item, stackable)
+
+    valuable = _parse_valuable(data, label=label, scene_path=scene_path)
+    if valuable is not None:
+        world.add_component(item, valuable)
+
+    equippable = _parse_equippable(data, label=label, scene_path=scene_path)
+    if equippable is not None:
+        world.add_component(item, equippable)
+
+    consumable = _parse_consumable(data, label=label, scene_path=scene_path)
+    if consumable is not None:
+        world.add_component(item, consumable)
+
+    flags = _parse_item_flags(data, label=label, scene_path=scene_path)
+    if flags is not None:
+        world.add_component(item, flags)
+
+    item_container = _parse_item_container(data, label=label, scene_path=scene_path)
+    if item_container is not None:
+        world.add_component(item, item_container)
+
+    if "weight" in data and stackable is None:
+        try:
+            world.add_component(item, Weight(value=float(data["weight"])))
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 'weight' 应是数字，实际是 {data['weight']!r}"
+            ) from exc
+
+
+def _parse_stackable(
+    data: Mapping, *, label: str, scene_path: Path
+) -> Stackable | None:
+    """``stackable: true|{amount, unit_weight}`` 或顶层 ``amount`` / ``unit_weight``。"""
+    raw = data.get("stackable")
+    amount = data.get("amount")
+    unit_weight = data.get("unit_weight")
+    if raw is None and amount is None and unit_weight is None:
+        return None
+    if isinstance(raw, Mapping):
+        amount = raw.get("amount", amount)
+        unit_weight = raw.get("unit_weight", unit_weight)
+    elif raw is False:
+        return None
+    # raw is True / None with top-level amount / mapping already handled
+    if amount is None:
+        amount = 1
+    try:
+        amt = int(amount)
+        uw = 1.0 if unit_weight is None else float(unit_weight)
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 stackable 字段非法：{exc}"
+        ) from exc
+    if amt < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 stackable.amount 应 >= 1，实际是 {amt}"
+        )
+    return Stackable(amount=amt, unit_weight=uw)
+
+
+def _parse_valuable(data: Mapping, *, label: str, scene_path: Path) -> Valuable | None:
+    """``valuable: <int>`` / ``valuable: {value: N}`` / 顶层 ``value: N``。"""
+    raw = data.get("valuable", data.get("value") if "valuable" not in data else None)
+    if "valuable" not in data and "value" not in data:
+        return None
+    if "valuable" in data:
+        raw = data["valuable"]
+    elif "value" in data:
+        raw = data["value"]
+    else:
+        return None
+    if isinstance(raw, Mapping):
+        raw = raw.get("value")
+    if raw is None or raw is False:
+        return None
+    try:
+        return Valuable(value=int(raw))
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 valuable/value 应是整数，实际是 {raw!r}"
+        ) from exc
+
+
+def _parse_equippable(
+    data: Mapping, *, label: str, scene_path: Path
+) -> Equippable | None:
+    """``equippable: true|{slot, apply_hook}`` 占位。"""
+    raw = data.get("equippable")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return Equippable()
+    if isinstance(raw, Mapping):
+        slot = str(raw.get("slot", "") or "")
+        apply_hook = raw.get("apply_hook")
+        hook = None if apply_hook is None else str(apply_hook)
+        return Equippable(slot=slot, apply_hook=hook)
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'equippable' 应是 true 或映射，"
+        f"实际是 {type(raw).__name__}"
+    )
+
+
+def _parse_consumable(
+    data: Mapping, *, label: str, scene_path: Path
+) -> Consumable | None:
+    """``consumable: true|{uses}`` 占位。"""
+    raw = data.get("consumable")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return Consumable()
+    if isinstance(raw, Mapping):
+        uses = raw.get("uses", 1)
+        try:
+            return Consumable(uses=int(uses))
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 consumable.uses 应是整数，实际是 {uses!r}"
+            ) from exc
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'consumable' 应是 true 或映射，"
+        f"实际是 {type(raw).__name__}"
+    )
+
+
+def _parse_item_flags(
+    data: Mapping, *, label: str, scene_path: Path
+) -> ItemFlags | None:
+    """``no_take`` / ``no_drop`` / ``no_drop_message``；全缺省则不挂组件。"""
+    if not any(k in data for k in ("no_take", "no_drop", "no_drop_message")):
+        return None
+    no_take = bool(data.get("no_take", False))
+    no_drop = bool(data.get("no_drop", False))
+    msg = data.get("no_drop_message")
+    if msg is not None:
+        msg = str(msg)
+    if not no_take and not no_drop and msg is None:
+        return None
+    return ItemFlags(no_take=no_take, no_drop=no_drop, no_drop_message=msg)
+
+
+def _parse_item_container(
+    data: Mapping, *, label: str, scene_path: Path
+) -> Container | None:
+    """``container: true|{max_capacity, max_weight}`` 或顶层 max_* 且 container 真。"""
+    raw = data.get("container")
+    max_capacity = data.get("max_capacity")
+    max_weight = data.get("max_weight")
+    if raw is None and max_capacity is None and max_weight is None:
+        return None
+    if raw is False:
+        return None
+    if isinstance(raw, Mapping):
+        max_capacity = raw.get("max_capacity", max_capacity)
+        max_weight = raw.get("max_weight", max_weight)
+    elif raw is None and (max_capacity is not None or max_weight is not None):
+        # 仅顶层上限、未写 container: 不自动变容器（避免误挂）。
+        return None
+    # raw is True / mapping / 显式 container
+    if raw is None:
+        return None
+    try:
+        cap = None if max_capacity is None else int(max_capacity)
+        w = None if max_weight is None else float(max_weight)
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的容器上限字段非法：{exc}"
+        ) from exc
+    return Container(max_capacity=cap, max_weight=w)
 
 
 def _build_npcs(
@@ -313,22 +559,163 @@ def _build_npcs(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
-    """建静态展示型 NPC（Identity+Description+Position），无任何行为组件。"""
+    """建 NPC：基础组件 + 可选 Inquiry/AIController/Behaviors + Spawn meta（25~27）。
+
+    ``count`` 控制实例数（默认 1）；``startroom`` 可作 ``in_room`` 别名，也可
+    单独声明出生房（与 in_room 并存时：位置用 in_room，spawn meta 用 startroom）。
+    """
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
-        in_room = data.get("in_room")
-        if not in_room:
-            raise SceneLoadError(f"场景文件 {scene_path} 的 NPC '{npc_key}' 缺少 'in_room'")
-        if str(in_room) not in room_ids:
+        room_key = data.get("in_room") or data.get("startroom")
+        if not room_key:
             raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 in_room '{in_room}' 不是已定义的房间"
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 缺少 'in_room'（或 startroom）"
             )
-        npc = world.create_entity()
-        _attach_identity_and_description(
-            world, npc, data, label=f"NPC '{npc_key}'", scene_path=scene_path
+        if str(room_key) not in room_ids:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的房间 '{room_key}' 不是已定义的房间"
+            )
+        start_key = data.get("startroom") or room_key
+        if str(start_key) not in room_ids:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 startroom "
+                f"'{start_key}' 不是已定义的房间"
+            )
+        count = _npc_count(data.get("count", 1), npc_key, scene_path)
+        respawn = bool(data.get("respawn", False))
+        room_id = room_ids[str(room_key)]
+        startroom_id = room_ids[str(start_key)]
+        inquiry = _parse_inquiry(data.get("inquiry"), npc_key, scene_path)
+        behaviors = _parse_behaviors(data.get("behaviors"), npc_key, scene_path)
+        tick_interval = _npc_tick_interval(data.get("tick_interval", 1), npc_key, scene_path)
+        for _ in range(count):
+            npc = world.create_entity()
+            _attach_identity_and_description(
+                world, npc, data, label=f"NPC '{npc_key}'", scene_path=scene_path
+            )
+            world.add_component(npc, Position(room=room_id))
+            world.add_component(
+                npc,
+                NpcSpawnMeta(
+                    template_key=str(npc_key),
+                    startroom=startroom_id,
+                    desired_count=count,
+                    respawn=respawn,
+                ),
+            )
+            if inquiry is not None:
+                world.add_component(npc, inquiry)
+            if behaviors is not None:
+                world.add_component(npc, AIController(tick_interval=tick_interval))
+                world.add_component(npc, behaviors)
+            _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
+
+
+def _npc_count(raw: object, npc_key: object, scene_path: Path) -> int:
+    """解析 count：默认 1，须为正整数。"""
+    try:
+        count = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'count' 应是正整数，实际是 {raw!r}"
+        ) from None
+    if count < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'count' 应 >= 1，实际是 {count}"
         )
-        world.add_component(npc, Position(room=room_ids[str(in_room)]))
-        _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
+    return count
+
+
+def _npc_tick_interval(raw: object, npc_key: object, scene_path: Path) -> int:
+    """解析 tick_interval：默认 1，须为正整数。"""
+    try:
+        interval = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'tick_interval' 应是正整数，"
+            f"实际是 {raw!r}"
+        ) from None
+    if interval < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'tick_interval' 应 >= 1，"
+            f"实际是 {interval}"
+        )
+    return interval
+
+
+def _parse_inquiry(raw: object, npc_key: object, scene_path: Path) -> Inquiry | None:
+    """解析 inquiry 映射：``{ topic: 文案, default: 兜底 }``；缺省返回 None。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'inquiry' 应是映射，"
+            f"实际是 {type(raw).__name__}"
+        )
+    topics: dict[str, str] = {}
+    default: str | None = None
+    for key, value in raw.items():
+        key_s = str(key)
+        if key_s == "default":
+            default = str(value)
+            continue
+        topics[key_s] = str(value)
+    return Inquiry(topics=topics, default=default)
+
+
+def _parse_behaviors(raw: object, npc_key: object, scene_path: Path) -> Behaviors | None:
+    """解析 behaviors 列表为 ``Behaviors`` 组件；缺省 / 空列表返回 None。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, (list, tuple)):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'behaviors' 应是列表，"
+            f"实际是 {type(raw).__name__}"
+        )
+    entries: list[BehaviorSpec] = []
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
+                f"应是映射，实际是 {type(entry).__name__}"
+            )
+        kind = str(entry.get("kind", ""))
+        if not kind:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] 缺少 'kind'"
+            )
+        # Chatter 字段：兼容 chat_msgs/messages 与 chat_chance/chance 两套键名。
+        msgs_raw = entry.get("chat_msgs", entry.get("messages", ()))
+        if not isinstance(msgs_raw, (list, tuple)):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
+                f"的消息列表应是列表，实际是 {type(msgs_raw).__name__}"
+            )
+        chance_raw = entry.get("chat_chance", entry.get("chance", 0.0))
+        try:
+            chance = float(chance_raw)
+        except (TypeError, ValueError):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
+                f"的概率应是数字，实际是 {chance_raw!r}"
+            ) from None
+        when = entry.get("when")
+        if when is not None and not isinstance(when, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
+                f"的 'when' 应是映射，实际是 {type(when).__name__}"
+            )
+        entries.append(
+            BehaviorSpec(
+                kind=kind,
+                chat_msgs=tuple(str(m) for m in msgs_raw),
+                chat_chance=chance,
+                when=dict(when) if when is not None else None,
+            )
+        )
+    if not entries:
+        return None
+    return Behaviors(entries=entries)
 
 
 def _build_player(
@@ -382,7 +769,11 @@ def _attach_identity_and_description(
     )
     world.add_component(
         entity,
-        Description(short=str(data.get("short", name)), long=str(data.get("long", ""))),
+        Description(
+            short=str(data.get("short", name)),
+            long=str(data.get("long", "")),
+            outdoors=bool(data.get("outdoors", False)),
+        ),
     )
 
 

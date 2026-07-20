@@ -45,6 +45,10 @@ def run_repl(
         _print_messages(messages, output_stream)
         if tick_loop is not None:
             tick_loop.advance()
+            # Nature 等 tick 驱动广播落在 pending_messages（16 号票）；drain 后打印。
+            if world.pending_messages:
+                _print_messages(world.pending_messages, output_stream)
+                world.pending_messages.clear()
 
     if tick_loop is not None:
         tick_loop.force_save()

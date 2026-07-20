@@ -10,9 +10,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from mud_engine.events import EventBus
+
+if TYPE_CHECKING:
+    from mud_engine.nature import NatureState
 
 EntityId = int
 
@@ -51,6 +54,12 @@ class World:
         # M1 透传数据只供引擎内部留底、不参与运行时态）。
         self.extension_data: dict[str, object] = {}
         self._entity_extension_data: dict[EntityId, dict[str, object]] = {}
+        # Nature 运行时态（13 号票，块 B）：纯内存、不进存档；由 ``attach_nature``
+        # 挂载。TYPE_CHECKING 下标成 NatureState 供类型检查，避免循环 import。
+        self.nature: NatureState | None = None
+        # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
+        # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
+        self.pending_messages: list[str] = []
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""

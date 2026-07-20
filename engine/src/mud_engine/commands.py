@@ -44,9 +44,15 @@ from mud_engine.components import (
     DoorState,
     Exits,
     Identity,
+    Inquiry,
+    NpcSpawnMeta,
     Position,
+    Stackable,
+    Valuable,
+    Weight,
 )
 from mud_engine.intent import Intent
+from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
 CommandHandler = Callable[[World, EntityId, Intent], list[str]]
@@ -102,6 +108,9 @@ ON_TRAVERSE_BLOCKED = "on_traverse_blocked"
 ON_TAKE = "on_take"
 ON_DROP = "on_drop"
 ON_DOOR_STATE_CHANGE = "on_door_state_change"
+# 房间广播事件（28 号票，D4）：``say`` / Chatter 经 ``room_say`` 触发，
+# handler 收 ``HearSayContext``（speaker / room / text）。
+ON_HEAR_SAY = "on_hear_say"
 
 
 @dataclass(frozen=True)
@@ -167,6 +176,19 @@ class DoorStateChangeContext:
     direction: str
     old_state: DoorState
     new_state: DoorState
+
+
+@dataclass(frozen=True)
+class HearSayContext:
+    """``on_hear_say`` 上下文：房间内有人 ``say`` 时触发（28 号票）。
+
+    ``speaker_id`` 是说话者（玩家或 NPC），``room`` 是所在房间，``text`` 是说
+    出的内容。形状被契约测试锁定，供 NPC 反应 / 未来对话钩子消费。
+    """
+
+    speaker_id: EntityId
+    room: EntityId
+    text: str
 
 
 # 规范动词 -> 处理函数
@@ -335,16 +357,22 @@ def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId)
 
 @register("look", aliases=("l",))
 def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """展示玩家当前房间的简述、详细描述、地面物品、在场 NPC 与出口列表。
+    """无目标：展示当前房间；有目标：展示物品详情（23 号票）。
 
-    出口列表标注门状态（关/锁）--门状态来自独立于 ``Exits`` 的 ``Doors`` 组件，
-    look 综合两者展示（04 号票）。
+    房间 look：简述、详细描述、户外时辰/天气（15/17）、地面物品、在场 NPC、出口。
+    物品 look：long + 容器内容 + 堆叠/价值/重量数值。
     """
+    if intent.target is not None:
+        return _look_item(world, player_id, intent.target)
+
     room = _player_room(world, player_id)
     description = world.require_component(room, Description)
     exits = world.require_component(room, Exits)
 
     lines = [description.short, description.long]
+    # 户外房间追加当前时辰 × 天气描述（15/17 号票）；室内不追加。
+    if description.outdoors and world.nature is not None:
+        lines.append(world.nature.outdoor_desc())
     container = world.get_component(room, Container)
     if container and container.items:
         names = _sorted_item_names(world, container)
@@ -504,41 +532,49 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 @register("take")
 def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把当前房间地面容器里匹配的物品移到玩家物品栏（03 号票）。
+    """从房间地面或容器取出物品到玩家物品栏（03/19/20/22 号票）。
 
-    转移前分发可否决的 ``on_take``（09 号票："诅咒物品拿不起""任务物品不能拿"
-    等规则挂载点），否决则不转移。
+    - ``take <物品>`` / ``take <物品> <数量>``：从当前房间地面拿（可拆堆）。
+    - ``take <物品> from <容器>``：从可达容器取出（intent.args 含 ``from`` + 容器名）。
+    全部走 ``transfer``：``on_take`` 否决、no_take、堆叠合并/拆分在原语内处理。
     """
     name = intent.target
     if name is None:
-        return ["拿什么？用法：take <物品>"]
+        return ["拿什么？用法：take <物品> [数量] [from <容器>]"]
 
     room = _player_room(world, player_id)
-    room_container = world.require_component(room, Container)
-    player_container = world.require_component(player_id, Container)
-    item = _find_item_in_container(world, room_container, name)
+    from_container_name, amount = _parse_take_args(intent.args)
+    if from_container_name is not None:
+        holder = _find_reachable_container(world, player_id, from_container_name)
+        if holder is None:
+            return [f"这里没有容器 {from_container_name}。"]
+        src = holder
+        src_container = world.require_component(src, Container)
+        missing = f"{from_container_name} 里没有 {name}。"
+    else:
+        src = room
+        src_container = world.require_component(room, Container)
+        missing = f"这里没有 {name}。"
+
+    item = _find_item_in_container(world, src_container, name)
     if item is None:
-        # 解析阶段已 match，正常不会走到；保留兜底防御手工构造的 Intent。
-        return [f"这里没有 {name}。"]
-    # before：可否决。TransferContext 形状喂给块 C 的转移统一原语（src=房间, dst=玩家）。
-    denial = _run_vetoable(
-        world,
-        ON_TAKE,
-        TransferContext(player_id=player_id, item=item, src=room, dst=player_id),
+        return [missing]
+
+    result = transfer(
+        world, item, src, player_id, player_id=player_id, amount=amount
     )
-    if denial is not None:
-        return [denial]
-    room_container.items.discard(item)
-    player_container.items.add(item)
+    if not result.success:
+        return [result.message or "拿不起来。"]
+    if amount is not None:
+        return [f"你拿起 {amount} 个 {name}。"]
     return [f"你拿起 {name}。"]
 
 
 @register("drop")
 def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把玩家物品栏里匹配的物品放到当前房间地面容器（03 号票）。
+    """把玩家物品栏里匹配的物品放到当前房间地面（03/19 号票）。
 
-    转移前分发可否决的 ``on_drop``（09 号票："任务物品不能丢"等规则挂载点，
-    ``no_drop`` 支持字符串自定义提示），否决则不转移。
+    走 ``transfer``：``on_drop`` 否决、``no_drop``（含自定义提示）在原语内处理。
     """
     name = intent.target
     if name is None:
@@ -546,21 +582,39 @@ def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
     room = _player_room(world, player_id)
     player_container = world.require_component(player_id, Container)
-    room_container = world.require_component(room, Container)
     item = _find_item_in_container(world, player_container, name)
     if item is None:
         return [f"你没有 {name}。"]
-    # before：可否决（src=玩家, dst=房间）。
-    denial = _run_vetoable(
-        world,
-        ON_DROP,
-        TransferContext(player_id=player_id, item=item, src=player_id, dst=room),
-    )
-    if denial is not None:
-        return [denial]
-    player_container.items.discard(item)
-    room_container.items.add(item)
+    result = transfer(world, item, player_id, room, player_id=player_id)
+    if not result.success:
+        return [result.message or "放不下。"]
     return [f"你放下 {name}。"]
+
+
+@register("put")
+def _cmd_put(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """把物品栏物品放入可达容器：``put <物品> in <容器>``（22/24 号票）。
+
+    容器须在同房间地面或玩家物品栏内。走 ``transfer``（离开玩家触发 on_drop /
+    no_drop；容量与重量上限在原语内拒绝）。
+    """
+    name = intent.target
+    if name is None or not intent.args:
+        return ["放什么？用法：put <物品> in <容器>"]
+    container_name = intent.args[0]
+    player_container = world.require_component(player_id, Container)
+    item = _find_item_in_container(world, player_container, name)
+    if item is None:
+        return [f"你没有 {name}。"]
+    holder = _find_reachable_container(world, player_id, container_name)
+    if holder is None:
+        return [f"这里没有容器 {container_name}。"]
+    if holder == item:
+        return ["不能把东西放进它自己。"]
+    result = transfer(world, item, player_id, holder, player_id=player_id)
+    if not result.success:
+        return [result.message or "放不进去。"]
+    return [f"你把 {name} 放进了 {container_name}。"]
 
 
 @register("inventory", aliases=("i",))
@@ -590,6 +644,185 @@ def _cmd_quit(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """请求 CLI 主循环结束（本票不含存档，见 05 号票）。"""
     world.should_quit = True
     return ["再见。"]
+
+
+@register("ask")
+def _cmd_ask(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向同房间 NPC 提问：``ask <npc> about <topic>``（27 号票，D3）。
+
+    解析层已把 NPC 规范名放进 ``intent.target``、topic 放进 ``intent.args[0]``。
+    响应走 ``Inquiry`` 组件的声明式映射；未知 topic 用 ``default`` 或内置提示。
+    """
+    npc_name = intent.target
+    if npc_name is None or not intent.args:
+        return ["问谁什么？用法：ask <人物> about <话题>"]
+    topic = intent.args[0]
+    npc = _find_npc_in_room(world, player_id, npc_name)
+    if npc is None:
+        return [f"这里没有 {npc_name}。"]
+    inquiry = world.get_component(npc, Inquiry)
+    if inquiry is None:
+        return [f"{npc_name}似乎不想和你说话。"]
+    if topic in inquiry.topics:
+        return [f"{npc_name}说道：{inquiry.topics[topic]}"]
+    if inquiry.default is not None:
+        return [f"{npc_name}说道：{inquiry.default}"]
+    return [f"{npc_name}摇摇头，似乎不知道。"]
+
+
+@register("say")
+def _cmd_say(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向同房间广播一句话（28 号票，D4）。空内容拒绝。"""
+    text = intent.args[0] if intent.args else ""
+    if not text.strip():
+        return ["说什么？用法：say <内容>"]
+    return room_say(world, player_id, text)
+
+
+def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:
+    """向同房间广播一句话，并触发 ``on_hear_say``（28 号票）。
+
+    说话者若是玩家，返回 ``你说：...``；同房间其他玩家经 ``pending_messages``
+    收到 ``{名}说：...``（M1 单玩家时主要服务 NPC Chatter）。NPC 说话不返回
+    给自己，只推给房间内玩家。Chatter（ai.py）与 ``say`` 命令共用本函数。
+    """
+    room = world.require_component(speaker_id, Position).room
+    speaker_name = world.require_component(speaker_id, Identity).name
+    world.events.dispatch(
+        ON_HEAR_SAY,
+        HearSayContext(speaker_id=speaker_id, room=room, text=text),
+    )
+    speaker_is_player = _is_player_entity(world, speaker_id)
+    for entity in world.entities_with(Position):
+        if entity == speaker_id:
+            continue
+        if world.require_component(entity, Position).room != room:
+            continue
+        if _is_player_entity(world, entity):
+            world.pending_messages.append(f"{speaker_name}说：{text}")
+    if speaker_is_player:
+        return [f"你说：{text}"]
+    return []
+
+
+def _is_player_entity(world: World, entity: EntityId) -> bool:
+    """玩家启发式：有 Position+Container、无 NpcSpawnMeta（NPC 均挂 spawn meta）。"""
+    return (
+        world.has_component(entity, Position)
+        and world.has_component(entity, Container)
+        and not world.has_component(entity, NpcSpawnMeta)
+    )
+
+
+def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
+    """在玩家当前房间找规范名等于 name 的 NPC（Position 持有者，排除玩家）。"""
+    room = _player_room(world, player_id)
+    for entity in world.entities_with(Position):
+        if entity == player_id:
+            continue
+        if world.require_component(entity, Position).room != room:
+            continue
+        identity = world.get_component(entity, Identity)
+        if identity is not None and identity.name == name:
+            return entity
+    return None
+
+
+def _look_item(world: World, player_id: EntityId, name: str) -> list[str]:
+    """``look <物品>``：long + 容器内容 + 堆叠/价值/重量（23 号票）。"""
+    item = _find_lookable_item(world, player_id, name)
+    if item is None:
+        return [f"这里没有 {name}。"]
+    description = world.get_component(item, Description)
+    lines: list[str] = []
+    if description is not None and description.long:
+        lines.append(description.long)
+    elif description is not None and description.short:
+        lines.append(description.short)
+    else:
+        lines.append(name)
+
+    stackable = world.get_component(item, Stackable)
+    if stackable is not None:
+        lines.append(f"数量：{stackable.amount}")
+    valuable = world.get_component(item, Valuable)
+    if valuable is not None:
+        lines.append(f"价值：{valuable.value}")
+    # 有 Stackable / Valuable / Weight 之一时展示重量（纯描述物品不硬塞重量行）。
+    if (
+        stackable is not None
+        or valuable is not None
+        or world.get_component(item, Weight) is not None
+    ):
+        lines.append(f"重量：{item_weight(world, item):g}")
+
+    nested = world.get_component(item, Container)
+    if nested is not None:
+        if nested.items:
+            lines.append("里面有：" + "、".join(_sorted_item_names(world, nested)))
+        else:
+            lines.append("里面是空的。")
+    return lines
+
+
+def _find_lookable_item(world: World, player_id: EntityId, name: str) -> EntityId | None:
+    """在房间地面、玩家物品栏及其直接嵌套容器中按规范名找物品。"""
+    room = _player_room(world, player_id)
+    for holder in (room, player_id):
+        container = world.get_component(holder, Container)
+        if container is None:
+            continue
+        found = _find_item_in_container(world, container, name)
+        if found is not None:
+            return found
+        for nested_id in container.items:
+            nested = world.get_component(nested_id, Container)
+            if nested is None:
+                continue
+            found = _find_item_in_container(world, nested, name)
+            if found is not None:
+                return found
+    return None
+
+
+def _parse_take_args(args: tuple[str, ...]) -> tuple[str | None, int | None]:
+    """解析 take 的 args：可选数量 + 可选 ``from <容器>``。
+
+    返回 ``(容器规范名或 None, 数量或 None)``。解析层已把容器名解析为规范名；
+    数量为十进制正整数字符串。
+    """
+    if not args:
+        return None, None
+    tokens = list(args)
+    amount: int | None = None
+    # 形如 ("3",) / ("3", "from", "箱子") / ("from", "箱子")
+    if tokens[0].isdigit():
+        amount = int(tokens[0])
+        tokens = tokens[1:]
+    container_name: str | None = None
+    if len(tokens) >= 2 and tokens[0] == "from":
+        container_name = tokens[1]
+    elif len(tokens) == 1 and tokens[0] != "from":
+        # 兼容仅数量：已在上面处理；孤立非 from token 忽略（防御）。
+        pass
+    return container_name, amount
+
+
+def _find_reachable_container(
+    world: World, player_id: EntityId, name: str
+) -> EntityId | None:
+    """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 Container 的物品。"""
+    room = _player_room(world, player_id)
+    for holder in (room, player_id):
+        container = world.get_component(holder, Container)
+        if container is None:
+            continue
+        for item in container.items:
+            if world.require_component(item, Identity).name != name:
+                continue
+            if world.get_component(item, Container) is not None:
+                return item
+    return None
 
 
 def _door_in_direction(world: World, room: EntityId, direction: str) -> Door | None:
@@ -673,12 +906,14 @@ __all__ = [
     "Deny",
     "DoorStateChangeContext",
     "EnterRoomContext",
+    "HearSayContext",
     "ON_BEFORE_ENTER_ROOM",
     "ON_COMMAND_AFTER",
     "ON_COMMAND_BEFORE",
     "ON_DOOR_STATE_CHANGE",
     "ON_DROP",
     "ON_ENTER_ROOM",
+    "ON_HEAR_SAY",
     "ON_LEAVE_ROOM",
     "ON_TAKE",
     "ON_TRAVERSE_BLOCKED",
@@ -689,4 +924,5 @@ __all__ = [
     "execute",
     "register",
     "resolve_verb",
+    "room_say",
 ]
