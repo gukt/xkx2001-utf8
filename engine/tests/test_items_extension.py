@@ -23,6 +23,7 @@ from mud_engine.components import (
     Valuable,
 )
 from mud_engine.parsing import execute_line
+from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
 from mud_engine.scenes import build_world
 from mud_engine.transfer import TransferFailReason, TransferResult, item_weight, transfer
@@ -96,6 +97,102 @@ class TestCapabilityComponents:
         assert world.get_component(stone, Equippable) is None
         assert world.get_component(stone, Consumable) is None
         assert world.get_component(stone, ItemFlags) is None
+
+    def test_yaml_plain_item_does_not_attach_capabilities(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  pebble:
+    name: 石子
+    placed_in: yard
+""",
+        )
+        room = _player_room(world, player_id)
+        pebble = _item_by_name(world, room, "石子")
+        assert world.get_component(pebble, Stackable) is None
+        assert world.get_component(pebble, Valuable) is None
+        assert world.get_component(pebble, Equippable) is None
+        assert world.get_component(pebble, Consumable) is None
+
+    def test_capability_fields_are_declarative_data(self, tmp_path: Path) -> None:
+        """字段为纯数据（无闭包）；apply_hook 是字符串引用占位。"""
+        world, player_id = _load(
+            tmp_path,
+            """
+  potion:
+    name: 药水
+    placed_in: yard
+    stackable: {amount: 3, unit_weight: 0.2}
+    valuable: {value: 10}
+    equippable: {slot: hand, apply_hook: apply_sword}
+    consumable: {uses: 4}
+""",
+        )
+        room = _player_room(world, player_id)
+        potion = _item_by_name(world, room, "药水")
+        stack = world.require_component(potion, Stackable)
+        valuable = world.require_component(potion, Valuable)
+        equip = world.require_component(potion, Equippable)
+        consumable = world.require_component(potion, Consumable)
+        for value in (
+            stack.amount,
+            stack.unit_weight,
+            valuable.value,
+            equip.slot,
+            equip.apply_hook,
+            consumable.uses,
+        ):
+            assert not callable(value)
+        assert equip.apply_hook == "apply_sword"
+        assert isinstance(equip.apply_hook, str)
+
+    def test_mutable_capability_fields_survive_save_restore(self, tmp_path: Path) -> None:
+        """amount / uses 等可变字段进存档并可恢复；占位字段一并保留。"""
+        world, player_id = _load(
+            tmp_path,
+            """
+  coin:
+    name: 铜钱
+    placed_in: yard
+    stackable: {amount: 5, unit_weight: 0.1}
+    value: 1
+    equippable: {slot: hand, apply_hook: apply_coin}
+    consumable: {uses: 2}
+""",
+        )
+        room = _player_room(world, player_id)
+        coin = _item_by_name(world, room, "铜钱")
+        world.require_component(coin, Stackable).amount = 9
+        world.require_component(coin, Consumable).uses = 1
+
+        save_root = tmp_path / "save"
+        save_world(world, player_id, save_root)
+        restored = restore_world(save_root)
+        assert restored is not None
+        world2, player2 = restored
+        room2 = _player_room(world2, player2)
+        coin2 = _item_by_name(world2, room2, "铜钱")
+        assert world2.require_component(coin2, Stackable).amount == 9
+        assert world2.require_component(coin2, Stackable).unit_weight == pytest.approx(0.1)
+        assert world2.require_component(coin2, Valuable).value == 1
+        assert world2.require_component(coin2, Equippable).slot == "hand"
+        assert world2.require_component(coin2, Equippable).apply_hook == "apply_coin"
+        assert world2.require_component(coin2, Consumable).uses == 1
+
+    def test_plain_item_take_drop_unchanged(self) -> None:
+        """无能力组件的基线物品 take/drop 行为不变。"""
+        world, player_id = build_world()
+        messages = execute_line(world, player_id, "take 石头")
+        assert any("拿" in m and "石头" in m for m in messages)
+        inv = world.require_component(player_id, Container)
+        assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
+        messages = execute_line(world, player_id, "drop 石头")
+        assert any("放下" in m and "石头" in m for m in messages)
+        room = _player_room(world, player_id)
+        assert any(
+            world.require_component(i, Identity).name == "石头"
+            for i in world.require_component(room, Container).items
+        )
 
 
 class TestTransferPrimitive:
