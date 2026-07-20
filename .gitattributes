@@ -1,3 +1,10 @@
-# justfile 对行尾敏感：recipe 行尾的 \r（CRLF）会进入 shell 命令导致执行失败。
-# 本仓库 core.autocrlf=true 会在 checkout 时把 LF 转 CRLF，此处强制 justfile 用 LF。
+# 文本默认 LF。本仓库常见环境是 WSL + core.autocrlf=true：若不强制 eol=lf，
+# checkout 会把工作区写成 CRLF，随后编辑器/工具再写回 LF，就会出现「无内容 diff
+# 却一直 M」的换行符噪声。attributes 覆盖 autocrlf，工作区与仓库统一 LF。
+* text=auto eol=lf
+
+# justfile 对行尾敏感：recipe 行尾的 \r 会进入 shell 命令导致执行失败。
 justfile text eol=lf
+
+# LPC 历史源码与数据目录不参与本规则的「活跃工程」归一化；仍按 text=auto 检测，
+# 但上面 * eol=lf 已覆盖。若日后要保留 CRLF 资产，在此加 -text 例外。
