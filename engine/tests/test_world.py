@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from mud_engine.components import Position
 from mud_engine.world import World
 
 
@@ -121,6 +122,47 @@ class TestEntitiesWith:
             world = World()
             world.create_entity()
             assert list(world.entities_with(Health)) == []
+
+
+class TestEntitiesInRoom:
+    """34 号票：房间内实体查询（遍历 Position + 按 room 过滤 + 排除）。
+
+    commands（look 在场 NPC / room_say 广播 / _find_npc_in_room）与 parsing
+    （_npc_candidates）四处重复逻辑收敛到本方法。玩家与 NPC 都用 Position 表达
+    "在房间里"；物品不挂 Position（被 Container 持有）故天然不收进。
+    """
+
+    def test_returns_only_entities_whose_position_matches_the_room(self) -> None:
+        world = World()
+        room_a = world.create_entity()
+        room_b = world.create_entity()
+        in_a = world.create_entity()
+        in_b = world.create_entity()
+        world.add_component(in_a, Position(room=room_a))
+        world.add_component(in_b, Position(room=room_b))
+        assert set(world.entities_in_room(room_a)) == {in_a}
+
+    def test_excludes_the_named_exclude_entity(self) -> None:
+        world = World()
+        room = world.create_entity()
+        player = world.create_entity()
+        npc = world.create_entity()
+        world.add_component(player, Position(room=room))
+        world.add_component(npc, Position(room=room))
+        assert set(world.entities_in_room(room, exclude=player)) == {npc}
+
+    def test_omits_entities_without_position(self) -> None:
+        # 物品被 Container 持有、不挂 Position，不应被当作"在房间里"。
+        world = World()
+        room = world.create_entity()
+        bare = world.create_entity()  # 无 Position
+        world.add_component(bare, Name("裸实体"))
+        assert list(world.entities_in_room(room)) == []
+
+    def test_returns_empty_when_no_one_is_in_the_room(self) -> None:
+        world = World()
+        room = world.create_entity()
+        assert list(world.entities_in_room(room)) == []
 
 
 # ── 05 号票：存档/恢复需要的 World 能力 ─────────────────

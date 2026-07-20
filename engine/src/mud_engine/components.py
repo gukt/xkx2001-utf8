@@ -36,8 +36,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from mud_engine.world import EntityId
+if TYPE_CHECKING:
+    # ``EntityId`` 仅用于组件字段注解（``from __future__ import annotations`` 下注解
+    # 不在运行时求值），故放 TYPE_CHECKING 而非运行时 import--这样 components 是运行时
+    # 叶子，world.py 可运行时 ``from mud_engine.components import Position``（34 号票
+    # ``entities_in_room`` 用）而不引入 components ↔ world 循环。
+    from mud_engine.world import EntityId
 
 # 组件字段三态中"瞬时"态的 dataclass field metadata key（12 号票）。
 # ``transient_field()`` 写入此 key 标注，save.py 的序列化 chokepoint 读它过滤剔除。

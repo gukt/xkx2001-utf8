@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
+from mud_engine.components import Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
@@ -132,6 +133,23 @@ class World:
             return iter(())
         matching_sets = [set(self._components.get(t, {})) for t in component_types]
         return iter(set.intersection(*matching_sets))
+
+    def entities_in_room(
+        self, room: EntityId, *, exclude: EntityId | None = None
+    ) -> Iterable[EntityId]:
+        """在该房间内的全部实体（挂 ``Position`` 且 ``room`` 字段匹配），可排除单个实体。
+
+        34 号票去重：commands（``_sorted_npc_names_in_room`` / ``room_say`` /
+        ``_find_npc_in_room``）与 parsing（``_npc_candidates``）四处重复"遍历
+        ``entities_with(Position)`` + 按 room 过滤 + 排除某实体"，收敛到本方法。
+        玩家与 NPC 都用 ``Position`` 表达"在房间里"（物品不挂，被 Container 持有）。
+        """
+        for entity in self.entities_with(Position):
+            if entity == exclude:
+                continue
+            if self.require_component(entity, Position).room != room:
+                continue
+            yield entity
 
     def all_entities(self) -> Iterable[EntityId]:
         """遍历全部已建实体（05 号票 serialize 全量存档用）。"""

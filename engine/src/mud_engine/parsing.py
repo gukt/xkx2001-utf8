@@ -395,14 +395,13 @@ class DeterministicParser(Parser):
 
     @staticmethod
     def _npc_candidates(world: World, player_id: EntityId) -> list[Candidate]:
-        """同房间可 ask 的 NPC（``is_askable_npc``：Inquiry 或 NpcSpawnMeta）。"""
+        """同房间可 ask 的 NPC（``is_askable_npc``：Inquiry 或 NpcSpawnMeta）。
+
+        房间内实体遍历走 ``world.entities_in_room``（34 号票去重）。
+        """
         room = world.require_component(player_id, Position).room
         candidates: list[Candidate] = []
-        for entity in world.entities_with(Position):
-            if entity == player_id:
-                continue
-            if world.require_component(entity, Position).room != room:
-                continue
+        for entity in world.entities_in_room(room, exclude=player_id):
             if not is_askable_npc(world, entity):
                 continue
             identity = world.get_component(entity, Identity)

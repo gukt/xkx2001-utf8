@@ -314,13 +314,10 @@ def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId)
 
     NPC 用 ``Position`` 表达"在房间里"，不进房间的 ``Container``（否则会被
     take）；玩家也持有 Position，故排除玩家本人。物品无 Position，不会被收进。
+    房间内实体遍历走 ``world.entities_in_room``（34 号票去重）。
     """
     names: list[str] = []
-    for entity in world.entities_with(Position):
-        if entity == player_id:
-            continue
-        if world.require_component(entity, Position).room != room:
-            continue
+    for entity in world.entities_in_room(room, exclude=player_id):
         identity = world.get_component(entity, Identity)
         if identity is not None:
             names.append(identity.name)
@@ -680,11 +677,8 @@ def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:
         HearSayContext(speaker_id=speaker_id, room=room, text=text),
     )
     speaker_is_player = _is_player_entity(world, speaker_id)
-    for entity in world.entities_with(Position):
-        if entity == speaker_id:
-            continue
-        if world.require_component(entity, Position).room != room:
-            continue
+    # 同房间其他玩家收广播（NPC 说话不返回给自己）。遍历走 entities_in_room（34 号票）。
+    for entity in world.entities_in_room(room, exclude=speaker_id):
         if _is_player_entity(world, entity):
             world.pending_messages.append(f"{speaker_name}说：{text}")
     if speaker_is_player:
@@ -698,13 +692,12 @@ def _is_player_entity(world: World, entity: EntityId) -> bool:
 
 
 def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
-    """在玩家当前房间找规范名等于 name 的可 ask NPC（见 ``npc_query.is_askable_npc``）。"""
+    """在玩家当前房间找规范名等于 name 的可 ask NPC（见 ``npc_query.is_askable_npc``）。
+
+    房间内实体遍历走 ``world.entities_in_room``（34 号票去重）。
+    """
     room = _player_room(world, player_id)
-    for entity in world.entities_with(Position):
-        if entity == player_id:
-            continue
-        if world.require_component(entity, Position).room != room:
-            continue
+    for entity in world.entities_in_room(room, exclude=player_id):
         if not is_askable_npc(world, entity):
             continue
         identity = world.get_component(entity, Identity)
