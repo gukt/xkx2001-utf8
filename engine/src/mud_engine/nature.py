@@ -20,6 +20,9 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+
+import yaml
 
 from mud_engine.components import Container, Description, Position
 from mud_engine.events import ON_TICK, TickContext
@@ -286,6 +289,25 @@ class NatureState:
         return _WEATHER_CLEAR_MSG
 
 
+def load_nature_config_from_scene(scene_path: Path | str) -> object | None:
+    """从场景 YAML 读取顶层 ``nature:`` 段（供 restore 后重挂题材包相位）。
+
+    Nature 运行时态不进存档，但相位**配置**是场景声明式数据。崩溃恢复后
+    ``extension_data`` 为空，须从场景文件再读一遍，否则题材包自定义相位会
+    静默降级为 ``DEFAULT_PHASES``（13 号票验收：题材包可换序列）。
+    文件缺失 / 无 nature 段 / 解析失败时返回 ``None``（调用方回退默认）。
+    """
+    path = Path(scene_path)
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data.get("nature")
+
+
 def attach_nature(
     world: World,
     *,
@@ -423,4 +445,5 @@ __all__ = [
     "NatureState",
     "Weather",
     "attach_nature",
+    "load_nature_config_from_scene",
 ]

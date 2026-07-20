@@ -29,8 +29,10 @@ from mud_engine.nature import (
     NatureState,
     Weather,
     attach_nature,
+    load_nature_config_from_scene,
 )
 from mud_engine.parsing import execute_line
+from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
 from mud_engine.scenes import build_world
 from mud_engine.tick import TickLoop
@@ -140,6 +142,43 @@ nature:
         assert [p.name for p in world.nature.phases] == ["morning", "evening"]
         # 透传仍保留
         assert "nature" in world.extension_data
+
+    def test_restore_reattach_keeps_custom_phases_from_scene_file(
+        self, tmp_path: Path
+    ) -> None:
+        """崩溃恢复后 extension_data 为空，须从场景文件重读 nature 配置。"""
+        scene = """
+rooms:
+  yard:
+    name: 院子
+    outdoors: true
+    long: 院子
+player:
+  name: 你
+  start_room: yard
+nature:
+  day_phases:
+    - name: morning
+      length: 10
+      time_msg: 早了。
+      desc_msg: 清晨。
+    - name: evening
+      length: 10
+      time_msg: 晚了。
+      desc_msg: 傍晚。
+"""
+        scene_path = _write_scene(tmp_path, scene)
+        world, player_id = load_scene(scene_path)
+        save_dir = tmp_path / "save"
+        save_world(world, player_id, save_dir)
+        restored = restore_world(save_dir)
+        assert restored is not None
+        world2, _ = restored
+        # 模拟 __main__ restore 路径：从场景文件重挂，而非裸 attach_nature。
+        config = load_nature_config_from_scene(scene_path)
+        attach_nature(world2, config_from_yaml=config, clock=lambda: 0.0)
+        assert world2.nature is not None
+        assert [p.name for p in world2.nature.phases] == ["morning", "evening"]
 
 
 class TestQueryPredicates:

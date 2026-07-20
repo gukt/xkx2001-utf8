@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mud_engine.ai import attach_ai_system
 from mud_engine.cli import run_repl
-from mud_engine.nature import attach_nature
+from mud_engine.nature import attach_nature, load_nature_config_from_scene
 from mud_engine.save import has_save, restore_world, save_world
 from mud_engine.scene_loader import SceneLoadError
 from mud_engine.scenes import DEFAULT_SCENE_PATH, build_world
@@ -43,9 +43,12 @@ def _load_or_restore(save_dir: Path) -> tuple[World, EntityId]:
         restored = restore_world(save_dir)
         if restored is not None:
             world, player_id = restored
-            # Nature 不进存档：restore 后按时钟重新挂载默认相位（场景 YAML 的
-            # nature 段只在 load_scene 路径可读；崩溃恢复用默认四相即可）。
-            attach_nature(world)
+            # Nature 运行时态不进存档：restore 后按时钟重对齐；相位**配置**从
+            # 默认场景 YAML 再读（题材包自定义 day_phases 不能静默丢成默认四相）。
+            attach_nature(
+                world,
+                config_from_yaml=load_nature_config_from_scene(DEFAULT_SCENE_PATH),
+            )
             # AI 订阅者不进存档：restore 后重新挂 on_tick（幂等）。
             attach_ai_system(world)
             return world, player_id
