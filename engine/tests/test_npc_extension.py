@@ -71,7 +71,7 @@ npcs:
         )
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         # load_scene 已 attach；幂等后改 rng（测试确定性）。
-        world._ai_rng = _AlwaysSpeakRng()  # type: ignore[attr-defined]
+        world.ai.rng = _AlwaysSpeakRng()
         world.pending_messages.clear()
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         loop.advance()
@@ -93,7 +93,7 @@ npcs:
 """
         )
         world, _ = load_scene(_write_scene(tmp_path, scene))
-        world._ai_rng = _AlwaysSpeakRng()  # type: ignore[attr-defined]
+        world.ai.rng = _AlwaysSpeakRng()
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         world.pending_messages.clear()
         loop.advance()  # tick=1，3 的倍数才触发
@@ -319,9 +319,10 @@ class TestSayBroadcast:
 class TestChatter:
     """29 号票：Chatter 行为 + 条件求值。"""
 
-    def test_chatter_with_night_condition(
+    def test_chatter_silent_during_day(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # 白天（is_night=False）：Chatter 条件不满足，不说。
         scene = (
             _BASE_ROOMS
             + """
@@ -338,27 +339,48 @@ npcs:
 """
         )
         world, _ = load_scene(_write_scene(tmp_path, scene))
-        world._ai_rng = _AlwaysSpeakRng()  # type: ignore[attr-defined]
-        loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
-
+        world.ai.rng = _AlwaysSpeakRng()
         import mud_engine.ai as ai_mod
 
-        # 白天：不说
         monkeypatch.setattr(
             ai_mod,
             "_condition_context",
             lambda _w: StubContext(phase="day", is_night=False, is_day=True),
         )
+        loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         world.pending_messages.clear()
         loop.advance()
         assert world.pending_messages == []
 
-        # 夜里：说
+    def test_chatter_speaks_at_night(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # 夜里（is_night=True）：条件满足，Chatter 说话。
+        scene = (
+            _BASE_ROOMS
+            + """
+npcs:
+  nightowl:
+    name: 夜猫
+    in_room: start_yard
+    behaviors:
+      - kind: chatter
+        chat_msgs: ["夜深了。"]
+        chat_chance: 1.0
+        when:
+          predicate: is_night
+"""
+        )
+        world, _ = load_scene(_write_scene(tmp_path, scene))
+        world.ai.rng = _AlwaysSpeakRng()
+        import mud_engine.ai as ai_mod
+
         monkeypatch.setattr(
             ai_mod,
             "_condition_context",
             lambda _w: StubContext(phase="night", is_night=True, is_day=False),
         )
+        loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         world.pending_messages.clear()
         loop.advance()
         assert any("夜猫说：夜深了。" in m for m in world.pending_messages)

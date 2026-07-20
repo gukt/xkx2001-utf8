@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, TypeVar
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
+    from mud_engine.ai import AISystem
     from mud_engine.nature import NatureState
 
 EntityId = int
@@ -58,6 +59,10 @@ class World:
         # Nature 运行时态（13 号票，块 B）：纯内存、不进存档；由 ``attach_nature``
         # 挂载。TYPE_CHECKING 下标成 NatureState 供类型检查，避免循环 import。
         self.nature: NatureState | None = None
+        # NPC AI 子系统运行时态（25 号票，块 D）：纯内存、不进存档；由
+        # ``attach_ai_system`` 挂载。TYPE_CHECKING 下标成 AISystem 供类型检查
+        # （与 ``nature`` 同，避免循环 import）。
+        self.ai: AISystem | None = None
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []

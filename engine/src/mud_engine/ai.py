@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from mud_engine.components import (
@@ -45,6 +46,18 @@ DEFAULT_SPAWN_SCAN_INTERVAL = 10
 Rng = random.Random
 
 
+@dataclass
+class AISystem:
+    """NPC AI 子系统挂到 world 的运行时态（25 号票）：rng + spawn 扫描间隔。
+
+    纯内存、不进存档；由 ``attach_ai_system`` 挂载。和 ``NatureState`` 对称，
+    避免把 ai 状态作 ad-hoc 私有 attr 猴补丁到 World。
+    """
+
+    rng: Rng
+    spawn_scan_interval: int = DEFAULT_SPAWN_SCAN_INTERVAL
+
+
 def attach_ai_system(
     world: World,
     *,
@@ -55,23 +68,27 @@ def attach_ai_system(
 
     ``rng`` 注入供 Chatter 概率（测试用 ``Random(0)`` 或恒真 stub）；缺省用
     系统 ``Random()``。``spawn_scan_interval`` 控制低频 Spawn/Reset 扫描频率。
+
+    重复调用不重复注册（``handlers_for`` 查重，替代 world 上的哨兵猴补丁）；
+    ``world.ai`` 会被覆盖为最新配置。
     """
-    if getattr(world, "_ai_system_attached", False):
-        return
-    world._ai_system_attached = True  # type: ignore[attr-defined]
-    world._ai_rng = rng if rng is not None else random.Random()  # type: ignore[attr-defined]
-    world._ai_spawn_scan_interval = spawn_scan_interval  # type: ignore[attr-defined]
-    world.events.register(ON_TICK, _on_ai_tick)
+    if _on_ai_tick not in world.events.handlers_for(ON_TICK):
+        world.events.register(ON_TICK, _on_ai_tick)
+    world.ai = AISystem(
+        rng=rng if rng is not None else random.Random(),
+        spawn_scan_interval=spawn_scan_interval,
+    )
 
 
 def _on_ai_tick(context: TickContext) -> None:
     """on_tick 订阅者：Spawn 扫描 + AIController 行为调度。"""
     world = context.world
+    ai = world.ai
+    if ai is None:
+        return
     tick = context.tick
-    spawn_interval = getattr(world, "_ai_spawn_scan_interval", DEFAULT_SPAWN_SCAN_INTERVAL)
-    if spawn_interval > 0 and tick % spawn_interval == 0:
+    if ai.spawn_scan_interval > 0 and tick % ai.spawn_scan_interval == 0:
         _spawn_scan(world)
-    rng: Rng = getattr(world, "_ai_rng", random.Random())
     cond_ctx = _condition_context(world)
     for entity in list(world.entities_with(AIController)):
         controller = world.require_component(entity, AIController)
@@ -82,7 +99,7 @@ def _on_ai_tick(context: TickContext) -> None:
         if behaviors is None:
             continue
         for spec in behaviors.entries:
-            _tick_behavior(world, entity, spec, rng=rng, cond_ctx=cond_ctx)
+            _tick_behavior(world, entity, spec, rng=ai.rng, cond_ctx=cond_ctx)
 
 
 def _tick_behavior(
@@ -128,8 +145,13 @@ def _spawn_scan(world: World) -> None:
     """低频 Spawn/Reset 扫描：按 template_key 核对存活数（26 号票）。
 
     M1 NPC 不死不触发重生：``respawn=True`` 且 count 已达标时为空转；不足时
-    也先不补齐（蓝图重建推 M2 死亡重生路径）。机制地基：扫描挂 tick、聚合
-    meta、对照 desired_count。
+    也先不补齐（蓝图重建推 M2 死亡重生路径）。机制地基（spec D2"先埋"）：
+    扫描挂 tick、聚合 meta、对照 desired_count。
+
+    M2 复核点：``NpcSpawnMeta`` 挂在每个 NPC 实例上，从存活实例聚合 ``metas``。
+    若某 template 实例全灭（尤其 desired_count=1 的单例 NPC，如 boss/quest），
+    template_key 从 ``metas`` 消失，扫描无法发现缺口--M2 死亡重生路径需改用
+    spawner 实体或模板注册表，不从存活实例聚合。
     """
     by_template: dict[str, list[EntityId]] = {}
     metas: dict[str, NpcSpawnMeta] = {}
@@ -152,6 +174,17 @@ def _condition_context(world: World) -> ConditionContext:
     if nature is not None and isinstance(nature, ConditionContext):
         return nature
     return StubContext()
+
+
+def _convert_condition_parts(parts: object) -> tuple[Condition, ...] | None:
+    """把 and/or 的子条件列表转成 Condition 元组；非 list/tuple 返回 None。"""
+    if not isinstance(parts, (list, tuple)):
+        return None
+    return tuple(
+        c
+        for p in parts
+        if (c := condition_from_data(p if isinstance(p, Mapping) else None))
+    )
 
 
 def condition_from_data(data: Mapping | None) -> Condition | None:
@@ -178,25 +211,15 @@ def condition_from_data(data: Mapping | None) -> Condition | None:
     if "field" in data and "value" in data:
         return Equals(field=str(data["field"]), value=data["value"])
     if "and" in data:
-        parts = data["and"]
-        if isinstance(parts, (list, tuple)):
-            converted = tuple(
-                c
-                for p in parts
-                if (c := condition_from_data(p if isinstance(p, Mapping) else None))
-            )
-            return And(parts=converted)
-        return None
+        converted = _convert_condition_parts(data["and"])
+        if converted is None:
+            return None
+        return And(parts=converted)
     if "or" in data:
-        parts = data["or"]
-        if isinstance(parts, (list, tuple)):
-            converted = tuple(
-                c
-                for p in parts
-                if (c := condition_from_data(p if isinstance(p, Mapping) else None))
-            )
-            return Or(parts=converted)
-        return None
+        converted = _convert_condition_parts(data["or"])
+        if converted is None:
+            return None
+        return Or(parts=converted)
     if "not" in data:
         raw = data["not"]
         operand = condition_from_data(raw if isinstance(raw, Mapping) else None)
@@ -207,6 +230,7 @@ def condition_from_data(data: Mapping | None) -> Condition | None:
 
 
 __all__ = [
+    "AISystem",
     "DEFAULT_SPAWN_SCAN_INTERVAL",
     "Rng",
     "attach_ai_system",

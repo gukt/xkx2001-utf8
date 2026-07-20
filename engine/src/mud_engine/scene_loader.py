@@ -637,36 +637,33 @@ def _build_npcs(
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
-def _npc_count(raw: object, npc_key: object, scene_path: Path) -> int:
-    """解析 count：默认 1，须为正整数。"""
+def _parse_positive_int(
+    raw: object, field: str, npc_key: object, scene_path: Path
+) -> int:
+    """解析正整数字段（count / tick_interval 共用）：须为 >= 1 的整数。"""
     try:
-        count = int(raw)  # type: ignore[arg-type]
+        value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'count' 应是正整数，实际是 {raw!r}"
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应是正整数，"
+            f"实际是 {raw!r}"
         ) from None
-    if count < 1:
+    if value < 1:
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'count' 应 >= 1，实际是 {count}"
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应 >= 1，"
+            f"实际是 {value}"
         )
-    return count
+    return value
+
+
+def _npc_count(raw: object, npc_key: object, scene_path: Path) -> int:
+    """解析 count：默认 1，须为正整数。"""
+    return _parse_positive_int(raw, "count", npc_key, scene_path)
 
 
 def _npc_tick_interval(raw: object, npc_key: object, scene_path: Path) -> int:
     """解析 tick_interval：默认 1，须为正整数。"""
-    try:
-        interval = int(raw)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'tick_interval' 应是正整数，"
-            f"实际是 {raw!r}"
-        ) from None
-    if interval < 1:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'tick_interval' 应 >= 1，"
-            f"实际是 {interval}"
-        )
-    return interval
+    return _parse_positive_int(raw, "tick_interval", npc_key, scene_path)
 
 
 def _parse_inquiry(raw: object, npc_key: object, scene_path: Path) -> Inquiry | None:
@@ -714,14 +711,14 @@ def _parse_behaviors(raw: object, npc_key: object, scene_path: Path) -> Behavior
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] 缺少 'kind'"
             )
-        # Chatter 字段：兼容 chat_msgs/messages 与 chat_chance/chance 两套键名。
-        msgs_raw = entry.get("chat_msgs", entry.get("messages", ()))
+        # Chatter 字段：chat_msgs / chat_chance（spec D5 约定键名，不兼容旧别名）。
+        msgs_raw = entry.get("chat_msgs", ())
         if not isinstance(msgs_raw, (list, tuple)):
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
                 f"的消息列表应是列表，实际是 {type(msgs_raw).__name__}"
             )
-        chance_raw = entry.get("chat_chance", entry.get("chance", 0.0))
+        chance_raw = entry.get("chat_chance", 0.0)
         try:
             chance = float(chance_raw)
         except (TypeError, ValueError):
