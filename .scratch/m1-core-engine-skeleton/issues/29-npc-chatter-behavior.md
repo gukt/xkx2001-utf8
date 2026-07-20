@@ -4,11 +4,11 @@
 
 **Blocked by:** 25 - Behavior/AIController 骨架；28 - say 广播通道；10 - 条件求值器（行为条件）。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] Chatter 行为可经 YAML/组件配置（消息列表 + 概率）
-- [x] `advance()` 驱动下 Chatter 会触发 say（测试用确定性概率或断言至少触发）
-- [x] 行为条件用条件求值器表达（如只在夜里才闲聊）
-- [x] 无 AIController / 无 Chatter 的 NPC 不说话
-- [x] 经 `tick_loop.advance` seam 可观察
-- [x] 现有测试全绿（不回归）
+- [ ] Chatter 行为可经 YAML/组件配置（消息列表 + 概率）
+- [ ] `advance()` 驱动下 Chatter 会触发 say（测试用确定性概率或断言至少触发）
+- [ ] 行为条件用条件求值器表达（如只在夜里才闲聊）
+- [ ] 无 AIController / 无 Chatter 的 NPC 不说话
+- [ ] 经 `tick_loop.advance` seam 可观察
+- [ ] 现有测试全绿（不回归）

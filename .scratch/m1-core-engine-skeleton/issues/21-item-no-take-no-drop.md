@@ -4,10 +4,10 @@
 
 **Blocked by:** 19 - 标志位在 `transfer` reject 路径上生效。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] `no_take` 物品 take 失败并有提示
-- [x] `no_drop` 物品 drop 失败；自定义提示字符串出现在消息中
-- [x] 标志位经 YAML 声明式配置
-- [x] 无标志位物品行为不变
-- [x] 现有测试全绿（不回归）
+- [ ] `no_take` 物品 take 失败并有提示
+- [ ] `no_drop` 物品 drop 失败；自定义提示字符串出现在消息中
+- [ ] 标志位经 YAML 声明式配置
+- [ ] 无标志位物品行为不变
+- [ ] 现有测试全绿（不回归）

@@ -4,11 +4,11 @@
 
 **Blocked by:** 14 - 需要 Nature 谓词/desc_msg 查询。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] `Description` 组件有 `outdoors: bool` 字段（默认 false）
-- [x] 场景 YAML 房间可声明 `outdoors: true`
-- [x] `look` 户外房间消息含当前时辰 desc_msg
-- [x] `look` 室内房间不追加 Nature 文案
-- [x] 推进相位后户外 `look` 文案随之变化
-- [x] 现有测试全绿（不回归）
+- [ ] `Description` 组件有 `outdoors: bool` 字段（默认 false）
+- [ ] 场景 YAML 房间可声明 `outdoors: true`
+- [ ] `look` 户外房间消息含当前时辰 desc_msg
+- [ ] `look` 室内房间不追加 Nature 文案
+- [ ] 推进相位后户外 `look` 文案随之变化
+- [ ] 现有测试全绿（不回归）

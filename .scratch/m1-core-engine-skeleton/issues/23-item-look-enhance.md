@@ -4,11 +4,11 @@
 
 **Blocked by:** 18 - 需要能力组件字段供展示。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] `look <物品>` 返回 long 描述
-- [x] 容器物品展示内容列表
-- [x] Stackable/Valuable/重量等有数值时出现在消息中
-- [x] 找不到物品时有明确提示
-- [x] 现有无参 `look`（房间）行为不回归
-- [x] 现有测试全绿（不回归）
+- [ ] `look <物品>` 返回 long 描述
+- [ ] 容器物品展示内容列表
+- [ ] Stackable/Valuable/重量等有数值时出现在消息中
+- [ ] 找不到物品时有明确提示
+- [ ] 现有无参 `look`（房间）行为不回归
+- [ ] 现有测试全绿（不回归）

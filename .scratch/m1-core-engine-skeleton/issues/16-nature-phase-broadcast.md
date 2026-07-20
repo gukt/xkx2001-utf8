@@ -4,10 +4,10 @@
 
 **Blocked by:** 13 - 需要相位切换发生点。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] 相位切换时分发 `on_nature_change` 事件
-- [x] 户外房间在线玩家收到 `time_msg`（经命令返回消息或等价可观察通道）
-- [x] 室内玩家不收到 outdoors 广播
-- [x] 注册测试 handler 断言 `on_nature_change` 被调用且参数正确
-- [x] 现有测试全绿（不回归）
+- [ ] 相位切换时分发 `on_nature_change` 事件
+- [ ] 户外房间在线玩家收到 `time_msg`（经命令返回消息或等价可观察通道）
+- [ ] 室内玩家不收到 outdoors 广播
+- [ ] 注册测试 handler 断言 `on_nature_change` 被调用且参数正确
+- [ ] 现有测试全绿（不回归）

@@ -4,11 +4,11 @@
 
 **Blocked by:** 22 - 嵌套容器 put 是超限拒绝的主要路径；19 - transfer reject。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] 容器可配置 `max_capacity`（及/或重量上限）
-- [x] 超容量 / 超重 `put`/`transfer` 失败并给提示
-- [x] 未超限时放入成功
-- [x] 角色负重惩罚不做（Out of Scope）
-- [x] 经 `execute_line` 可观察
-- [x] 现有测试全绿（不回归）
+- [ ] 容器可配置 `max_capacity`（及/或重量上限）
+- [ ] 超容量 / 超重 `put`/`transfer` 失败并给提示
+- [ ] 未超限时放入成功
+- [ ] 角色负重惩罚不做（Out of Scope）
+- [ ] 经 `execute_line` 可观察
+- [ ] 现有测试全绿（不回归）

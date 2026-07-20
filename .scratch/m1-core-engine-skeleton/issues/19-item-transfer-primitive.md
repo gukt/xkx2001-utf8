@@ -4,10 +4,10 @@
 
 **Blocked by:** 18 - 能力组件形状就绪后再收敛转移路径更稳（也可与标志位票协作；最低依赖现有 Container）。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] 存在 `transfer` 原语，返回成功/失败 + 原因
-- [x] `_cmd_take` / `_cmd_drop` 走 `transfer`，外部可观察行为与现有一致
-- [x] `on_take` / `on_drop` 否决仍生效
-- [x] 契约测试锁定 `TransferResult` 形状
-- [x] 现有测试全绿（不回归）
+- [ ] 存在 `transfer` 原语，返回成功/失败 + 原因
+- [ ] `_cmd_take` / `_cmd_drop` 走 `transfer`，外部可观察行为与现有一致
+- [ ] `on_take` / `on_drop` 否决仍生效
+- [ ] 契约测试锁定 `TransferResult` 形状
+- [ ] 现有测试全绿（不回归）

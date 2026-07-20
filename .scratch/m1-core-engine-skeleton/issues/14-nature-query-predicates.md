@@ -4,11 +4,11 @@
 
 **Blocked by:** 13 - 需要真实 NatureState 作为查询源；10 - 条件求值器协议形状已定。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] Nature 实现 `ConditionContext` 协议（`phase` / `is_night` / `is_day` / `is_raining`）
-- [x] 暴露 `game_time_str`（可读游戏时间字符串）
-- [x] `evaluate(condition, nature_context)` 对真实 Nature 求值正确（替换 stub）
-- [x] 相位切换后谓词返回值随之变化（经 `advance()` 驱动）
-- [x] 现有 `StubContext` 测试不破（stub 仍可用于纯函数单测）
-- [x] 现有测试全绿（不回归）
+- [ ] Nature 实现 `ConditionContext` 协议（`phase` / `is_night` / `is_day` / `is_raining`）
+- [ ] 暴露 `game_time_str`（可读游戏时间字符串）
+- [ ] `evaluate(condition, nature_context)` 对真实 Nature 求值正确（替换 stub）
+- [ ] 相位切换后谓词返回值随之变化（经 `advance()` 驱动）
+- [ ] 现有 `StubContext` 测试不破（stub 仍可用于纯函数单测）
+- [ ] 现有测试全绿（不回归）

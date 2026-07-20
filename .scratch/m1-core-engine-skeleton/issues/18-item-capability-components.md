@@ -4,11 +4,11 @@
 
 **Blocked by:** None - 可立即开始（组件定义 + loader，不依赖 B）。
 
-**Status:** resolved
+**Status:** ready-for-agent
 
-- [x] 存在 `Stackable` / `Valuable` / `Equippable` / `Consumable` 组件（后两者可为占位）
-- [x] 场景 YAML 物品可声明对应字段并正确挂载
-- [x] 未声明能力的物品不挂这些组件（按需挂载）
-- [x] 组件字段为声明式数据（无闭包）；进存档语义正确（amount 等可变字段可恢复）
-- [x] 现有 take/drop 对无新组件物品行为不变
-- [x] 现有测试全绿（不回归）
+- [ ] 存在 `Stackable` / `Valuable` / `Equippable` / `Consumable` 组件（后两者可为占位）
+- [ ] 场景 YAML 物品可声明对应字段并正确挂载
+- [ ] 未声明能力的物品不挂这些组件（按需挂载）
+- [ ] 组件字段为声明式数据（无闭包）；进存档语义正确（amount 等可变字段可恢复）
+- [ ] 现有 take/drop 对无新组件物品行为不变
+- [ ] 现有测试全绿（不回归）
