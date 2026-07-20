@@ -650,9 +650,9 @@ def _cmd_ask(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if inquiry is None:
         return [f"{npc_name}似乎不想和你说话。"]
     if topic in inquiry.topics:
-        return [f"{npc_name}说道：{inquiry.topics[topic]}"]
+        return [f"{npc_name}说：{inquiry.topics[topic]}"]
     if inquiry.default is not None:
-        return [f"{npc_name}说道：{inquiry.default}"]
+        return [f"{npc_name}说：{inquiry.default}"]
     return [f"{npc_name}摇摇头，似乎不知道。"]
 
 

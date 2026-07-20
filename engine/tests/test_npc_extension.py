@@ -181,7 +181,8 @@ class TestAskInquiry:
     def test_ask_uses_alias(self) -> None:
         world, player_id = build_world()
         messages = execute_line(world, player_id, "ask 守卫 about 天气")
-        assert any("说道" in m for m in messages)
+        # 别名「守卫」解析到规范名「石像守卫」，且用与 say/room_say 统一的「说：」前缀（35 号票）。
+        assert any("石像守卫说：" in m for m in messages)
 
     def test_ask_unknown_topic_uses_default(self) -> None:
         world, player_id = build_world()
