@@ -4,7 +4,7 @@
 07 号票的 ``world.events`` 事件总线注册 handler。与 08 号票命令级 before/after 钩子
 不同，这是领域语义级事件点：handler 收领域上下文（房间 / 物品 / 门状态），在
 "移动 / 拿取 / 丢 / 门状态变化"这些领域事实发生时触发。可否决的 before 事件点
-（``on_before_enter_room`` / ``on_take`` / ``on_drop``）复用 08 的 ``Allow``/``Deny``。
+（``on_before_enter_room`` / ``on_get`` / ``on_drop``）复用 08 的 ``Allow``/``Deny``。
 
 测试驱动 ``execute_line``（已确认的测试 seam）：注册计数器 / 记录参数的测试
 handler，触发 go / take / drop / 门命令，断言 handler 被调用且收到正确参数；
@@ -42,7 +42,7 @@ from mud_engine.components import (
 )
 from mud_engine.parsing import execute_line
 from mud_engine.scenes import build_world
-from mud_engine.transfer import ON_DROP, ON_TAKE, TransferContext
+from mud_engine.transfer import ON_DROP, ON_GET, TransferContext
 from mud_engine.world import EntityId, World
 
 
@@ -87,8 +87,8 @@ class TestDomainEventPointConstants:
     def test_on_traverse_blocked_is_a_stable_string_key(self) -> None:
         assert ON_TRAVERSE_BLOCKED == "on_traverse_blocked"
 
-    def test_on_take_is_a_stable_string_key(self) -> None:
-        assert ON_TAKE == "on_take"
+    def test_on_get_is_a_stable_string_key(self) -> None:
+        assert ON_GET == "on_get"
 
     def test_on_drop_is_a_stable_string_key(self) -> None:
         assert ON_DROP == "on_drop"
@@ -392,12 +392,12 @@ class TestOnTraverseBlocked:
 
 
 class TestOnTake:
-    """on_take：拿物品前、可否决（"诅咒物品拿不起""任务物品不能拿"挂载点）。"""
+    """on_get：拿物品前、可否决（"诅咒物品拿不起""任务物品不能拿"挂载点）。"""
 
     class WhenNoHandlerRegistered:
         def test_take_works_normally(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             inv = world.require_component(player_id, Container)
             assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
 
@@ -409,8 +409,8 @@ class TestOnTake:
             def deny(ctx):
                 return Deny("诅咒物品拿不起。")
 
-            world.events.register(ON_TAKE, deny)
-            messages = execute_line(world, player_id, "take 石头")
+            world.events.register(ON_GET, deny)
+            messages = execute_line(world, player_id, "get 石头")
             assert messages == ["诅咒物品拿不起。"]
             # 物品仍在房间地面
             floor = world.require_component(room, Container)
@@ -428,8 +428,8 @@ class TestOnTake:
                 seen.append(ctx)
                 return Allow()
 
-            world.events.register(ON_TAKE, observe)
-            execute_line(world, player_id, "take 石头")
+            world.events.register(ON_GET, observe)
+            execute_line(world, player_id, "get 石头")
             assert len(seen) == 1
             assert seen[0].player_id == player_id
             assert seen[0].item == stone
@@ -443,7 +443,7 @@ class TestOnDrop:
     class WhenADenyHandlerVetoesDrop:
         def test_the_item_is_not_dropped(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")  # 先拿起
+            execute_line(world, player_id, "get 石头")  # 先拿起
 
             def deny(ctx):
                 return Deny("任务物品不能丢弃。")
@@ -468,7 +468,7 @@ class TestOnDrop:
                 return Allow()
 
             world.events.register(ON_DROP, observe)
-            execute_line(world, player_id, "take 石头")  # 先拿起
+            execute_line(world, player_id, "get 石头")  # 先拿起
             execute_line(world, player_id, "drop 石头")
             assert len(seen) == 1
             assert seen[0].player_id == player_id
@@ -530,7 +530,7 @@ class TestOnDoorStateChange:
         def test_fires_with_locked_to_closed(self) -> None:
             world, player_id = build_world()
             execute_line(world, player_id, "go north")  # corridor
-            execute_line(world, player_id, "take 钥匙")
+            execute_line(world, player_id, "get 钥匙")
             seen: list[DoorStateChangeContext] = []
 
             def observe(ctx):
@@ -616,7 +616,7 @@ class TestNoHandlerDefaultBehavior:
 
     def test_take_and_drop_round_trip_works(self) -> None:
         world, player_id = build_world()
-        execute_line(world, player_id, "take 石头")
+        execute_line(world, player_id, "get 石头")
         execute_line(world, player_id, "drop 石头")
         room = _player_room(world, player_id)
         assert any(

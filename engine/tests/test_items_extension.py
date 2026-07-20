@@ -1,6 +1,6 @@
 """块 C 物品系统扩展测试（18–24 号票）。
 
-覆盖能力组件、transfer 原语、堆叠、no_take/no_drop、嵌套容器 put/take from、
+覆盖能力组件、transfer 原语、堆叠、no_get/no_drop、嵌套容器 put/take from、
 look 物品增强、重量/容量上限。测试 seam：``execute_line`` + 直接调 ``transfer``。
 """
 
@@ -193,7 +193,7 @@ class TestCapabilityComponents:
         def test_plain_item_take_works(self) -> None:
             """无能力组件的基线物品 take 行为不变。"""
             world, player_id = build_world()
-            messages = execute_line(world, player_id, "take 石头")
+            messages = execute_line(world, player_id, "get 石头")
             assert any("拿" in m and "石头" in m for m in messages)
             inv = world.require_component(player_id, Container)
             assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
@@ -201,7 +201,7 @@ class TestCapabilityComponents:
         def test_plain_item_drop_works(self) -> None:
             """无能力组件的基线物品 drop 行为不变。"""
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             messages = execute_line(world, player_id, "drop 石头")
             assert any("放下" in m and "石头" in m for m in messages)
             room = _player_room(world, player_id)
@@ -222,24 +222,24 @@ class TestTransferPrimitive:
 
     def test_take_works_via_transfer(self) -> None:
         world, player_id = build_world()
-        messages = execute_line(world, player_id, "take 石头")
+        messages = execute_line(world, player_id, "get 石头")
         assert any("拿" in m and "石头" in m for m in messages)
         inv = world.require_component(player_id, Container)
         assert any(world.require_component(i, Identity).name == "石头" for i in inv.items)
 
     def test_drop_works_via_transfer(self) -> None:
         world, player_id = build_world()
-        execute_line(world, player_id, "take 石头")
+        execute_line(world, player_id, "get 石头")
         messages = execute_line(world, player_id, "drop 石头")
         assert any("放下" in m and "石头" in m for m in messages)
 
-    def test_on_take_deny_still_blocks(self) -> None:
+    def test_on_get_deny_still_blocks(self) -> None:
         from mud_engine.events import Deny
-        from mud_engine.transfer import ON_TAKE
+        from mud_engine.transfer import ON_GET
 
         world, player_id = build_world()
-        world.events.register(ON_TAKE, lambda ctx: Deny(message="诅咒挡住了你。"))
-        messages = execute_line(world, player_id, "take 石头")
+        world.events.register(ON_GET, lambda ctx: Deny(message="诅咒挡住了你。"))
+        messages = execute_line(world, player_id, "get 石头")
         assert any("诅咒" in m for m in messages)
         room = _player_room(world, player_id)
         assert any(
@@ -284,7 +284,7 @@ class TestStacking:
     stackable: {amount: 2, unit_weight: 0.1}
 """,
         )
-        messages = execute_line(world, player_id, "take 铜钱")
+        messages = execute_line(world, player_id, "get 铜钱")
         assert any("铜钱" in m for m in messages)
         inv = world.require_component(player_id, Container)
         coins = [
@@ -305,7 +305,7 @@ class TestStacking:
     stackable: {amount: 10, unit_weight: 0.1}
 """,
         )
-        messages = execute_line(world, player_id, "take 铜钱 3")
+        messages = execute_line(world, player_id, "get 铜钱 3")
         assert any("3" in m and "铜钱" in m for m in messages)
         room = _player_room(world, player_id)
         floor_coin = _item_by_name(world, room, "铜钱")
@@ -323,7 +323,7 @@ class TestStacking:
     stackable: {amount: 2}
 """,
         )
-        messages = execute_line(world, player_id, "take 铜钱 5")
+        messages = execute_line(world, player_id, "get 铜钱 5")
         assert any("没有那么多" in m or "数量" in m for m in messages)
         room = _player_room(world, player_id)
         assert world.require_component(_item_by_name(world, room, "铜钱"), Stackable).amount == 2
@@ -332,17 +332,17 @@ class TestStacking:
 class TestNoTakeNoDrop:
     """21 号票：标志位。"""
 
-    def test_no_take_rejects_take(self, tmp_path: Path) -> None:
+    def test_no_get_rejects_take(self, tmp_path: Path) -> None:
         world, player_id = _load(
             tmp_path,
             """
   statue:
     name: 石碑
     placed_in: yard
-    no_take: true
+    no_get: true
 """,
         )
-        messages = execute_line(world, player_id, "take 石碑")
+        messages = execute_line(world, player_id, "get 石碑")
         assert any("拿不起来" in m for m in messages)
         room = _player_room(world, player_id)
         assert any(
@@ -361,7 +361,7 @@ class TestNoTakeNoDrop:
     no_drop_message: 这是任务物品，不能丢弃
 """,
         )
-        execute_line(world, player_id, "take 令牌")
+        execute_line(world, player_id, "get 令牌")
         messages = execute_line(world, player_id, "drop 令牌")
         assert any("这是任务物品，不能丢弃" in m for m in messages)
         assert any(
@@ -388,7 +388,7 @@ class TestNestedContainers:
     placed_in: yard
 """,
         )
-        execute_line(world, player_id, "take 宝石")
+        execute_line(world, player_id, "get 宝石")
         messages = execute_line(world, player_id, "put 宝石 in 木箱")
         assert any("放进" in m and "木箱" in m for m in messages)
         box = _item_by_name(world, _player_room(world, player_id), "木箱")
@@ -412,9 +412,9 @@ class TestNestedContainers:
     placed_in: yard
 """,
         )
-        execute_line(world, player_id, "take 宝石")
+        execute_line(world, player_id, "get 宝石")
         execute_line(world, player_id, "put 宝石 in 木箱")
-        messages = execute_line(world, player_id, "take 宝石 from 木箱")
+        messages = execute_line(world, player_id, "get 宝石 from 木箱")
         assert any("拿" in m and "宝石" in m for m in messages)
         assert any(
             world.require_component(i, Identity).name == "宝石"
@@ -458,7 +458,7 @@ class TestLookItem:
     placed_in: yard
 """,
         )
-        execute_line(world, player_id, "take 宝石")
+        execute_line(world, player_id, "get 宝石")
         execute_line(world, player_id, "put 宝石 in 木箱")
         messages = execute_line(world, player_id, "look 木箱")
         combined = "\n".join(messages)
@@ -491,8 +491,8 @@ class TestWeightCapacity:
     placed_in: yard
 """,
         )
-        execute_line(world, player_id, "take 甲")
-        execute_line(world, player_id, "take 乙")
+        execute_line(world, player_id, "get 甲")
+        execute_line(world, player_id, "get 乙")
         assert any("放进" in m for m in execute_line(world, player_id, "put 甲 in 小盒"))
         messages = execute_line(world, player_id, "put 乙 in 小盒")
         assert any("装不下" in m for m in messages)
@@ -511,7 +511,7 @@ class TestWeightCapacity:
     weight: 5
 """,
         )
-        execute_line(world, player_id, "take 大石")
+        execute_line(world, player_id, "get 大石")
         messages = execute_line(world, player_id, "put 大石 in 布袋")
         assert any("太重" in m for m in messages)
 
@@ -551,3 +551,136 @@ class TestWeightCapacity:
         room = _player_room(world, player_id)
         coin = _item_by_name(world, room, "铜钱")
         assert item_weight(world, coin) == pytest.approx(1.0)
+
+
+class TestGetDropAllAndDropQuantity:
+    """verify/m1-items：get/drop all、drop <数量>、take 别名。"""
+
+    def test_drop_with_quantity_splits_stack(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  pile:
+    name: 铜钱
+    placed_in: yard
+    stackable: {amount: 10, unit_weight: 0.1}
+""",
+        )
+        execute_line(world, player_id, "get 铜钱")
+        messages = execute_line(world, player_id, "drop 铜钱 3")
+        assert any("3" in m and "铜钱" in m for m in messages)
+        inv_coin = _item_by_name(world, player_id, "铜钱")
+        assert world.require_component(inv_coin, Stackable).amount == 7
+        room = _player_room(world, player_id)
+        floor_coin = _item_by_name(world, room, "铜钱")
+        assert world.require_component(floor_coin, Stackable).amount == 3
+
+    def test_get_all_picks_up_floor_items(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  a:
+    name: 甲
+    placed_in: yard
+  b:
+    name: 乙
+    placed_in: yard
+""",
+        )
+        messages = execute_line(world, player_id, "get all")
+        assert any("捡好了" in m for m in messages)
+        inv = world.require_component(player_id, Container)
+        names = {world.require_component(i, Identity).name for i in inv.items}
+        assert names == {"甲", "乙"}
+        room = _player_room(world, player_id)
+        assert not world.require_component(room, Container).items
+
+    def test_get_all_skips_no_get(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  gem:
+    name: 宝石
+    placed_in: yard
+  tablet:
+    name: 石碑
+    placed_in: yard
+    no_get: true
+""",
+        )
+        messages = execute_line(world, player_id, "get all")
+        assert any("捡好了" in m for m in messages)
+        inv_names = {
+            world.require_component(i, Identity).name
+            for i in world.require_component(player_id, Container).items
+        }
+        assert inv_names == {"宝石"}
+        room = _player_room(world, player_id)
+        floor_names = {
+            world.require_component(i, Identity).name
+            for i in world.require_component(room, Container).items
+        }
+        assert floor_names == {"石碑"}
+
+    def test_drop_all_skips_no_drop(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  gem:
+    name: 宝石
+    placed_in: yard
+  token:
+    name: 令牌
+    placed_in: yard
+    no_drop: true
+    no_drop_message: 这是任务物品，不能丢弃
+""",
+        )
+        execute_line(world, player_id, "get all")
+        messages = execute_line(world, player_id, "drop all")
+        assert any("放下了" in m for m in messages)
+        inv_names = {
+            world.require_component(i, Identity).name
+            for i in world.require_component(player_id, Container).items
+        }
+        assert inv_names == {"令牌"}
+        room = _player_room(world, player_id)
+        floor_names = {
+            world.require_component(i, Identity).name
+            for i in world.require_component(room, Container).items
+        }
+        assert "宝石" in floor_names
+
+    def test_take_alias_equals_get(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  pebble:
+    name: 石子
+    placed_in: yard
+""",
+        )
+        messages = execute_line(world, player_id, "take 石子")
+        assert any("石子" in m for m in messages)
+        assert any(
+            world.require_component(i, Identity).name == "石子"
+            for i in world.require_component(player_id, Container).items
+        )
+
+    def test_inventory_shows_stack_amount(self, tmp_path: Path) -> None:
+        world, player_id = _load(
+            tmp_path,
+            """
+  a:
+    name: 铜钱
+    placed_in: yard
+    stackable: {amount: 5, unit_weight: 0.1}
+  b:
+    name: 铜钱
+    placed_in: yard
+    stackable: {amount: 3, unit_weight: 0.1}
+""",
+        )
+        execute_line(world, player_id, "get 铜钱")
+        combined = " ".join(execute_line(world, player_id, "i"))
+        assert "铜钱×8" in combined

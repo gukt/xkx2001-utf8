@@ -77,6 +77,11 @@ gate-quick: lint test-quick
 run:
     cd engine && uv run python -m mud_engine
 
+# M1 物品命令矩阵（默认场景，不读写存档）：转录 + PASS/FAIL
+# 手测步骤见 .scratch/m1-core-engine-skeleton/verify-items-cli.md
+verify-items:
+    cd engine && uv run python scripts/verify_m1_items.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

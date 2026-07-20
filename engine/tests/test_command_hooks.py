@@ -82,12 +82,12 @@ class TestCommandBeforeHooks:
             world, player_id = build_world()
 
             def deny_take(world, player, intent):
-                if intent.verb == "take":
+                if intent.verb == "get":
                     return Deny("夜里拿不动。")
                 return Allow()
 
             world.events.register(ON_COMMAND_BEFORE, deny_take)
-            messages = execute_line(world, player_id, "take 石头")
+            messages = execute_line(world, player_id, "get 石头")
             assert messages == ["夜里拿不动。"]
 
         def test_the_vetoed_command_changes_no_world_state(self) -> None:
@@ -97,7 +97,7 @@ class TestCommandBeforeHooks:
                 return Deny("拿不动。")
 
             world.events.register(ON_COMMAND_BEFORE, deny_take)
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             inventory = world.require_component(player_id, Container)
             assert not inventory.items  # 物品没被拿起
 
@@ -106,7 +106,7 @@ class TestCommandBeforeHooks:
             world, player_id = build_world()
 
             def deny_take_only(world, player, intent):
-                if intent.verb == "take":
+                if intent.verb == "get":
                     return Deny("夜里拿不动。")
                 return Allow()
 
@@ -190,12 +190,12 @@ class TestCommandBeforeHooks:
             world, player_id = build_world()
 
             def forgets_to_return(world, player, intent):
-                if intent.verb == "take":
+                if intent.verb == "get":
                     return  # None
                 return Allow()
 
             world.events.register(ON_COMMAND_BEFORE, forgets_to_return)
-            messages = execute_line(world, player_id, "take 石头")
+            messages = execute_line(world, player_id, "get 石头")
             assert any("拿" in m and "石头" in m for m in messages)  # 正常执行
 
     class WhenADenyTargetsAnUnknownVerb:

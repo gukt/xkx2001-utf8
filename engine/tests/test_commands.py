@@ -110,66 +110,74 @@ class TestTake:
     class WhenTheItemIsOnTheFloor:
         def test_moves_the_item_to_the_players_inventory(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             inventory = world.require_component(player_id, Container)
             assert any(world.require_component(i, Identity).name == "石头" for i in inventory.items)
 
         def test_removes_the_item_from_the_rooms_floor(self) -> None:
             world, player_id = build_world()
             room = world.require_component(player_id, Position).room
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             floor = world.require_component(room, Container)
             assert not any(world.require_component(i, Identity).name == "石头" for i in floor.items)
 
         def test_look_reflects_the_taken_item_is_gone(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             combined = " ".join(execute_line(world, player_id, "look"))
             assert "石头" not in combined
 
         def test_inventory_lists_the_taken_item(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             combined = " ".join(execute_line(world, player_id, "inventory"))
             assert "石头" in combined
 
         def test_reports_picking_it_up(self) -> None:
             world, player_id = build_world()
-            messages = execute_line(world, player_id, "take 石头")
+            messages = execute_line(world, player_id, "get 石头")
             assert any("拿" in m and "石头" in m for m in messages)
 
     class WhenMatchingByAlias:
         def test_alias_reaches_the_same_item_as_canonical_name(self) -> None:
             # 石头的别名是"石"（见 scenes.py）；别名匹配走 02 号票的 match_target。
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石")
+            execute_line(world, player_id, "get 石")
             inventory = world.require_component(player_id, Container)
             assert any(world.require_component(i, Identity).name == "石头" for i in inventory.items)
 
     class WhenTheItemIsNotHere:
         def test_returns_a_hint_and_changes_nothing(self) -> None:
             world, player_id = build_world()
-            messages = execute_line(world, player_id, "take 剑")
+            messages = execute_line(world, player_id, "get 剑")
             assert any("这里没有" in m for m in messages)
             assert not world.require_component(player_id, Container).items
 
         def test_does_not_raise(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 剑")  # 不应抛异常
+            execute_line(world, player_id, "get 剑")  # 不应抛异常
 
     class WhenNoItemGiven:
         def test_returns_a_usage_hint(self) -> None:
             world, player_id = build_world()
-            messages = execute_line(world, player_id, "take")
+            messages = execute_line(world, player_id, "get")
             assert messages
-            assert "take" in messages[0] or "什么" in messages[0]
+            assert "get" in messages[0] or "什么" in messages[0]
+
+    class WhenUsingTakeAlias:
+        def test_take_alias_picks_up_like_get(self) -> None:
+            world, player_id = build_world()
+            messages = execute_line(world, player_id, "take 石头")
+            assert any("拿" in m and "石头" in m for m in messages)
+            inventory = world.require_component(player_id, Container)
+            assert any(world.require_component(i, Identity).name == "石头" for i in inventory.items)
 
 
 class TestDrop:
     class WhenThePlayerHasTheItem:
         def test_moves_it_to_the_rooms_floor(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             execute_line(world, player_id, "drop 石头")
             room = world.require_component(player_id, Position).room
             floor = world.require_component(room, Container)
@@ -178,20 +186,20 @@ class TestDrop:
 
         def test_look_reflects_the_dropped_item(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             execute_line(world, player_id, "drop 石头")
             combined = " ".join(execute_line(world, player_id, "look"))
             assert "石头" in combined
 
         def test_reports_dropping_it(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             messages = execute_line(world, player_id, "drop 石头")
             assert any("放下" in m for m in messages)
 
         def test_inventory_reflects_the_drop(self) -> None:
             world, player_id = build_world()
-            execute_line(world, player_id, "take 石头")
+            execute_line(world, player_id, "get 石头")
             execute_line(world, player_id, "drop 石头")
             combined = " ".join(execute_line(world, player_id, "inventory"))
             assert "没" in combined  # 物品栏空 -> "你什么都没带。"
@@ -215,13 +223,13 @@ class TestInventory:
 
     def test_lists_items_after_taking(self) -> None:
         world, player_id = build_world()
-        execute_line(world, player_id, "take 石头")
+        execute_line(world, player_id, "get 石头")
         combined = " ".join(execute_line(world, player_id, "inventory"))
         assert "石头" in combined
 
     def test_i_is_an_alias_for_inventory(self) -> None:
         world, player_id = build_world()
-        execute_line(world, player_id, "take 石头")
+        execute_line(world, player_id, "get 石头")
         assert execute_line(world, player_id, "i") == execute_line(world, player_id, "inventory")
 
 

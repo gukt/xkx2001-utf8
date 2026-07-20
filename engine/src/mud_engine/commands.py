@@ -22,7 +22,7 @@
 （``on_command_before``/``on_command_after``，可否决 / 替换意图 / 修饰消息）；
 09 号票在移动 / 物品 / 门命令路径埋**领域语义级**事件点
 （``on_before_enter_room``/``on_enter_room``/``on_leave_room``/``on_traverse_blocked``/
-``on_take``/``on_drop``/``on_door_state_change``），全部空挂复用 07 号票的
+``on_get``/``on_drop``/``on_door_state_change``），全部空挂复用 07 号票的
 ``world.events`` 事件总线，M1 默认放行不改现有命令行为。两者层次不同：命令级
 钩子看 ``intent``（粗粒度，任何命令）、领域级事件点看领域上下文（细粒度，特定
 语义发生时--如"门被打开"由 open/close/unlock 三处收敛到 ``on_door_state_change``
@@ -59,7 +59,7 @@ from mud_engine.world import EntityId, World
 
 CommandHandler = Callable[[World, EntityId, Intent], list[str]]
 
-# 32/33 号票：``Deny`` / ``run_vetoable`` 规范在 ``events``；``ON_TAKE`` / ``ON_DROP`` /
+# 32/33 号票：``Deny`` / ``run_vetoable`` 规范在 ``events``；``ON_GET`` / ``ON_DROP`` /
 # ``TransferContext`` 规范在 ``transfer``（消除 transfer -> commands 反向 import）。
 # ``Deny`` 仍由本模块再导出：它与 ``Allow`` / ``Replace`` 同属命令钩子三态 API。
 # 转移域符号请从 ``mud_engine.transfer`` 导入，不再经本模块空壳转发。
@@ -298,8 +298,20 @@ def _run_after_hooks(
 
 
 def _sorted_item_names(world: World, container: Container) -> list[str]:
-    """容器内物品的规范名，按名排序（look 地面展示与 inventory 共用）。"""
-    return sorted(world.require_component(item, Identity).name for item in container.items)
+    """容器内物品展示名，按名排序（look 地面 / inventory / look 容器内容共用）。
+
+    挂 ``Stackable`` 且 ``amount != 1`` 时附带 ``×数量``（如 ``铜钱×8``），
+    便于 ``i`` 直接看到堆叠数，不必再 ``look <物>``。
+    """
+    labels: list[str] = []
+    for item in container.items:
+        name = world.require_component(item, Identity).name
+        stackable = world.get_component(item, Stackable)
+        if stackable is not None and stackable.amount != 1:
+            labels.append(f"{name}×{stackable.amount}")
+        else:
+            labels.append(name)
+    return sorted(labels)
 
 
 def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId) -> list[str]:
@@ -492,20 +504,25 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     return [f"你解锁了{direction}方向的门。"]
 
 
-@register("take")
-def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """从房间地面或容器取出物品到玩家物品栏（03/19/20/22 号票）。
+@register("get", aliases=("take",))
+def _cmd_get(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """从房间地面或容器取出物品到玩家物品栏（03/19/20/22 号票 + verify 补齐）。
 
-    - ``take <物品>`` / ``take <物品> <数量>``：从当前房间地面拿（可拆堆）。
-    - ``take <物品> from <容器>``：从可达容器取出（intent.args 含 ``from`` + 容器名）。
-    全部走 ``transfer``：``on_take`` 否决、no_take、堆叠合并/拆分在原语内处理。
+    规范动词 ``get``（对齐 LPC ``cmds/std/get.c``）；``take`` 为别名。
+
+    - ``get <物品>`` / ``get <物品> <数量>``：从当前房间地面拿（可拆堆）。
+    - ``get <物品> from <容器>``：从可达容器取出（intent.args 含 ``from`` + 容器名）。
+    - ``get all``：地面可拿物品逐件转移（``no_get`` 等失败跳过）。
+    全部走 ``transfer``：``on_get`` 否决、no_get、堆叠合并/拆分在原语内处理。
     """
     name = intent.target
     if name is None:
-        return ["拿什么？用法：take <物品> [数量] [from <容器>]"]
+        return ["拿什么？用法：get <物品> [数量] [from <容器>]；或 get all"]
+    if name == "all":
+        return _cmd_get_all(world, player_id)
 
     room = _player_room(world, player_id)
-    from_container_name, amount = _parse_take_args(intent.args)
+    from_container_name, amount = _parse_get_args(intent.args)
     if from_container_name is not None:
         holder = lookup.find_reachable_container(world, player_id, from_container_name)
         if holder is None:
@@ -547,25 +564,75 @@ def _cmd_take(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     return [f"你拿起 {name}。"]
 
 
+def _cmd_get_all(world: World, player_id: EntityId) -> list[str]:
+    """``get all``：当前房间地面逐件拿起；失败（no_get 等）跳过，不中断整批。"""
+    room = _player_room(world, player_id)
+    floor = world.require_component(room, Container)
+    items = list(floor.items)
+    if not items:
+        return ["这里没有任何东西。"]
+    got = 0
+    for item in items:
+        # 转移可能已从 floor 移除；若仍在则再试。
+        if item not in floor.items:
+            continue
+        result = transfer(world, item, room, player_id, player_id=player_id)
+        if result.success:
+            got += 1
+    if got == 0:
+        return ["这里没什么可捡的。"]
+    return ["捡好了。"]
+
+
 @register("drop")
 def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """把玩家物品栏里匹配的物品放到当前房间地面（03/19 号票）。
+    """把玩家物品栏里匹配的物品放到当前房间地面（03/19 号票 + verify 补齐）。
 
+    - ``drop <物品>`` / ``drop <物品> <数量>``：可拆堆丢下。
+    - ``drop all``：物品栏逐件放下（``no_drop`` 等失败跳过）。
     走 ``transfer``：``on_drop`` 否决、``no_drop``（含自定义提示）在原语内处理。
     """
     name = intent.target
     if name is None:
-        return ["放下什么？用法：drop <物品>"]
+        return ["放下什么？用法：drop <物品> [数量]；或 drop all"]
+    if name == "all":
+        return _cmd_drop_all(world, player_id)
 
     room = _player_room(world, player_id)
     player_container = world.require_component(player_id, Container)
     item = _find_item_in_container(world, player_container, name)
     if item is None:
         return [f"你没有 {name}。"]
-    result = transfer(world, item, player_id, room, player_id=player_id)
+    amount: int | None = None
+    if intent.args and intent.args[0].isdigit():
+        amount = int(intent.args[0])
+    result = transfer(
+        world, item, player_id, room, player_id=player_id, amount=amount
+    )
     if not result.success:
         return [result.message or "放不下。"]
+    if amount is not None:
+        return [f"你放下 {amount} 个 {name}。"]
     return [f"你放下 {name}。"]
+
+
+def _cmd_drop_all(world: World, player_id: EntityId) -> list[str]:
+    """``drop all``：物品栏逐件放下；失败（no_drop 等）跳过，不中断整批。"""
+    room = _player_room(world, player_id)
+    inv = world.require_component(player_id, Container)
+    items = list(inv.items)
+    if not items:
+        return ["你什么都没带。"]
+    dropped = 0
+    for item in items:
+        if item not in inv.items:
+            continue
+        result = transfer(world, item, player_id, room, player_id=player_id)
+        if result.success:
+            dropped += 1
+    if dropped == 0:
+        return ["没什么可丢的。"]
+    return ["放下了。"]
 
 
 @register("put")
@@ -750,8 +817,8 @@ def _find_lookable_item(world: World, player_id: EntityId, name: str) -> EntityI
     return None
 
 
-def _parse_take_args(args: tuple[str, ...]) -> tuple[str | None, int | None]:
-    """解析 take 的 args：可选数量 + 可选 ``from <容器>``。
+def _parse_get_args(args: tuple[str, ...]) -> tuple[str | None, int | None]:
+    """解析 get 的 args：可选数量 + 可选 ``from <容器>``。
 
     返回 ``(容器规范名或 None, 数量或 None)``。解析层已把容器名解析为规范名；
     数量为十进制正整数字符串。

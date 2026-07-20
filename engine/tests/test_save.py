@@ -92,13 +92,13 @@ def _mutate_state(world: World, player_id: EntityId) -> None:
     拿石头、开南门进储藏室、回庭院、去长廊拿钥匙并解锁+开北门、进静室、丢石头、
     给静室动态加一条 down 出口指向长廊。
     """
-    execute_line(world, player_id, "take 石头")
+    execute_line(world, player_id, "get 石头")
     execute_line(world, player_id, "open south")
     execute_line(world, player_id, "go south")  # -> 储藏室
     execute_line(world, player_id, "go north")  # -> 起始庭院
     execute_line(world, player_id, "go north")  # -> 长廊
     corridor = world.require_component(player_id, Position).room
-    execute_line(world, player_id, "take 钥匙")
+    execute_line(world, player_id, "get 钥匙")
     execute_line(world, player_id, "unlock north")
     execute_line(world, player_id, "open north")
     execute_line(world, player_id, "go north")  # -> 静室
@@ -132,7 +132,7 @@ class TestSaveAndRestoreState:
         save_world(world, player_id, tmp_path)
         world2, player2 = restore_world(tmp_path)
 
-        execute_line(world2, player2, "take 石头")  # 在恢复出的世界里拿石头
+        execute_line(world2, player2, "get 石头")  # 在恢复出的世界里拿石头
         # 原 world 的起始庭院地面仍有石头（未被波及）。
         start = world.require_component(player_id, Position).room
         floor = world.require_component(start, Container)
@@ -186,7 +186,7 @@ class TestAtomicCrashSafety:
         # 第一次存档成功（状态 A），再改到状态 B 并让第二次存档中途崩溃，
         # 恢复应得到 A 而非 B（也不应是 A/B 混合）。
         world, player_id = build_world()
-        execute_line(world, player_id, "take 石头")  # 状态 A：玩家持有石头
+        execute_line(world, player_id, "get 石头")  # 状态 A：玩家持有石头
         save_world(world, player_id, tmp_path)
         state_a = _world_state(world, player_id)
 

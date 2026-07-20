@@ -124,7 +124,7 @@ class TestLockedDoor:
         def test_take_the_key_then_unlock_succeeds(self) -> None:
             world, player_id = build_world()
             _goto_corridor(world, player_id)
-            execute_line(world, player_id, "take 钥匙")
+            execute_line(world, player_id, "get 钥匙")
             messages = execute_line(world, player_id, "unlock north")
             assert any("解锁" in m for m in messages)
             room = _player_room(world, player_id)
@@ -134,7 +134,7 @@ class TestLockedDoor:
             # unlock 后门变关，go 仍被拒，需再 open。
             world, player_id = build_world()
             _goto_corridor(world, player_id)
-            execute_line(world, player_id, "take 钥匙")
+            execute_line(world, player_id, "get 钥匙")
             execute_line(world, player_id, "unlock north")
             before = _player_room(world, player_id)
             messages = execute_line(world, player_id, "go north")
@@ -144,7 +144,7 @@ class TestLockedDoor:
         def test_unlock_then_open_then_go_reaches_the_room(self) -> None:
             world, player_id = build_world()
             _goto_corridor(world, player_id)
-            execute_line(world, player_id, "take 钥匙")
+            execute_line(world, player_id, "get 钥匙")
             execute_line(world, player_id, "unlock north")
             execute_line(world, player_id, "open north")
             execute_line(world, player_id, "go north")
@@ -154,7 +154,7 @@ class TestLockedDoor:
             # 钥匙不被 unlock 消耗；再 unlock 提示没上锁。
             world, player_id = build_world()
             _goto_corridor(world, player_id)
-            execute_line(world, player_id, "take 钥匙")
+            execute_line(world, player_id, "get 钥匙")
             execute_line(world, player_id, "unlock north")
             messages = execute_line(world, player_id, "unlock north")
             assert any("没上锁" in m for m in messages)

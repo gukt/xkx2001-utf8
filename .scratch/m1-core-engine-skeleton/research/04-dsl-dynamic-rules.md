@@ -108,7 +108,7 @@ ADR-0004 拍板的战斗边界手法是：
 | 范式 | 形态 | 优点 | 缺点 | 适用场景 | UGC 友好度 |
 |---|---|---|---|---|---|
 | **①纯声明式条件表** | `when <cond> then <state>`（如 `when night and raining then door.locked`） | 可静态分析、可可视化、可校验、无副作用、可序列化、AI 生成准确率高 | 表达力有限，复杂分支/副作用/多步流程表达不了；条件谓词与状态动作词汇表要先穷举 | 状态切换、阈值触发、门/出口开关、文案拼接 | 极高（非程序员可写） |
-| **②事件/触发器** | `on <event> when <cond> do <actions>`（`on_tick`/`on_enter`/`on_take`/`on_say`） | 接近自然语言心智模型、解耦（规则不关心谁触发）、可叠加多规则 | 多规则冲突/顺序需聚合策略（§12）；事件点必须引擎先预留；副作用编排弱 | 反应式行为、NPC 对话、物品使用反馈 | 高（结构清晰） |
+| **②事件/触发器** | `on <event> when <cond> do <actions>`（`on_tick`/`on_enter`/`on_get`/`on_say`） | 接近自然语言心智模型、解耦（规则不关心谁触发）、可叠加多规则 | 多规则冲突/顺序需聚合策略（§12）；事件点必须引擎先预留；副作用编排弱 | 反应式行为、NPC 对话、物品使用反馈 | 高（结构清晰） |
 | **③受限 Python 钩子函数** | `def on_use(ctx): ...`（RestrictedPython + fuel + 能力令牌） | 表达力强、能写复杂流程、逃生舱；作者熟悉 Python 语法 | 安全边界需多层纵深（§23 非安全边界）；性能需配额；不可静态分析；难可视化 | 复杂状态机、多 actor 协调、算法逻辑 | 中（需懂 Python） |
 | **④规则 DSL/表达式语言** | 自研 mini-language（`actor.has_flag("x") && scene.time == "night"`） | 比 Python 受控（白名单运算符、无循环、深度上限，§F）、可静态分析、可序列化 | 需自研解析器（Lark）、词汇表设计成本、学习成本介于①与③ | 条件表达式、公式、阈值（作为①②的子语言） | 中高（受限但安全） |
 | **⑤状态机** | `states: {A, B, C}, transitions: A->B on event` | 复杂状态流转清晰、可可视化、可证明性质（可达性/死锁） | 简单逻辑用状态机过重；状态爆炸；与①有重叠 | NPC AI、condition、quest 流程、门禁 | 中高（结构化） |
@@ -129,7 +129,7 @@ ADR-0004 拍板的战斗边界手法是：
 - 门/出口的状态切换（`when night then door.locked`）
 - 文案拼接（`long: "天{weather}了，{time}时分"`）
 - 数值阈值（`when hp < 30% then regen suppressed`）
-- 简单触发响应（`on_take herb then give hp+10`）
+- 简单触发响应（`on_get herb then give hp+10`）
 - stacking 策略（`stacking: unique`/`mode: tick`）
 
 **必须命令式**（复杂流程、副作用编排、算法）：
@@ -215,7 +215,7 @@ ADR-0004 拍板的战斗边界手法是：
 
 | 事件点 | 触发时机 | 用途示例 |
 |---|---|---|
-| `on_take` | 物品从地面移到玩家栏前（可否决） | "诅咒物品拿不起"；任务物品检查 |
+| `on_get` | 物品从地面移到玩家栏前（可否决） | "诅咒物品拿不起"；任务物品检查 |
 | `on_drop` | 物品从栏移到地面前 | "任务物品不能丢" |
 | `on_use`（M2 引入 use 命令时） | 物品被使用时 | "喝水后 10 秒回血"挂 Effect |
 | `on_item_state_change` | 物品组件状态变化时 | 耐久度变化通知 |
@@ -249,7 +249,7 @@ ADR-0004 拍板的战斗边界手法是：
 - `on_tick`（`TickLoop.advance` 加订阅者分发，最核心，所有周期规则的地基）
 - 命令生命周期 `on_command_before`/`on_command_after`（`execute` 外环绕，所有前置否决规则的地基）
 - 移动 `on_before_enter_room`/`on_enter_room`/`on_leave_room`（`_cmd_go` 前后，"门锈住""进房触发"的最小集）
-- 物品 `on_take`/`on_drop`（`_cmd_take`/`_cmd_drop` 前后）
+- 物品 `on_get`/`on_drop`（`_cmd_take`/`_cmd_drop` 前后）
 - 门 `on_door_state_change`（门命令处）
 
 **M1 可推迟到 M2**（Nature/NPC/对话/use 相关）：`on_nature_change`/`on_time_phase`/`on_say`/`on_give_to_npc`/`on_use`/`on_npc_tick`。但**M1 的 `on_tick` 钩子点要设计得能承载这些 M2 事件**（即 tick 分发要支持"按订阅 key 路由"，M2 的 Nature 相位切换本质也是 tick 驱动）。

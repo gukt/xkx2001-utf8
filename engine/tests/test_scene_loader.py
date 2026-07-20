@@ -111,7 +111,7 @@ class TestStaticDisplayNpc:
     def test_npc_does_not_respond_to_take(self) -> None:
         # 静态展示型 NPC 无任何专门为它设计的命令；take 它像 take 一个不存在的物品。
         world, player_id = build_world()
-        messages = execute_line(world, player_id, "take 石像守卫")
+        messages = execute_line(world, player_id, "get 石像守卫")
         assert any("这里没有" in m for m in messages)
 
 

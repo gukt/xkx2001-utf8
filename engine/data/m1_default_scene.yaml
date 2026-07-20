@@ -50,6 +50,9 @@ rooms:
 # name/aliases -> Identity；short/long -> Description。
 # placed_in -> 初始摆放在哪个房间的地面容器里（必需）。
 # iron_key 是 corridor 北门（locked）的钥匙（04 号票 door.key 引用本物品键）。
+#
+# 储藏室另有一组「M1 物品手测夹具」（verify/m1-items）：堆叠 / 容器 / 标志 /
+# 重量容量 / look 数值。庭院只留石头，避免干扰钥匙与门回归路径。
 items:
   stone:
     name: 石头
@@ -63,6 +66,68 @@ items:
     short: 一把铁钥匙
     long: 一把锈迹斑斑的铁钥匙，齿纹独特。
     placed_in: corridor
+
+  # ── M1 物品手测夹具（storage_room）────────────────────
+  wooden_box:
+    name: 木箱
+    aliases: [箱子]
+    short: 一只旧木箱
+    long: 一只能开合的旧木箱，里面可以塞杂物。
+    placed_in: storage_room
+    container: {max_capacity: 2}
+  copper_coins_a:
+    name: 铜钱
+    aliases: [钱]
+    short: 一堆铜钱
+    long: 圆圆的铜钱，可以堆叠。
+    placed_in: storage_room
+    stackable: {amount: 5, unit_weight: 0.1}
+    value: 1
+  copper_coins_b:
+    name: 铜钱
+    aliases: [钱]
+    short: 一堆铜钱
+    long: 圆圆的铜钱，可以堆叠。
+    placed_in: storage_room
+    stackable: {amount: 3, unit_weight: 0.1}
+    value: 1
+  gem:
+    name: 宝石
+    aliases: [玉]
+    short: 一颗宝石
+    long: 一颗透亮的宝石，体积不大。
+    placed_in: storage_room
+    weight: 0.5
+    value: 50
+  small_pouch:
+    name: 小布袋
+    aliases: [布袋, 袋子]
+    short: 一只小布袋
+    long: 一只只能装一件轻物的小布袋。
+    placed_in: storage_room
+    container: {max_capacity: 1, max_weight: 1.0}
+  heavy_crate:
+    name: 大石块
+    aliases: [大石]
+    short: 一块沉重的大石
+    long: 一块沉甸甸的大石，勉强能搬，但塞不进小布袋。
+    placed_in: storage_room
+    weight: 5
+  quest_token:
+    name: 令牌
+    aliases: [牌]
+    short: 一枚令牌
+    long: 一枚刻着奇怪纹样的令牌，似乎不能随意丢弃。
+    placed_in: storage_room
+    no_drop: true
+    no_drop_message: 这是任务物品，不能丢弃。
+  stone_tablet:
+    name: 石碑
+    aliases: [碑]
+    short: 一块石碑
+    long: 一块嵌在地上的石碑，纹丝不动。
+    placed_in: storage_room
+    no_get: true
 
 # ── NPC（06 号票静态展示 + 27 号票 inquiry）────────────────
 # Identity + Description + Position；可选 inquiry / behaviors / count / respawn。

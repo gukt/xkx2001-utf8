@@ -1,7 +1,7 @@
 """物品转移统一原语（19–24 号票）。
 
 take / drop / put / take-from 全部收敛到 ``transfer(world, item, src, dst)``：
-校验标志位、容量/重量、分发 ``on_take`` / ``on_drop`` 否决钩子、堆叠合并与拆分。
+校验标志位、容量/重量、分发 ``on_get`` / ``on_drop`` 否决钩子、堆叠合并与拆分。
 命令层只负责解析目标与把 ``TransferResult`` 翻译成玩家提示。
 """
 
@@ -25,12 +25,12 @@ from mud_engine.world import EntityId, World
 class TransferFailReason(StrEnum):
     """转移失败原因枚举（契约测试锁定；命令层按 reason 选默认文案）。
 
-    ``StrEnum`` 成员既是枚举又是字符串值，``reason == "no_take"`` 与
-    ``reason == TransferFailReason.NO_TAKE`` 等价（``TransferResult.reason``
+    ``StrEnum`` 成员既是枚举又是字符串值，``reason == "no_get"`` 与
+    ``reason == TransferFailReason.NO_GET`` 等价（``TransferResult.reason``
     类型仍为 ``str | None``，比较/存档无回归）。
     """
 
-    NO_TAKE = "no_take"
+    NO_GET = "no_get"
     NO_DROP = "no_drop"
     OVER_CAPACITY = "over_capacity"
     OVER_WEIGHT = "over_weight"
@@ -54,18 +54,18 @@ class TransferResult:
     message: str | None = None
 
 
-# 转移事件点事件名（09 号票）：挂在 ``world.events`` 上。``on_take`` / ``on_drop``
+# 转移事件点事件名（09 号票）：挂在 ``world.events`` 上。``on_get`` / ``on_drop``
 # 在物品进入 / 离开玩家持有时触发，handler 收 ``TransferContext``、返回 ``Deny``
 # 可否决（``events.run_vetoable`` 聚合）。32 号票从 commands 移至 transfer：这些是
 # 转移域事件，由 ``transfer()`` 触发，归 transfer 模块（原住 commands 导致 transfer
 # 反向 import commands 成循环依赖）。
-ON_TAKE = "on_take"
+ON_GET = "on_get"
 ON_DROP = "on_drop"
 
 
 @dataclass(frozen=True)
 class TransferContext:
-    """``on_take`` / ``on_drop`` 上下文：物品转移前触发，可否决。
+    """``on_get`` / ``on_drop`` 上下文：物品转移前触发，可否决。
 
     ``src``/``dst`` 是持有容器的 entity id（take: src=房间, dst=玩家；drop:
     src=玩家, dst=房间；未来 put/give 的 src/dst 是箱子 / 其他 NPC）。全 EntityId
@@ -107,8 +107,8 @@ def transfer(
 
     - ``amount`` 为 ``None`` 或等于全部时整件转移；小于堆叠数时拆分新实体再转移。
     - 目标已有同名 ``Stackable`` 时合并 amount（不占新槽位）。
-    - src=涉及玩家离开 / dst=进入玩家时分别触发 ``on_drop`` / ``on_take`` 否决钩子。
-    - ``no_take`` / ``no_drop`` / 容量 / 重量在钩子之前校验。
+    - src=涉及玩家离开 / dst=进入玩家时分别触发 ``on_drop`` / ``on_get`` 否决钩子。
+    - ``no_get`` / ``no_drop`` / 容量 / 重量在钩子之前校验。
     """
     if src == dst:
         return TransferResult(
@@ -146,13 +146,13 @@ def transfer(
         return move_amount
 
     flags = world.get_component(item, ItemFlags)
-    # 进入玩家持有 → no_take；离开玩家持有 → no_drop（put 也算离开玩家）。
+    # 进入玩家持有 → no_get；离开玩家持有 → no_drop（put 也算离开玩家）。
     entering_player = player_id is not None and dst == player_id
     leaving_player = player_id is not None and src == player_id
-    if entering_player and flags is not None and flags.no_take:
+    if entering_player and flags is not None and flags.no_get:
         return TransferResult(
             success=False,
-            reason=TransferFailReason.NO_TAKE,
+            reason=TransferFailReason.NO_GET,
             message="那东西拿不起来。",
         )
     if leaving_player and flags is not None and flags.no_drop:
@@ -182,15 +182,15 @@ def transfer(
     if weight_fail is not None:
         return weight_fail
 
-    # 否决钩子：进入玩家 → on_take；离开玩家 → on_drop（与 take/drop 基线一致）。
-    # ON_TAKE/ON_DROP/TransferContext 本模块定义（32 号票从 commands 移出，消除
+    # 否决钩子：进入玩家 → on_get；离开玩家 → on_drop（与 take/drop 基线一致）。
+    # ON_GET/ON_DROP/TransferContext 本模块定义（32 号票从 commands 移出，消除
     # transfer -> commands 反向 import）；run_vetoable 来自 events（33 号票与
     # commands._run_vetoable 共用的单一聚合实现，原 transfer._run_transfer_veto 删除）。
     if player_id is not None:
         if entering_player:
             denial = run_vetoable(
                 world,
-                ON_TAKE,
+                ON_GET,
                 TransferContext(player_id=player_id, item=item, src=src, dst=dst),
             )
             if denial is not None:
@@ -361,7 +361,7 @@ def _clone_component(component: object) -> object:
 
 __all__ = [
     "ON_DROP",
-    "ON_TAKE",
+    "ON_GET",
     "TransferContext",
     "TransferFailReason",
     "TransferResult",

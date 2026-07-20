@@ -222,13 +222,13 @@ class Consumable:
 
 @dataclass
 class ItemFlags:
-    """物品流转标志位（21 号票）：no_take / no_drop。
+    """物品流转标志位（21 号票）：no_get / no_drop。
 
     声明式数据字段（非闭包）。``no_drop_message`` 为自定义拒绝提示；缺省时用
     引擎默认文案。挂在需要限制流转的物品上，无标志则不挂本组件。
     """
 
-    no_take: bool = False  # True 时不能拿起（如固定家具）；启动固定
+    no_get: bool = False  # True 时不能拿起（如固定家具）；启动固定
     no_drop: bool = False  # True 时不能丢弃/放入容器；启动固定
     no_drop_message: str | None = None  # no_drop 时的自定义提示；None 用默认文案
 

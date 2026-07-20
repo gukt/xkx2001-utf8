@@ -106,7 +106,7 @@ class TickContext:
 
 
 # 可否决事件点的否决信号与聚合（32/33 号票）：领域 before 事件点
-# （``on_before_enter_room`` / ``on_take`` / ``on_drop``）的 handler 返回 ``Deny``
+# （``on_before_enter_room`` / ``on_get`` / ``on_drop``）的 handler 返回 ``Deny``
 # 即否决本次操作；``run_vetoable`` 按 ``handlers_for`` 遍历、首个 ``Deny`` 短路。
 # ``Deny`` 跨命令前置钩子（``on_command_before``，commands._run_before_hooks）与领域
 # before 事件点共用--两者都是"执行前可否决"语义；命令前置钩子的另两个返回态

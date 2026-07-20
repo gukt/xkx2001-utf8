@@ -6,11 +6,12 @@
 产出 ``Intent`` 即返回，全失败返回最后一个 ``ParseFailure``。未来接入 AI 兜底
 解析器只需 append 一个新解析器，不动执行层或已有解析器（spec 用户故事 25/26）。
 
-所有目标别名匹配（go 的方向、take/drop/put/look 的物品）都在解析阶段用
+所有目标别名匹配（go 的方向、get/drop/put/look 的物品）都在解析阶段用
 ``match_target`` 完成，``Intent.target`` 装已解析的规范名；执行层不感知原始文本
 或别名（03 号票延续 02 的分层）。04 号票的 open/close/knock/unlock 门命令复用 go
-的方向解析。块 C（20/22/23 号票）扩展：``take`` 可选数量与 ``from <容器>``、
-``put <物> in <容器>``、``look <物品>``。
+的方向解析。块 C（20/22/23 号票）扩展：``get`` 可选数量与 ``from <容器>``、
+``put <物> in <容器>``、``look <物品>``；verify 补齐 ``get/drop all`` 与
+``drop <物> <数量>``（规范动词 ``get``，``take`` 为别名）。
 
 ``execute_line`` 是 CLI 的入口：拿一行原始文本 -> 解析 -> 执行 -> 返回消息。
 解析失败时把 ``ParseFailure`` 翻译成给玩家的提示，不抛异常。
@@ -85,10 +86,10 @@ class DeterministicParser(Parser):
             return self._parse_direction(rest, world, player_id, verb="go")
         if verb in DOOR_VERBS:
             return self._parse_direction(rest, world, player_id, verb=verb)
-        if verb == "take":
-            return self._parse_take(rest, world, player_id)
+        if verb == "get":
+            return self._parse_get(rest, world, player_id)
         if verb == "drop":
-            return self._parse_item(rest, world, player_id, verb="drop", source="player")
+            return self._parse_drop(rest, world, player_id)
         if verb == "put":
             return self._parse_put(rest, world, player_id)
         if verb == "look":
@@ -127,74 +128,70 @@ class DeterministicParser(Parser):
             )
         return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb=verb)
 
-    def _parse_item(
-        self,
-        args: list[str],
-        world: World,
-        player_id: EntityId,
-        verb: str,
-        source: str,
-    ) -> Intent | ParseFailure:
-        """take/drop 共用的物品目标解析：source 决定从哪个容器取候选。
-
-        source="room" 取当前房间地面容器（take），source="player" 取玩家物品栏（drop）。
-        """
-        if not args:
-            return Intent(verb=verb, target=None)
-        token = args[0]
-        candidates = self._item_candidates(world, player_id, source)
-        result = match_target(token, candidates)
-        if isinstance(result, Resolved):
-            return Intent(verb=verb, target=result.canonical)
-        if isinstance(result, Ambiguous):
-            return ParseFailure(
-                Reason.AMBIGUOUS_TARGET,
-                original=token,
-                verb=verb,
-                candidates=result.canonicals,
-            )
-        return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb=verb)
-
-    def _parse_take(
+    def _parse_get(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """``take <物> [数量] [from <容器>]``（20/22 号票）。
+        """``get <物> [数量] [from <容器>]`` / ``get all``（20/22 号票 + verify）。
 
         - 无 from：物品候选来自房间地面。
         - 有 from：物品候选来自该容器；容器候选来自房间地面 + 玩家物品栏。
         - 数量（纯数字）写入 ``Intent.args`` 供执行层拆堆。
         """
         if not args:
-            return Intent(verb="take", target=None)
+            return Intent(verb="get", target=None)
+        if len(args) == 1 and args[0].lower() == "all":
+            return Intent(verb="get", target="all")
 
         from_idx = _index_of(args, "from")
         if from_idx is not None:
-            return self._parse_take_from(args, from_idx, world, player_id)
+            return self._parse_get_from(args, from_idx, world, player_id)
 
-        # take <item> [qty]
+        # get <item> [qty]
         item_token = args[0]
         qty_args: list[str] = []
         if len(args) >= 2 and args[1].isdigit():
             qty_args = [args[1]]
         matched = self._match_item_token(
-            item_token, self._item_candidates(world, player_id, "room"), verb="take"
+            item_token, self._item_candidates(world, player_id, "room"), verb="get"
         )
         if isinstance(matched, ParseFailure):
             return matched
-        return Intent(verb="take", target=matched, args=tuple(qty_args))
+        return Intent(verb="get", target=matched, args=tuple(qty_args))
 
-    def _parse_take_from(
+    def _parse_drop(
+        self, args: list[str], world: World, player_id: EntityId
+    ) -> Intent | ParseFailure:
+        """``drop <物> [数量]`` / ``drop all``。"""
+        if not args:
+            return Intent(verb="drop", target=None)
+        if len(args) == 1 and args[0].lower() == "all":
+            return Intent(verb="drop", target="all")
+
+        item_token = args[0]
+        qty_args: list[str] = []
+        if len(args) >= 2 and args[1].isdigit():
+            qty_args = [args[1]]
+        matched = self._match_item_token(
+            item_token,
+            self._item_candidates(world, player_id, "player"),
+            verb="drop",
+        )
+        if isinstance(matched, ParseFailure):
+            return matched
+        return Intent(verb="drop", target=matched, args=tuple(qty_args))
+
+    def _parse_get_from(
         self,
         args: list[str],
         from_idx: int,
         world: World,
         player_id: EntityId,
     ) -> Intent | ParseFailure:
-        """解析 ``take <物> [数量] from <容器>``。"""
+        """解析 ``get <物> [数量] from <容器>``。"""
         before = args[:from_idx]
         after = args[from_idx + 1 :]
         if not before or not after:
-            return Intent(verb="take", target=None)
+            return Intent(verb="get", target=None)
 
         item_token = before[0]
         qty: str | None = None
@@ -205,7 +202,7 @@ class DeterministicParser(Parser):
         container_matched = self._match_item_token(
             container_token,
             self._reachable_container_candidates(world, player_id),
-            verb="take",
+            verb="get",
         )
         if isinstance(container_matched, ParseFailure):
             return container_matched
@@ -214,11 +211,11 @@ class DeterministicParser(Parser):
         container_id = find_reachable_container(world, player_id, container_matched)
         if container_id is None:
             return ParseFailure(
-                Reason.NO_TARGET_MATCH, original=container_token, verb="take"
+                Reason.NO_TARGET_MATCH, original=container_token, verb="get"
             )
         nested = world.require_component(container_id, Container)
         item_candidates = self._candidates_from_container(world, nested)
-        item_matched = self._match_item_token(item_token, item_candidates, verb="take")
+        item_matched = self._match_item_token(item_token, item_candidates, verb="get")
         if isinstance(item_matched, ParseFailure):
             return item_matched
 
@@ -226,7 +223,7 @@ class DeterministicParser(Parser):
         if qty is not None:
             out_args.append(qty)
         out_args.extend(["from", container_matched])
-        return Intent(verb="take", target=item_matched, args=tuple(out_args))
+        return Intent(verb="get", target=item_matched, args=tuple(out_args))
 
     def _parse_put(
         self, args: list[str], world: World, player_id: EntityId
@@ -453,7 +450,7 @@ def _failure_message(failure: ParseFailure) -> list[str]:
         candidates = "、".join(failure.candidates)
         return [f"不确定你指的是哪个：{candidates}。"]
     # NO_TARGET_MATCH：按命令给不同措辞。
-    if failure.verb == "take":
+    if failure.verb == "get":
         return [f"这里没有 {failure.original}。"]
     if failure.verb == "drop":
         return [f"你没有 {failure.original}。"]

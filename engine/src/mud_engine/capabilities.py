@@ -148,17 +148,17 @@ def _parse_consumable(
 def _parse_item_flags(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> ItemFlags | None:
-    """``no_take`` / ``no_drop`` / ``no_drop_message``；全缺省则不挂组件。"""
-    if not any(k in data for k in ("no_take", "no_drop", "no_drop_message")):
+    """``no_get`` / ``no_drop`` / ``no_drop_message``；全缺省则不挂组件。"""
+    if not any(k in data for k in ("no_get", "no_drop", "no_drop_message")):
         return None
-    no_take = bool(data.get("no_take", False))
+    no_get = bool(data.get("no_get", False))
     no_drop = bool(data.get("no_drop", False))
     msg = data.get("no_drop_message")
     if msg is not None:
         msg = str(msg)
-    if not no_take and not no_drop and msg is None:
+    if not no_get and not no_drop and msg is None:
         return None
-    return ItemFlags(no_take=no_take, no_drop=no_drop, no_drop_message=msg)
+    return ItemFlags(no_get=no_get, no_drop=no_drop, no_drop_message=msg)
 
 
 def _parse_item_container(
@@ -244,7 +244,7 @@ def _des_consumable(d: dict) -> Consumable:
 
 def _ser_item_flags(c: ItemFlags) -> dict:
     return {
-        "no_take": c.no_take,
+        "no_get": c.no_get,
         "no_drop": c.no_drop,
         "no_drop_message": c.no_drop_message,
     }
@@ -252,7 +252,7 @@ def _ser_item_flags(c: ItemFlags) -> dict:
 
 def _des_item_flags(d: dict) -> ItemFlags:
     return ItemFlags(
-        no_take=bool(d.get("no_take", False)),
+        no_get=bool(d.get("no_get", False)),
         no_drop=bool(d.get("no_drop", False)),
         no_drop_message=d.get("no_drop_message"),
     )
@@ -318,7 +318,7 @@ CAPABILITIES: list[CapabilitySpec] = [
     ),
     CapabilitySpec(
         component_type=ItemFlags,
-        known_fields=frozenset({"no_take", "no_drop", "no_drop_message"}),
+        known_fields=frozenset({"no_get", "no_drop", "no_drop_message"}),
         from_yaml=_parse_item_flags,
         to_dict=_ser_item_flags,
         from_dict=_des_item_flags,
