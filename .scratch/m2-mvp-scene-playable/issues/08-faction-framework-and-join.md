@@ -4,13 +4,13 @@
 
 **Blocked by:** 01（`Faction` 组件走注册表挂载模式）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `FactionDefinition`/`FACTIONS` 全局注册表 + `factions:` 顶层段解析落地（加入 `_TOP_LEVEL_KNOWN_SECTIONS`），引用不存在的门派 id（如 NPC/玩家 `faction:` 字段引用了未声明的门派）在加载期报 `SceneLoadError`。
-- [ ] `Faction(faction_id: str | None)` 组件走 NPC/玩家级能力注册表；缺省 `faction_id=None` 表示无门派归属。
-- [ ] `join <门派>` 命令：门派 id 不存在给提示；`join_condition` 不满足给出具体缺什么（不是笼统"不满足条件"）；满足则设置 `Faction.faction_id` 并给出成功提示。
-- [ ] `join_condition` 是可选字段（`None` 表示无门派加入门槏，任何人都能加入）。
-- [ ] 命令层测试覆盖：无门槏门派直接加入成功、有门槏门派条件不满足给出具体原因、已有门派归属再次 join 的行为（是否允许换门派——实现阶段决定一个明确策略：建议 MVP 允许直接覆盖，不做"先退出旧门派"这层复杂度，写进代码注释即可，不算过度设计）。
-- [ ] `skill_pool`/`map_skill` 字段本票只需**声明并存储**（供 14 号票消费），不要求 `join` 命令本身用到它们。
-- [ ] 存档往返：`Faction.faction_id` save→restore 一致。
-- [ ] 现有测试全绿不回归。
+- [x] `FactionDefinition`/`FACTIONS` 全局注册表 + `factions:` 顶层段解析落地（加入 `_TOP_LEVEL_KNOWN_SECTIONS`），引用不存在的门派 id（如 NPC/玩家 `faction:` 字段引用了未声明的门派）在加载期报 `SceneLoadError`。
+- [x] `Faction(faction_id: str | None)` 组件走 NPC/玩家级能力注册表；缺省 `faction_id=None` 表示无门派归属。
+- [x] `join <门派>` 命令：门派 id 不存在给提示；`join_condition` 不满足给出具体缺什么（不是笼统"不满足条件"）；满足则设置 `Faction.faction_id` 并给出成功提示。
+- [x] `join_condition` 是可选字段（`None` 表示无门派加入门槏，任何人都能加入）。
+- [x] 命令层测试覆盖：无门槏门派直接加入成功、有门槏门派条件不满足给出具体原因、已有门派归属再次 join 的行为（是否允许换门派——实现阶段决定一个明确策略：建议 MVP 允许直接覆盖，不做"先退出旧门派"这层复杂度，写进代码注释即可，不算过度设计）。
+- [x] `skill_pool`/`map_skill` 字段本票只需**声明并存储**（供 14 号票消费），不要求 `join` 命令本身用到它们。
+- [x] 存档往返：`Faction.faction_id` save→restore 一致。
+- [x] 现有测试全绿不回归。
