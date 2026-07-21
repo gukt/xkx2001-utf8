@@ -1,9 +1,9 @@
 # M2 MVP 武侠题材包场景（Wave 4 起累加；单文件，见 .scratch/m2-mvp-scene-playable/room-keys.md）
 #
 # 分区前缀：huashan_* / yangzhou_* / shaolin_* / wild_* / road_* / ferry_*
-# 已落地：华山村（21）、扬州枢纽+城门（22）；商业/少林/野外后续票追加。
+# 已落地：华山村（21）、扬州枢纽（22）、扬州商业（23）、少林寺（24）；野外/官道/渡口（25）后续。
 
-# ── 房间：华山村（21）+ 扬州枢纽（22）+ 官道桩（22 预留，25 扩展）──
+# ── 房间：华山 + 扬州 + 少林 + 官道桩 ──────────────────
 rooms:
   huashan_birth:
     name: 华山村口
@@ -186,6 +186,70 @@ rooms:
     exits:
       north: { to: yangzhou_xidajie, aliases: [北, 西大街] }
 
+  # ── 少林寺（24）+ 山门前官道桩（24 预留，25 扩展）────
+  road_shaolin:
+    name: 少林山门外官道
+    long: >-
+      官道尽头可见少林山门匾额。再往西是渡口与扬州方向的官道（后续扩展）。
+    outdoors: true
+    exits:
+      east: { to: shaolin_shanmen, aliases: [东, 山门] }
+
+  shaolin_shanmen:
+    name: 少林山门
+    long: >-
+      少林山门气势威严，门楣「少林寺」三字浑厚。知客僧在侧稽首，盘查来客身份。
+    outdoors: true
+    entry_guard:
+      condition:
+        and:
+          - field: gender
+            value: male
+          - not:
+              predicate: is_wielding_edged_weapon
+          - or:
+              - field: has_faction
+                value: false
+              - field: faction_id
+                value: shaolin
+      deny_message: 少林山门：须为男子、未属他派、且不得持刃器入内。
+    exits:
+      west: { to: road_shaolin, aliases: [西, 官道] }
+      north: { to: shaolin_guangchang, aliases: [北, 广场] }
+
+  shaolin_guangchang:
+    name: 少林广场
+    long: >-
+      寺内广场青石平整，香客与僧众往来。东侧武场传出喝声，西侧达摩院静穆。
+    outdoors: true
+    exits:
+      south: { to: shaolin_shanmen, aliases: [南, 山门] }
+      west: { to: shaolin_damoyuan, aliases: [西, 达摩院] }
+      east: { to: shaolin_wuchang, aliases: [东, 武场] }
+      north: { to: shaolin_cangjingge, aliases: [北, 藏经阁] }
+
+  shaolin_damoyuan:
+    name: 达摩院
+    long: >-
+      达摩院内烛光摇曳，壁上绘着达摩面壁图。院僧沉默拂尘，不主动搭话。
+    exits:
+      east: { to: shaolin_guangchang, aliases: [东, 广场] }
+
+  shaolin_cangjingge:
+    name: 藏经阁
+    long: >-
+      藏经阁木梯蜿蜒，经卷陈列整齐。阁僧轻声提醒：勿高声喧哗。
+    exits:
+      south: { to: shaolin_guangchang, aliases: [南, 广场] }
+
+  shaolin_wuchang:
+    name: 少林武场
+    long: >-
+      武场沙地开阔，木人桩林立。武僧在此指点入门弟子演练拳脚。
+    outdoors: true
+    exits:
+      west: { to: shaolin_guangchang, aliases: [西, 广场] }
+
 # ── 物品 ──────────────────────────────────────────────
 items:
   training_pebble:
@@ -332,6 +396,75 @@ npcs:
     shop:
       - mount: yangzhou_horse
         price: 50
+
+  shaolin_receptionist:
+    name: 知客僧
+    aliases: [知客]
+    short: 少林知客僧
+    long: 身着灰袍的知客僧，合十问讯，可指引入门弟子拜入少林。
+    in_room: shaolin_shanmen
+    inquiry:
+      拜师: 有心向佛者，可在此 join 少林。
+      default: 施主有礼，少林清修之地。
+
+  shaolin_monk_trainer:
+    name: 武僧
+    aliases: [教习武僧]
+    short: 少林武僧
+    long: 肌肉结实的武僧，正在纠正弟子的马步。
+    in_room: shaolin_wuchang
+    inquiry:
+      武学: 入门后可用 learn martial 学罗汉拳，learn force 学混元一气功。
+      default: 勤学苦练，方成正果。
+
+  damoyuan_monk:
+    name: 达摩院僧
+    aliases: [院僧]
+    short: 达摩院僧人
+    long: 神色沉静的院僧，目光落在壁画像上。
+    in_room: shaolin_damoyuan
+
+  library_monk:
+    name: 藏经阁僧
+    aliases: [阁僧]
+    short: 藏经阁僧人
+    long: 手持拂尘的阁僧，轻声整理经卷。
+    in_room: shaolin_cangjingge
+
+# ── 技能 / 门派（24：少林专属）────────────────────────
+skills:
+  luohan_quan:
+    type: martial
+    level_req: 0
+    learn_condition:
+      gte:
+        field: con
+        value: 10
+    moves:
+      - name: 罗汉拳
+        force: 12
+        dodge: 3
+        damage_type: blunt
+        damage: 12
+  hunyuan_yiqi:
+    type: force
+    level_req: 0
+    moves:
+      - name: 混元一气
+        force: 0
+        dodge: 0
+        damage_type: none
+
+factions:
+  shaolin:
+    display_name: 少林
+    skill_pool: [luohan_quan, hunyuan_yiqi]
+    map_skill:
+      martial: luohan_quan
+      force: hunyuan_yiqi
+  beggars:
+    display_name: 丐帮
+    skill_pool: []
 
 # ── 玩家 ──────────────────────────────────────────────
 player:
