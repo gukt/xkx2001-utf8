@@ -4,13 +4,13 @@
 
 **Blocked by:** 01（`Currency`/`ShopInventory` 是 NPC/玩家级能力，需走注册表模式）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Currency(amount: int)` 组件落地，玩家与需要持有货币的 NPC 都可挂；玩家初始余额可由场景 `player:` 段声明（若走 01 号票注册表覆盖不到 `player:` 段，直接加进 `_PLAYER_KNOWN_FIELDS`，不为此单独建注册表）。
-- [ ] `ShopInventory`/`ShopEntry` 组件落地，走 NPC 级能力注册表（YAML `shop:` 字段，引用 `items:` 段的模板键，引用不存在的物品模板在加载期报 `SceneLoadError`）。
-- [ ] `buy <物品>` 命令：从同房间挂 `ShopInventory` 的 NPC 清单里按 `Valuable.value` 收费，实例化一份新物品放进玩家物品栏（走 `transfer` 原语或等价路径，复用 M1 机制不新写一套）；余额不足给明确提示，不扣款不发货。
-- [ ] `sell <物品>` 命令：把玩家物品栏物品卖给同房间挂 `ShopInventory` 的 NPC，按 `Valuable.value × resell_discount` 收购（商店清单未包含该物品类型时用什么折扣率——实现阶段决定一个明确默认策略并写进代码注释，不留未定义行为）。
-- [ ] 未声明 `Valuable` 的物品模板被 `ShopEntry` 引用时，在加载期（不是运行时 buy 那一刻）报 `SceneLoadError`，定位到具体商店/物品模板。
-- [ ] 命令层测试覆盖：正常 buy/sell、余额不足、物品栏没有要卖的物品、房间没有商店 NPC 四种路径。
-- [ ] 存档往返：`Currency.amount` 变化后 save→restore 一致。
-- [ ] 现有测试全绿不回归。
+- [x] `Currency(amount: int)` 组件落地，玩家与需要持有货币的 NPC 都可挂；玩家初始余额可由场景 `player:` 段声明（若走 01 号票注册表覆盖不到 `player:` 段，直接加进 `_PLAYER_KNOWN_FIELDS`，不为此单独建注册表）。
+- [x] `ShopInventory`/`ShopEntry` 组件落地，走 NPC 级能力注册表（YAML `shop:` 字段，引用 `items:` 段的模板键，引用不存在的物品模板在加载期报 `SceneLoadError`）。
+- [x] `buy <物品>` 命令：从同房间挂 `ShopInventory` 的 NPC 清单里按 `Valuable.value` 收费，实例化一份新物品放进玩家物品栏（走 `transfer` 原语或等价路径，复用 M1 机制不新写一套）；余额不足给明确提示，不扣款不发货。
+- [x] `sell <物品>` 命令：把玩家物品栏物品卖给同房间挂 `ShopInventory` 的 NPC，按 `Valuable.value × resell_discount` 收购（商店清单未包含该物品类型时用什么折扣率——实现阶段决定一个明确默认策略并写进代码注释，不留未定义行为）。
+- [x] 未声明 `Valuable` 的物品模板被 `ShopEntry` 引用时，在加载期（不是运行时 buy 那一刻）报 `SceneLoadError`，定位到具体商店/物品模板。
+- [x] 命令层测试覆盖：正常 buy/sell、余额不足、物品栏没有要卖的物品、房间没有商店 NPC 四种路径。
+- [x] 存档往返：`Currency.amount` 变化后 save→restore 一致。
+- [x] 现有测试全绿不回归。
