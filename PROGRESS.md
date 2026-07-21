@@ -5,12 +5,12 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M2 `/to-tickets` 完成，拆出 26 张票 + 6 Wave 实现计划，待 Wave 0 `/implement`。
+**最后更新**：2026-07-21：M2 Wave 0 开工（tag `m2-wave0-start`），实现票 `01`–`04`。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 已拆票（26 张）+ 排好 6 Wave 实现计划**，待 Wave 0 `/implement`。
-- **工作分支**：`feat/m2-mvp-scene-playable`。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0 `/implement` 进行中**（票 `01`–`04`）。
+- **工作分支**：`feat/m2-mvp-scene-playable`（fixed point tag：`m2-wave0-start`）。
 - **engine/**：测试绿。`just verify-items` / `just verify-npc` / `just verify-nature`。
 
 ## Done
@@ -25,7 +25,7 @@
 
 ## In Progress
 
-当前无进行中项——下一 session 从 Wave 0 开工（见下）。
+- **M2 Wave 0**：`01` 房间/NPC 能力注册表 → `02` 战斗结算核心 → `03` 技能数据地基 → `04` spawner 蓝图修复。实现完跑全量测试；本 wave **不**跑 `/code-review`（留给下一环节，fixed point=`m2-wave0-start`）。
 
 ## Blocked
 
@@ -33,8 +33,8 @@
 
 ## Next Up
 
-1. **M2 Wave 0 `/implement`**：[implement-plan.md](.scratch/m2-mvp-scene-playable/implement-plan.md) 的 Wave 0 提示词模板，实现票 `01`–`04`（能力注册表 prefactor + 战斗结算核心 + 技能数据地基 + spawner 修复），完成后 `/code-review`（fixed point 打 tag `m2-wave0-start`）→ fix → 更新本文件。
-2. 之后按 implement-plan.md 顺序推进 Wave 1–5。
+1. 完成本 Wave 0 四票实现 + 全量测试绿；之后 `/code-review`（fixed point `m2-wave0-start`）→ fix。
+2. 按 [implement-plan.md](.scratch/m2-mvp-scene-playable/implement-plan.md) 推进 Wave 1（票 `05`–`09`）。
 3. 按 CLAUDE.md 待办：M3 前核对 [03-ugc-dsl-design-inheritance](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统归类是否仍准确。
 
 ## 交接约定

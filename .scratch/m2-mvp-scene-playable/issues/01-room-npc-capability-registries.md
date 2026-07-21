@@ -4,12 +4,12 @@
 
 **Blocked by:** None — 可立即开始，是全部后续票的地基（prefactor-first）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 新增房间级能力注册表（如 `ROOM_CAPABILITIES: list[CapabilitySpec]`），至少把现有 `outdoors` 迁移进去；`_ROOM_KNOWN_FIELDS` 改为从该注册表 + 房间固有字段（`name`/`aliases`/`short`/`long`/`exits`）聚合。
-- [ ] 新增 NPC 级能力注册表（如 `NPC_CAPABILITIES: list[CapabilitySpec]`），至少把现有 `inquiry`/`behaviors`/`tick_interval` 迁移进去；`_NPC_KNOWN_FIELDS` 改为从该注册表 + NPC 固有字段聚合。
-- [ ] `save.py` 的房间/NPC 组件 codec（`Description`/`Inquiry`/`Behaviors`/`AIController` 等已迁移进注册表的部分）改走注册表的 `to_dict`/`from_dict`，不再在 `save.py` 里单独硬编码。
-- [ ] 注册表的 `CapabilitySpec` 形状与物品用的保持一致（`component_type`/`known_fields`/`from_yaml`/`to_dict`/`from_dict`），使块 B~G 后续票能直接照抄物品能力的写法追加新能力，不需要发明新形状。
-- [ ] 明确记录（代码注释或本票 Comments）：`_PLAYER_KNOWN_FIELDS`（`{"name","start_room"}`）与 `_TOP_LEVEL_KNOWN_SECTIONS`（`{"rooms","items","npcs","player"}`）**不**在本票扫平范围内——player 段字段少（后续如需给玩家挂 `Currency`/`Faction` 初始值，直接加进 `_PLAYER_KNOWN_FIELDS` 判断，不为个别字段建注册表，避免过度设计）；新顶层段（`factions:`/`skills:`）是全局注册表模式，不是"实体能力"模式，留给 02/03 号票各自决定。
-- [ ] `engine/tests/test_scene_loader.py`、`engine/tests/test_save.py` 现有测试全绿，不回归；`just verify-npc`/`just verify-nature`/`just verify-items` 一键矩阵全绿。
-- [ ] 新增至少一条测试证明"注册表驱动的未知字段透传"仍然成立（给房间/NPC 塞一个注册表之外的字段，断言它落进 `entity_extension_data` 而不是被判定为已知字段）。
+- [x] 新增房间级能力注册表（如 `ROOM_CAPABILITIES: list[CapabilitySpec]`），至少把现有 `outdoors` 迁移进去；`_ROOM_KNOWN_FIELDS` 改为从该注册表 + 房间固有字段（`name`/`aliases`/`short`/`long`/`exits`）聚合。
+- [x] 新增 NPC 级能力注册表（如 `NPC_CAPABILITIES: list[CapabilitySpec]`），至少把现有 `inquiry`/`behaviors`/`tick_interval` 迁移进去；`_NPC_KNOWN_FIELDS` 改为从该注册表 + NPC 固有字段聚合。
+- [x] `save.py` 的房间/NPC 组件 codec（`Description`/`Inquiry`/`Behaviors`/`AIController` 等已迁移进注册表的部分）改走注册表的 `to_dict`/`from_dict`，不再在 `save.py` 里单独硬编码。
+- [x] 注册表的 `CapabilitySpec` 形状与物品用的保持一致（`component_type`/`known_fields`/`from_yaml`/`to_dict`/`from_dict`），使块 B~G 后续票能直接照抄物品能力的写法追加新能力，不需要发明新形状。
+- [x] 明确记录（代码注释或本票 Comments）：`_PLAYER_KNOWN_FIELDS`（`{"name","start_room"}`）与 `_TOP_LEVEL_KNOWN_SECTIONS`（`{"rooms","items","npcs","player"}`）**不**在本票扫平范围内——player 段字段少（后续如需给玩家挂 `Currency`/`Faction` 初始值，直接加进 `_PLAYER_KNOWN_FIELDS` 判断，不为个别字段建注册表，避免过度设计）；新顶层段（`factions:`/`skills:`）是全局注册表模式，不是"实体能力"模式，留给 02/03 号票各自决定。
+- [x] `engine/tests/test_scene_loader.py`、`engine/tests/test_save.py` 现有测试全绿，不回归；`just verify-npc`/`just verify-nature`/`just verify-items` 一键矩阵全绿。
+- [x] 新增至少一条测试证明"注册表驱动的未知字段透传"仍然成立（给房间/NPC 塞一个注册表之外的字段，断言它落进 `entity_extension_data` 而不是被判定为已知字段）。

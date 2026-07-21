@@ -4,13 +4,13 @@
 
 **Blocked by:** None — 纯算法层，无 ECS/YAML 依赖，可与 01/03/04 并行开工。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `CombatContext` 是 frozen dataclass 快照（参战双方气血/内力/属性/当前招式候选的只读数值），不含任何活组件引用。
-- [ ] `resolve_attack(ctx, rng)` 严格实现七步（选技能 -> 取招式 -> AP/DP -> dodge -> parry -> 伤害 -> inflict -> exp+riposte no-op），返回结构化 `CombatRoundResult`（命中/闪避/招架/伤害数值/是否致命/招式名/文案片段）。
-- [ ] AP/DP 判定结构是硬编码不变量：`random(ap+dp)<dp` 命中即闪避成功、`random(ap+pp)<pp` 命中即招架成功（对照 ADR-0004 已拍板形状，不重新论证）。
-- [ ] `PowerModel` 是 `Protocol`（类型层可替换），`DefaultWuxiaPowerModel` 是一份自洽、可测试的默认实现：AP = 招式 `force` × (1 + 力量修正系数)，DP = 防御方敏捷 × 系数 + 招式 `dodge` 值（系数为可读常量，非玄学数字）。
-- [ ] `register_power_model`/`attach_power_model` 与 `attach_ai_system` 同构：纯内存挂 `world`（如 `world.power_model`），幂等，缺省场景不挂时命令层用默认实现兜底（本票只做挂载点，`World.power_model` 字段本身可作为本票交付物，供 12 号票消费）。
-- [ ] 纯函数直测：给定同一份 `CombatContext` + 同 seed 的 `Random` 两次求值，结果完全一致（确定性契约，不是"行为对齐 LPC"，ADR-0001）。
-- [ ] 至少 3 组测试覆盖：必中（dp=0）、必闪（dp 极大）、固定伤害招式 vs 力量修正伤害招式的 AP 计算差异。
-- [ ] `hit_ob`/`hit_by`/`post_action` 三个钩子调用点在 `resolve_attack` 内**留空实现占位**（本票招式不带任何 `SkillBehavior`，占位调用对 `CombatRoundResult` 无影响），供 16 号票接入真实钩子时只改调用点内部、不改 `resolve_attack` 签名。
+- [x] `CombatContext` 是 frozen dataclass 快照（参战双方气血/内力/属性/当前招式候选的只读数值），不含任何活组件引用。
+- [x] `resolve_attack(ctx, rng)` 严格实现七步（选技能 -> 取招式 -> AP/DP -> dodge -> parry -> 伤害 -> inflict -> exp+riposte no-op），返回结构化 `CombatRoundResult`（命中/闪避/招架/伤害数值/是否致命/招式名/文案片段）。
+- [x] AP/DP 判定结构是硬编码不变量：`random(ap+dp)<dp` 命中即闪避成功、`random(ap+pp)<pp` 命中即招架成功（对照 ADR-0004 已拍板形状，不重新论证）。
+- [x] `PowerModel` 是 `Protocol`（类型层可替换），`DefaultWuxiaPowerModel` 是一份自洽、可测试的默认实现：AP = 招式 `force` × (1 + 力量修正系数)，DP = 防御方敏捷 × 系数 + 招式 `dodge` 值（系数为可读常量，非玄学数字）。
+- [x] `register_power_model`/`attach_power_model` 与 `attach_ai_system` 同构：纯内存挂 `world`（如 `world.power_model`），幂等，缺省场景不挂时命令层用默认实现兜底（本票只做挂载点，`World.power_model` 字段本身可作为本票交付物，供 12 号票消费）。
+- [x] 纯函数直测：给定同一份 `CombatContext` + 同 seed 的 `Random` 两次求值，结果完全一致（确定性契约，不是"行为对齐 LPC"，ADR-0001）。
+- [x] 至少 3 组测试覆盖：必中（dp=0）、必闪（dp 极大）、固定伤害招式 vs 力量修正伤害招式的 AP 计算差异。
+- [x] `hit_ob`/`hit_by`/`post_action` 三个钩子调用点在 `resolve_attack` 内**留空实现占位**（本票招式不带任何 `SkillBehavior`，占位调用对 `CombatRoundResult` 无影响），供 16 号票接入真实钩子时只改调用点内部、不改 `resolve_attack` 签名。

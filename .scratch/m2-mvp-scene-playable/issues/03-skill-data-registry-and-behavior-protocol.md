@@ -4,13 +4,13 @@
 
 **Blocked by:** None — 全局注册表 + YAML 顶层段解析，不依赖房间/NPC 能力注册表（01 号票是"逐实体挂载"模式，与本票"全局字典"模式是两回事），可与 01/02/04 并行开工。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `SkillData`（技能类型/等级需求/招式列表）与招式项（`force`/`dodge`/`damage_type`/可选固定 `damage`/`lvl` 门槏/展示文案）的数据形状落地；`SKILLS: dict[str, SkillData]` 全局注册表。
-- [ ] `skills:` 顶层段 YAML 解析：加入 `_TOP_LEVEL_KNOWN_SECTIONS`，解析失败（缺字段/类型错）抛 `SceneLoadError` 带定位信息（与 `scene_loader.py` 现有报错风格一致：文件路径 + 出错条目键）。
-- [ ] 场景加载完成后 `SKILLS` 被正确填充（`load_scene` 调用点/时机由实现阶段决定，建议贴近 `attach_nature`/`attach_ai_system` 的调用位置）。
-- [ ] `SkillBehavior` 是 `@runtime_checkable` 或至少类型可检查的 Protocol（三个钩子方法签名明确）；`register_skill_behavior`/一个按 id 查询的读取函数（供 16 号票消费）。
-- [ ] 引用校验：招式声明的字段类型错误（如 `force` 非数字）在加载期报错，不是运行时静默失败（对齐 M1 "加载期数据校验" 边界）。
-- [ ] 多个场景文件重新 `load_scene` 时 `SKILLS` 全局状态如何处理（覆盖/清空重建）有明确、测试锁定的行为——避免"两次加载互相污染"的隐性 bug（测试建议：连续加载两份不同 `skills:` 内容的场景，断言第二次加载后 `SKILLS` 只含第二份内容）。
-- [ ] 至少 2 条技能数据样例（供后续票直接引用，如"罗汉拳基础招式"）写入测试夹具，不需要是最终少林题材内容（24 号票会替换/追加真正的题材数据）。
-- [ ] 现有测试全绿不回归。
+- [x] `SkillData`（技能类型/等级需求/招式列表）与招式项（`force`/`dodge`/`damage_type`/可选固定 `damage`/`lvl` 门槏/展示文案）的数据形状落地；`SKILLS: dict[str, SkillData]` 全局注册表。
+- [x] `skills:` 顶层段 YAML 解析：加入 `_TOP_LEVEL_KNOWN_SECTIONS`，解析失败（缺字段/类型错）抛 `SceneLoadError` 带定位信息（与 `scene_loader.py` 现有报错风格一致：文件路径 + 出错条目键）。
+- [x] 场景加载完成后 `SKILLS` 被正确填充（`load_scene` 调用点/时机由实现阶段决定，建议贴近 `attach_nature`/`attach_ai_system` 的调用位置）。
+- [x] `SkillBehavior` 是 `@runtime_checkable` 或至少类型可检查的 Protocol（三个钩子方法签名明确）；`register_skill_behavior`/一个按 id 查询的读取函数（供 16 号票消费）。
+- [x] 引用校验：招式声明的字段类型错误（如 `force` 非数字）在加载期报错，不是运行时静默失败（对齐 M1 "加载期数据校验" 边界）。
+- [x] 多个场景文件重新 `load_scene` 时 `SKILLS` 全局状态如何处理（覆盖/清空重建）有明确、测试锁定的行为——避免"两次加载互相污染"的隐性 bug（测试建议：连续加载两份不同 `skills:` 内容的场景，断言第二次加载后 `SKILLS` 只含第二份内容）。
+- [x] 至少 2 条技能数据样例（供后续票直接引用，如"罗汉拳基础招式"）写入测试夹具，不需要是最终少林题材内容（24 号票会替换/追加真正的题材数据）。
+- [x] 现有测试全绿不回归。
