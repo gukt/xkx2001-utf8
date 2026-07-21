@@ -115,6 +115,10 @@ verify-m2-journey:
 # M2 全部 verify 矩阵（能力面 + journey）
 verify-m2: verify-m2-combat verify-m2-economy verify-m2-faction verify-m2-travel verify-m2-journey
 
+# M3 内容包闭环（废弃探测站示例包；正式门禁见 tests/test_m3_pack_loop.py）
+verify-m3:
+    cd engine && uv run python scripts/verify_m3_pack_loop.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

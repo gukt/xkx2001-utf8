@@ -4,13 +4,17 @@
 
 **Blocked by:** `03`, `04`（需要 CLI 层与示例包都已交付才能串起端到端测试）。
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `test_m3_pack_loop.py`：`tmp_path` 复制 `example-pack/` 场景，用 `_main`（或直接 `load_pack` + `execute_line` 组合，取决于 03 号票实际交付的可测试性）跑完整条 04 号票记录的命令序列，全程断言关键返回消息（不断言内部实现细节）。
-- [ ] `test_m3_pack_loop.py`：坏 manifest（缺 `id`）与坏 `scene.yaml`（出口引用不存在房间）两个独立测试用例，均通过 `--validate` 路径验证报错类型与文案区分、退出码非零、不产生 `save/` 目录副作用。
-- [ ] `test_m3_pack_loop.py`：存档/重启恢复场景——走一遍"`--pack` 加载 → 执行几条命令改变状态（如移动/拾取）→ 触发存档（quit 或达到 tick 周期）→ 用同一 `--pack` 路径重新启动 → 断言恢复后玩家位置/物品栏与退出前一致，且 `world.pack_manifest` 正确重挂"。
-- [ ] `engine/scripts/verify_m3_pack_loop.py` 落地，风格/结构对齐现有 `verify_m2_*.py`（复用 `verify_harness.py` 里已有的断言/转录 helper，不重新发明一套）；`just verify-m3` recipe 加入 `justfile`。
-- [ ] `just verify-m3` 与 `just test` 全绿。
-- [ ] `PROGRESS.md` 更新：Done 追加 M3 收口条目（含日期、指向本 spec/本票的链接）；滑动窗口保持 5 条（超出的移进 `.scratch/progress-archive.md`，措辞保留当时表述不回改，对齐现有归档惯例）；当前状态速览行更新；Next Up 换成 M4 相关待办。
-- [ ] `ADR-0005` 若需要因实现细节偏离原描述而修订，补一条"范围修订记录"风格的说明（对齐 [M2 spec](../m2-mvp-scene-playable/spec.md) 末尾"范围修订记录"一节的既有写法），不需要改判 ADR 的 `Status`。
-- [ ] 全量测试套件（`just test`）与 lint（`just lint`）均绿。
+- [x] `test_m3_pack_loop.py`：`tmp_path` 复制 `example-pack/` 场景，用 `_main`（或直接 `load_pack` + `execute_line` 组合，取决于 03 号票实际交付的可测试性）跑完整条 04 号票记录的命令序列，全程断言关键返回消息（不断言内部实现细节）。
+- [x] `test_m3_pack_loop.py`：坏 manifest（缺 `id`）与坏 `scene.yaml`（出口引用不存在房间）两个独立测试用例，均通过 `--validate` 路径验证报错类型与文案区分、退出码非零、不产生 `save/` 目录副作用。
+- [x] `test_m3_pack_loop.py`：存档/重启恢复场景——走一遍"`--pack` 加载 → 执行几条命令改变状态（如移动/拾取）→ 触发存档（quit 或达到 tick 周期）→ 用同一 `--pack` 路径重新启动 → 断言恢复后玩家位置/物品栏与退出前一致，且 `world.pack_manifest` 正确重挂"。
+- [x] `engine/scripts/verify_m3_pack_loop.py` 落地，风格/结构对齐现有 `verify_m2_*.py`（复用 `verify_harness.py` 里已有的断言/转录 helper，不重新发明一套）；`just verify-m3` recipe 加入 `justfile`。
+- [x] `just verify-m3` 与 `just test` 全绿。
+- [x] `PROGRESS.md` 更新：Done 追加 M3 收口条目（含日期、指向本 spec/本票的链接）；滑动窗口保持 5 条（超出的移进 `.scratch/progress-archive.md`，措辞保留当时表述不回改，对齐现有归档惯例）；当前状态速览行更新；Next Up 换成 M4 相关待办。
+- [x] `ADR-0005` 若需要因实现细节偏离原描述而修订，补一条"范围修订记录"风格的说明（对齐 [M2 spec](../m2-mvp-scene-playable/spec.md) 末尾"范围修订记录"一节的既有写法），不需要改判 ADR 的 `Status`。
+- [x] 全量测试套件（`just test`）与 lint（`just lint`）均绿。
+
+## Comments
+
+- 2026-07-21 `/implement`：落地如上。ADR-0005 与本次实现一致（manifest + 声明式包外内容 + `--validate` 校验契约），无需修订记录。`just lint` 仓库内仍有与本票无关的既有 I001/F401；本票新增文件 ruff 干净。

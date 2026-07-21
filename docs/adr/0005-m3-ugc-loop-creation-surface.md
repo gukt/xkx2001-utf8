@@ -9,6 +9,8 @@ Superseded-in-part-by: 0006
 
 **归类更正（2026-07-21）**：子系统 9「编辑器」不再维持「现代化改造」——用户确认引擎不做原版编辑器/留言板能力，创作 UX 走独立 Web 平台（post-MVP）。改判与 backlog 见 [ADR-0006](0006-no-engine-editor-board-post-mvp-creator-platform.md)。本 ADR 其余（M3 创作面边界）仍有效。
 
+**落地核对（2026-07-21）**：M3 Wave 0–3 按 [spec](../../.scratch/m3-ugc-loop-creation-surface/spec.md) 交付——`PackManifest` / `load_pack` / `--pack`+`--validate` / 非武侠 `example-pack` / `just verify-m3`。与本 ADR「包外声明式内容包 → 加载 → 可玩」描述一致，无范围偏离，不改判 Status。
+
 ## 考虑过的选项
 
 - **M3 把游戏内编辑器升为 MVP 必做**：否决。与 07 号票 M3 定义不符，且会把 UGC 闭环绑到 LPC 文选式交互上。
