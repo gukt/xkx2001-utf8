@@ -37,7 +37,6 @@ from pathlib import Path
 from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
 from mud_engine.components import (
     TRANSIENT,
-    Description,
     Door,
     Doors,
     DoorState,
