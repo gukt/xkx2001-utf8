@@ -5,27 +5,27 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M2 Wave 3 `/implement` 开工（tag `m2-wave3-start`）。
+**最后更新**：2026-07-21：M2 Wave 3 `/implement` + `/code-review` fix 完成；下一环节 Wave 4。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–2 完成**；**Wave 3 实现中**（票 `15`–`20`）。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–3 实现 + code-review fix 完成**，待 Wave 4。
 - **工作分支**：`feat/m2-mvp-scene-playable`（Wave 3 fixed point tag：`m2-wave3-start`）。
-- **engine/**：测试绿（494 passed，Wave 3 开工基线）。
+- **engine/**：测试绿（521 passed）。
 
 ## Done
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
+- [x] **M2 Wave 3 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave3-start`。票 `15`–`20`：Terrain/骑乘、SkillBehavior 钩子、DeathPolicy、NPC loot/重生、aggro、同名消歧。Review fix：无 loot 仍给击杀经验、`post_action` 不改本回合结果、物品掉落断言。521 测试绿。
 - [x] **M2 Wave 2 `/code-review` fix**（2026-07-21）：fixed point `m2-wave2-start`。EntryGuard 坏条件 fail-closed；`learn` 校验 `level_req`；And 拒绝文案落到子条件。494 测试绿。
 - [x] **M2 Wave 2 落地：坐骑 / 门槏 / 战斗接线 / practice / learn**（2026-07-21）：五票各一 commit。`10`–`14` resolved。fixed point `m2-wave2-start`。
 - [x] **M2 Wave 1 `/code-review` fix**（2026-07-21）：fixed point `m2-wave1-start`。修复：`status` 不展示银两；实体 `skills` 引用始终校验全局 `SKILLS`；`Unconscious`/`Dead` codec 走 `NPC_CAPABILITIES`。462 测试绿。
 - [x] **M2 Wave 1 落地：角色成长 / 死亡状态机 / 货币商店 / 门派框架 / 渡船**（2026-07-21）：五票各一 commit。`05`–`09` resolved。fixed point `m2-wave1-start`。
-- [x] **M2 Wave 0 `/code-review` fix**（2026-07-21）：fixed point `m2-wave0-start`。431→后续矩阵增长。
 
 ## In Progress
 
-- **M2 Wave 3 `/implement`**：票 `15`–`20`（地形限制 / 技能钩子 / 死亡流程 / NPC 重生 / aggro / 同名消歧）；fixed point `m2-wave3-start`。
+当前无进行中项。
 
 ## Blocked
 
@@ -33,8 +33,8 @@
 
 ## Next Up
 
-1. 完成 Wave 3 六票实现 + `/code-review`（fixed point `m2-wave3-start`）。
-2. 之后按 implement-plan 推进 Wave 4–5。
+1. **M2 Wave 4 `/implement`**：票 `21`–`25`（六分区场景内容）；开工前打 tag `m2-wave4-start`，见 [implement-plan.md](.scratch/m2-mvp-scene-playable/implement-plan.md)。
+2. 之后 Wave 5（票 `26` 端到端收口）。
 3. 按 CLAUDE.md 待办：M3 前核对 [03-ugc-dsl-design-inheritance](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统归类是否仍准确。
 
 ## 交接约定

@@ -66,19 +66,14 @@ class TestAggroBehavior:
     def test_already_engaged_player_not_re_aggroed(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
         wolf = _wolf(world, player_id)
-        # 第二只狼
         from mud_engine.ai import spawn_from_blueprint
+        from mud_engine.components import Position
 
         bp = world.spawners["wolf"]
-        wolf2 = spawn_from_blueprint(world, bp, room=world.require_component(player_id, __import__("mud_engine.components", fromlist=["Position"]).Position).room)
+        room = world.require_component(player_id, Position).room
+        wolf2 = spawn_from_blueprint(world, bp, room=room)
         loop = TickLoop(lambda: None, world=world)
         loop.advance()
-        # 第一只已交战；第二只因玩家已 Engaged 应跳过
-        assert world.has_component(wolf, Engaged) or world.has_component(wolf2, Engaged)
-        engaged_wolves = [
-            e
-            for e in (wolf, wolf2)
-            if world.has_component(e, Engaged)
-        ]
+        engaged_wolves = [e for e in (wolf, wolf2) if world.has_component(e, Engaged)]
         assert len(engaged_wolves) == 1
         assert world.require_component(player_id, Engaged).opponent == engaged_wolves[0]
