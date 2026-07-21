@@ -3,6 +3,10 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M2 Wave 5 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave5-start`。557 测试绿。
+
+- [x] **M2 Wave 4 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave4-start`。551 测试绿。
+
 - [x] **M2 Wave 3 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave3-start`。票 `15`–`20`：Terrain/骑乘、SkillBehavior 钩子、DeathPolicy、NPC loot/重生、aggro、同名消歧。Review fix：无 loot 仍给击杀经验、`post_action` 不改本回合结果、物品掉落断言。521 测试绿。
 
 - [x] **M2 Wave 2 `/code-review` fix**（2026-07-21）：fixed point `m2-wave2-start`。EntryGuard 坏条件 fail-closed；`learn` 校验 `level_req`；And 拒绝文案落到子条件。494 测试绿。
