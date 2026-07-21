@@ -3,6 +3,10 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M3 Wave 0 `/implement` + `/code-review` fix**（2026-07-21）：票 `01`——`PackManifest` + `load_manifest` + `PackManifestError`；fixed point `m3-wave0-start`。Review fix：去掉 helper 路径 Data Clump、合并 `_as_string`、`extra: dict[str, object]`。577 绿。
+
+- [x] **M3 `/to-spec` + `/to-tickets` 完成**（2026-07-21）：[spec.md](m3-ugc-loop-creation-surface/spec.md)（`ready-for-agent`）；5 张票 `01`–`05`；[to-tickets-notes.md](m3-ugc-loop-creation-surface/to-tickets-notes.md)；[implement-plan.md](m3-ugc-loop-creation-surface/implement-plan.md)（4 wave）。
+
 - [x] **编辑器丢弃 + post-MVP backlog**（2026-07-21）：[ADR-0006](../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md)；子系统 9→丢弃；Web 创作者平台 + 留言板记入 [post-mvp-backlog.md](mvp-scope/post-mvp-backlog.md)；档位 18/4/9/11。
 
 - [x] **M3 前核对：03 细化**（2026-07-21）：[03](mvp-scope/issues/03-ugc-dsl-design-inheritance.md) Refinement；[ADR-0005](../docs/adr/0005-m3-ugc-loop-creation-surface.md)（M3 包外创作面；编辑器归类已被 0006 修正）。

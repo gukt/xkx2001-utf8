@@ -4,6 +4,8 @@ Status: accepted
 
 # 战斗流程框架与效果生命周期机制归引擎，精确边界定稿
 
+> **停机范围收窄（非改判归属）**：持续 Effect 生命周期仍属引擎职责，但**不是** M2/M3 停机必须兑现的不变量；见 [ADR-0007](0007-effect-lifecycle-deferred-from-m2-m3-stop.md)。
+
 mvp-scope [02 号票](../../.scratch/mvp-scope/issues/02-engine-boundary-combat-effects.md)原为 9 票里唯一暂定挂起项，问"战斗结算流程框架"与"技能/效果生命周期机制"该归题材无关引擎还是题材包。经旧引擎 archive（`resolve_attack` 七步管线 + `ConditionSystem` + 已留 `register_condition` 注入点）、LPC 源码（`combatd.c do_attack` 七步 + `condition.c` heart_beat 调度）、架构拆解研究产出 A06/D05 三源互证，拍板：两者归引擎，精确边界为**引擎内嵌"七步顺序 + AP/DP 概率判定结构 + Effect 调度/衰减/移除机制"为不变量；题材包注入"每步具体数值/文案/钩子行为 + AP/DP 求值公式（PowerModel 策略）+ condition handler + 声明式 stacking_policy/EffectMode"**。这是"流程归引擎、数值归题材包"暂定倾向的精确落地，非改判，因此战斗/状态/技能/死亡轮回四子系统维持 MVP 必做归类不变。
 
 ## 考虑过的选项

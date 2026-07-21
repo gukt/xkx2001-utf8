@@ -54,7 +54,7 @@ Phase 2：主席主持交叉对抗并写入 `adversarial/` + `final/`。
 | Phase 1 | 各专家独立写 `experts/*-raw.md` | **完成**（01–04 齐） |
 | Phase 2 | 交叉对抗 → `adversarial/cross-review.md` | **完成** |
 | Final | 综合报告 → `final/m3-engine-architecture-review-report.md` | **已发布** |
-| 收口（项目侧） | 更新 `PROGRESS.md`、开加固票或修订 ADR、决定是否暂缓 M4 | **待架构师决策**（本目录评审工件已齐） |
+| 收口（项目侧） | 更新 `PROGRESS.md`、开加固票或修订 ADR、决定是否暂缓 M4 | **拍板已落**（2026-07-21：S0+P0；P1 续 grill→W1/B3/Q3；ADR-0007～0009；暂缓 M4；实现待 hardening `/to-spec`） |
 
 ## 一页结论摘要（Final）
 
