@@ -1,9 +1,9 @@
 # M2 MVP 武侠题材包场景（Wave 4 起累加；单文件，见 .scratch/m2-mvp-scene-playable/room-keys.md）
 #
 # 分区前缀：huashan_* / yangzhou_* / shaolin_* / wild_* / road_* / ferry_*
-# 华山村（21）已落地；扬州/少林/野外等后续票追加。
+# 已落地：华山村（21）、扬州枢纽+城门（22）；商业/少林/野外后续票追加。
 
-# ── 房间：华山村（21）──────────────────────────────────
+# ── 房间：华山村（21）+ 扬州枢纽（22）+ 官道桩（22 预留，25 扩展）──
 rooms:
   huashan_birth:
     name: 华山村口
@@ -33,6 +33,97 @@ rooms:
     no_death: true
     exits:
       west: { to: huashan_guide, aliases: [西, 广场] }
+
+  # ── 扬州枢纽 + 四街四门（22）────────────────────────
+  yangzhou_guangchang:
+    name: 中央广场
+    long: >-
+      扬州城心的中央广场，石狮守着旗杆，往来车马络绎不绝。
+      四条大街由此散开，是城中枢纽，也是传闻中动态事件的落脚处。
+    outdoors: true
+    exits:
+      north: { to: yangzhou_beidajie, aliases: [北] }
+      south: { to: yangzhou_nandajie, aliases: [南] }
+      east: { to: yangzhou_dongdajie, aliases: [东] }
+      west: { to: yangzhou_xidajie, aliases: [西] }
+
+  yangzhou_beidajie:
+    name: 北大街
+    long: >-
+      北大街青石铺就，酒幌与布招随风轻晃，行人多往北门方向去。
+    outdoors: true
+    exits:
+      south: { to: yangzhou_guangchang, aliases: [南, 广场] }
+      north: { to: yangzhou_beimen, aliases: [北, 北门] }
+
+  yangzhou_nandajie:
+    name: 南大街
+    long: >-
+      南大街较北街略窄，茶香与脚力车的铃声混在一处，尽头是南门。
+    outdoors: true
+    exits:
+      north: { to: yangzhou_guangchang, aliases: [北, 广场] }
+      south: { to: yangzhou_nanmen, aliases: [南, 南门] }
+
+  yangzhou_dongdajie:
+    name: 东大街
+    long: >-
+      东大街通向东门，再往东便是出城官道。街边多钱庄商号。
+    outdoors: true
+    exits:
+      west: { to: yangzhou_guangchang, aliases: [西, 广场] }
+      east: { to: yangzhou_dongmen, aliases: [东, 东门] }
+
+  yangzhou_xidajie:
+    name: 西大街
+    long: >-
+      西大街连通西门，铁匠铺的锤声隐约可闻，马蹄印留在土路上。
+    outdoors: true
+    exits:
+      east: { to: yangzhou_guangchang, aliases: [东, 广场] }
+      west: { to: yangzhou_ximen, aliases: [西, 西门] }
+
+  yangzhou_beimen:
+    name: 北门
+    long: >-
+      扬州北门城楼高耸，门洞可通马车。城外是北郊田野。
+    outdoors: true
+    exits:
+      south: { to: yangzhou_beidajie, aliases: [南, 北大街] }
+
+  yangzhou_nanmen:
+    name: 南门
+    long: >-
+      南门相对冷清，守军换岗的脚步声在砖石间回响。
+    outdoors: true
+    exits:
+      north: { to: yangzhou_nandajie, aliases: [北, 南大街] }
+
+  yangzhou_dongmen:
+    name: 东门
+    long: >-
+      东门是出城官道的起点，车马与客商多从此门进出。城门外官道向东延伸。
+    outdoors: true
+    exits:
+      west: { to: yangzhou_dongdajie, aliases: [西, 东大街] }
+      east: { to: road_yz_east, aliases: [东, 官道] }
+
+  yangzhou_ximen:
+    name: 西门
+    long: >-
+      西门城垛上旗帜猎猎。两名同名官兵并肩站岗，盘查过往行人。
+    outdoors: true
+    exits:
+      east: { to: yangzhou_xidajie, aliases: [东, 西大街] }
+
+  # 22 预留、25 扩展的官道桩（保证东门 east 出口可加载）
+  road_yz_east:
+    name: 扬州东门外官道
+    long: >-
+      出东门后的官道路段，黄土飞扬。再往东是郊外与通往少林的官道（后续扩展）。
+    outdoors: true
+    exits:
+      west: { to: yangzhou_dongmen, aliases: [西, 东门] }
 
 # ── 物品 ──────────────────────────────────────────────
 items:
@@ -77,6 +168,17 @@ npcs:
       con: 10
       dex: 0
       int: 1
+
+  yangzhou_ximen_guard:
+    name: 官兵
+    aliases: [守卫, 门卫]
+    short: 一名官兵
+    long: 身穿号衣的官兵，眼神锐利，与同伴一同把守西门。
+    in_room: yangzhou_ximen
+    count: 2
+    inquiry:
+      城防: 西门城防由我等官兵轮值，闲人莫近城垛。
+      default: 闲人免进，有事说事。
 
 # ── 玩家 ──────────────────────────────────────────────
 player:
