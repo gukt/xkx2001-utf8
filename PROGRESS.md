@@ -5,13 +5,13 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与架构不变量。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M3 停机加固 `/to-tickets` 完成（11 张票，[.scratch/m3-hardening/issues/](.scratch/m3-hardening/issues/)）+ 拆票分析笔记 [to-tickets-notes.md](.scratch/m3-hardening/to-tickets-notes.md) + 执行计划 [implement-plan.md](.scratch/m3-hardening/implement-plan.md)（4 wave）；下一步在新 session 按 Wave 0 提示词模板跑 `/implement`。
+**最后更新**：2026-07-21：M3 停机加固 Wave 0 `/implement` 完成（票 `01`–`05`，5 commit；fixed point `m3-hardening-wave0-start`；657 绿）；待 `/code-review`。
 
 ## 当前状态速览
 
 - **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 里程碑可宣布完成**；当前窗口 = **M3 停机加固**——**退出标准仅 P0（S0）**；同 effort 规划 **B3 wave**（选定 P1，非门闩）；**暂缓 M4**。
-- **工作分支**：`feat/m3-ugc-loop-creation-surface`（Wave 3 fixed point tag：`m3-wave3-start`）。
-- **engine/**：测试绿（649）；加固已拆票 + 排好执行计划，尚未开工——spec 见 [m3-hardening/spec.md](.scratch/m3-hardening/spec.md)，票见 [m3-hardening/issues/](.scratch/m3-hardening/issues/)（Wave P0 七张 `01`–`07`、Wave B3 四张 `08`–`11`；P0-1/P0-9/B3-1 已由 ADR 落盘不开票），拆票依据见 [to-tickets-notes.md](.scratch/m3-hardening/to-tickets-notes.md)，执行计划（4 wave + `/code-review` 循环 + Wave 提示词模板）见 [implement-plan.md](.scratch/m3-hardening/implement-plan.md)，下一步在新 session 按 Wave 0 模板跑 `/implement`。
+- **工作分支**：`feat/m3-ugc-loop-creation-surface`（加固 Wave 0 fixed point：`m3-hardening-wave0-start`）。
+- **engine/**：测试绿（657）；Wave 0 五张票已落地并各自 commit，尚未跑 `/code-review`——spec 见 [m3-hardening/spec.md](.scratch/m3-hardening/spec.md)，票见 [m3-hardening/issues/](.scratch/m3-hardening/issues/)，执行计划见 [implement-plan.md](.scratch/m3-hardening/implement-plan.md)。
 - **拍板依据**：[评审 Final](.scratch/m3-engine-architecture-review/final/m3-engine-architecture-review-report.md)；[ADR-0007](docs/adr/0007-effect-lifecycle-deferred-from-m2-m3-stop.md)～[0009](docs/adr/0009-single-process-single-world.md)；[CONTEXT.md](CONTEXT.md)。
 
 ## Done
@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+**M3 停机加固 Wave 0**：票 `01`–`05` 已实现并 commit；fixed point `m3-hardening-wave0-start`；全量 657 绿。**待 `/code-review`**（spec：`.scratch/m3-hardening/spec.md` + Wave 0 五张 issue），修完 fix 后再把 Done 条目写入本文件并开 Wave 1。
 
 ## Blocked
 
@@ -34,11 +34,9 @@
 
 ## Next Up
 
-1. **M3 停机加固** `/to-spec`（已完成）→ `/to-tickets`（已完成，11 张票 + [to-tickets-notes.md](.scratch/m3-hardening/to-tickets-notes.md)）→ **`/implement`（下一步，按 [implement-plan.md](.scratch/m3-hardening/implement-plan.md) 4 wave 逐批推进，新 session 用 Wave 提示词模板）**：
-   - **Wave 0**（`01`/`02`/`03`/`04`/`05`，互不阻塞可并行）＋ **Wave 1**（`06` 阻塞于 `05`、`07` 阻塞于 `03`）= spec Wave P0（停机门闩 / S0）；Wave 1 全部关闭才是"可诚实停机"的唯一标准。
-   - **Wave 2**（`08`/`10`/`11`，`10` 阻塞于 `03`）＋ **Wave 3**（`09` 阻塞于 `06`）= spec Wave B3（排期，非门闩，各项各自关闭即可）。
-   - P0-1/P0-9/B3-1 已由 ADR-0007/0008/0009 落盘，不开票；**OOS / 后置**：P1-1、P1-5、P1-8、P1-9；评审 P2；M4。
-2. Wave 1 全关后：更新本文件「可诚实停机」；Wave 2/3 可继续；Wave 3 完成后再决定是否开 M4——对照 [06](.scratch/mvp-scope/issues/06-scaling-commercialization-support-points.md) / [07](.scratch/mvp-scope/issues/07-governance-cost-tracking.md)。
+1. **`/code-review` Wave 0**（fixed point `m3-hardening-wave0-start`）→ fix → `just test` 绿 → 再开 **Wave 1**（`06` 创作者契约 v0，阻塞于已落地的 `05`；`07` 票 Status 刷新 + 战斗事件契约测，阻塞于已落地的 `03`）。
+2. Wave 1 全关后：更新本文件「可诚实停机」；再推进 Wave 2/3（spec Wave B3）。
+3. Wave 3 完成后再决定是否开 M4——对照 [06](.scratch/mvp-scope/issues/06-scaling-commercialization-support-points.md) / [07](.scratch/mvp-scope/issues/07-governance-cost-tracking.md)。
 
 ## 交接约定
 
