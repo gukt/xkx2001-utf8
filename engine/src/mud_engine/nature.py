@@ -193,6 +193,21 @@ class NatureState:
         return self.weather is Weather.RAIN
 
     @property
+    def faction_id(self) -> str | None:
+        """世界环境无门派概念；门槏查询面缺省 None。"""
+        return None
+
+    @property
+    def gender(self) -> str | None:
+        """世界环境无性别；门槏查询面缺省 None。"""
+        return None
+
+    @property
+    def is_wielding_edged_weapon(self) -> bool:
+        """世界环境无持械状态；门槏查询面缺省 False。"""
+        return False
+
+    @property
     def game_time_str(self) -> str:
         """可读游戏时间字符串（时辰中文名，雨天加后缀）。"""
         label = _PHASE_LABELS.get(self.phase, self.phase)

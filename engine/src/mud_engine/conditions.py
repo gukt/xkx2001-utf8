@@ -42,6 +42,9 @@ class ConditionContext(Protocol):
     倒置）。未来扩展查询面（如玩家在场、季节）只需往协议加属性，旧 handler
     不破坏（增量扩展）。
 
+    M2-11 追加门槏查询面：``faction_id`` / ``gender`` / ``is_wielding_edged_weapon``。
+    旧实现（NatureState / StubContext）补缺省值即可，不破坏已有条件表达式。
+
     用 ``@runtime_checkable`` 让契约测试能 ``isinstance`` 断言 stub / 真实
     实现都符合协议（见 ``test_conditions.TestStubContextProtocol``，与
     ``events.TickContext`` 契约测试同思路）。
@@ -65,6 +68,21 @@ class ConditionContext(Protocol):
     @property
     def is_raining(self) -> bool:
         """是否在下雨。"""
+        ...
+
+    @property
+    def faction_id(self) -> str | None:
+        """实体门派 id；无归属为 None。"""
+        ...
+
+    @property
+    def gender(self) -> str | None:
+        """实体性别标记；未挂 Gender 为 None。"""
+        ...
+
+    @property
+    def is_wielding_edged_weapon(self) -> bool:
+        """物品栏是否持有带 ``edged`` 标签的物品。"""
         ...
 
 
@@ -91,6 +109,14 @@ class Equals:
 
 
 @dataclass(frozen=True)
+class Gte:
+    """大于等于：数值属性 ``>=`` 字面量（M2-14 属性门槏，如根骨 >= 12）。"""
+
+    field: str
+    value: int | float
+
+
+@dataclass(frozen=True)
 class And:
     """逻辑与：所有子条件都真才真。空 ``parts`` 视为真（``all([])`` 语义）。"""
 
@@ -113,22 +139,23 @@ class Not:
 
 # 条件表达式 = 上述五种节点之一。``from __future__ import annotations`` 让
 # ``And`` / ``Or`` / ``Not`` 的字段注解延迟求值，此别名可定义在节点之后。
-Condition = Predicate | Equals | And | Or | Not
+Condition = Predicate | Equals | Gte | And | Or | Not
 
 
 @dataclass
 class StubContext:
-    """M1 stub：可注入任意 ``phase`` / ``is_night`` / ``is_day`` / ``is_raining`` 的测试 context。
+    """M1 stub：可注入任意查询面的测试 context。
 
-    B 块 Nature 落地时 ``NatureState`` 实现同一 ``ConditionContext`` 协议替换本 stub。
-    非 frozen：Nature 状态是运行时态（时辰会推进），可变更符合语义；frozen 的约束
-    留给表达式节点（纯数据、可哈希、可作 dict key / 存档值）。
+    B 块 Nature / M2-11 EntityGateContext 实现同一 ``ConditionContext`` 协议。
     """
 
     phase: str = "day"
     is_night: bool = False
     is_day: bool = True
     is_raining: bool = False
+    faction_id: str | None = None
+    gender: str | None = None
+    is_wielding_edged_weapon: bool = False
 
 
 class ConditionError(ValueError):
@@ -174,6 +201,13 @@ def _evaluate(condition: Condition, context: ConditionContext, depth: int) -> bo
             return _lookup_bool(condition.name, context)
         case Equals():
             return _lookup(condition.field, context) == condition.value
+        case Gte():
+            actual = _lookup(condition.field, context)
+            if not isinstance(actual, (int, float)):
+                raise ConditionError(
+                    f"gte field {condition.field!r} must be numeric, got {type(actual).__name__}"
+                )
+            return actual >= condition.value
         case And():
             return all(_evaluate(part, context, depth + 1) for part in condition.parts)
         case Or():
@@ -211,6 +245,7 @@ __all__ = [
     "ConditionContext",
     "ConditionError",
     "Equals",
+    "Gte",
     "Not",
     "Or",
     "Predicate",
