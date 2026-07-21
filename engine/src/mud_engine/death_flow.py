@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from mud_engine.combat_system import clear_engagement, select_move
 from mud_engine.components import (
+    DEFAULT_UNCONSCIOUS_RECOVERY_TICKS,
     Container,
     Currency,
     Dead,
@@ -79,7 +80,7 @@ class DeathPolicy:
     revive_room_key: str = "huashan_village"
     drop_items: bool = True
     drop_currency: bool = True
-    unconscious_recovery_ticks: int = 5
+    unconscious_recovery_ticks: int = DEFAULT_UNCONSCIOUS_RECOVERY_TICKS
     recovery_vitals_ratio: float = 0.2
 
 
@@ -105,6 +106,11 @@ class DeathContext:
 
 def default_death_policy() -> DeathPolicy:
     return DeathPolicy()
+
+
+def _world_death_policy(world: World) -> DeathPolicy:
+    """取世界挂载的 DeathPolicy；未挂时回退默认。"""
+    return world.death_policy if world.death_policy is not None else default_death_policy()
 
 
 def parse_death_policy(raw: object | None) -> DeathPolicy:
@@ -186,7 +192,7 @@ def _handle_player_depleted(
     in_safe = world.has_component(pos.room, NoDeathZone)
     current = current_death_state(world, player_id)
     nxt = next_death_state(current, in_no_death_zone=in_safe, vitals_depleted=True)
-    policy: DeathPolicy = getattr(world, "death_policy", None) or default_death_policy()
+    policy = _world_death_policy(world)
     if nxt is DeathState.UNCONSCIOUS:
         if not world.has_component(player_id, Unconscious):
             world.add_component(
@@ -219,9 +225,7 @@ def _execute_player_death(
         if world.has_component(player_id, Dead):
             world.remove_component(player_id, Dead)
         if not world.has_component(player_id, Unconscious):
-            deny_policy: DeathPolicy = (
-                getattr(world, "death_policy", None) or default_death_policy()
-            )
+            deny_policy = _world_death_policy(world)
             world.add_component(
                 player_id,
                 Unconscious(ticks_remaining=deny_policy.unconscious_recovery_ticks),
@@ -229,7 +233,7 @@ def _execute_player_death(
         world.pending_messages.append(denial)
         return
 
-    policy: DeathPolicy = getattr(world, "death_policy", None) or default_death_policy()
+    policy = _world_death_policy(world)
     world.events.dispatch(ON_DEATH, ctx)
 
     if world.has_component(player_id, Engaged):
@@ -410,7 +414,7 @@ def attach_unconscious_recovery(world: World) -> None:
 
 def _on_unconscious_tick(context: TickContext) -> None:
     world = context.world
-    policy: DeathPolicy = getattr(world, "death_policy", None) or default_death_policy()
+    policy = _world_death_policy(world)
     for entity in list(world.entities_with(Unconscious)):
         unc = world.require_component(entity, Unconscious)
         unc.ticks_remaining -= 1

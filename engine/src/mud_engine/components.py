@@ -375,16 +375,20 @@ class SkillLevels:
 # ── 死亡状态机标记（M2-06 / spec C1）────────────────────────────────────
 # 存活 = 两者都不挂；不新增 Alive，避免三态用两个布尔表达出非法组合。
 
+# 昏迷苏醒默认倒计时（tick）；DeathPolicy / Unconscious / 老存档 codec 共用。
+DEFAULT_UNCONSCIOUS_RECOVERY_TICKS = 5
+
 
 @dataclass
 class Unconscious:
     """昏迷中。运行时可变进存档。
 
     ``ticks_remaining``：距自然苏醒剩余 tick；陷入昏迷时按 DeathPolicy 写入初值。
-    缺省 5 与 ``DeathPolicy.unconscious_recovery_ticks`` 默认对齐（老调用/老存档兜底）。
+    缺省与 ``DeathPolicy.unconscious_recovery_ticks`` / 老存档回退共用
+    ``DEFAULT_UNCONSCIOUS_RECOVERY_TICKS``。
     """
 
-    ticks_remaining: int = 5
+    ticks_remaining: int = DEFAULT_UNCONSCIOUS_RECOVERY_TICKS
 
 
 @dataclass

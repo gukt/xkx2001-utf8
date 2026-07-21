@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mud_engine.components import (
+    DEFAULT_UNCONSCIOUS_RECOVERY_TICKS,
     AIController,
     BaseAttributes,
     Behaviors,
@@ -1086,8 +1087,12 @@ def _ser_unconscious(c: Unconscious) -> dict:
 
 
 def _des_unconscious(d: dict) -> Unconscious:
-    # 老存档缺字段 → 回退 DeathPolicy 默认（5），不新增迁移框架。
-    return Unconscious(ticks_remaining=int(d.get("ticks_remaining", 5)))
+    # 老存档缺字段 → 回退默认，不新增迁移框架。
+    return Unconscious(
+        ticks_remaining=int(
+            d.get("ticks_remaining", DEFAULT_UNCONSCIOUS_RECOVERY_TICKS)
+        )
+    )
 
 
 def _ser_dead(_c: Dead) -> dict:

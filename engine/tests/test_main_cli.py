@@ -289,38 +289,79 @@ player:
 
 
 class TestValidateStrictUnconsumed:
-    def test_strict_requires_validate(self, stub_repl: MagicMock, capsys) -> None:
-        assert _main(["--strict"]) != 0
-        err = capsys.readouterr().err
-        assert "--strict" in err
-        assert "--validate" in err
-        stub_repl.assert_not_called()
+    class WhenStrictWithoutValidate:
+        def test_returns_nonzero(self, stub_repl: MagicMock) -> None:
+            assert _main(["--strict"]) != 0
 
-    def test_validate_warns_but_exits_zero(
-        self, tmp_path: Path, stub_repl: MagicMock, capsys
-    ) -> None:
-        pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
-        assert _main(["--pack", str(pack_dir), "--validate"]) == 0
-        captured = capsys.readouterr()
-        assert "警告" in captured.err
-        assert "typo_field" in captured.err or "mystery_section" in captured.err
-        assert "test-pack" in captured.out
+        def test_stderr_mentions_both_flags(self, stub_repl: MagicMock, capsys) -> None:
+            _main(["--strict"])
+            err = capsys.readouterr().err
+            assert "--strict" in err
+            assert "--validate" in err
 
-    def test_validate_strict_exits_nonzero(
-        self, tmp_path: Path, stub_repl: MagicMock, capsys
-    ) -> None:
-        pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
-        assert _main(["--pack", str(pack_dir), "--validate", "--strict"]) != 0
-        err = capsys.readouterr().err
-        assert "未消费" in err or "校验失败" in err
-        assert "typo_field" in err or "mystery_section" in err
+        def test_does_not_enter_repl(self, stub_repl: MagicMock) -> None:
+            _main(["--strict"])
+            stub_repl.assert_not_called()
 
-    def test_clean_pack_strict_exits_zero_no_warn(
-        self, tmp_path: Path, stub_repl: MagicMock, capsys
-    ) -> None:
-        pack_dir = _write_pack(tmp_path / "pack")
-        assert _main(["--pack", str(pack_dir), "--validate", "--strict"]) == 0
-        captured = capsys.readouterr()
-        assert "警告" not in captured.err
-        assert "未消费" not in captured.err
-        assert "test-pack" in captured.out
+    class WhenPackHasUnconsumedFields:
+        class WhenNotStrict:
+            def test_returns_zero(
+                self, tmp_path: Path, stub_repl: MagicMock
+            ) -> None:
+                pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
+                assert _main(["--pack", str(pack_dir), "--validate"]) == 0
+
+            def test_stderr_warns(
+                self, tmp_path: Path, stub_repl: MagicMock, capsys
+            ) -> None:
+                pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
+                _main(["--pack", str(pack_dir), "--validate"])
+                err = capsys.readouterr().err
+                assert "警告" in err
+                assert "typo_field" in err or "mystery_section" in err
+
+            def test_stdout_still_reports_pass(
+                self, tmp_path: Path, stub_repl: MagicMock, capsys
+            ) -> None:
+                pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
+                _main(["--pack", str(pack_dir), "--validate"])
+                assert "test-pack" in capsys.readouterr().out
+
+        class WhenStrict:
+            def test_returns_nonzero(
+                self, tmp_path: Path, stub_repl: MagicMock
+            ) -> None:
+                pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
+                assert _main(["--pack", str(pack_dir), "--validate", "--strict"]) != 0
+
+            def test_stderr_reports_failure(
+                self, tmp_path: Path, stub_repl: MagicMock, capsys
+            ) -> None:
+                pack_dir = _write_pack(tmp_path / "pack", scene=_SCENE_WITH_UNCONSUMED)
+                _main(["--pack", str(pack_dir), "--validate", "--strict"])
+                err = capsys.readouterr().err
+                assert "未消费" in err or "校验失败" in err
+                assert "typo_field" in err or "mystery_section" in err
+
+    class WhenPackIsClean:
+        def test_strict_returns_zero(
+            self, tmp_path: Path, stub_repl: MagicMock
+        ) -> None:
+            pack_dir = _write_pack(tmp_path / "pack")
+            assert _main(["--pack", str(pack_dir), "--validate", "--strict"]) == 0
+
+        def test_stderr_has_no_unconsumed_warning(
+            self, tmp_path: Path, stub_repl: MagicMock, capsys
+        ) -> None:
+            pack_dir = _write_pack(tmp_path / "pack")
+            _main(["--pack", str(pack_dir), "--validate", "--strict"])
+            err = capsys.readouterr().err
+            assert "警告" not in err
+            assert "未消费" not in err
+
+        def test_stdout_reports_pass(
+            self, tmp_path: Path, stub_repl: MagicMock, capsys
+        ) -> None:
+            pack_dir = _write_pack(tmp_path / "pack")
+            _main(["--pack", str(pack_dir), "--validate", "--strict"])
+            assert "test-pack" in capsys.readouterr().out
