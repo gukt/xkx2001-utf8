@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from mud_engine.ai import attach_ai_system, condition_from_data
-from mud_engine.commands import ON_HEAR_SAY, HearSayContext, room_say
+from mud_engine.messaging import ON_HEAR_SAY, HearSayContext, room_say
 from mud_engine.components import (
     AIController,
     Container,

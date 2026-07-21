@@ -43,6 +43,7 @@ from mud_engine.conditions import (
     evaluate,
 )
 from mud_engine.events import ON_TICK, TickContext
+from mud_engine.messaging import room_say
 
 if TYPE_CHECKING:
     from mud_engine.world import EntityId, World
@@ -170,9 +171,6 @@ def _tick_chatter(
     if chance < 1.0 and rng.random() >= chance:
         return
     text = rng.choice(spec.chat_msgs)
-    # 延迟 import：避免 commands <-> ai 循环（commands 不 import ai）。
-    from mud_engine.commands import room_say
-
     room_say(world, entity, text)
 
 
