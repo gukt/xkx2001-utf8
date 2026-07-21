@@ -3,6 +3,10 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M3 停机加固 `/to-tickets` 完成**（2026-07-21）：spec.md 拆成 11 张票（[m3-hardening/issues/](m3-hardening/issues/)）——**Wave P0** 七张实现票（`01`–`07`）+ **Wave B3** 四张（`08`–`11`）；配套 [to-tickets-notes.md](m3-hardening/to-tickets-notes.md) + [implement-plan.md](m3-hardening/implement-plan.md)。
+
+- [x] **M3 停机加固 `/to-spec` 完成**（2026-07-21）：[spec.md](m3-hardening/spec.md)（`ready-for-agent`）——同一 spec 两 wave：**Wave P0** + **Wave B3**；OOS：P1-1/5/8/9、评审 P2、M4。
+
 - [x] **P1 排期拍板**（2026-07-21）：`/grill-with-docs` 续——**W1**（不升停机门闩）；下一刀 **B3**（P1-2/3/4/6/7）；时序 **Q3**；P1-1/5/8/9 → spec OOS（X1）。
 
 - [x] **M3 停机加固拍板**（2026-07-21）：`/grill-with-docs`——S0 仅 P0；Effect 延期（ADR-0007）；昏迷 tick 苏醒；少林场景去掉持刃条件；频道/登录单机降级（ADR-0008）；暂缓 M4。
