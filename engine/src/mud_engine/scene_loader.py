@@ -20,9 +20,11 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.ai import attach_ai_system
+from mud_engine.ai import SpawnerBlueprint, attach_ai_system
 from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
 from mud_engine.components import (
+    AIController,
+    Behaviors,
     Container,
     Description,
     Door,
@@ -31,6 +33,7 @@ from mud_engine.components import (
     Exit,
     Exits,
     Identity,
+    Inquiry,
     NpcSpawnMeta,
     PlayerSession,
     Position,
@@ -433,10 +436,11 @@ def _build_npcs(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
-    """建 NPC：基础组件 + NPC_CAPABILITIES（Inquiry/Behaviors/AIController）+ Spawn meta。
+    """建 NPC：基础组件 + NPC_CAPABILITIES + Spawn meta，并注册 SpawnerBlueprint。
 
     ``count`` 控制实例数（默认 1）；``startroom`` 可作 ``in_room`` 别名，也可
     单独声明出生房（与 in_room 并存时：位置用 in_room，spawn meta 用 startroom）。
+    同一 template 的多个 count 实例只注册一条蓝图（M2-04）。
     """
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
@@ -460,6 +464,27 @@ def _build_npcs(
         room_id = room_ids[str(room_key)]
         startroom_id = room_ids[str(start_key)]
         label = f"NPC '{npc_key}'"
+        capability_seed = _parse_npc_capability_seed(data, label=label, scene_path=scene_path)
+        name = str(data.get("name", ""))
+        aliases_raw = data.get("aliases") or ()
+        aliases = tuple(str(a) for a in aliases_raw) if isinstance(aliases_raw, (list, tuple)) else ()
+        world.spawners[str(npc_key)] = SpawnerBlueprint(
+            template_key=str(npc_key),
+            name=name,
+            aliases=aliases,
+            short=str(data.get("short", name)),
+            long=str(data.get("long", "")),
+            startroom=startroom_id,
+            desired_count=count,
+            respawn=respawn,
+            inquiry=capability_seed.get(Inquiry),  # type: ignore[arg-type]
+            behaviors=capability_seed.get(Behaviors),  # type: ignore[arg-type]
+            tick_interval=(
+                capability_seed[AIController].tick_interval  # type: ignore[index]
+                if AIController in capability_seed
+                else 1
+            ),
+        )
         for _ in range(count):
             npc = world.create_entity()
             _attach_identity_and_description(
@@ -479,6 +504,18 @@ def _build_npcs(
                 world, npc, data, NPC_CAPABILITIES, label=label, scene_path=scene_path
             )
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
+
+
+def _parse_npc_capability_seed(
+    data: Mapping, *, label: str, scene_path: Path
+) -> dict[type, object]:
+    """预解析 NPC 能力组件供 SpawnerBlueprint 登记（不挂到实体上）。"""
+    attached: dict[type, object] = {}
+    for spec in NPC_CAPABILITIES:
+        component = spec.from_yaml(data, label, scene_path, attached)
+        if component is not None:
+            attached[type(component)] = component
+    return attached
 
 
 def _parse_positive_int(

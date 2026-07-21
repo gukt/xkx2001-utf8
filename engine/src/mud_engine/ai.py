@@ -7,20 +7,27 @@
 ``attach_ai_system`` 幂等：同一 world 重复调用不重复注册。rng 可注入，供
 Chatter 概率测试用确定性源。条件求值走块 A 的 ``conditions.evaluate``；
 Nature 落地后读 ``world.nature``，否则用 ``StubContext``。
+
+M2-04：``SpawnerBlueprint`` + ``world.spawners`` 注册表修复"template 全灭后
+扫描失效"；``_spawn_scan`` 遍历蓝图而非从存活 ``NpcSpawnMeta`` 反向聚合。
 """
 
 from __future__ import annotations
 
 import random
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from mud_engine.components import (
     AIController,
     Behaviors,
     BehaviorSpec,
+    Description,
+    Identity,
+    Inquiry,
     NpcSpawnMeta,
+    Position,
 )
 from mud_engine.conditions import (
     And,
@@ -44,6 +51,28 @@ else:
 DEFAULT_SPAWN_SCAN_INTERVAL = 10
 
 Rng = random.Random
+
+
+@dataclass(frozen=True)
+class SpawnerBlueprint:
+    """重建一个 NPC 实例所需的全部数据快照（M2-04）。
+
+    由 ``scene_loader._build_npcs`` 按 template_key 注册到 ``world.spawners``。
+    纯内存、不进存档。``extras`` 为未来 Faction/Vitals 等预留扩展袋。
+    """
+
+    template_key: str
+    name: str
+    aliases: tuple[str, ...]
+    short: str
+    long: str
+    startroom: EntityId
+    desired_count: int
+    respawn: bool
+    inquiry: Inquiry | None = None
+    behaviors: Behaviors | None = None
+    tick_interval: int = 1
+    extras: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -142,30 +171,60 @@ def _tick_chatter(
 
 
 def _spawn_scan(world: World) -> None:
-    """低频 Spawn/Reset 扫描：按 template_key 核对存活数（26 号票）。
+    """低频 Spawn/Reset 扫描：按 ``world.spawners`` 核对存活数（M2-04）。
 
-    M1 NPC 不死不触发重生：``respawn=True`` 且 count 已达标时为空转；不足时
-    也先不补齐（蓝图重建推 M2 死亡重生路径）。机制地基（spec D2"先埋"）：
-    扫描挂 tick、聚合 meta、对照 desired_count。
-
-    M2 复核点：``NpcSpawnMeta`` 挂在每个 NPC 实例上，从存活实例聚合 ``metas``。
-    若某 template 实例全灭（尤其 desired_count=1 的单例 NPC，如 boss/quest），
-    template_key 从 ``metas`` 消失，扫描无法发现缺口--M2 死亡重生路径需改用
-    spawner 实体或模板注册表，不从存活实例聚合。
+    遍历蓝图注册表（不再从存活 ``NpcSpawnMeta`` 反向聚合），因此即使某
+    template 实例全灭，仍能发现缺口。``respawn=True`` 且存活数不足时按蓝图
+    补齐；``respawn=False`` 不补（保持 M1 语义）。
     """
     by_template: dict[str, list[EntityId]] = {}
-    metas: dict[str, NpcSpawnMeta] = {}
     for entity in world.entities_with(NpcSpawnMeta):
         meta = world.require_component(entity, NpcSpawnMeta)
         by_template.setdefault(meta.template_key, []).append(entity)
-        metas[meta.template_key] = meta
-    for template_key, meta in metas.items():
-        if not meta.respawn:
+
+    for template_key, blueprint in world.spawners.items():
+        if not blueprint.respawn:
             continue
         alive = len(by_template.get(template_key, ()))
-        if alive >= meta.desired_count:
-            continue
-        # M1：缺口存在但不补齐（NPC 不死，正常路径走不到这里）。留钩子给 M2。
+        missing = blueprint.desired_count - alive
+        for _ in range(max(0, missing)):
+            _spawn_from_blueprint(world, blueprint)
+
+
+def _spawn_from_blueprint(world: World, blueprint: SpawnerBlueprint) -> EntityId:
+    """按蓝图重建一个全新 NPC 实例（不带上一实例任何累积可变状态）。"""
+    npc = world.create_entity()
+    world.add_component(
+        npc, Identity(name=blueprint.name, aliases=blueprint.aliases)
+    )
+    world.add_component(
+        npc, Description(short=blueprint.short, long=blueprint.long)
+    )
+    world.add_component(npc, Position(room=blueprint.startroom))
+    world.add_component(
+        npc,
+        NpcSpawnMeta(
+            template_key=blueprint.template_key,
+            startroom=blueprint.startroom,
+            desired_count=blueprint.desired_count,
+            respawn=blueprint.respawn,
+        ),
+    )
+    if blueprint.inquiry is not None:
+        world.add_component(
+            npc,
+            Inquiry(
+                topics=dict(blueprint.inquiry.topics),
+                default=blueprint.inquiry.default,
+                handler=blueprint.inquiry.handler,
+            ),
+        )
+    if blueprint.behaviors is not None:
+        world.add_component(npc, AIController(tick_interval=blueprint.tick_interval))
+        world.add_component(
+            npc, Behaviors(entries=list(blueprint.behaviors.entries))
+        )
+    return npc
 
 
 def _condition_context(world: World) -> ConditionContext:
@@ -233,6 +292,7 @@ __all__ = [
     "AISystem",
     "DEFAULT_SPAWN_SCAN_INTERVAL",
     "Rng",
+    "SpawnerBlueprint",
     "attach_ai_system",
     "condition_from_data",
 ]

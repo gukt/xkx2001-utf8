@@ -17,7 +17,7 @@ from mud_engine.components import Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
-    from mud_engine.ai import AISystem
+    from mud_engine.ai import AISystem, SpawnerBlueprint
     from mud_engine.combat import PowerModel
     from mud_engine.nature import NatureState
 
@@ -68,6 +68,10 @@ class World:
         # 战斗 PowerModel 策略（M2-02）：纯内存、不进存档；由 ``attach_power_model``
         # 挂载。缺省 None 时 resolve_attack / 命令层用 DefaultWuxiaPowerModel 兜底。
         self.power_model: PowerModel | None = None
+        # NPC Spawner 蓝图注册表（M2-04）：纯内存、不进存档；由 scene_loader 建 NPC
+        # 时注册。``_spawn_scan`` 遍历本表而非从存活实例反向聚合，避免 template
+        # 全灭后丢失期望值。
+        self.spawners: dict[str, SpawnerBlueprint] = {}
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []
@@ -169,6 +173,19 @@ class World:
             component = by_entity.get(entity)
             if component is not None:
                 yield (component_type, component)
+
+    def destroy_entity(self, entity: EntityId) -> None:
+        """彻底移除一个实体及其全部组件（M2-04 测试/重生路径用）。
+
+        不存在的 id 静默忽略。同步清理该实体的 ``entity_extension_data``。
+        不负责从他人 ``Container.items`` 里摘引用——调用方须先处理容器持有关系。
+        """
+        if entity not in self._entities:
+            return
+        for by_entity in self._components.values():
+            by_entity.pop(entity, None)
+        self._entities.discard(entity)
+        self._entity_extension_data.pop(entity, None)
 
     def entity_extension_data(self, entity: EntityId) -> dict[str, object]:
         """取（惰性创建并存储）某实体的扩展数据 dict 引用（11 号票）。
