@@ -37,6 +37,7 @@ from mud_engine.components import (
 )
 from mud_engine.errors import SceneLoadError
 from mud_engine.nature import attach_nature
+from mud_engine.skills import load_skills_from_mapping, replace_skills_registry
 from mud_engine.world import EntityId, World
 
 # ``SceneLoadError`` 规范在 ``mud_engine.errors``；本模块再导出以保持
@@ -59,6 +60,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
 
     world = World()
     world.scene_path = scene_path.resolve()
+    # skills: 是全局注册表（非实体）；每次加载清空重建，避免两次加载互相污染（M2-03）。
+    replace_skills_registry(load_skills_from_mapping(data.get("skills"), scene_path))
     room_ids = _build_rooms(world, rooms, scene_path)
     item_ids = _build_items(world, items, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
@@ -101,9 +104,9 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 # CAPABILITIES）。以下两项**刻意不**扫平进能力注册表：
 # - ``_PLAYER_KNOWN_FIELDS``：player 段字段少，后续 Currency/Faction 初值直接加
 #   进本集合即可，不为个别字段建注册表。
-# - ``_TOP_LEVEL_KNOWN_SECTIONS``：新顶层段（skills:/factions:）是全局注册表模式，
-#   由 03/08 号票各自决定，不是"实体能力"模式。
-_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player"})
+# - ``_TOP_LEVEL_KNOWN_SECTIONS``：``skills:`` 已由 M2-03 加入（全局 SkillData
+#   注册表）；``factions:`` 仍留给 08 号票。二者都是全局注册表模式，不是实体能力。
+_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player", "skills"})
 _ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS
