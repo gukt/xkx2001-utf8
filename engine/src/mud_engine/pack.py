@@ -15,6 +15,8 @@ import yaml
 
 from mud_engine.errors import PackManifestError
 
+# ``PackManifestError`` 规范在 ``mud_engine.errors``；本模块再导出以保持
+# ``from mud_engine.pack import PackManifestError`` 与公共入口同路径可读。
 _KNOWN_FIELDS = frozenset({"id", "version", "creator", "title"})
 
 
@@ -26,7 +28,7 @@ class PackManifest:
     version: str
     creator: str | None = None
     title: str | None = None
-    extra: dict = field(default_factory=dict)
+    extra: dict[str, object] = field(default_factory=dict)
 
 
 def load_manifest(pack_dir: Path) -> PackManifest:
@@ -36,14 +38,13 @@ def load_manifest(pack_dir: Path) -> PackManifest:
     可选字段 ``creator``/``title`` 类型不对时，统一抛 ``PackManifestError``。
     已知字段集之外的键原样收进 ``extra``（透传不丢）。
     """
-    pack_dir = Path(pack_dir)
-    manifest_path = pack_dir / "manifest.yaml"
-    data = _read_manifest_yaml(pack_dir, manifest_path)
+    manifest_path = Path(pack_dir) / "manifest.yaml"
+    data = _read_manifest_yaml(manifest_path)
 
-    pack_id = _require_string(data, "id", pack_dir=pack_dir, manifest_path=manifest_path)
-    version = _require_string(data, "version", pack_dir=pack_dir, manifest_path=manifest_path)
-    creator = _optional_string(data, "creator", pack_dir=pack_dir, manifest_path=manifest_path)
-    title = _optional_string(data, "title", pack_dir=pack_dir, manifest_path=manifest_path)
+    pack_id = _require_string(data, "id", manifest_path=manifest_path)
+    version = _require_string(data, "version", manifest_path=manifest_path)
+    creator = _optional_string(data, "creator", manifest_path=manifest_path)
+    title = _optional_string(data, "title", manifest_path=manifest_path)
     extra = {key: value for key, value in data.items() if key not in _KNOWN_FIELDS}
     return PackManifest(
         id=pack_id,
@@ -54,7 +55,8 @@ def load_manifest(pack_dir: Path) -> PackManifest:
     )
 
 
-def _read_manifest_yaml(pack_dir: Path, manifest_path: Path) -> dict:
+def _read_manifest_yaml(manifest_path: Path) -> dict:
+    pack_dir = manifest_path.parent
     if not manifest_path.is_file():
         raise PackManifestError(f"内容包 {pack_dir} 缺少 manifest.yaml（期望路径 {manifest_path}）")
     try:
@@ -76,29 +78,27 @@ def _read_manifest_yaml(pack_dir: Path, manifest_path: Path) -> dict:
     return dict(data)
 
 
-def _require_string(data: Mapping, key: str, *, pack_dir: Path, manifest_path: Path) -> str:
+def _require_string(data: Mapping, key: str, *, manifest_path: Path) -> str:
     if key not in data:
         raise PackManifestError(
-            f"内容包清单 {manifest_path}（内容包 {pack_dir}）缺少必需字段 '{key}'"
+            f"内容包清单 {manifest_path}（内容包 {manifest_path.parent}）缺少必需字段 '{key}'"
         )
-    value = data[key]
-    if not isinstance(value, str):
-        raise PackManifestError(
-            f"内容包清单 {manifest_path}（内容包 {pack_dir}）的 '{key}' "
-            f"应是字符串，实际是 {type(value).__name__}"
-        )
-    return value
+    return _as_string(data[key], key=key, manifest_path=manifest_path)
 
 
-def _optional_string(data: Mapping, key: str, *, pack_dir: Path, manifest_path: Path) -> str | None:
+def _optional_string(data: Mapping, key: str, *, manifest_path: Path) -> str | None:
     if key not in data:
         return None
     value = data[key]
     if value is None:
         return None
+    return _as_string(value, key=key, manifest_path=manifest_path)
+
+
+def _as_string(value: object, *, key: str, manifest_path: Path) -> str:
     if not isinstance(value, str):
         raise PackManifestError(
-            f"内容包清单 {manifest_path}（内容包 {pack_dir}）的 '{key}' "
+            f"内容包清单 {manifest_path}（内容包 {manifest_path.parent}）的 '{key}' "
             f"应是字符串，实际是 {type(value).__name__}"
         )
     return value

@@ -13,3 +13,7 @@
 - [x] `creator`/`title` 若出现但类型不是字符串（如 `creator: 123`），按与 `id`/`version` 一致的严格程度报 `PackManifestError`，不是静默接受非字符串再在别处出问题。
 - [x] `mud_engine.pack` 模块 docstring 说明本模块与 `scene_loader` 的关系（manifest 是包身份，`scene_loader` 是包内容，两者是独立的校验阶段——对齐 spec A1 决策的理由），供后续 02 号票的读者一眼看懂分工。
 - [x] 现有测试全绿不回归（本票不改动任何既有模块，理论上不可能回归，但仍需跑一遍确认）。
+
+## Comments
+
+- 2026-07-21 `/code-review`（fixed point `m3-wave0-start`）：Spec 轴无缺口。Standards 轴 fix——helper 只传 `manifest_path`（去掉 `pack_dir`+`manifest_path` Data Clump）、抽出 `_as_string`、`extra: dict[str, object]`。未跨模块抽 YAML 读入（与 `scene_loader._read_yaml` 重复属判断项，Wave 0 不侵）；未拒空串 `id`/`version`（票面只要求「必需且为字符串」）。
