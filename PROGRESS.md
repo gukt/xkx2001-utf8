@@ -5,13 +5,13 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M2 Wave 3 `/implement` + `/code-review` fix 完成；下一环节 Wave 4。
+**最后更新**：2026-07-21：M2 Wave 4 `/implement` 开工（fixed point `m2-wave4-start`）。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–3 实现 + code-review fix 完成**，待 Wave 4。
-- **工作分支**：`feat/m2-mvp-scene-playable`（Wave 3 fixed point tag：`m2-wave3-start`）。
-- **engine/**：测试绿（521 passed）。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–3 完成**；**Wave 4 进行中**。
+- **工作分支**：`feat/m2-mvp-scene-playable`（Wave 4 fixed point tag：`m2-wave4-start`）。
+- **engine/**：测试绿（521 passed，Wave 4 前基线）。
 
 ## Done
 
@@ -25,7 +25,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- **M2 Wave 4 `/implement`**：票 `21`–`25`（六分区场景内容）；fixed point `m2-wave4-start`；房间键清单见 [.scratch/m2-mvp-scene-playable/room-keys.md](.scratch/m2-mvp-scene-playable/room-keys.md)。
 
 ## Blocked
 
@@ -33,7 +33,7 @@
 
 ## Next Up
 
-1. **M2 Wave 4 `/implement`**：票 `21`–`25`（六分区场景内容）；开工前打 tag `m2-wave4-start`，见 [implement-plan.md](.scratch/m2-mvp-scene-playable/implement-plan.md)。
+1. 完成本 Wave 后跑 `/code-review`（fixed point `m2-wave4-start`）并 fix。
 2. 之后 Wave 5（票 `26` 端到端收口）。
 3. 按 CLAUDE.md 待办：M3 前核对 [03-ugc-dsl-design-inheritance](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统归类是否仍准确。
 

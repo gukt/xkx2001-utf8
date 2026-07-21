@@ -17,9 +17,10 @@ from mud_engine.world import EntityId, World
 # 默认场景文件：engine/data/m1_default_scene.yaml。从本文件（src/mud_engine/）
 # 往上三级回到 engine/ 根再进 data/。M1 始终从源码运行（uv run），路径解析稳定；
 # 这份 YAML 不是正式 UGC DSL（见 scene_loader 模块文档）。
-DEFAULT_SCENE_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "data" / "m1_default_scene.yaml"
-)
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+DEFAULT_SCENE_PATH = _DATA_DIR / "m1_default_scene.yaml"
+# M2 官方轻量武侠题材包（Wave 4+；六分区累加于同一文件，见 room-keys.md）。
+MVP_SCENE_PATH = _DATA_DIR / "m2_mvp_scene.yaml"
 
 
 def build_world(scene_path: Path | None = None) -> tuple[World, EntityId]:
@@ -29,3 +30,8 @@ def build_world(scene_path: Path | None = None) -> tuple[World, EntityId]:
     场景文件的结构性错误会抛 ``SceneLoadError``（见 scene_loader）。
     """
     return load_scene(scene_path if scene_path is not None else DEFAULT_SCENE_PATH)
+
+
+def load_mvp_scene() -> tuple[World, EntityId]:
+    """加载 M2 MVP 武侠题材包场景（``m2_mvp_scene.yaml``）。"""
+    return load_scene(MVP_SCENE_PATH)

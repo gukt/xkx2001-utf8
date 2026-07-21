@@ -1,0 +1,98 @@
+# M2 MVP 武侠题材包场景（Wave 4 起累加；单文件，见 .scratch/m2-mvp-scene-playable/room-keys.md）
+#
+# 分区前缀：huashan_* / yangzhou_* / shaolin_* / wild_* / road_* / ferry_*
+# 华山村（21）已落地；扬州/少林/野外等后续票追加。
+
+# ── 房间：华山村（21）──────────────────────────────────
+rooms:
+  huashan_birth:
+    name: 华山村口
+    long: >-
+      华山脚下一座宁静的小村落，石板路通向村中。这里是江湖新人落脚的地方，
+      不强制归属任何门派。北面是村中小径，可找向导讨教。
+    outdoors: true
+    exits:
+      north: { to: huashan_guide, aliases: [北, 村里] }
+
+  huashan_guide:
+    name: 华山村广场
+    long: >-
+      村中央一块空地，老槐树下立着一块指路木牌。向导常在此歇脚，
+      乐意给初入江湖的人讲解基础门道。东边有一块练武空地。
+    outdoors: true
+    exits:
+      south: { to: huashan_birth, aliases: [南, 村口] }
+      east: { to: huashan_training, aliases: [东, 练武场] }
+
+  huashan_training:
+    name: 华山村练武场
+    long: >-
+      一块踩得坚实的泥地，立着几个稻草人木桩。这里是切磋安全区——
+      即便力竭也不会真正丢了性命，适合初学搏击。
+    outdoors: true
+    no_death: true
+    exits:
+      west: { to: huashan_guide, aliases: [西, 广场] }
+
+# ── 物品 ──────────────────────────────────────────────
+items:
+  training_pebble:
+    name: 小石子
+    aliases: [石子]
+    short: 一枚小石子
+    long: 练武场边随手可捡的小石子，可用来练习拾取。
+    placed_in: huashan_training
+
+# ── NPC ───────────────────────────────────────────────
+npcs:
+  huashan_guide_npc:
+    name: 向导
+    aliases: [教程向导, 老人]
+    short: 一位和气的向导
+    long: 一位鬓发花白的老人，笑眯眯地看着过往行人，随时准备解答基础疑问。
+    in_room: huashan_guide
+    inquiry:
+      移动: 想去别处，用 go <方向>。例如 go north，或看 look 里的出口提示。
+      查看: 用 look 环顾四周，可看房间、人物与地上物品。
+      拾取: 地上有东西时用 get <物品> 拾起，drop 可放下。
+      战斗: 对可交战目标用 attack <名字>，交战后每回合会播报命中与气血。练武场的稻草人不会反击。
+      去哪: 练熟基础后，可东出扬州城闯荡，或北上投奔少林等门派——先学会走路与搏击再走不迟。
+      default: 你可以问我：移动、查看、拾取、战斗，或「去哪」。
+
+  training_dummy:
+    name: 稻草人
+    aliases: [木桩, 教学木桩]
+    short: 一个稻草人木桩
+    long: 扎得结实的稻草人，专供新人练习招式，不会还手。
+    in_room: huashan_training
+    vitals:
+      qi_current: 80
+      qi_max: 80
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 20
+      jingli_max: 20
+    attributes:
+      str: 5
+      con: 10
+      dex: 0
+      int: 1
+
+# ── 玩家 ──────────────────────────────────────────────
+player:
+  name: 你
+  start_room: huashan_birth
+  currency: 20
+  gender: male
+  vitals:
+    qi: 100
+    qi_max: 100
+    neili: 50
+    neili_max: 50
+    jingli: 50
+    jingli_max: 50
+  attributes:
+    str: 15
+    con: 12
+    dex: 10
+    int: 10
