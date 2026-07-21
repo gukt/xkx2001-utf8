@@ -39,6 +39,9 @@ def _main(argv: list[str]) -> int:
     if args.validate and args.pack is None:
         print("错误：--validate 须搭配 --pack", file=sys.stderr)
         return 2
+    if args.strict and not args.validate:
+        print("错误：--strict 须搭配 --validate", file=sys.stderr)
+        return 2
 
     if args.pack is not None:
         pack_dir = Path(args.pack)
@@ -46,7 +49,7 @@ def _main(argv: list[str]) -> int:
             print(f"内容包目录不存在或不是目录：{pack_dir}", file=sys.stderr)
             return 1
         if args.validate:
-            return _validate_pack(pack_dir)
+            return _validate_pack(pack_dir, strict=args.strict)
         return _run_pack(pack_dir)
 
     return _run_default()
@@ -65,6 +68,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--validate",
         action="store_true",
         help="只校验内容包，不进入 REPL（须搭配 --pack）",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="未消费字段视为校验失败（须搭配 --validate）",
     )
     return parser.parse_args(argv)
 
@@ -92,12 +100,21 @@ def _run_pack(pack_dir: Path) -> int:
     return 0
 
 
-def _validate_pack(pack_dir: Path) -> int:
+def _validate_pack(pack_dir: Path, *, strict: bool = False) -> int:
     try:
         world, _player_id = load_pack(pack_dir)
     except (PackManifestError, SceneLoadError) as exc:
         print(_format_pack_or_scene_error(exc), file=sys.stderr)
         return 1
+
+    unconsumed = _collect_unconsumed_fields(world)
+    if unconsumed:
+        summary = _format_unconsumed_summary(unconsumed)
+        if strict:
+            print(f"校验失败：存在未消费字段\n{summary}", file=sys.stderr)
+            return 1
+        print(f"警告：存在未消费字段\n{summary}", file=sys.stderr)
+
     manifest = world.pack_manifest
     assert manifest is not None  # load_pack 成功必挂
     room_count = len(world.room_ids)
@@ -106,6 +123,46 @@ def _validate_pack(pack_dir: Path) -> int:
         file=sys.stdout,
     )
     return 0
+
+
+def _collect_unconsumed_fields(world: World) -> list[tuple[str, str]]:
+    """汇总透传未消费字段：``(位置, 字段名)``。
+
+    复用 ``extension_data`` / ``entity_extension_data`` 已有透传机制，不新建登记表。
+    """
+    from mud_engine.components import Identity
+
+    entries: list[tuple[str, str]] = []
+    for key in sorted(world.extension_data):
+        entries.append(("顶层段", key))
+
+    room_key_by_id = (
+        {eid: key for key, eid in world.room_ids.items()} if world.room_ids else {}
+    )
+    for entity in sorted(world.all_entities()):
+        extras = world.entity_extension_data(entity)
+        if not extras:
+            continue
+        if entity in room_key_by_id:
+            label = f"房间 '{room_key_by_id[entity]}'"
+        else:
+            identity = world.get_component(entity, Identity)
+            name = identity.name if identity is not None else str(entity)
+            label = f"实体 '{name}'(id={entity})"
+        for field in sorted(extras):
+            entries.append((label, field))
+    return entries
+
+
+def _format_unconsumed_summary(entries: list[tuple[str, str]]) -> str:
+    """汇总多条未消费字段为一块文案（不逐字段刷屏）。"""
+    by_loc: dict[str, list[str]] = {}
+    for loc, field in entries:
+        by_loc.setdefault(loc, []).append(field)
+    lines = [
+        f"  - {loc}: {', '.join(fields)}" for loc, fields in sorted(by_loc.items())
+    ]
+    return "\n".join(lines)
 
 
 def _enter_repl(world: World, player_id: EntityId, save_dir: Path) -> None:
