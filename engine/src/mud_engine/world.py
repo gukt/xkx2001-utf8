@@ -18,6 +18,7 @@ from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
     from mud_engine.ai import AISystem
+    from mud_engine.combat import PowerModel
     from mud_engine.nature import NatureState
 
 EntityId = int
@@ -64,6 +65,9 @@ class World:
         # ``attach_ai_system`` 挂载。TYPE_CHECKING 下标成 AISystem 供类型检查
         # （与 ``nature`` 同，避免循环 import）。
         self.ai: AISystem | None = None
+        # 战斗 PowerModel 策略（M2-02）：纯内存、不进存档；由 ``attach_power_model``
+        # 挂载。缺省 None 时 resolve_attack / 命令层用 DefaultWuxiaPowerModel 兜底。
+        self.power_model: PowerModel | None = None
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []
