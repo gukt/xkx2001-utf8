@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M3 Wave 2 `/implement` + `/code-review` fix**（2026-07-21）：票 `03` CLI `--pack`/`--validate` + 票 `04` 废弃探测站示例包；fixed point `m3-wave2-start`。Review fix：缺目录错误前缀分层、默认存档目录断言、测试拆复合断言。621 绿。
+
 - [x] **M3 Wave 1 `/implement` + `/code-review` fix**（2026-07-21）：票 `02`——`load_pack` + `World.pack_manifest` + `reattach_pack_manifest`；`save.py` 零改动；fixed point `m3-wave1-start`。Review fix：拆成功路径与 restore 复合断言。591 绿。
 
 - [x] **M3 Wave 0 `/implement` + `/code-review` fix**（2026-07-21）：票 `01`——`PackManifest` + `load_manifest` + `PackManifestError`；fixed point `m3-wave0-start`。Review fix：去掉 helper 路径 Data Clump、合并 `_as_string`、`extra: dict[str, object]`。577 绿。
