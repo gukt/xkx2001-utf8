@@ -6,12 +6,12 @@
 
 **Blocked by:** 03（(b) 项断言 `SkillBehavior.hit_by`/`post_action` 的返回值需要建立在新签名之上）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 新增（或扩展现有 `test_load_pack.py`/`test_m3_pack_loop.py`）一条测试：`--pack` 模式下建立 `Engaged` 后 `save_world`→`restore_world`，断言双方 `Engaged.opponent` 正确恢复、`pack_manifest` 正确恢复（走 `reattach_pack_manifest`）。
-- [ ] 新增（或扩展现有 `test_skill_behavior_hooks.py`）一条测试：通过 `attach_combat_system` + `TickLoop.advance()` 的真实 tick 路径（而非直接构造 `CombatContext` 调 `resolve_attack`）触发一个声明了 `SkillBehavior` 钩子的招式，断言钩子确实生效、播报文案出现在真实的战斗播报里。
-- [ ] 新增（或扩展 `test_mount.py`/`test_ferry.py`）一条测试：玩家骑乘状态沿官道走到渡口房间，渡船在场时 `go` 过河，断言坐骑 `Position` 与骑手同步更新，且 `Terrain.cost` 校验不会因为渡口房间本身声明的地形代价而误拒绝这次移动。
-- [ ] 三条测试均遵循现有 restore 综合测/tick 层 seam 的既有断言模式，不新增测试基础设施。
-- [ ] `just test` 全绿。
+- [x] 新增（或扩展现有 `test_load_pack.py`/`test_m3_pack_loop.py`）一条测试：`--pack` 模式下建立 `Engaged` 后 `save_world`→`restore_world`，断言双方 `Engaged.opponent` 正确恢复、`pack_manifest` 正确恢复（走 `reattach_pack_manifest`）。
+- [x] 新增（或扩展现有 `test_skill_behavior_hooks.py`）一条测试：通过 `attach_combat_system` + `TickLoop.advance()` 的真实 tick 路径（而非直接构造 `CombatContext` 调 `resolve_attack`）触发一个声明了 `SkillBehavior` 钩子的招式，断言钩子确实生效、播报文案出现在真实的战斗播报里。
+- [x] 新增（或扩展 `test_mount.py`/`test_ferry.py`）一条测试：玩家骑乘状态沿官道走到渡口房间，渡船在场时 `go` 过河，断言坐骑 `Position` 与骑手同步更新，且 `Terrain.cost` 校验不会因为渡口房间本身声明的地形代价而误拒绝这次移动。
+- [x] 三条测试均遵循现有 restore 综合测/tick 层 seam 的既有断言模式，不新增测试基础设施。
+- [x] `just test` 全绿。
 
 ## Comments

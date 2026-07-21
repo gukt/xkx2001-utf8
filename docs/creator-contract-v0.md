@@ -71,4 +71,4 @@ python -m mud_engine --pack <包目录> --validate --strict
 
 ## 契约表达不到的地方
 
-当前声明式 YAML **表达不了** / 需降级绕过的能力清单，见 GAP 台账（M3 停机加固票 [`11`](../.scratch/m3-hardening/issues/11-gap-ledger.md) 产出后补链接：`docs/gap-ledger.md`）。
+当前声明式 YAML **表达不了** / 需降级绕过的能力清单，见 [GAP 台账](gap-ledger.md)（M3 停机加固票 [`11`](../.scratch/m3-hardening/issues/11-gap-ledger.md)）。

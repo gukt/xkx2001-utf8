@@ -6,11 +6,11 @@
 
 **Blocked by:** None — 可立即开始；建议在 06 号票（创作者契约 v0）落地后补一条反向链接到 `docs/creator-contract-v0.md`，但不作为硬阻塞。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 新增 `docs/gap-ledger.md`：条目式列出至少覆盖——持续 Effect（buff/debuff，链接 ADR-0007）、脚本化任务/剧情分支（无沙箱，链接 ADR-0005 OOS）、多人频道/双玩家广播（链接 ADR-0008）、装备槏位与真实 wield/unwield（链接 02 号票）、坐骑驯服/被抢、多文件/大世界树场景。每条给"现状"+"推荐降级方式"两栏。
-- [ ] 明确不新建能力橱窗内容包（与 CONTEXT.md「GAP 台账」词条的 `_Avoid_` 一致）。
-- [ ] 若 06 号票已落地，在 `docs/creator-contract-v0.md` 里补一条指向本文档的引用链接。
-- [ ] 无自动化测试要求，验收标准是人工核对清单条目完整、引用链正确。
+- [x] 新增 `docs/gap-ledger.md`：条目式列出至少覆盖——持续 Effect（buff/debuff，链接 ADR-0007）、脚本化任务/剧情分支（无沙箱，链接 ADR-0005 OOS）、多人频道/双玩家广播（链接 ADR-0008）、装备槏位与真实 wield/unwield（链接 02 号票）、坐骑驯服/被抢、多文件/大世界树场景。每条给"现状"+"推荐降级方式"两栏。
+- [x] 明确不新建能力橱窗内容包（与 CONTEXT.md「GAP 台账」词条的 `_Avoid_` 一致）。
+- [x] 若 06 号票已落地，在 `docs/creator-contract-v0.md` 里补一条指向本文档的引用链接。
+- [x] 无自动化测试要求，验收标准是人工核对清单条目完整、引用链正确。
 
 ## Comments
