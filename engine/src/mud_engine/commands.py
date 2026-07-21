@@ -983,6 +983,13 @@ def _cmd_learn(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     skill_levels = world.get_component(player_id, SkillLevels)
     if skill_levels is not None and skill_id in skill_levels.levels:
         return [f"你已经学会了{skill_id}。"]
+    # level_req：技能声明的最低等级门槛。MVP 无独立角色等级时，用已学技能
+    # 的最高等级代理（皆无则为 0）；具体属性门槏走 learn_condition。
+    current_level = 0
+    if skill_levels is not None and skill_levels.levels:
+        current_level = max(p.level for p in skill_levels.levels.values())
+    if current_level < data.level_req:
+        return [f"你的等级不够（需要 {data.level_req}，当前 {current_level}）。"]
     gate = EntityGateContext(world, player_id)
     if data.learn_condition is not None:
         cond = condition_from_data(data.learn_condition)
@@ -997,8 +1004,17 @@ def _cmd_learn(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 
 def _learn_deny_reason(condition: object, ctx) -> str:
-    from mud_engine.conditions import Equals, Gte, Predicate
+    from mud_engine.conditions import And, Equals, Gte, Or, Predicate
 
+    if isinstance(condition, And):
+        for part in condition.parts:
+            from mud_engine.conditions import evaluate
+
+            if not evaluate(part, ctx):
+                return _learn_deny_reason(part, ctx)
+        return "不满足学习条件。"
+    if isinstance(condition, Or):
+        return "不满足学习条件。"
     if isinstance(condition, Gte):
         actual = getattr(ctx, condition.field, None)
         labels = {

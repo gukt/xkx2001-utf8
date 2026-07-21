@@ -100,6 +100,16 @@ class TestLearn:
         lines = execute_line(world, player_id, "learn martial")
         assert any("根骨" in line for line in lines)
 
+    def test_level_req_blocks_learn(self, tmp_path: Path) -> None:
+        scene = _SCENE.replace(
+            "luohan_quan:\n    type: martial\n    level_req: 0",
+            "luohan_quan:\n    type: martial\n    level_req: 3",
+        )
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        execute_line(world, player_id, "join 少林")
+        lines = execute_line(world, player_id, "learn martial")
+        assert any("等级不够" in line for line in lines)
+
     def test_learn_success(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
         execute_line(world, player_id, "join 少林")

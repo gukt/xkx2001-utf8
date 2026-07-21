@@ -1,7 +1,9 @@
 """实体门槏：EntityGateContext + EntryGuard on_before_enter_room（M2-11 / spec E2）。
 
-不扩展条件求值器语法；``EntityGateContext`` 实现 ``ConditionContext``，与
-``NatureState`` 同构。``attach_entry_guards`` 注册内置订阅者（幂等）。
+``EntityGateContext`` 实现 ``ConditionContext``，与 ``NatureState`` 同构。
+条件节点复用 ``condition_from_data`` / ``evaluate``（属性数值门槏可走
+M2-14 增补的 ``Gte``，与 Equals/Predicate 同属受限 AST）。
+``attach_entry_guards`` 注册内置订阅者（幂等）。
 事件名字符串与 ``commands.ON_BEFORE_ENTER_ROOM`` 对齐，本模块不 import commands
 （避免循环依赖）。
 """
@@ -91,7 +93,8 @@ def attach_entry_guards(world: World) -> None:
             return None
         condition = condition_from_data(guard.condition)
         if condition is None:
-            return None
+            # 配置损坏时 fail-closed，避免门禁失效静默放行。
+            return Deny(guard.deny_message)
         gate = EntityGateContext(world, ctx.player_id)
         if not evaluate(condition, gate):
             return Deny(guard.deny_message)
