@@ -763,14 +763,16 @@ def _cmd_quit(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 def _cmd_ask(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """向同房间 NPC 提问：``ask <npc> about <topic>``（27 号票，D3）。
 
-    解析层已把 NPC 规范名放进 ``intent.target``、topic 放进 ``intent.args[0]``。
-    响应走 ``Inquiry`` 组件的声明式映射；未知 topic 用 ``default`` 或内置提示。
+    解析层已把 NPC 规范名放进 ``intent.target``、topic 放进 ``intent.args[0]``；
+    ``target_id`` 有值时优先用实体引用（M2-20 同名消歧）。
     """
     npc_name = intent.target
     if npc_name is None or not intent.args:
         return ["问谁什么？用法：ask <人物> about <话题>"]
     topic = intent.args[0]
-    npc = _find_npc_in_room(world, player_id, npc_name)
+    npc = intent.target_id
+    if npc is None or not world.has_component(npc, Identity):
+        npc = _find_npc_in_room(world, player_id, npc_name)
     if npc is None:
         return [f"这里没有 {npc_name}。"]
     inquiry = world.get_component(npc, Inquiry)
@@ -1161,9 +1163,13 @@ def _cmd_attack(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     from mud_engine.combat_system import try_engage
 
     target_name = intent.target or (intent.args[0] if intent.args else None)
-    if not target_name:
+    if not target_name and intent.target_id is None:
         return ["攻击谁？用法：attack <目标>"]
-    target = _find_combat_target_in_room(world, player_id, target_name)
+    target = intent.target_id
+    if target is None or not world.has_component(target, Identity):
+        if not target_name:
+            return ["攻击谁？用法：attack <目标>"]
+        target = _find_combat_target_in_room(world, player_id, target_name)
     if target is None:
         return [f"这里没有「{target_name}」。"]
     err = try_engage(world, player_id, target)

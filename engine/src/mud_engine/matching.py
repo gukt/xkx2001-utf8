@@ -25,6 +25,14 @@ class Resolved:
 
 
 @dataclass(frozen=True)
+class ResolvedEntity:
+    """唯一命中到具体实体（M2-20 同名消歧）。"""
+
+    canonical: str
+    entity_id: int
+
+
+@dataclass(frozen=True)
 class NoMatch:
     """无任何候选命中。保留原始 token 供调用方生成提示。"""
 
@@ -38,10 +46,22 @@ class Ambiguous:
     canonicals: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class IndexOutOfRange:
+    """带序号匹配时序号超出该名下实例数。"""
+
+    name: str
+    index: int
+    count: int
+
+
 MatchResult = Resolved | NoMatch | Ambiguous
+EntityMatchResult = ResolvedEntity | NoMatch | Ambiguous | IndexOutOfRange
 
 # 每个候选 = (规范名, 别名序列)。别名序列可为空。
 Candidate = tuple[str, Sequence[str]]
+# 带实体引用的候选（同名多实例消歧）。
+EntityCandidate = tuple[str, Sequence[str], int]
 
 
 def match_target(token: str, candidates: Iterable[Candidate]) -> MatchResult:
@@ -67,4 +87,61 @@ def match_target(token: str, candidates: Iterable[Candidate]) -> MatchResult:
     return Ambiguous(tuple(hits))
 
 
-__all__ = ["Ambiguous", "Candidate", "MatchResult", "NoMatch", "Resolved", "match_target"]
+def _split_name_and_index(token: str) -> tuple[str, int | None]:
+    """``巡逻兵 2`` → ``("巡逻兵", 2)``；无末尾数字则 index=None。"""
+    parts = token.strip().split()
+    if len(parts) >= 2 and parts[-1].isdigit():
+        return " ".join(parts[:-1]), int(parts[-1])
+    return token.strip(), None
+
+
+def match_entity_target(
+    token: str, candidates: Iterable[EntityCandidate]
+) -> EntityMatchResult:
+    """按名（+可选 1-based 序号）匹配到具体实体。
+
+    - 无序号且唯一命中 → ``ResolvedEntity``
+    - 无序号且多命中 → ``Ambiguous``（不静默取第一个）
+    - 有序号 → 同名实例按 ``entity_id`` 升序取第 N 个；越界 → ``IndexOutOfRange``
+    """
+    name_part, index = _split_name_and_index(token)
+    needle = name_part.lower()
+    if not needle:
+        return NoMatch(token)
+
+    hits: list[tuple[str, int]] = []
+    for canonical, aliases, entity_id in candidates:
+        names = (canonical, *aliases)
+        if any(name.lower() == needle for name in names):
+            hits.append((canonical, entity_id))
+
+    if not hits:
+        return NoMatch(token)
+
+    hits.sort(key=lambda h: h[1])  # 按 entity_id 确定性排序
+
+    if index is None:
+        # 无序号：多规范名或同名多实例都算歧义
+        if len(hits) == 1:
+            return ResolvedEntity(canonical=hits[0][0], entity_id=hits[0][1])
+        return Ambiguous(tuple(h[0] for h in hits))
+
+    if index < 1 or index > len(hits):
+        return IndexOutOfRange(name=name_part, index=index, count=len(hits))
+    chosen = hits[index - 1]
+    return ResolvedEntity(canonical=chosen[0], entity_id=chosen[1])
+
+
+__all__ = [
+    "Ambiguous",
+    "Candidate",
+    "EntityCandidate",
+    "EntityMatchResult",
+    "IndexOutOfRange",
+    "MatchResult",
+    "NoMatch",
+    "Resolved",
+    "ResolvedEntity",
+    "match_entity_target",
+    "match_target",
+]

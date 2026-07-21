@@ -21,6 +21,7 @@ class Reason(Enum):
     UNKNOWN_VERB = "unknown_verb"  # 完全无法识别的动词
     NO_TARGET_MATCH = "no_target_match"  # 目标 token 无任何候选命中
     AMBIGUOUS_TARGET = "ambiguous_target"  # 目标 token 同时命中多个候选
+    INDEX_OUT_OF_RANGE = "index_out_of_range"  # 同名序号越界（M2-20）
 
 
 @dataclass(frozen=True)
@@ -30,11 +31,14 @@ class Intent:
     target 是"已解析的规范目标名"（别名已在解析阶段展开）；无目标的命令
     （look/help/quit）为 None。args 是动词位置参数里目标之外的部分，M1
     阶段通常为空，保留字段是为了让形状能装下未来更复杂的意图。
+    ``target_id``（M2-20）：同名消歧后落到具体实体；无消歧需求时为 None，
+    执行层回退到按 ``target`` 名查找。
     """
 
     verb: str
     target: str | None
     args: tuple[str, ...] = ()
+    target_id: int | None = None
 
 
 @dataclass(frozen=True)

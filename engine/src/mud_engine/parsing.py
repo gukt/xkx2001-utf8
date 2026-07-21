@@ -31,7 +31,17 @@ from mud_engine.components import (
 )
 from mud_engine.intent import Intent, ParseFailure, Reason
 from mud_engine.lookup import find_reachable_container, iter_lookable_containers
-from mud_engine.matching import Ambiguous, Candidate, Resolved, match_target
+from mud_engine.matching import (
+    Ambiguous,
+    Candidate,
+    EntityCandidate,
+    IndexOutOfRange,
+    NoMatch,
+    Resolved,
+    ResolvedEntity,
+    match_entity_target,
+    match_target,
+)
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.world import EntityId, World
 
@@ -96,6 +106,8 @@ class DeterministicParser(Parser):
             return self._parse_look(rest, world, player_id)
         if verb == "ask":
             return self._parse_ask(rest, world, player_id)
+        if verb == "attack":
+            return self._parse_attack(rest, world, player_id)
         if verb == "say":
             # say 保留原文空格：取首 token 之后的整段。
             text = stripped.split(None, 1)[1] if len(tokens) > 1 else ""
@@ -278,7 +290,7 @@ class DeterministicParser(Parser):
     def _parse_ask(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """``ask <npc> about <topic>``：NPC 候选为同房间挂 Inquiry/NpcSpawnMeta 的实体。"""
+        """``ask <npc> [序号] about <topic>``：支持同名序号消歧（M2-20）。"""
         about_idx = _index_of(args, "about")
         if about_idx is None or about_idx == 0 or about_idx >= len(args) - 1:
             # 缺 about / 缺 npc / 缺 topic：交给执行层给用法提示。
@@ -288,11 +300,49 @@ class DeterministicParser(Parser):
         if about_idx > 1:
             npc_token = " ".join(args[:about_idx])
         topic = " ".join(args[about_idx + 1 :])
-        candidates = self._npc_candidates(world, player_id)
-        matched = self._match_item_token(npc_token, candidates, verb="ask")
+        candidates = self._npc_entity_candidates(world, player_id)
+        matched = self._match_entity_token(npc_token, candidates, verb="ask")
         if isinstance(matched, ParseFailure):
             return matched
-        return Intent(verb="ask", target=matched, args=(topic,))
+        canonical, entity_id = matched
+        return Intent(verb="ask", target=canonical, args=(topic,), target_id=entity_id)
+
+    def _parse_attack(
+        self, args: list[str], world: World, player_id: EntityId
+    ) -> Intent | ParseFailure:
+        """``attack <名> [序号]``：同名消歧（M2-20）。"""
+        if not args:
+            return Intent(verb="attack", target=None)
+        token = " ".join(args)
+        candidates = self._combat_entity_candidates(world, player_id)
+        matched = self._match_entity_token(token, candidates, verb="attack")
+        if isinstance(matched, ParseFailure):
+            return matched
+        canonical, entity_id = matched
+        return Intent(verb="attack", target=canonical, target_id=entity_id)
+
+    @staticmethod
+    def _match_entity_token(
+        token: str, candidates: list[EntityCandidate], *, verb: str
+    ) -> tuple[str, int] | ParseFailure:
+        result = match_entity_target(token, candidates)
+        if isinstance(result, ResolvedEntity):
+            return result.canonical, result.entity_id
+        if isinstance(result, Ambiguous):
+            return ParseFailure(
+                Reason.AMBIGUOUS_TARGET,
+                original=token,
+                verb=verb,
+                candidates=result.canonicals,
+            )
+        if isinstance(result, IndexOutOfRange):
+            return ParseFailure(
+                Reason.INDEX_OUT_OF_RANGE,
+                original=token,
+                verb=verb,
+                candidates=(result.name, str(result.index), str(result.count)),
+            )
+        return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb=verb)
 
     @staticmethod
     def _match_item_token(
@@ -382,14 +432,34 @@ class DeterministicParser(Parser):
 
         房间内实体遍历走 ``world.entities_in_room``（34 号票去重）。
         """
+        return [
+            (name, aliases)
+            for name, aliases, _eid in DeterministicParser._npc_entity_candidates(
+                world, player_id
+            )
+        ]
+
+    @staticmethod
+    def _npc_entity_candidates(world: World, player_id: EntityId) -> list[EntityCandidate]:
         room = world.require_component(player_id, Position).room
-        candidates: list[Candidate] = []
-        for entity in world.entities_in_room(room, exclude=player_id):
+        candidates: list[EntityCandidate] = []
+        for entity in sorted(world.entities_in_room(room, exclude=player_id)):
             if not is_askable_npc(world, entity):
                 continue
             identity = world.get_component(entity, Identity)
             if identity is not None:
-                candidates.append((identity.name, identity.aliases))
+                candidates.append((identity.name, identity.aliases, entity))
+        return candidates
+
+    @staticmethod
+    def _combat_entity_candidates(world: World, player_id: EntityId) -> list[EntityCandidate]:
+        room = world.require_component(player_id, Position).room
+        candidates: list[EntityCandidate] = []
+        for entity in sorted(world.entities_in_room(room, exclude=player_id)):
+            identity = world.get_component(entity, Identity)
+            if identity is None:
+                continue
+            candidates.append((identity.name, identity.aliases, entity))
         return candidates
 
 
@@ -445,6 +515,10 @@ def _failure_message(failure: ParseFailure) -> list[str]:
     if failure.reason is Reason.AMBIGUOUS_TARGET:
         candidates = "、".join(failure.candidates)
         return [f"不确定你指的是哪个：{candidates}。"]
+    if failure.reason is Reason.INDEX_OUT_OF_RANGE:
+        name = failure.candidates[0] if failure.candidates else failure.original
+        index = failure.candidates[1] if len(failure.candidates) > 1 else "?"
+        return [f"这里没有第 {index} 个「{name}」。"]
     # NO_TARGET_MATCH：按命令给不同措辞。
     if failure.verb == "get":
         return [f"这里没有 {failure.original}。"]
@@ -454,7 +528,7 @@ def _failure_message(failure: ParseFailure) -> list[str]:
         return [f"找不到 {failure.original}。"]
     if failure.verb == "look":
         return [f"这里没有 {failure.original}。"]
-    if failure.verb == "ask":
+    if failure.verb in ("ask", "attack"):
         return [f"这里没有 {failure.original}。"]
     return [f"那个方向（{failure.original}）没有出口。"]  # go / 门命令 / 默认
 
