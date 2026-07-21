@@ -11,6 +11,7 @@ from collections import deque
 from mud_engine.ai import spawn_scan
 from mud_engine.combat_system import clear_engagement
 from mud_engine.components import (
+    Container,
     Currency,
     Engaged,
     Exits,
@@ -25,7 +26,6 @@ from mud_engine.components import (
 )
 from mud_engine.death_flow import handle_vitals_depleted
 from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import instantiate_item
 from mud_engine.scenes import load_mvp_scene
 from mud_engine.tick import TickLoop
 from mud_engine.world import EntityId, World
@@ -67,8 +67,9 @@ def _wait_ferry_across(world: World, dock_key: str, *, ticks: int = 8) -> None:
 
 
 def _reachable_keys(world: World, start_key: str) -> set[str]:
-    """BFS 经静态 Exits + 渡口 across（若当前可见）。"""
+    """BFS 经静态 Exits；渡口两岸视为理论双向连通（船位置只影响当下，不拆图）。"""
     assert world.room_ids is not None
+    ferry_pair = {"ferry_west", "ferry_east"}
     seen: set[str] = set()
     queue: deque[str] = deque([start_key])
     while queue:
@@ -77,8 +78,10 @@ def _reachable_keys(world: World, start_key: str) -> set[str]:
             continue
         seen.add(key)
         exits = world.require_component(_room(world, key), Exits)
-        for exit_info in exits.by_direction.values():
-            nxt = _room_key(world, exit_info.target)
+        neighbors = {_room_key(world, e.target) for e in exits.by_direction.values()}
+        if key in ferry_pair:
+            neighbors |= ferry_pair - {key}
+        for nxt in neighbors:
             if nxt not in seen:
                 queue.append(nxt)
     return seen
@@ -96,35 +99,66 @@ PARTITION_PREFIXES = (
 
 class TestM2GeographicConnectivity:
     def test_six_partitions_form_one_connected_graph(self) -> None:
-        """从华山村出发，六个分区前缀房间均可到达（地理连贯性）。"""
+        """从各分区代表房间出发，其余分区均可到达（出口图连通）。"""
         world, _ = load_mvp_scene()
         assert world.room_ids is not None
-        # 渡口 across 可能初始不可见；推进到船靠西岸再测连通
-        _wait_ferry_across(world, "ferry_west")
-        reachable = _reachable_keys(world, "huashan_birth")
-        for prefix in PARTITION_PREFIXES:
-            keys = [k for k in world.room_ids if k.startswith(prefix)]
-            assert keys, f"missing rooms for prefix {prefix}"
-            assert any(k in reachable for k in keys), (
-                f"partition {prefix} unreachable from huashan; "
-                f"keys={keys} reachable_sample={sorted(reachable)[:12]}"
-            )
-        # 关键路径上的枢纽必须都在
-        for key in (
+        starts = (
             "huashan_birth",
-            "road_huashan_yz",
             "yangzhou_guangchang",
-            "yangzhou_dongmen",
-            "road_yz_east",
-            "wild_forest",
-            "ferry_west",
-            "ferry_east",
-            "road_shaolin",
             "shaolin_shanmen",
-        ):
-            assert key in reachable
+            "wild_forest",
+            "road_yz_east",
+            "ferry_west",
+        )
+        for start in starts:
+            reachable = _reachable_keys(world, start)
+            for prefix in PARTITION_PREFIXES:
+                keys = [k for k in world.room_ids if k.startswith(prefix)]
+                assert keys, f"missing rooms for prefix {prefix}"
+                assert any(k in reachable for k in keys), (
+                    f"from {start}: partition {prefix} unreachable; "
+                    f"keys={keys}"
+                )
 
-    def test_room_keys_have_no_duplicates_across_partitions(self) -> None:
+    def test_walk_huashan_to_shaolin_via_go(self) -> None:
+        """用户故事 66：用 go 实际走到少林山门外官道（分区出口可通行）。"""
+        world, player_id = load_mvp_scene()
+        path = (
+            "south",  # road_huashan_yz
+            "south",  # yangzhou_nanmen
+            "north",  # nandajie
+            "north",  # guangchang
+            "east",  # dongdajie
+            "east",  # dongmen
+            "east",  # road_yz_east
+            "east",  # wild_edge
+            "east",  # wild_forest
+            "east",  # wild_thicket
+            "east",  # ferry_west
+        )
+        for direction in path:
+            # 野外 aggro 可能交战；清掉以便继续走路
+            if world.has_component(player_id, Engaged):
+                clear_engagement(world, player_id, reason="geo-walk")
+            lines = execute_line(world, player_id, f"go {direction}")
+            assert not any("没有这个方向" in line for line in lines), lines
+        assert world.require_component(player_id, Position).room == _room(
+            world, "ferry_west"
+        )
+        _wait_ferry_across(world, "ferry_west")
+        execute_line(world, player_id, "go across")
+        execute_line(world, player_id, "go east")  # road_shaolin
+        assert world.require_component(player_id, Position).room == _room(
+            world, "road_shaolin"
+        )
+        # 无刃器时应能进山门（门槏通过）
+        entered = execute_line(world, player_id, "go east")
+        assert world.require_component(player_id, Position).room == _room(
+            world, "shaolin_shanmen"
+        )
+        assert not any("不得" in line for line in entered)
+
+    def test_room_key_set_has_unique_keys(self) -> None:
         world, _ = load_mvp_scene()
         assert world.room_ids is not None
         keys = list(world.room_ids)
@@ -187,7 +221,10 @@ class TestM2PlayerDefeatBranch:
 
 class TestM2EndToEndScript:
     def test_full_mvp_journey_script(self) -> None:
-        """华山教程 → 扬州买卖骑马 → 野外胜仗 → 渡口 → 少林拜师练功。"""
+        """票 26 要求的整条剧本式路径（刻意单测串联；非整单元 Then）。
+
+        华山教程 → 扬州买卖骑马 → 野外胜仗 → 渡口 → 少林拜师练功。
+        """
         world, player_id = load_mvp_scene()
         assert world.require_component(player_id, Position).room == _room(
             world, "huashan_birth"
@@ -234,19 +271,22 @@ class TestM2EndToEndScript:
         sell_note = execute_line(world, player_id, "sell 银票")
         assert any("银票" in line for line in sell_note)
 
-        # 打铁铺 buy + sell
+        # 打铁铺：买两把钢刀，卖一把（留一把给少林门禁）
         execute_line(world, player_id, "go south")  # 东大街
         execute_line(world, player_id, "go west")  # 广场
         execute_line(world, player_id, "go west")  # 西大街
         execute_line(world, player_id, "go north")  # 打铁铺
         buy_blade = execute_line(world, player_id, "buy 钢刀")
         assert any("钢刀" in line for line in buy_blade)
-        # 先留着钢刀给少林门禁拒绝用；另买一把再卖验证 sell
         money_mid = world.require_component(player_id, Currency).amount
         execute_line(world, player_id, "buy 钢刀")
         sell_blade = execute_line(world, player_id, "sell 钢刀")
         assert any("钢刀" in line for line in sell_blade)
         assert world.require_component(player_id, Currency).amount != money_mid
+        bag = world.require_component(player_id, Container)
+        assert any(
+            world.require_component(item, Identity).name == "钢刀" for item in bag.items
+        )
 
         # 马厩买马，官道骑乘
         execute_line(world, player_id, "go south")  # 西大街
@@ -278,6 +318,7 @@ class TestM2EndToEndScript:
         TickLoop(lambda: None, world=world).advance()
         if not world.has_component(player_id, Engaged):
             execute_line(world, player_id, "attack 山贼")
+        # 保证玩家不被反杀打断胜路径（仍走真实 tick 结算）
         world.require_component(player_id, Vitals).qi_current = 200
         world.require_component(player_id, Vitals).qi_max = 200
         money_fight = world.require_component(player_id, Currency).amount
@@ -287,11 +328,13 @@ class TestM2EndToEndScript:
             if world.require_component(bandit, Vitals).qi_current <= 0:
                 break
             TickLoop(lambda: None, world=world).advance()
+        assert not world.has_component(bandit, Vitals) or (
+            world.require_component(bandit, Vitals).qi_current <= 0
+        )
         money_after = world.require_component(player_id, Currency).amount
-        skills_mid = world.get_component(player_id, SkillLevels)
-        assert money_after > money_fight or (
-            skills_mid is not None and any(p.exp > 0 for p in skills_mid.levels.values())
-        ) or any("打倒" in m or "银" in m for m in world.pending_messages)
+        assert money_after > money_fight or any(
+            "打倒" in m or "银" in m or "经验" in m for m in world.pending_messages
+        )
         if world.has_component(player_id, Engaged):
             clear_engagement(world, player_id, reason="e2e")
 
@@ -305,22 +348,12 @@ class TestM2EndToEndScript:
         )
         assert any("岸" in line or "渡" in line for line in ferry)
 
-        # 少林山门：刃器拒绝 → 放下通过
+        # 少林山门：携带钱庄打铁铺留下的钢刀 → 拒绝 → drop 通过
         execute_line(world, player_id, "go east")  # road_shaolin
-        # 确保身上有钢刀（若战斗/掉落丢失则补）
-        from mud_engine.components import Container
-
-        bag = world.get_component(player_id, Container)
-        names = set()
-        if bag is not None:
-            for item in bag.items:
-                names.add(world.require_component(item, Identity).name)
-        if "钢刀" not in names:
-            blade = instantiate_item(world, "steel_blade")
-            if bag is None:
-                world.add_component(player_id, Container())
-                bag = world.require_component(player_id, Container)
-            bag.items.add(blade)
+        bag = world.require_component(player_id, Container)
+        assert any(
+            world.require_component(item, Identity).name == "钢刀" for item in bag.items
+        )
         denied_gate = execute_line(world, player_id, "go east")
         assert any("刀" in line or "刃" in line or "兵器" in line for line in denied_gate)
         assert world.require_component(player_id, Position).room == _room(
