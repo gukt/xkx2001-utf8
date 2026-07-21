@@ -4,7 +4,7 @@
 
 **Blocked by:** 12（`attack` 命令需要已经存在才能对它做消歧）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `matching.py` 新增/扩展匹配能力：候选集合从"仅 (规范名, 别名)"升级为携带 `EntityId`（如 `Candidate` 追加实体引用维度，或新增专用函数，实现阶段决定并在本票内部保持内聚，不散改），支持解析"名字 + 末尾数字序号"的 token 形式。
 - [ ] `Intent` 的形状变更（新增字段或调整 `target` 语义）需要更新 `test_parsing.py`/`test_commands.py` 里对 `Intent` 形状的契约测试（若存在），且不破坏无序号场景下现有全部命令的行为（回归红线）。

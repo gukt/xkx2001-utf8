@@ -4,7 +4,7 @@
 
 **Blocked by:** 06（两段式判定状态机），07（`Currency` 扣款），12（真实战斗伤害路径触发气血归零）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `Vitals.qi_current<=0` 时（战斗 tick 结算路径内）调用 06 号票判定函数，正确区分"转昏迷"与"转死亡"两条分支。
 - [ ] `on_before_death`（可否决）/`on_death`/`on_revive` 三个事件点挂 `world.events`，M1 默认无 handler 时死亡流程按缺省 `DeathPolicy` 正常执行（零回归基线）。

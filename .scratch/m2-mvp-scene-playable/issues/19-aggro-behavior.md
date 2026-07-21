@@ -4,7 +4,7 @@
 
 **Blocked by:** 12（`attack`/建立交战关系的共享函数）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `ai.py` 的 `_tick_behavior` 新增 `"aggro"` 分支：条件求值（复用 `condition_from_data`/`evaluate`）通过后，扫描同房间实体找"第一个未在交战状态（不带 `Engaged`）的玩家"。
 - [ ] 找到目标时调用 12 号票暴露的"建立交战关系"共享函数（若 12 号票未把该逻辑拆成独立可复用函数，本票需要先做这个小范围重构——遵循"复用已有逻辑而非另起判定路径"的硬约束，这是本票验收的核心）。

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04（spawner 蓝图注册表，NPC 消失后重生要接得上），07（`Currency`，金钱战利品），12（真实战斗伤害路径）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 战斗 tick 结算路径按气血归零一方是否有 `PlayerSession` 分流：有 -> 06/17 号票流程；无 -> 本票流程。
 - [ ] NPC 死亡：从"存活实例"查询语义上完全消失（`entities_with(NpcSpawnMeta)`/`entities_in_room` 等现有查询路径不应再返回它）；死亡房间地面出现掉落物品（如声明了掉落配置）。

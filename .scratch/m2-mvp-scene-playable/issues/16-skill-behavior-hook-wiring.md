@@ -4,7 +4,7 @@
 
 **Blocked by:** 03（`SkillBehavior` 协议与注册表），12（真实战斗调度路径）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] tick 战斗调度在命中判定后按招式 id 查 `SkillBehavior` 注册表，有则调用对应钩子；无钩子的招式行为与 12 号票落地时完全一致（零回归）。
 - [ ] `hit_ob(ctx, damage) -> int | str | None`：返回值语义明确（修改伤害数值 vs 追加文案 vs 无操作，三种返回类型分别如何处理需写清楚并测试覆盖）。
