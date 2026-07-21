@@ -205,18 +205,14 @@ def _scenario_full_journey() -> ScenarioResult:
         )
     )
 
-    # 少林门禁
+    # 少林门禁：持刃可进（默认男、无门派）
     steps.append(_step(world, player_id, "go east", None))  # road_shaolin
     bag = world.require_component(player_id, Container)
     has_blade = any(
         world.require_component(item, Identity).name == "钢刀" for item in bag.items
     )
     steps.append(assert_step("(assert) 仍持钢刀", has_blade))
-    steps.append(
-        _step(world, player_id, "go east", Expect(any_of=("刀", "刃", "兵器")))
-    )
-    steps.append(_step(world, player_id, "drop 钢刀", Expect(contains=("放下",))))
-    steps.append(_step(world, player_id, "go east", Expect(absent=("不得",))))
+    steps.append(_step(world, player_id, "go east", Expect(absent=("不得", "刃"))))
     steps.append(
         assert_step(
             "(assert) shaolin_shanmen",

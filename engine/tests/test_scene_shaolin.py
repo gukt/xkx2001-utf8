@@ -23,7 +23,7 @@ def _move_to(world: World, player_id: EntityId, key: str) -> None:
 
 
 def _give_edged_blade(world: World, player_id: EntityId) -> None:
-    """把场景里的钢刀模板实例放进玩家背包（门槏刃器否决用）。"""
+    """把场景里的钢刀模板实例放进玩家背包（验证刃器不再挡门）。"""
     from mud_engine.scene_loader import instantiate_item
 
     blade = instantiate_item(world, "steel_blade")
@@ -55,13 +55,16 @@ class TestShaolinTemple:
         assert FACTIONS["shaolin"].map_skill.get("martial") == "luohan_quan"
         assert FACTIONS["shaolin"].map_skill.get("force") == "hunyuan_yiqi"
 
-    def test_entry_guard_denies_edged_weapon(self) -> None:
+    def test_entry_guard_allows_edged_weapon(self) -> None:
+        """持刃不再是山门条件；默认男、无门派时可携钢刀入内。"""
         world, player_id = load_mvp_scene()
         _move_to(world, player_id, "road_shaolin")
         _give_edged_blade(world, player_id)
         lines = execute_line(world, player_id, "go east")
-        assert any("刀" in line or "刃" in line or "兵器" in line for line in lines)
-        assert world.require_component(player_id, Position).room == _room(world, "road_shaolin")
+        assert world.require_component(player_id, Position).room == _room(
+            world, "shaolin_shanmen"
+        )
+        assert not any("刃" in line or "兵器" in line for line in lines)
 
     def test_entry_guard_denies_wrong_gender(self) -> None:
         world, player_id = load_mvp_scene()
@@ -84,15 +87,9 @@ class TestShaolinTemple:
         assert world.require_component(player_id, Position).room == _room(world, "road_shaolin")
 
     def test_script_enter_join_learn(self) -> None:
-        """不满足门槏拒绝 -> 满足后进入 -> join -> learn。"""
+        """默认男、无门派可进山门 -> join -> learn。"""
         world, player_id = load_mvp_scene()
         _move_to(world, player_id, "road_shaolin")
-        _give_edged_blade(world, player_id)
-        denied = execute_line(world, player_id, "go east")
-        assert any("刀" in line or "刃" in line or "兵器" in line for line in denied)
-
-        # 放下刃器后再进
-        execute_line(world, player_id, "drop 钢刀")
         entered = execute_line(world, player_id, "go east")
         assert world.require_component(player_id, Position).room == _room(world, "shaolin_shanmen")
         assert not any("不得" in line for line in entered)

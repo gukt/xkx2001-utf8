@@ -275,14 +275,12 @@ rooms:
         and:
           - field: gender
             value: male
-          - not:
-              predicate: is_wielding_edged_weapon
           - or:
               - field: has_faction
                 value: false
               - field: faction_id
                 value: shaolin
-      deny_message: 少林山门：须为男子、未属他派、且不得持刃器入内。
+      deny_message: 少林山门：须为男子、未属他派。
     exits:
       west: { to: road_shaolin, aliases: [西, 官道] }
       north: { to: shaolin_guangchang, aliases: [北, 广场] }

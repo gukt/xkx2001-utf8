@@ -348,23 +348,17 @@ class TestM2EndToEndScript:
         )
         assert any("岸" in line or "渡" in line for line in ferry)
 
-        # 少林山门：携带钱庄打铁铺留下的钢刀 → 拒绝 → drop 通过
+        # 少林山门：持刃不再挡门；默认男、无门派可直接进入
         execute_line(world, player_id, "go east")  # road_shaolin
         bag = world.require_component(player_id, Container)
         assert any(
             world.require_component(item, Identity).name == "钢刀" for item in bag.items
         )
-        denied_gate = execute_line(world, player_id, "go east")
-        assert any("刀" in line or "刃" in line or "兵器" in line for line in denied_gate)
-        assert world.require_component(player_id, Position).room == _room(
-            world, "road_shaolin"
-        )
-        execute_line(world, player_id, "drop 钢刀")
         entered = execute_line(world, player_id, "go east")
         assert world.require_component(player_id, Position).room == _room(
             world, "shaolin_shanmen"
         )
-        assert not any("不得" in line for line in entered)
+        assert not any("不得" in line or "刃" in line for line in entered)
 
         # join → learn → practice
         execute_line(world, player_id, "go north")

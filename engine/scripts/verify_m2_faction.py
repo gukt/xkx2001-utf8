@@ -28,31 +28,24 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.components import Container, Faction, Position, SkillLevels
+from mud_engine.components import Faction, Position, SkillLevels
 from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import instantiate_item
 from mud_engine.scenes import load_mvp_scene
-from mud_engine.world import EntityId, World
-
-
-def _give_blade(world: World, player_id: EntityId) -> None:
-    blade = instantiate_item(world, "steel_blade")
-    bag = world.get_component(player_id, Container)
-    if bag is None:
-        world.add_component(player_id, Container())
-        bag = world.require_component(player_id, Container)
-    bag.items.add(blade)
 
 
 def _scenario_entry_guard() -> ScenarioResult:
+    """山门只验性别 + 门派；持刃不再拒绝。本场景用他派身份验证拒绝文案。"""
     world, player_id = load_mvp_scene()
     move_to(world, player_id, "road_shaolin")
-    _give_blade(world, player_id)
+    if not world.has_component(player_id, Faction):
+        world.add_component(player_id, Faction(faction_id="beggars"))
+    else:
+        world.require_component(player_id, Faction).faction_id = "beggars"
     steps = run_lines(
         world,
         player_id,
         [
-            ("go east", Expect(any_of=("刀", "刃", "兵器"))),
+            ("go east", Expect(any_of=("他派", "门派", "男子"))),
         ],
     )
     still_outside = world.require_component(player_id, Position).room == room_by_key(
@@ -60,14 +53,13 @@ def _scenario_entry_guard() -> ScenarioResult:
     )
     steps.append(
         assert_step(
-            "(assert) 持刃仍在官道",
+            "(assert) 他派仍在官道",
             still_outside,
             messages=[str(still_outside)],
         )
     )
-    drop = execute_line(world, player_id, "drop 钢刀")
-    ok_d, detail_d = check(drop, Expect(contains=("放下",)))
-    steps.append(StepResult(line="drop 钢刀", messages=drop, ok=ok_d, detail=detail_d))
+    # 清掉门派后再进（默认男）
+    world.remove_component(player_id, Faction)
     entered = execute_line(world, player_id, "go east")
     at_gate = world.require_component(player_id, Position).room == room_by_key(
         world, "shaolin_shanmen"
@@ -75,7 +67,7 @@ def _scenario_entry_guard() -> ScenarioResult:
     ok_e, detail_e = check(entered, Expect(absent=("不得",)))
     steps.append(
         StepResult(
-            line="go east（无刃）",
+            line="go east（无门派）",
             messages=entered,
             ok=at_gate and ok_e,
             detail="" if at_gate and ok_e else f"{detail_e}; at_gate={at_gate}",

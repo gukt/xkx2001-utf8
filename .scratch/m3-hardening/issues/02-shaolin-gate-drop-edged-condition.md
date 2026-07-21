@@ -6,12 +6,12 @@
 
 **Blocked by:** None — 可立即开始。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `engine/data/m2_mvp_scene.yaml` 少林山门房间的 `entry_guard.condition`：删除 `not: {predicate: is_wielding_edged_weapon}` 这一支，只保留性别 + 门派归属两支；同步改写 `deny_message`（去掉"且不得持刃器入内"一类表述）。
-- [ ] `entity_gate.py` 的 `EntityGateContext.is_wielding_edged_weapon` 求值能力**不删除**，保留供未来 wield 系统复用。
-- [ ] `test_entry_guard.py`、`test_scene_shaolin.py` 里断言"持刃/edged 物品被拒"的用例改为断言新的两条件门槏（性别 + 门派），不再构造/携带 edged 物品作为拒绝案例。
-- [ ] 不新增 `wield`/`unwield`/`stash` 命令。
-- [ ] `just test` 全绿，尤其 `test_entry_guard.py`、`test_scene_shaolin.py`。
+- [x] `engine/data/m2_mvp_scene.yaml` 少林山门房间的 `entry_guard.condition`：删除 `not: {predicate: is_wielding_edged_weapon}` 这一支，只保留性别 + 门派归属两支；同步改写 `deny_message`（去掉"且不得持刃器入内"一类表述）。
+- [x] `entity_gate.py` 的 `EntityGateContext.is_wielding_edged_weapon` 求值能力**不删除**，保留供未来 wield 系统复用。
+- [x] `test_entry_guard.py`、`test_scene_shaolin.py` 里断言"持刃/edged 物品被拒"的用例改为断言新的两条件门槏（性别 + 门派），不再构造/携带 edged 物品作为拒绝案例。
+- [x] 不新增 `wield`/`unwield`/`stash` 命令。
+- [x] `just test` 全绿，尤其 `test_entry_guard.py`、`test_scene_shaolin.py`。
 
 ## Comments
