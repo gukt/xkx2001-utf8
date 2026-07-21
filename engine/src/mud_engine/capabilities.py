@@ -50,6 +50,7 @@ from mud_engine.components import (
     Mount,
     NoDeathZone,
     Riding,
+    Terrain,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -455,6 +456,39 @@ def _des_no_death_zone(_d: dict) -> NoDeathZone:
     return NoDeathZone()
 
 
+def _parse_terrain(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Terrain | None:
+    """``cost: N`` 或 ``terrain: {cost: N}`` / ``terrain: N``；缺省不挂（等同 cost=1）。"""
+    if "cost" in data:
+        raw = data["cost"]
+    elif "terrain" in data:
+        raw = data["terrain"]
+        if isinstance(raw, Mapping):
+            raw = raw.get("cost", 1)
+    else:
+        return None
+    try:
+        cost = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 terrain/cost 应是整数，实际是 {raw!r}"
+        ) from exc
+    if cost < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 terrain cost 应 >= 1，实际是 {cost}"
+        )
+    return Terrain(cost=cost)
+
+
+def _ser_terrain(c: Terrain) -> dict:
+    return {"cost": c.cost}
+
+
+def _des_terrain(d: dict) -> Terrain:
+    return Terrain(cost=int(d.get("cost", 1)))
+
+
 def _parse_ferry(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> Ferry | None:
@@ -570,6 +604,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_entry_guard,
         to_dict=_ser_entry_guard,
         from_dict=_des_entry_guard,
+    ),
+    CapabilitySpec(
+        component_type=Terrain,
+        known_fields=frozenset({"cost", "terrain"}),
+        from_yaml=_parse_terrain,
+        to_dict=_ser_terrain,
+        from_dict=_des_terrain,
     ),
 ]
 

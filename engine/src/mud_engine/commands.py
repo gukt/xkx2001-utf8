@@ -49,6 +49,7 @@ from mud_engine.components import (
     Faction,
     Identity,
     Inquiry,
+    MOUNT_JINGLI_PER_TERRAIN_COST,
     Mount,
     PlayerSession,
     Position,
@@ -57,6 +58,8 @@ from mud_engine.components import (
     SkillLevels,
     SkillProgress,
     Stackable,
+    Terrain,
+    Unconscious,
     Valuable,
     Vitals,
     Weight,
@@ -416,6 +419,15 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
             return ["那个方向的门锁着，过不去。"]
         return ["那个方向的门关着，过不去。"]
 
+    # 骑乘地形校验（M2-15）：在移动前；不通过则不消耗坐骑精力。
+    riding = world.get_component(player_id, Riding)
+    if riding is not None:
+        mount = world.get_component(riding.mount_id, Mount)
+        terrain = world.get_component(passage.target, Terrain)
+        cost = 1 if terrain is None else terrain.cost
+        if mount is not None and cost > mount.ability:
+            return ["这地方骑不过去。"]
+
     # before：可否决（"封城不能进""进房触发 NPC 反应前先校验"等规则挂载点）。
     # 否决则不移动、不触发 enter/leave。
     denial = run_vetoable(
@@ -430,24 +442,47 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     position = world.require_component(player_id, Position)
     position.room = passage.target
     riding_line: str | None = None
+    fall_line: str | None = None
     riding = world.get_component(player_id, Riding)
     if riding is not None:
-        mount_pos = world.get_component(riding.mount_id, Position)
+        mount_id = riding.mount_id
+        mount_pos = world.get_component(mount_id, Position)
         if mount_pos is not None:
             mount_pos.room = passage.target
+        mount = world.get_component(mount_id, Mount)
         mount_name = "坐骑"
-        mid = world.get_component(riding.mount_id, Identity)
+        mid = world.get_component(mount_id, Identity)
         if mid is not None:
             mount_name = mid.name
-        riding_line = f"你骑着{mount_name}前行。"
+        if mount is not None:
+            terrain = world.get_component(passage.target, Terrain)
+            cost = 1 if terrain is None else terrain.cost
+            drain = cost * MOUNT_JINGLI_PER_TERRAIN_COST
+            mount.jingli_current = max(0, mount.jingli_current - drain)
+            if mount.jingli_current == 0:
+                # 人马已到目标房；马倒 → 挂 Unconscious、解除骑乘（摔在目标房）。
+                if not world.has_component(mount_id, Unconscious):
+                    world.add_component(mount_id, Unconscious())
+                mount.ridden_by = None
+                world.remove_component(player_id, Riding)
+                fall_line = f"{mount_name}精力耗尽，你摔了下来。"
+            else:
+                riding_line = f"你骑着{mount_name}前行。"
+        else:
+            riding_line = f"你骑着{mount_name}前行。"
     # after：先离开旧房间、再进入新房间（对应 LPC move 先 leave 旧环境再 enter 新）。
     # 两者共用 EnterRoomContext 形状，事件名区分语义。fire-and-forget 不短路。
     enter_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)
     world.events.dispatch(ON_LEAVE_ROOM, enter_ctx)
     world.events.dispatch(ON_ENTER_ROOM, enter_ctx)
     look_lines = _cmd_look(world, player_id, Intent(verb="look", target=None))
+    prefix: list[str] = []
     if riding_line is not None:
-        return [riding_line, *look_lines]
+        prefix.append(riding_line)
+    if fall_line is not None:
+        prefix.append(fall_line)
+    if prefix:
+        return [*prefix, *look_lines]
     return look_lines
 
 

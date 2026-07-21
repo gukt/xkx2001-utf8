@@ -466,6 +466,21 @@ class Riding:
     mount_id: EntityId
 
 
+# ── 地形通行（M2-15 / spec F1）──────────────────────────────────────────
+
+
+@dataclass
+class Terrain:
+    """房间级通行难度。启动固定。骑乘时与 ``Mount.ability`` 比较。"""
+
+    cost: int = 1
+
+
+# 骑乘移动扣坐骑精力：``jingli_cost = Terrain.cost * MOUNT_JINGLI_PER_TERRAIN_COST``。
+# 系数放命名常量，避免散落魔法数字；题材包若需调速可日后改此常量或升为场景参数。
+MOUNT_JINGLI_PER_TERRAIN_COST: int = 1
+
+
 # ── 门槏与身份快照辅助（M2-11 / spec E2）────────────────────────────────
 
 
