@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from mud_engine.death_flow import DeathPolicy
     from mud_engine.ferry import FerryState
     from mud_engine.nature import NatureState
+    from mud_engine.pack import PackManifest
 
 EntityId = int
 
@@ -85,6 +86,10 @@ class World:
         self.death_policy: DeathPolicy | None = None
         # 渡口运行时态（M2-09）：纯内存、不进存档；由 ``attach_ferries`` 挂载。
         self.ferries: FerryState | None = None
+        # 内容包清单（M3-02）：纯内存、不进存档；由 ``load_pack`` 写入，
+        # restore 后由 ``reattach_pack_manifest`` 从 ``scene_path`` 同级
+        # ``manifest.yaml`` 重读。默认场景路径无 manifest 时保持 None。
+        self.pack_manifest: PackManifest | None = None
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []

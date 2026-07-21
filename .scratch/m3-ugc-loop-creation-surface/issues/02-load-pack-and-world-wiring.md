@@ -4,14 +4,14 @@
 
 **Blocked by:** `01`（依赖 `load_manifest`/`PackManifest`/`PackManifestError`）。
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `World.pack_manifest: PackManifest | None = None` 字段落地于 `world.py`；`World.__init__` 里的注释位置与既有运行时态字段（`nature`/`ai`/`spawners`/`ferries`）风格一致，说明"不进存档"与理由。
-- [ ] `load_pack(pack_dir)` 成功路径：给一个临时构造的最小合法内容包目录（`manifest.yaml` + `scene.yaml`，`scene.yaml` 内容可以是现有测试夹具里最简单的合法场景），断言返回的 `world.pack_manifest` 字段值与直接调 `load_manifest(pack_dir)` 的结果一致，且 `world`/`player_id` 与直接调 `load_scene(pack_dir / "scene.yaml")` 产出的世界状态一致（房间/NPC/物品都在，`world.scene_path` 指向 `pack_dir / "scene.yaml"` 的绝对路径）。
-- [ ] `load_pack(pack_dir)` 失败路径——manifest 坏：抛 `PackManifestError`（`load_scene` 完全不会被调用，用 mock/spy 或"断言错误消息明确提到 manifest 而不是场景内容"两种方式之一验证顺序：先校验 manifest 再加载场景）。
-- [ ] `load_pack(pack_dir)` 失败路径——manifest 合法但 `scene.yaml` 结构性错误（如出口指向不存在的房间）：抛出的仍是现有 `SceneLoadError`（不是被本票包装成别的类型、不是被吞掉），证明组合不改变场景层已有的错误契约。
-- [ ] `reattach_pack_manifest(world)`：给一个 `world.scene_path` 指向"某目录下的 scene.yaml，该目录也有合法 manifest.yaml"的 `World`（可以是刚 `load_pack` 出来的，也可以手工构造 `scene_path` 后调用），断言调用后 `world.pack_manifest` 被正确填充/刷新；再给一个 `world.scene_path` 指向"该目录没有 manifest.yaml"（如默认官方场景路径）的 `World`，断言调用后 `world.pack_manifest` 仍是 `None`、且不抛任何异常。
-- [ ] `reattach_pack_manifest(world)` 在 `world.scene_path is None` 时静默 no-op（不抛异常）——对应"存档里从来没记过 scene_path"这种边界情况的防御。
-- [ ] 端到端复合场景（为 03 号票铺路，本票用直接函数调用而非 CLI 验证）：`load_pack` 建 world → 用现有 `save.py` 的 `save_world`/`restore_world` 走一次存档/恢复 → 对恢复后的新 `World` 手动调 `reattach_pack_manifest` → 断言恢复后的 `pack_manifest` 与恢复前一致。这条测试证明"不扩展 `save.py`"这条决策确实成立，不是纸上假设。
-- [ ] `save.py` 未被本票改动（跑一下 `git diff --stat` 或等价确认，防止实现时不小心手滑加了字段序列化）。
-- [ ] 现有测试全绿不回归。
+- [x] `World.pack_manifest: PackManifest | None = None` 字段落地于 `world.py`；`World.__init__` 里的注释位置与既有运行时态字段（`nature`/`ai`/`spawners`/`ferries`）风格一致，说明"不进存档"与理由。
+- [x] `load_pack(pack_dir)` 成功路径：给一个临时构造的最小合法内容包目录（`manifest.yaml` + `scene.yaml`，`scene.yaml` 内容可以是现有测试夹具里最简单的合法场景），断言返回的 `world.pack_manifest` 字段值与直接调 `load_manifest(pack_dir)` 的结果一致，且 `world`/`player_id` 与直接调 `load_scene(pack_dir / "scene.yaml")` 产出的世界状态一致（房间/NPC/物品都在，`world.scene_path` 指向 `pack_dir / "scene.yaml"` 的绝对路径）。
+- [x] `load_pack(pack_dir)` 失败路径——manifest 坏：抛 `PackManifestError`（`load_scene` 完全不会被调用，用 mock/spy 或"断言错误消息明确提到 manifest 而不是场景内容"两种方式之一验证顺序：先校验 manifest 再加载场景）。
+- [x] `load_pack(pack_dir)` 失败路径——manifest 合法但 `scene.yaml` 结构性错误（如出口指向不存在的房间）：抛出的仍是现有 `SceneLoadError`（不是被本票包装成别的类型、不是被吞掉），证明组合不改变场景层已有的错误契约。
+- [x] `reattach_pack_manifest(world)`：给一个 `world.scene_path` 指向"某目录下的 scene.yaml，该目录也有合法 manifest.yaml"的 `World`（可以是刚 `load_pack` 出来的，也可以手工构造 `scene_path` 后调用），断言调用后 `world.pack_manifest` 被正确填充/刷新；再给一个 `world.scene_path` 指向"该目录没有 manifest.yaml"（如默认官方场景路径）的 `World`，断言调用后 `world.pack_manifest` 仍是 `None`、且不抛任何异常。
+- [x] `reattach_pack_manifest(world)` 在 `world.scene_path is None` 时静默 no-op（不抛异常）——对应"存档里从来没记过 scene_path"这种边界情况的防御。
+- [x] 端到端复合场景（为 03 号票铺路，本票用直接函数调用而非 CLI 验证）：`load_pack` 建 world → 用现有 `save.py` 的 `save_world`/`restore_world` 走一次存档/恢复 → 对恢复后的新 `World` 手动调 `reattach_pack_manifest` → 断言恢复后的 `pack_manifest` 与恢复前一致。这条测试证明"不扩展 `save.py`"这条决策确实成立，不是纸上假设。
+- [x] `save.py` 未被本票改动（跑一下 `git diff --stat` 或等价确认，防止实现时不小心手滑加了字段序列化）。
+- [x] 现有测试全绿不回归。

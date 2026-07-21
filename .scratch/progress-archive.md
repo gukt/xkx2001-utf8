@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M2 verify 能力面矩阵 + journey**（2026-07-21）：`verify_harness.py`；`verify_m2_*`；`just verify-m2`；pytest `test_verify_m2_matrices.py`。
+
 - [x] **M2 Wave 5 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave5-start`。557 测试绿。
 
 - [x] **M2 Wave 4 `/implement` + `/code-review` fix**（2026-07-21）：fixed point `m2-wave4-start`。551 测试绿。
