@@ -4,14 +4,14 @@
 
 **Blocked by:** 01（`Ferry` 是房间级能力，走注册表挂载）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Ferry(far_bank, cross_interval, direction)` 组件落地，走房间级能力注册表；`far_bank` 引用另一个房间键，加载期校验该房间已定义且也挂了 `Ferry`（互相指向）。
-- [ ] `FerryState` 运行时态（不进存档）+ `attach_ferries(world)`（幂等，与 `attach_ai_system` 同构）挂 `on_tick` 订阅者。
-- [ ] on_tick 系统按周期翻转：渡船到岸时该岸房间 `Exits.by_direction[direction]` 出现一条指向对岸的 `Exit`，离岸的那一侧对应方向条目被移除。
-- [ ] 渡船不在场时尝试 `go <过河方向>`：因为该方向本来就没有 `Exit` 条目，走现有 `go` 命令"那个方向没有出口"路径即可，不需要新的拒绝分支。
-- [ ] `look` 在挂 `Ferry` 的房间追加一行渡船状态文案（现算，不写进 `Description`），文案至少体现"在哪一岸"与"距离到达还有多久"两个信息点。
-- [ ] tick 层测试（复用 `TickLoop.advance`/`dispatch(ON_TICK, ...)` seam）：反复推进 tick，断言出口按周期在两岸间正确转移、渡船状态文案随之更新。
-- [ ] `attach_ferries` 重复调用不重复注册（同 `attach_ai_system` 幂等约束）。
-- [ ] 存档恢复后 `FerryState` 不进存档、由下次 `load_scene` 重新填充（同 `world.nature`/`world.ai` 语义，本票不需要额外处理，但需要一条测试验证"restore 后 world.ferries 起始为空/需重新 attach"这一行为不是隐性 bug）。
-- [ ] 现有测试全绿不回归。
+- [x] `Ferry(far_bank, cross_interval, direction)` 组件落地，走房间级能力注册表；`far_bank` 引用另一个房间键，加载期校验该房间已定义且也挂了 `Ferry`（互相指向）。
+- [x] `FerryState` 运行时态（不进存档）+ `attach_ferries(world)`（幂等，与 `attach_ai_system` 同构）挂 `on_tick` 订阅者。
+- [x] on_tick 系统按周期翻转：渡船到岸时该岸房间 `Exits.by_direction[direction]` 出现一条指向对岸的 `Exit`，离岸的那一侧对应方向条目被移除。
+- [x] 渡船不在场时尝试 `go <过河方向>`：因为该方向本来就没有 `Exit` 条目，走现有 `go` 命令"那个方向没有出口"路径即可，不需要新的拒绝分支。
+- [x] `look` 在挂 `Ferry` 的房间追加一行渡船状态文案（现算，不写进 `Description`），文案至少体现"在哪一岸"与"距离到达还有多久"两个信息点。
+- [x] tick 层测试（复用 `TickLoop.advance`/`dispatch(ON_TICK, ...)` seam）：反复推进 tick，断言出口按周期在两岸间正确转移、渡船状态文案随之更新。
+- [x] `attach_ferries` 重复调用不重复注册（同 `attach_ai_system` 幂等约束）。
+- [x] 存档恢复后 `FerryState` 不进存档、由下次 `load_scene` 重新填充（同 `world.nature`/`world.ai` 语义，本票不需要额外处理，但需要一条测试验证"restore 后 world.ferries 起始为空/需重新 attach"这一行为不是隐性 bug）。
+- [x] 现有测试全绿不回归。
