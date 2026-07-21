@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **P1 排期拍板**（2026-07-21）：`/grill-with-docs` 续——**W1**（不升停机门闩）；下一刀 **B3**（P1-2/3/4/6/7）；时序 **Q3**；P1-1/5/8/9 → spec OOS（X1）。
+
 - [x] **M3 停机加固拍板**（2026-07-21）：`/grill-with-docs`——S0 仅 P0；Effect 延期（ADR-0007）；昏迷 tick 苏醒；少林场景去掉持刃条件；频道/登录单机降级（ADR-0008）；暂缓 M4。
 
 - [x] **M3 UGC 闭环打通一次**（2026-07-21）：Wave 3 票 [05](m3-ugc-loop-creation-surface/issues/05-e2e-verification-and-docs.md)——`test_m3_pack_loop.py` + `verify_m3_pack_loop.py` + `just verify-m3`；示例包端到端剧本 / 坏包 `--validate` / CLI 存档恢复；[spec](m3-ugc-loop-creation-surface/spec.md)。Review fix：拆复合断言、逐步串跑断言、`test_verify_m3_matrix`、lint 全绿。649 绿。
