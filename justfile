@@ -92,6 +92,29 @@ verify-npc:
 verify-nature:
     cd engine && uv run python scripts/verify_m1_nature.py
 
+# M2 战斗能力面（MVP 场景：交战 / flee / aggro / 击杀 / 战败复活）
+verify-m2-combat:
+    cd engine && uv run python scripts/verify_m2_combat.py
+
+# M2 金钱/商店（MVP 场景：buy / sell）
+verify-m2-economy:
+    cd engine && uv run python scripts/verify_m2_economy.py
+
+# M2 门派（MVP 场景：门禁 / join / learn / practice）
+verify-m2-faction:
+    cd engine && uv run python scripts/verify_m2_faction.py
+
+# M2 交通（MVP 场景：坐骑地形 / 渡口 / 短程连通）
+verify-m2-travel:
+    cd engine && uv run python scripts/verify_m2_travel.py
+
+# M2 轻量全程旅程（给人看的转录；正式门禁见 tests/test_m2_e2e_script.py）
+verify-m2-journey:
+    cd engine && uv run python scripts/verify_m2_journey.py
+
+# M2 全部 verify 矩阵（能力面 + journey）
+verify-m2: verify-m2-combat verify-m2-economy verify-m2-faction verify-m2-travel verify-m2-journey
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

@@ -15,40 +15,11 @@
 
 from __future__ import annotations
 
-import os
 import sys
-from dataclasses import dataclass, field
 
-from mud_engine.parsing import execute_line
+from verify_harness import Expect, ScenarioResult, main_from, run_lines
+
 from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
-
-
-@dataclass(frozen=True)
-class Expect:
-    """对单条命令输出的期望（子串匹配）。"""
-
-    contains: tuple[str, ...] = ()
-    any_of: tuple[str, ...] = ()  # 至少命中其一（用于拒绝类提示）
-
-
-@dataclass
-class StepResult:
-    line: str
-    messages: list[str]
-    ok: bool
-    detail: str = ""
-
-
-@dataclass
-class ScenarioResult:
-    name: str
-    steps: list[StepResult] = field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        return all(s.ok for s in self.steps)
-
 
 ENTER_STORAGE = (
     ("open south", Expect(contains=("打开",))),
@@ -56,34 +27,9 @@ ENTER_STORAGE = (
 )
 
 
-def _check(messages: list[str], expect: Expect | None) -> tuple[bool, str]:
-    if expect is None:
-        return True, ""
-    combined = "\n".join(messages)
-    for needle in expect.contains:
-        if needle not in combined:
-            return False, f"缺少期望子串：{needle!r}"
-    if expect.any_of and not any(n in combined for n in expect.any_of):
-        return False, f"未命中任一期望：{expect.any_of!r}"
-    return True, ""
-
-
-def _run_lines(
-    world: World,
-    player_id: EntityId,
-    steps: list[tuple[str, Expect | None]],
-) -> list[StepResult]:
-    results: list[StepResult] = []
-    for line, expect in steps:
-        messages = execute_line(world, player_id, line)
-        ok, detail = _check(messages, expect)
-        results.append(StepResult(line=line, messages=messages, ok=ok, detail=detail))
-    return results
-
-
 def _scenario(name: str, steps: list[tuple[str, Expect | None]]) -> ScenarioResult:
     world, player_id = build_world()
-    return ScenarioResult(name=name, steps=_run_lines(world, player_id, steps))
+    return ScenarioResult(name=name, steps=run_lines(world, player_id, steps))
 
 
 def all_scenarios() -> list[ScenarioResult]:
@@ -163,46 +109,8 @@ def all_scenarios() -> list[ScenarioResult]:
     ]
 
 
-def _use_color() -> bool:
-    """终端且未强制无色时用 ANSI；无额外依赖。"""
-    if os.environ.get("NO_COLOR"):
-        return False
-    return sys.stdout.isatty()
-
-
-def _step_mark(ok: bool) -> str:
-    if ok:
-        return f"\033[32m✔\033[0m" if _use_color() else "✔"
-    return f"\033[31m✖\033[0m" if _use_color() else "✖"
-
-
-def _scenario_mark(ok: bool) -> str:
-    if ok:
-        return f"\033[32m✔\033[0m" if _use_color() else "✔"
-    return f"\033[31m✖\033[0m" if _use_color() else "✖"
-
-
-def print_report(scenarios: list[ScenarioResult]) -> int:
-    for sc in scenarios:
-        print(f"\n=== {sc.name} ===")
-        for step in sc.steps:
-            print(f"> {step.line}  {_step_mark(step.ok)}")
-            for m in step.messages:
-                print(f"  {m}")
-            if step.detail:
-                print(f"  !! {step.detail}")
-
-    print("\n── 摘要 ──")
-    for sc in scenarios:
-        print(f"  {_scenario_mark(sc.ok)} {sc.name}")
-    total_fail_steps = sum(1 for sc in scenarios for s in sc.steps if not s.ok)
-    n_ok = sum(1 for sc in scenarios if sc.ok)
-    print(f"  场景 {n_ok}/{len(scenarios)} 通过；失败步骤 {total_fail_steps}")
-    return 0 if total_fail_steps == 0 else 1
-
-
 def main() -> int:
-    return print_report(all_scenarios())
+    return main_from(all_scenarios)
 
 
 if __name__ == "__main__":

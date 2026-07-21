@@ -18,42 +18,23 @@ Chatter / Spawn 组走 ``TickLoop.advance`` seam（非纯命令串），与
 
 from __future__ import annotations
 
-import os
 import sys
-from dataclasses import dataclass, field
+
+from verify_harness import (
+    Expect,
+    ScenarioResult,
+    StepResult,
+    advance_once,
+    assert_step,
+    check,
+    main_from,
+    run_lines,
+)
 
 from mud_engine.components import AIController, Identity, NpcSpawnMeta, Position
-from mud_engine.parsing import execute_line
 from mud_engine.scenes import build_world
 from mud_engine.tick import TickLoop
 from mud_engine.world import EntityId, World
-
-
-@dataclass(frozen=True)
-class Expect:
-    """对单条命令输出的期望（子串匹配）。"""
-
-    contains: tuple[str, ...] = ()
-    any_of: tuple[str, ...] = ()
-    absent: tuple[str, ...] = ()  # 合并输出中不得出现
-
-
-@dataclass
-class StepResult:
-    line: str
-    messages: list[str]
-    ok: bool
-    detail: str = ""
-
-
-@dataclass
-class ScenarioResult:
-    name: str
-    steps: list[StepResult] = field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        return all(s.ok for s in self.steps)
 
 
 class _AlwaysSpeakRng:
@@ -64,34 +45,6 @@ class _AlwaysSpeakRng:
 
     def choice(self, seq):  # noqa: ANN001
         return seq[0]
-
-
-def _check(messages: list[str], expect: Expect | None) -> tuple[bool, str]:
-    if expect is None:
-        return True, ""
-    combined = "\n".join(messages)
-    for needle in expect.contains:
-        if needle not in combined:
-            return False, f"缺少期望子串：{needle!r}"
-    if expect.any_of and not any(n in combined for n in expect.any_of):
-        return False, f"未命中任一期望：{expect.any_of!r}"
-    for needle in expect.absent:
-        if needle in combined:
-            return False, f"不应出现子串：{needle!r}"
-    return True, ""
-
-
-def _run_lines(
-    world: World,
-    player_id: EntityId,
-    steps: list[tuple[str, Expect | None]],
-) -> list[StepResult]:
-    results: list[StepResult] = []
-    for line, expect in steps:
-        messages = execute_line(world, player_id, line)
-        ok, detail = _check(messages, expect)
-        results.append(StepResult(line=line, messages=messages, ok=ok, detail=detail))
-    return results
 
 
 def _set_phase(world: World, phase_name: str) -> None:
@@ -107,16 +60,6 @@ def _set_phase(world: World, phase_name: str) -> None:
     raise RuntimeError(f"场景无相位 {phase_name!r}")
 
 
-def _advance_once(world: World) -> list[str]:
-    """推进一拍并返回（并清空）pending_messages。"""
-    world.pending_messages.clear()
-    loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
-    loop.advance()
-    messages = list(world.pending_messages)
-    world.pending_messages.clear()
-    return messages
-
-
 def _npcs_named(world: World, name: str) -> list[EntityId]:
     return [
         e
@@ -127,13 +70,13 @@ def _npcs_named(world: World, name: str) -> list[EntityId]:
 
 def _scenario_commands(name: str, steps: list[tuple[str, Expect | None]]) -> ScenarioResult:
     world, player_id = build_world()
-    return ScenarioResult(name=name, steps=_run_lines(world, player_id, steps))
+    return ScenarioResult(name=name, steps=run_lines(world, player_id, steps))
 
 
 def _scenario_look_and_spawn() -> ScenarioResult:
     """look 在场 + count=2 实例 + 石像无 AIController。"""
     world, player_id = build_world()
-    steps = _run_lines(
+    steps = run_lines(
         world,
         player_id,
         [
@@ -153,7 +96,6 @@ def _scenario_look_and_spawn() -> ScenarioResult:
             ("get 石像守卫", Expect(contains=("这里没有", "石像守卫"))),
         ],
     )
-    # count=2：两名「巡逻兵」同房。
     room = world.require_component(player_id, Position).room
     patrols = [
         e
@@ -171,22 +113,21 @@ def _scenario_look_and_spawn() -> ScenarioResult:
     if not meta_ok:
         detail_parts.append("NpcSpawnMeta.desired_count/respawn 不符")
     steps.append(
-        StepResult(
-            line="(assert) patrol_pair count=2",
+        assert_step(
+            "(assert) patrol_pair count=2",
+            ok_count and meta_ok,
             messages=[f"巡逻兵×{len(patrols)}"],
-            ok=ok_count and meta_ok,
             detail="; ".join(detail_parts),
         )
     )
-    # 石像守卫无 AIController（静态 inquiry）。
     guards = _npcs_named(world, "石像守卫")
     guard = guards[0] if guards else None
     no_ai = guard is not None and not world.has_component(guard, AIController)
     steps.append(
-        StepResult(
-            line="(assert) stone_guard 无 AIController",
+        assert_step(
+            "(assert) stone_guard 无 AIController",
+            no_ai,
             messages=["ok" if no_ai else "石像仍挂了 AIController"],
-            ok=no_ai,
             detail="" if no_ai else "石像守卫不应挂 AIController",
         )
     )
@@ -202,9 +143,7 @@ def _scenario_ask() -> ScenarioResult:
             ("ask 石像守卫 about 武功", Expect(contains=("没有回答",))),
             ("ask 不存在的人 about 天气", Expect(contains=("没有",))),
             ("ask", Expect(contains=("用法",))),
-            # count=2 同名：解析层歧义（非「找不到」）。
             ("ask 巡逻兵 about 天气", Expect(contains=("不确定你指的是哪个", "巡逻兵"))),
-            # 有 NpcSpawnMeta、无 Inquiry：可指代但不愿说话。
             ("ask 庭院闲人 about 天气", Expect(contains=("不想和你说话",))),
         ],
     )
@@ -228,15 +167,12 @@ def _scenario_chatter() -> ScenarioResult:
     world.ai.rng = _AlwaysSpeakRng()
     steps: list[StepResult] = []
 
-    # 白天：夜猫静默；闲人仍说（无 when）。
     _set_phase(world, "day")
-    msgs_day = _advance_once(world)
-    ok_gossip_day, detail_g = _check(
-        msgs_day, Expect(contains=("庭院闲人说：庭院真清静啊。"))
+    msgs_day = advance_once(world)
+    ok_gossip_day, detail_g = check(
+        msgs_day, Expect(contains=("庭院闲人说：庭院真清静啊。",))
     )
-    ok_owl_silent, detail_o = _check(
-        msgs_day, Expect(absent=("夜猫子说：",))
-    )
+    ok_owl_silent, detail_o = check(msgs_day, Expect(absent=("夜猫子说：",)))
     steps.append(
         StepResult(
             line="(tick) day：闲人说话",
@@ -254,11 +190,10 @@ def _scenario_chatter() -> ScenarioResult:
         )
     )
 
-    # 夜里：夜猫开口。
     _set_phase(world, "night")
-    msgs_night = _advance_once(world)
-    ok_owl_night, detail_n = _check(
-        msgs_night, Expect(contains=("夜猫子说：夜深了，该歇歇了。"))
+    msgs_night = advance_once(world)
+    ok_owl_night, detail_n = check(
+        msgs_night, Expect(contains=("夜猫子说：夜深了，该歇歇了。",))
     )
     steps.append(
         StepResult(
@@ -269,7 +204,6 @@ def _scenario_chatter() -> ScenarioResult:
         )
     )
 
-    # 多拍后石像仍不闲聊（无 AIController）。
     _set_phase(world, "day")
     world.pending_messages.clear()
     loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
@@ -277,7 +211,7 @@ def _scenario_chatter() -> ScenarioResult:
         loop.advance()
     combined = list(world.pending_messages)
     world.pending_messages.clear()
-    ok_guard, detail_guard = _check(combined, Expect(absent=("石像守卫说：",)))
+    ok_guard, detail_guard = check(combined, Expect(absent=("石像守卫说：",)))
     steps.append(
         StepResult(
             line="(tick×5) 石像不闲聊",
@@ -287,7 +221,6 @@ def _scenario_chatter() -> ScenarioResult:
         )
     )
 
-    # Spawn 扫描空转：推进到 spawn_scan_interval，不崩且实例数不变。
     before = len(_npcs_named(world, "巡逻兵"))
     interval = world.ai.spawn_scan_interval
     for _ in range(interval + 1):
@@ -295,20 +228,18 @@ def _scenario_chatter() -> ScenarioResult:
     after = len(_npcs_named(world, "巡逻兵"))
     ok_spawn = before == after == 2
     steps.append(
-        StepResult(
-            line="(tick) spawn 扫描空转",
+        assert_step(
+            "(tick) spawn 扫描空转",
+            ok_spawn,
             messages=[f"巡逻兵 {before}→{after}"],
-            ok=ok_spawn,
             detail="" if ok_spawn else f"实例数变化或非 2：{before}→{after}",
         )
     )
-    # 避免 unused 警告式：player 仍在庭院。
     _ = player_id
     return ScenarioResult(name="Chatter + spawn 扫描", steps=steps)
 
 
 def _scenario_door_smoke() -> ScenarioResult:
-    """短回归：门/钥匙路径不被 NPC 夹具破坏。"""
     return _scenario_commands(
         "门钥匙回归",
         [
@@ -331,45 +262,8 @@ def all_scenarios() -> list[ScenarioResult]:
     ]
 
 
-def _use_color() -> bool:
-    if os.environ.get("NO_COLOR"):
-        return False
-    return sys.stdout.isatty()
-
-
-def _step_mark(ok: bool) -> str:
-    if ok:
-        return f"\033[32m✔\033[0m" if _use_color() else "✔"
-    return f"\033[31m✖\033[0m" if _use_color() else "✖"
-
-
-def _scenario_mark(ok: bool) -> str:
-    if ok:
-        return f"\033[32m✔\033[0m" if _use_color() else "✔"
-    return f"\033[31m✖\033[0m" if _use_color() else "✖"
-
-
-def print_report(scenarios: list[ScenarioResult]) -> int:
-    for sc in scenarios:
-        print(f"\n=== {sc.name} ===")
-        for step in sc.steps:
-            print(f"> {step.line}  {_step_mark(step.ok)}")
-            for m in step.messages:
-                print(f"  {m}")
-            if step.detail:
-                print(f"  !! {step.detail}")
-
-    print("\n── 摘要 ──")
-    for sc in scenarios:
-        print(f"  {_scenario_mark(sc.ok)} {sc.name}")
-    total_fail_steps = sum(1 for sc in scenarios for s in sc.steps if not s.ok)
-    n_ok = sum(1 for sc in scenarios if sc.ok)
-    print(f"  场景 {n_ok}/{len(scenarios)} 通过；失败步骤 {total_fail_steps}")
-    return 0 if total_fail_steps == 0 else 1
-
-
 def main() -> int:
-    return print_report(all_scenarios())
+    return main_from(all_scenarios)
 
 
 if __name__ == "__main__":
