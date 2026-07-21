@@ -61,40 +61,54 @@ class TestResolveAttackDeterminism:
 
 
 class TestDodgeAndParry:
-    def test_zero_dp_always_hits(self) -> None:
-        # dp=0：random(ap+0)<0 永不成立 → 必中（不闪）。
-        model = DefaultWuxiaPowerModel()
-        ctx = _ctx(force=10, dodge=0, defender_dex=0)
-        assert model.defense_power(ctx) == 0
-        for seed in range(20):
-            result = resolve_attack(ctx, random.Random(seed), power_model=model)
-            assert result.dodged is False
+    class WhenDpIsZero:
+        def test_always_hits(self) -> None:
+            # dp=0：random(ap+0)<0 永不成立 → 必中（不闪）。
+            model = DefaultWuxiaPowerModel()
+            ctx = _ctx(force=10, dodge=0, defender_dex=0)
+            assert model.defense_power(ctx) == 0
+            for seed in range(20):
+                result = resolve_attack(ctx, random.Random(seed), power_model=model)
+                assert result.dodged is False
+                assert result.hit is True
+                assert result.damage > 0
+
+    class WhenDpIsHuge:
+        def test_always_dodges(self) -> None:
+            # 极大 dodge 使 dp >> ap，闪避几乎必成。
+            ctx = _ctx(force=1, dodge=10_000, defender_dex=0)
+            for seed in range(20):
+                result = resolve_attack(ctx, random.Random(seed))
+                assert result.dodged is True
+                assert result.hit is False
+                assert result.damage == 0
+
+
+class TestPowerModel:
+    class WhenStrengthDiffers:
+        def test_higher_strength_raises_ap(self) -> None:
+            model = DefaultWuxiaPowerModel()
+            weak = _ctx(attacker_str=0, force=10)
+            strong = _ctx(attacker_str=50, force=10)
+            assert model.attack_power(strong) > model.attack_power(weak)
+
+    class WhenMoveHasFixedDamage:
+        def test_inflict_ignores_strength(self) -> None:
+            ctx = _ctx(attacker_str=100, force=10, damage=7, defender_dex=0, dodge=0)
+            result = resolve_attack(ctx, random.Random(0))
             assert result.hit is True
-            assert result.damage > 0
+            assert result.damage == 7
 
-    def test_huge_dp_always_dodges(self) -> None:
-        # 极大 dodge 使 dp >> ap，闪避几乎必成。
-        ctx = _ctx(force=1, dodge=10_000, defender_dex=0)
-        for seed in range(20):
-            result = resolve_attack(ctx, random.Random(seed))
-            assert result.dodged is True
-            assert result.hit is False
-            assert result.damage == 0
-
-
-class TestPowerModelAp:
-    def test_higher_strength_raises_ap(self) -> None:
-        model = DefaultWuxiaPowerModel()
-        weak = _ctx(attacker_str=0, force=10)
-        strong = _ctx(attacker_str=50, force=10)
-        assert model.attack_power(strong) > model.attack_power(weak)
-
-    def test_fixed_damage_move_ignores_strength_for_inflict(self) -> None:
-        # 固定伤害招式：命中后伤害等于声明的 damage，不随力量缩放。
-        ctx = _ctx(attacker_str=100, force=10, damage=7, defender_dex=0, dodge=0)
-        result = resolve_attack(ctx, random.Random(0))
-        assert result.hit is True
-        assert result.damage == 7
+    class WhenCustomStrFactorIsInjected:
+        def test_base_damage_follows_injected_model(self) -> None:
+            # 伤害必须走注入的 PowerModel，不能硬编码默认 str_factor。
+            ctx = _ctx(attacker_str=50, force=10, defender_dex=0, dodge=0, damage=None)
+            default = resolve_attack(ctx, random.Random(0), power_model=DefaultWuxiaPowerModel())
+            boosted = resolve_attack(
+                ctx, random.Random(0), power_model=DefaultWuxiaPowerModel(str_factor=0.5)
+            )
+            assert boosted.hit is True and default.hit is True
+            assert boosted.damage > default.damage
 
 
 class TestAttachPowerModel:

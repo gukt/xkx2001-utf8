@@ -117,7 +117,7 @@ def _on_ai_tick(context: TickContext) -> None:
         return
     tick = context.tick
     if ai.spawn_scan_interval > 0 and tick % ai.spawn_scan_interval == 0:
-        _spawn_scan(world)
+        spawn_scan(world)
     cond_ctx = _condition_context(world)
     for entity in list(world.entities_with(AIController)):
         controller = world.require_component(entity, AIController)
@@ -170,7 +170,7 @@ def _tick_chatter(
     room_say(world, entity, text)
 
 
-def _spawn_scan(world: World) -> None:
+def spawn_scan(world: World) -> None:
     """低频 Spawn/Reset 扫描：按 ``world.spawners`` 核对存活数（M2-04）。
 
     遍历蓝图注册表（不再从存活 ``NpcSpawnMeta`` 反向聚合），因此即使某
@@ -188,11 +188,20 @@ def _spawn_scan(world: World) -> None:
         alive = len(by_template.get(template_key, ()))
         missing = blueprint.desired_count - alive
         for _ in range(max(0, missing)):
-            _spawn_from_blueprint(world, blueprint)
+            spawn_from_blueprint(world, blueprint)
 
 
-def _spawn_from_blueprint(world: World, blueprint: SpawnerBlueprint) -> EntityId:
-    """按蓝图重建一个全新 NPC 实例（不带上一实例任何累积可变状态）。"""
+def spawn_from_blueprint(
+    world: World,
+    blueprint: SpawnerBlueprint,
+    *,
+    room: EntityId | None = None,
+) -> EntityId:
+    """按蓝图重建一个全新 NPC 实例（不带上一实例任何累积可变状态）。
+
+    ``room`` 覆盖初始位置（场景加载时用 ``in_room``；缺省用 ``blueprint.startroom``
+    供重生路径）。load 与 respawn 共用本函数，避免双路径装配分叉。
+    """
     npc = world.create_entity()
     world.add_component(
         npc, Identity(name=blueprint.name, aliases=blueprint.aliases)
@@ -200,7 +209,9 @@ def _spawn_from_blueprint(world: World, blueprint: SpawnerBlueprint) -> EntityId
     world.add_component(
         npc, Description(short=blueprint.short, long=blueprint.long)
     )
-    world.add_component(npc, Position(room=blueprint.startroom))
+    world.add_component(
+        npc, Position(room=blueprint.startroom if room is None else room)
+    )
     world.add_component(
         npc,
         NpcSpawnMeta(
@@ -225,6 +236,11 @@ def _spawn_from_blueprint(world: World, blueprint: SpawnerBlueprint) -> EntityId
             npc, Behaviors(entries=list(blueprint.behaviors.entries))
         )
     return npc
+
+
+# 兼容旧私有名（tick handler / 历史测试引用）。
+_spawn_scan = spawn_scan
+_spawn_from_blueprint = spawn_from_blueprint
 
 
 def _condition_context(world: World) -> ConditionContext:
@@ -295,4 +311,6 @@ __all__ = [
     "SpawnerBlueprint",
     "attach_ai_system",
     "condition_from_data",
+    "spawn_from_blueprint",
+    "spawn_scan",
 ]

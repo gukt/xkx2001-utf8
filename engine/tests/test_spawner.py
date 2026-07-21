@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.ai import _spawn_scan
+from mud_engine.ai import spawn_scan
 from mud_engine.components import Description, Identity, NpcSpawnMeta, Position
 from mud_engine.scene_loader import load_scene
 from mud_engine.world import World
@@ -73,7 +73,7 @@ class TestSpawnerBlueprintTotalWipeout:
             for e in world.entities_with(NpcSpawnMeta)
         )
 
-        _spawn_scan(world)
+        spawn_scan(world)
 
         rebuilt = [
             e
@@ -102,7 +102,7 @@ class TestSpawnerBlueprintTotalWipeout:
         ]
         assert len(victims) == 1
         world.destroy_entity(victims[0])
-        _spawn_scan(world)
+        spawn_scan(world)
         assert not any(
             world.require_component(e, NpcSpawnMeta).template_key == "wanderer"
             for e in world.entities_with(NpcSpawnMeta)

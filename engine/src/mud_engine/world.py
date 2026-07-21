@@ -175,7 +175,7 @@ class World:
                 yield (component_type, component)
 
     def destroy_entity(self, entity: EntityId) -> None:
-        """彻底移除一个实体及其全部组件（M2-04 测试/重生路径用）。
+        """彻底移除一个实体及其全部组件（M2-04 重生 / 后续死亡流程用）。
 
         不存在的 id 静默忽略。同步清理该实体的 ``entity_extension_data``。
         不负责从他人 ``Container.items`` 里摘引用——调用方须先处理容器持有关系。

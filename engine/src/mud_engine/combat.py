@@ -61,13 +61,15 @@ class CombatRoundResult:
 
 @runtime_checkable
 class PowerModel(Protocol):
-    """AP/DP/PP 求值策略：题材包可整体替换（ADR-0004）。"""
+    """AP/DP/PP/伤害求值策略：题材包可整体替换（ADR-0004）。"""
 
     def attack_power(self, ctx: CombatContext) -> int: ...
 
     def defense_power(self, ctx: CombatContext) -> int: ...
 
     def parry_power(self, ctx: CombatContext) -> int: ...
+
+    def base_damage(self, ctx: CombatContext) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ class DefaultWuxiaPowerModel:
     AP = force × (1 + str × str_factor)
     DP = defender_dex × dex_factor + move.dodge
     PP = DP（MVP 招架与闪避共用同一防御势，避免引入无题材包数据支撑的第二套系数）
+    非固定伤害 = AP 同公式（force × (1 + str × str_factor)），下限 1
     """
 
     str_factor: float = 0.02
@@ -92,6 +95,12 @@ class DefaultWuxiaPowerModel:
 
     def parry_power(self, ctx: CombatContext) -> int:
         return self.defense_power(ctx)
+
+    def base_damage(self, ctx: CombatContext) -> int:
+        """固定伤害招式用 ``move.damage``；否则与 AP 同力量修正公式。"""
+        if ctx.move.damage is not None:
+            return max(0, int(ctx.move.damage))
+        return max(1, self.attack_power(ctx))
 
 
 _DEFAULT_POWER_MODEL = DefaultWuxiaPowerModel()
@@ -120,7 +129,7 @@ def resolve_attack(
 
     顺序（ADR-0004 / spec A1）：选技能 → 取招式 → 算 AP/DP → dodge
     （``random(ap+dp) < dp``）→ parry（``random(ap+pp) < pp``）→ 算伤害
-    （``hit_ob``/``hit_by`` 占位）→ inflict → exp+riposte（riposte 本 MVP no-op）。
+    （``hit_ob``/``hit_by`` 占位）→ inflict → exp+riposte（二者本 MVP 均为 no-op）。
 
     本票 CombatContext 已携带选定招式快照，"选技能/取招式"两步退化为读取
     ``ctx.move``（12 号票再从真实 SkillLevels + SKILLS 选型填入）。
@@ -156,8 +165,8 @@ def resolve_attack(
             message_fragments=(f"{move.name}被招架",),
         )
 
-    # 步骤 6：算伤害（钩子占位：本票无 SkillBehavior，调用对结果无影响）。
-    damage = _base_damage(ctx)
+    # 步骤 6：算伤害（走注入的 PowerModel；钩子占位对结果无影响）。
+    damage = model.base_damage(ctx)
     damage = _invoke_hit_ob(ctx, damage)
     _invoke_hit_by(ctx)
 
@@ -167,7 +176,9 @@ def resolve_attack(
     remaining = ctx.defender_qi_current - damage
     fatal = remaining <= 0
 
-    # 步骤 8：exp + riposte —— riposte 本 MVP no-op（spec Out of Scope）。
+    # 步骤 8：exp + riposte —— 二者本 MVP 均为 no-op（spec Out of Scope / 票 02）。
+    _invoke_exp_gain(ctx)
+    _invoke_riposte(ctx)
     _invoke_post_action(ctx)
 
     return CombatRoundResult(
@@ -189,15 +200,6 @@ def _roll_opposed(rng: Rng, attack: int, defense: int) -> bool:
     return rng.randrange(total) < defense
 
 
-def _base_damage(ctx: CombatContext) -> int:
-    """固定伤害招式用 ``move.damage``；否则 force × (1 + str×系数) 取整。"""
-    if ctx.move.damage is not None:
-        return max(0, int(ctx.move.damage))
-    # 与 DefaultWuxiaPowerModel 默认 str_factor 对齐，保持力量修正可测。
-    raw = ctx.move.force * (1.0 + ctx.attacker_str * _DEFAULT_POWER_MODEL.str_factor)
-    return max(1, int(raw))
-
-
 def _invoke_hit_ob(ctx: CombatContext, damage: int) -> int:
     """命中后钩子占位（16 号票接入 SkillBehavior.hit_ob）。"""
     return damage
@@ -205,6 +207,16 @@ def _invoke_hit_ob(ctx: CombatContext, damage: int) -> int:
 
 def _invoke_hit_by(ctx: CombatContext) -> None:
     """被击中钩子占位（16 号票接入 SkillBehavior.hit_by）。"""
+    return None
+
+
+def _invoke_exp_gain(ctx: CombatContext) -> None:
+    """经验结算占位（后续成长票接线；本 MVP no-op，保留七步调用点）。"""
+    return None
+
+
+def _invoke_riposte(ctx: CombatContext) -> None:
+    """反击占位（spec Out of Scope：riposte 机制本 MVP no-op）。"""
     return None
 
 

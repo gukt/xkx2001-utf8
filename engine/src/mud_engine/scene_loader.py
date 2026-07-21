@@ -20,7 +20,7 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.ai import SpawnerBlueprint, attach_ai_system
+from mud_engine.ai import SpawnerBlueprint, attach_ai_system, spawn_from_blueprint
 from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
 from mud_engine.components import (
     AIController,
@@ -34,7 +34,6 @@ from mud_engine.components import (
     Exits,
     Identity,
     Inquiry,
-    NpcSpawnMeta,
     PlayerSession,
     Position,
 )
@@ -436,11 +435,12 @@ def _build_npcs(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
-    """建 NPC：基础组件 + NPC_CAPABILITIES + Spawn meta，并注册 SpawnerBlueprint。
+    """建 NPC：解析一次能力 → 注册 SpawnerBlueprint → 经 spawn_from_blueprint 实例化。
 
     ``count`` 控制实例数（默认 1）；``startroom`` 可作 ``in_room`` 别名，也可
     单独声明出生房（与 in_room 并存时：位置用 in_room，spawn meta 用 startroom）。
-    同一 template 的多个 count 实例只注册一条蓝图（M2-04）。
+    同一 template 的多个 count 实例只注册一条蓝图（M2-04）。加载与重生共用
+    ``spawn_from_blueprint``，避免双路径装配分叉。
     """
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
@@ -464,14 +464,23 @@ def _build_npcs(
         room_id = room_ids[str(room_key)]
         startroom_id = room_ids[str(start_key)]
         label = f"NPC '{npc_key}'"
-        capability_seed = _parse_npc_capability_seed(data, label=label, scene_path=scene_path)
-        name = str(data.get("name", ""))
+        # name 必需：与 _attach_identity_and_description 同校验，提前到蓝图登记前。
+        name = data.get("name")
+        if not name:
+            raise SceneLoadError(f"场景文件 {scene_path} 的{label}缺少必需字段 'name'")
         aliases_raw = data.get("aliases") or ()
-        aliases = tuple(str(a) for a in aliases_raw) if isinstance(aliases_raw, (list, tuple)) else ()
-        world.spawners[str(npc_key)] = SpawnerBlueprint(
+        if not isinstance(aliases_raw, (list, tuple)):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}'aliases' 应是列表，"
+                f"实际是 {type(aliases_raw).__name__}"
+            )
+        capability_seed = _parse_npc_capabilities(
+            data, label=label, scene_path=scene_path
+        )
+        blueprint = SpawnerBlueprint(
             template_key=str(npc_key),
-            name=name,
-            aliases=aliases,
+            name=str(name),
+            aliases=tuple(str(a) for a in aliases_raw),
             short=str(data.get("short", name)),
             long=str(data.get("long", "")),
             startroom=startroom_id,
@@ -485,31 +494,16 @@ def _build_npcs(
                 else 1
             ),
         )
+        world.spawners[str(npc_key)] = blueprint
         for _ in range(count):
-            npc = world.create_entity()
-            _attach_identity_and_description(
-                world, npc, data, label=label, scene_path=scene_path
-            )
-            world.add_component(npc, Position(room=room_id))
-            world.add_component(
-                npc,
-                NpcSpawnMeta(
-                    template_key=str(npc_key),
-                    startroom=startroom_id,
-                    desired_count=count,
-                    respawn=respawn,
-                ),
-            )
-            _attach_capability_specs(
-                world, npc, data, NPC_CAPABILITIES, label=label, scene_path=scene_path
-            )
+            npc = spawn_from_blueprint(world, blueprint, room=room_id)
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
-def _parse_npc_capability_seed(
+def _parse_npc_capabilities(
     data: Mapping, *, label: str, scene_path: Path
 ) -> dict[type, object]:
-    """预解析 NPC 能力组件供 SpawnerBlueprint 登记（不挂到实体上）。"""
+    """解析 NPC 能力组件一次，供蓝图登记（挂载由 spawn_from_blueprint 负责）。"""
     attached: dict[type, object] = {}
     for spec in NPC_CAPABILITIES:
         component = spec.from_yaml(data, label, scene_path, attached)

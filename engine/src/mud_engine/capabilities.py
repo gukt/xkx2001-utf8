@@ -47,9 +47,9 @@ from mud_engine.errors import SceneLoadError
 
 @dataclass(frozen=True)
 class CapabilitySpec:
-    """单个物品能力组件的自描述规格。
+    """单个实体能力组件的自描述规格（物品 / 房间 / NPC 三类注册表共用）。
 
-    - ``component_type``: 组件类（如 ``Stackable``），用于 codec 键与已知字段聚合。
+    - ``component_type``: 组件类（如 ``Stackable`` / ``Inquiry``），用于 codec 键与已知字段聚合。
     - ``known_fields``: 该能力在 YAML 中消费的字段名集合，用于未识别段透传过滤。
     - ``from_yaml``: 把 YAML 字段映射成组件实例；无可挂载内容时返回 ``None``。
     - ``to_dict`` / ``from_dict``: 存档序列化 / 反序列化（JSON 级 dict）。
@@ -361,8 +361,10 @@ CAPABILITY_COMPONENT_TYPES: frozenset[type] = frozenset(
 # ── 房间级能力（M2-01）──────────────────────────────────────────────────
 # Description 本身由 scene_loader._attach_identity_and_description 挂载（含
 # outdoors）；本条只贡献 known_fields（outdoors）与存档 codec，from_yaml 恒
-# 返回 None，避免重复挂载。后续 Terrain/NoDeathZone/EntryGuard/Ferry 按物品
-# 能力写法追加真正的 from_yaml 即可。
+# 返回 None，避免重复挂载。Description codec 挂在本表而非 NPC_CAPABILITIES：
+# 房间/物品/NPC 共用同一组件类型，save.py 按类型查 codec 一次即可（票 01
+# code-review：组织不对称但功能等价，刻意不在 NPC 表重复登记）。
+# 后续 Terrain/NoDeathZone/EntryGuard/Ferry 按物品能力写法追加真正的 from_yaml。
 
 def _parse_room_description(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
