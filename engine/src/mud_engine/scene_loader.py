@@ -27,6 +27,7 @@ from mud_engine.capabilities import (
     ROOM_CAPABILITIES,
     CapabilitySpec,
 )
+from mud_engine.combat_system import attach_combat_system
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -91,6 +92,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     attach_ai_system(world)
     # 渡口（M2-09）：按周期翻转两岸出口；幂等。
     attach_ferries(world)
+    # 交战（M2-12）：Engaged tick 结算；幂等。
+    attach_combat_system(world)
     return world, player_id
 
 
@@ -124,13 +127,10 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 #   进本集合即可，不为个别字段建注册表。
 # - ``_TOP_LEVEL_KNOWN_SECTIONS``：``skills:`` / ``factions:`` 是全局注册表模式，
 #   不是实体能力（M2-03 / M2-08）。
-_TOP_LEVEL_KNOWN_SECTIONS = frozenset(
-    {"rooms", "items", "npcs", "player", "skills", "factions"}
-)
+_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player", "skills", "factions"})
 _ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
 _ROOM_KNOWN_FIELDS = frozenset(
-    _ROOM_INTRINSIC_FIELDS
-    | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
+    _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
 )
 # 物品能力字段（18/21/22/24 号票 + 31 号票注册表）：从 ``CAPABILITIES``
 # 聚合每个能力的 known_fields，避免新增能力时漏改 _ITEM_KNOWN_FIELDS 导致透传误吞字段。
@@ -157,14 +157,12 @@ _NPC_INTRINSIC_FIELDS = frozenset(
     }
 )
 _NPC_KNOWN_FIELDS = frozenset(
-    _NPC_INTRINSIC_FIELDS
-    | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
+    _NPC_INTRINSIC_FIELDS | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
 )
 # 玩家段：能力字段与 NPC 注册表对齐（vitals/attributes/skills/currency/faction），
 # 不为玩家单独建注册表（M2-01 docstring）。
 _PLAYER_KNOWN_FIELDS = frozenset(
-    {"name", "start_room"}
-    | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
+    {"name", "start_room"} | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
 )
 
 
@@ -427,9 +425,7 @@ def _attach_item_capabilities(
     scene_path: Path,
 ) -> None:
     """按 YAML 声明挂载物品能力组件（31 号票改走统一注册表 CAPABILITIES）。"""
-    _attach_capability_specs(
-        world, item, data, CAPABILITIES, label=label, scene_path=scene_path
-    )
+    _attach_capability_specs(world, item, data, CAPABILITIES, label=label, scene_path=scene_path)
 
 
 def _attach_capability_specs(
@@ -499,15 +495,11 @@ def _build_npcs(
                 f"场景文件 {scene_path} 的{label}'aliases' 应是列表，"
                 f"实际是 {type(aliases_raw).__name__}"
             )
-        capability_seed = _parse_npc_capabilities(
-            data, label=label, scene_path=scene_path
-        )
+        capability_seed = _parse_npc_capabilities(data, label=label, scene_path=scene_path)
         # Inquiry/Behaviors/AIController 有专属蓝图字段；其余进 extras.capabilities。
         _SPECIAL_NPC = {Inquiry, Behaviors, AIController}
         extra_caps = tuple(
-            component
-            for ctype, component in capability_seed.items()
-            if ctype not in _SPECIAL_NPC
+            component for ctype, component in capability_seed.items() if ctype not in _SPECIAL_NPC
         )
         blueprint = SpawnerBlueprint(
             template_key=str(npc_key),
@@ -531,16 +523,12 @@ def _build_npcs(
         for _ in range(count):
             npc = spawn_from_blueprint(world, blueprint, room=room_id)
             # 商店 NPC 需要 Container 才能走 transfer 收货/发货。
-            if world.has_component(npc, ShopInventory) and not world.has_component(
-                npc, Container
-            ):
+            if world.has_component(npc, ShopInventory) and not world.has_component(npc, Container):
                 world.add_component(npc, Container())
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
-def _parse_npc_capabilities(
-    data: Mapping, *, label: str, scene_path: Path
-) -> dict[type, object]:
+def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> dict[type, object]:
     """解析 NPC 能力组件一次，供蓝图登记（挂载由 spawn_from_blueprint 负责）。"""
     attached: dict[type, object] = {}
     for spec in NPC_CAPABILITIES:
@@ -550,21 +538,17 @@ def _parse_npc_capabilities(
     return attached
 
 
-def _parse_positive_int(
-    raw: object, field: str, npc_key: object, scene_path: Path
-) -> int:
+def _parse_positive_int(raw: object, field: str, npc_key: object, scene_path: Path) -> int:
     """解析正整数字段（count 等）：须为 >= 1 的整数。"""
     try:
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应是正整数，"
-            f"实际是 {raw!r}"
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应是正整数，实际是 {raw!r}"
         ) from None
     if value < 1:
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应 >= 1，"
-            f"实际是 {value}"
+            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应 >= 1，实际是 {value}"
         )
     return value
 
@@ -612,8 +596,7 @@ def _build_player(
         and faction.faction_id not in FACTIONS
     ):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 player.faction "
-            f"'{faction.faction_id}' 不是已声明的门派"
+            f"场景文件 {scene_path} 的 player.faction '{faction.faction_id}' 不是已声明的门派"
         )
     _capture_entity_unknown_fields(world, player_id, player, _PLAYER_KNOWN_FIELDS)
     return player_id
@@ -657,9 +640,7 @@ def _attach_identity_and_description(
     )
 
 
-def _resolve_ferry_refs(
-    world: World, room_ids: dict[str, EntityId], scene_path: Path
-) -> None:
+def _resolve_ferry_refs(world: World, room_ids: dict[str, EntityId], scene_path: Path) -> None:
     """把 Ferry._far_bank_key 解析为 EntityId，并校验两岸互相指向。"""
     key_by_id = {eid: key for key, eid in room_ids.items()}
     for room in list(world.entities_with(Ferry)):
@@ -705,8 +686,7 @@ def _validate_shop_inventories(world: World, scene_path: Path) -> None:
             key = entry.item_template_key
             if key not in world.item_templates:
                 raise SceneLoadError(
-                    f"场景文件 {scene_path} 的商店 NPC '{npc_name}' "
-                    f"引用未定义的物品模板 '{key}'"
+                    f"场景文件 {scene_path} 的商店 NPC '{npc_name}' 引用未定义的物品模板 '{key}'"
                 )
             # 用模板字段判断是否声明了价值（不等待运行时 buy）。
             raw = world.item_templates[key]

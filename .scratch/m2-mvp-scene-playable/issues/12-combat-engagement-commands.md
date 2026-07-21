@@ -4,14 +4,18 @@
 
 **Blocked by:** 02（`resolve_attack`/`CombatContext`/`PowerModel`），03（`SkillData` 提供技能/招式候选），05（`Vitals`/`BaseAttributes`/`SkillLevels` 真实组件）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Engaged(opponent: EntityId)` 组件落地，双方各挂一份，走 01 号票的注册表模式（本组件是运行时动态产生，不从 YAML 声明，但存档序列化仍走统一 codec 注册模式，保持"新组件加进注册表"这一条纪律一致）。
-- [ ] `attack <目标>`（`kill` 别名）：同房间目标建立双向 `Engaged`；已在交战中再次 attack 给出提示；目标不存在给提示。
-- [ ] `flee`：脱离交战有一定失败概率（结构与是否失败的判定逻辑由实现阶段决定，需可测试、确定性可控——如接受一个可注入 seeded RNG）；失败时对手（挂 `on_tick` 系统）本回合视为"脱离失败"触发一次额外攻击。
-- [ ] on_tick 系统：遍历带 `Engaged` 的实体对（避免同一对双向各算一次），从真实组件构造 `CombatContext`（读 `Vitals`/`BaseAttributes`/`SkillLevels`，技能招式候选查 03 号票 `SKILLS`），调 `resolve_attack` 后把结果写回 `Vitals`（扣血），生成清晰战斗播报（命中/闪避/招架/伤害数值/招式名/剩余气血提示，对应用户故事 3）。
-- [ ] `on_before_combat_round`（可否决）/`on_combat_round`/`on_combat_end` 三个事件点挂 `world.events`，M1 默认无 handler 时零回归。
-- [ ] MVP 1 对 1 约束：一个实体同一时刻只允许一份 `Engaged`（尝试对已在交战中的第三方 `attack` 给出"对方正在和别人打"一类提示，不建立第二份 `Engaged`）。
-- [ ] `hit_ob`/`hit_by`/`post_action` 钩子调用点（02 号票已留占位）在本票的真实 tick 调度路径里被正确调用一次（即使当前招式都没有 `SkillBehavior` 实现，调用本身要发生——为 16 号票接入真实钩子铺路，16 号票验收时应能观察到"调用发生了但无副作用"到"调用发生且产生副作用"的行为切换，不需要改本票代码）。
-- [ ] tick 层测试（`TickLoop.advance`/`dispatch(ON_TICK,...)` seam）：反复推进 tick，断言交战双方气血按 `resolve_attack` 确定性结果变化；命令层测试覆盖 attack/flee 的各分支。
-- [ ] 现有测试全绿不回归。
+- [x] `Engaged(opponent: EntityId)` 组件落地，双方各挂一份，走 01 号票的注册表模式（本组件是运行时动态产生，不从 YAML 声明，但存档序列化仍走统一 codec 注册模式，保持"新组件加进注册表"这一条纪律一致）。
+- [x] `attack <目标>`（`kill` 别名）：同房间目标建立双向 `Engaged`；已在交战中再次 attack 给出提示；目标不存在给提示。
+- [x] `flee`：脱离交战有一定失败概率（结构与是否失败的判定逻辑由实现阶段决定，需可测试、确定性可控——如接受一个可注入 seeded RNG）；失败时对手（挂 `on_tick` 系统）本回合视为"脱离失败"触发一次额外攻击。
+- [x] on_tick 系统：遍历带 `Engaged` 的实体对（避免同一对双向各算一次），从真实组件构造 `CombatContext`（读 `Vitals`/`BaseAttributes`/`SkillLevels`，技能招式候选查 03 号票 `SKILLS`），调 `resolve_attack` 后把结果写回 `Vitals`（扣血），生成清晰战斗播报（命中/闪避/招架/伤害数值/招式名/剩余气血提示，对应用户故事 3）。
+- [x] `on_before_combat_round`（可否决）/`on_combat_round`/`on_combat_end` 三个事件点挂 `world.events`，M1 默认无 handler 时零回归。
+- [x] MVP 1 对 1 约束：一个实体同一时刻只允许一份 `Engaged`（尝试对已在交战中的第三方 `attack` 给出"对方正在和别人打"一类提示，不建立第二份 `Engaged`）。
+- [x] `hit_ob`/`hit_by`/`post_action` 钩子调用点（02 号票已留占位）在本票的真实 tick 调度路径里被正确调用一次（即使当前招式都没有 `SkillBehavior` 实现，调用本身要发生——为 16 号票接入真实钩子铺路，16 号票验收时应能观察到"调用发生了但无副作用"到"调用发生且产生副作用"的行为切换，不需要改本票代码）。
+- [x] tick 层测试（`TickLoop.advance`/`dispatch(ON_TICK,...)` seam）：反复推进 tick，断言交战双方气血按 `resolve_attack` 确定性结果变化；命令层测试覆盖 attack/flee 的各分支。
+- [x] 现有测试全绿不回归。
+
+## Comments
+
+- 2026-07-21：`combat_system.py` + `Engaged` codec；`flee_success_chance` 可注入；tick 内每对双方各出手一次。

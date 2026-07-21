@@ -38,6 +38,7 @@ from mud_engine.components import (
     Currency,
     Dead,
     Description,
+    Engaged,
     Equippable,
     Faction,
     Ferry,
@@ -787,9 +788,7 @@ def _parse_skill_levels(
             ) from exc
         # 加载期引用校验：实体 skills 必须指向已声明的全局 SkillData（spec H1）。
         if key not in SKILLS:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的{label}的 skills 引用未声明技能 '{key}'"
-            )
+            raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 skills 引用未声明技能 '{key}'")
     return SkillLevels(levels=levels)
 
 
@@ -950,6 +949,14 @@ def _des_dead(_d: dict) -> Dead:
     return Dead()
 
 
+def _ser_engaged(c: Engaged) -> dict:
+    return {"opponent": int(c.opponent)}
+
+
+def _des_engaged(d: dict) -> Engaged:
+    return Engaged(opponent=int(d["opponent"]))
+
+
 NPC_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Inquiry,
@@ -1028,6 +1035,13 @@ NPC_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_runtime_marker,
         to_dict=_ser_dead,
         from_dict=_des_dead,
+    ),
+    CapabilitySpec(
+        component_type=Engaged,
+        known_fields=frozenset(),
+        from_yaml=_parse_runtime_marker,
+        to_dict=_ser_engaged,
+        from_dict=_des_engaged,
     ),
 ]
 

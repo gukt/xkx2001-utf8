@@ -69,9 +69,7 @@ class Identity:
     """
 
     name: str  # 规范名，玩家指代与展示用，如"石头"/"起始庭院"
-    aliases: tuple[
-        str, ...
-    ] = ()  # 规范名的替代指代，匹配时与 name 同权，如 ("石","顽石")
+    aliases: tuple[str, ...] = ()  # 规范名的替代指代，匹配时与 name 同权，如 ("石","顽石")
 
 
 @dataclass
@@ -110,9 +108,7 @@ class Exit:
     """
 
     target: EntityId  # 出口指向的目标房间 entity id
-    aliases: tuple[
-        str, ...
-    ] = ()  # 方向别名，如 ("北道","前门")，匹配时与规范方向名同权
+    aliases: tuple[str, ...] = ()  # 方向别名，如 ("北道","前门")，匹配时与规范方向名同权
 
 
 @dataclass
@@ -153,9 +149,7 @@ class Door:
     """
 
     state: DoorState
-    key_item_id: EntityId | None = (
-        None  # LOCKED 时解锁需要的钥匙物品 entity id；None=不绑定钥匙
-    )
+    key_item_id: EntityId | None = None  # LOCKED 时解锁需要的钥匙物品 entity id；None=不绑定钥匙
 
 
 @dataclass
@@ -188,9 +182,7 @@ class Container:
         default_factory=set
     )  # 持有的物品 entity id 集合；房间地面/玩家物品栏/箱子各挂一份
     # 运行时可变进存档：上限本身启动固定，但放在组件上便于 YAML 声明与存档恢复。
-    max_capacity: int | None = (
-        None  # 最多容纳几个物品实体（堆叠合并不占新槽）；None=不限
-    )
+    max_capacity: int | None = None  # 最多容纳几个物品实体（堆叠合并不占新槽）；None=不限
     max_weight: float | None = None  # 容器内总重量上限；None=不限
 
 
@@ -432,6 +424,19 @@ class Faction:
     """角色门派归属。``None`` = 无门派。运行时可变进存档。"""
 
     faction_id: str | None = None
+
+
+# ── 交战（M2-12 / spec A1）──────────────────────────────────────────────
+
+
+@dataclass
+class Engaged:
+    """交战关系：指向当前对手。双方各挂一份互相指向；运行时可变进存档。
+
+    MVP 1 对 1：同一实体同时只允许一份 ``Engaged``。
+    """
+
+    opponent: EntityId
 
 
 # ── 渡口（M2-09 / spec F2）──────────────────────────────────────────────

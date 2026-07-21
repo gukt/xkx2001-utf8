@@ -5,13 +5,13 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与"架构不变量"。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M2 Wave 1 `/implement` + `/code-review` fix 完成；下一环节 Wave 2。
+**最后更新**：2026-07-21：M2 Wave 2 `/implement` 开工（tag `m2-wave2-start`）。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–1 实现 + code-review fix 完成**，待 Wave 2。
-- **工作分支**：`feat/m2-mvp-scene-playable`（Wave 1 fixed point tag：`m2-wave1-start`）。
-- **engine/**：测试绿（462 passed）。`just verify-items` / `just verify-npc` / `just verify-nature`。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1 扩展验证矩阵已落地**；**M2 Wave 0–1 完成**；**Wave 2 进行中**（票 10–14）。
+- **工作分支**：`feat/m2-mvp-scene-playable`（Wave 2 fixed point tag：`m2-wave2-start`）。
+- **engine/**：Wave 1 收口时 462 passed；Wave 2 进行中。
 
 ## Done
 
@@ -25,7 +25,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- **M2 Wave 2 `/implement`**：票 `10`–`14`（坐骑 / 门槏 / 战斗接线 / practice / learn）；fixed point `m2-wave2-start`。
 
 ## Blocked
 
@@ -33,7 +33,7 @@
 
 ## Next Up
 
-1. **M2 Wave 2 `/implement`**：票 `10`–`14`（坐骑购买 / 门槏 / 战斗接线 / practice / learn）；开工前打 tag `m2-wave2-start`，见 [implement-plan.md](.scratch/m2-mvp-scene-playable/implement-plan.md)。
+1. 完成本 Wave 2 五票 + `/code-review`（fixed point `m2-wave2-start`）+ fix。
 2. 之后按 implement-plan 推进 Wave 3–5。
 3. 按 CLAUDE.md 待办：M3 前核对 [03-ugc-dsl-design-inheritance](.scratch/mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 细化后编辑器系统归类是否仍准确。
 

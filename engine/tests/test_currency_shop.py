@@ -55,9 +55,7 @@ class TestCurrencyAndShop:
         assert any("10" in line and "包子" in line for line in lines)
         assert world.require_component(player_id, Currency).amount == 40
         bag = world.require_component(player_id, Container)
-        names = [
-            world.require_component(i, Identity).name for i in bag.items
-        ]
+        names = [world.require_component(i, Identity).name for i in bag.items]
         assert "包子" in names
 
     def test_buy_insufficient_funds(self, tmp_path: Path) -> None:

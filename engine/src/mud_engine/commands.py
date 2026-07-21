@@ -44,6 +44,7 @@ from mud_engine.components import (
     Door,
     Doors,
     DoorState,
+    Engaged,
     Exits,
     Faction,
     Identity,
@@ -880,6 +881,70 @@ def _cmd_join(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     else:
         faction.faction_id = definition.faction_id
     return [f"你加入了{definition.display_name}。"]
+
+
+@register("attack", aliases=("kill",))
+def _cmd_attack(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """对同房间目标建立交战（M2-12）。不直接结算伤害；伤害由 on_tick 系统推进。"""
+    from mud_engine.combat_system import try_engage
+
+    target_name = intent.target or (intent.args[0] if intent.args else None)
+    if not target_name:
+        return ["攻击谁？用法：attack <目标>"]
+    target = _find_combat_target_in_room(world, player_id, target_name)
+    if target is None:
+        return [f"这里没有「{target_name}」。"]
+    err = try_engage(world, player_id, target)
+    if err is not None:
+        return [err]
+    name = world.require_component(target, Identity).name
+    return [f"你开始与{name}交战！"]
+
+
+@register("flee")
+def _cmd_flee(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """尝试脱离交战（M2-12）。失败时挨对手一次额外攻击。
+
+    成功概率由 ``world.combat.flee_success_chance`` 控制（可注入 RNG，确定性可测）。
+    """
+    from mud_engine.combat_system import attach_combat_system, clear_engagement, resolve_one_strike
+
+    engaged = world.get_component(player_id, Engaged)
+    if engaged is None:
+        return ["你现在没有在交战。"]
+    if world.combat is None:
+        attach_combat_system(world)
+    combat = world.combat
+    assert combat is not None
+    opponent = engaged.opponent
+    if combat.rng.random() < combat.flee_success_chance:
+        clear_engagement(world, player_id, reason="flee")
+        return ["你成功脱离了交战！"]
+    # 失败：对手立即打一记。
+    resolve_one_strike(world, opponent, player_id, rng=combat.rng)
+    opp_name = (
+        world.require_component(opponent, Identity).name
+        if world.get_component(opponent, Identity)
+        else "对手"
+    )
+    lines = [f"你试图逃走，但没能甩开{opp_name}！"]
+    # 把本回合 pending 战斗播报一并返回给命令调用方。
+    if world.pending_messages:
+        lines.extend(world.pending_messages)
+        world.pending_messages.clear()
+    return lines
+
+
+def _find_combat_target_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
+    """同房间按规范名/别名找可交战目标（挂 Identity，通常还挂 Vitals）。"""
+    room = _player_room(world, player_id)
+    for entity in world.entities_in_room(room, exclude=player_id):
+        identity = world.get_component(entity, Identity)
+        if identity is None:
+            continue
+        if identity.name == name or name in identity.aliases:
+            return entity
+    return None
 
 
 class _JoinContext:

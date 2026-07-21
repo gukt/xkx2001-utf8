@@ -19,6 +19,7 @@ from mud_engine.events import EventBus
 if TYPE_CHECKING:
     from mud_engine.ai import AISystem, SpawnerBlueprint
     from mud_engine.combat import PowerModel
+    from mud_engine.combat_system import CombatSystem
     from mud_engine.ferry import FerryState
     from mud_engine.nature import NatureState
 
@@ -69,6 +70,8 @@ class World:
         # 战斗 PowerModel 策略（M2-02）：纯内存、不进存档；由 ``attach_power_model``
         # 挂载。缺省 None 时 resolve_attack / 命令层用 DefaultWuxiaPowerModel 兜底。
         self.power_model: PowerModel | None = None
+        # 交战调度运行时态（M2-12）：纯内存、不进存档；由 ``attach_combat_system`` 挂载。
+        self.combat: CombatSystem | None = None
         # NPC Spawner 蓝图注册表（M2-04）：纯内存、不进存档；由 scene_loader 建 NPC
         # 时注册。``_spawn_scan`` 遍历本表而非从存活实例反向聚合，避免 template
         # 全灭后丢失期望值。
