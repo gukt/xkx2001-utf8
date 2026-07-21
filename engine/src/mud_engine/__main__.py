@@ -14,17 +14,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from mud_engine.ai import attach_ai_system
 from mud_engine.cli import run_repl
-from mud_engine.combat_system import attach_combat_system
-from mud_engine.death_flow import attach_unconscious_recovery
-from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.errors import PackManifestError
-from mud_engine.ferry import attach_ferries
-from mud_engine.nature import attach_nature
 from mud_engine.pack import load_pack, reattach_pack_manifest
+from mud_engine.runtime import wire_runtime
 from mud_engine.save import has_save, restore_world, save_world
-from mud_engine.scene_loader import SceneLoadError, read_nature_config
+from mud_engine.scene_loader import SceneLoadError
 from mud_engine.scenes import DEFAULT_SCENE_PATH, build_world
 from mud_engine.tick import TickLoop
 from mud_engine.world import EntityId, World
@@ -134,7 +129,7 @@ def _load_or_restore_default(save_dir: Path) -> tuple[World, EntityId]:
         restored = restore_world(save_dir)
         if restored is not None:
             world, player_id = restored
-            _reattach_runtime(world)
+            wire_runtime(world, world.scene_path or DEFAULT_SCENE_PATH)
             return world, player_id
     return build_world()
 
@@ -145,21 +140,10 @@ def _load_or_restore_pack(pack_dir: Path, save_dir: Path) -> tuple[World, Entity
         restored = restore_world(save_dir)
         if restored is not None:
             world, player_id = restored
-            _reattach_runtime(world)
+            wire_runtime(world, world.scene_path or DEFAULT_SCENE_PATH)
             reattach_pack_manifest(world)
             return world, player_id
     return load_pack(pack_dir)
-
-
-def _reattach_runtime(world: World) -> None:
-    """restore 后重挂不进存档的运行时态（与默认路径一致）。"""
-    scene_path = world.scene_path or DEFAULT_SCENE_PATH
-    attach_nature(world, config_from_yaml=read_nature_config(scene_path))
-    attach_ai_system(world)
-    attach_ferries(world)
-    attach_combat_system(world)
-    attach_entry_guards(world)
-    attach_unconscious_recovery(world)
 
 
 if __name__ == "__main__":

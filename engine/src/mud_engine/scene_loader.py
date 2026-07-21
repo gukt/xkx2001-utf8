@@ -20,14 +20,13 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.ai import SpawnerBlueprint, attach_ai_system, spawn_from_blueprint
+from mud_engine.ai import SpawnerBlueprint, spawn_from_blueprint
 from mud_engine.capabilities import (
     CAPABILITIES,
     NPC_CAPABILITIES,
     ROOM_CAPABILITIES,
     CapabilitySpec,
 )
-from mud_engine.combat_system import attach_combat_system
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -47,12 +46,10 @@ from mud_engine.components import (
     Position,
     ShopInventory,
 )
-from mud_engine.death_flow import attach_unconscious_recovery, parse_death_policy, parse_loot_table
-from mud_engine.entity_gate import attach_entry_guards
+from mud_engine.death_flow import parse_death_policy, parse_loot_table
 from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
-from mud_engine.ferry import attach_ferries
-from mud_engine.nature import attach_nature
+from mud_engine.runtime import wire_runtime
 from mud_engine.skills import load_skills_from_mapping, replace_skills_registry
 from mud_engine.world import EntityId, World
 
@@ -90,19 +87,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     _validate_faction_refs(world, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
     _capture_top_level_unknown_sections(world, data)
-    # Nature（13 号票）：从透传的 nature 段（若有）挂载时辰循环；无配置则用默认四相。
-    # nature 仍留在 extension_data（透传不丢），attach_nature 只读不删。
-    attach_nature(world)
-    # NPC AI（25 号票）：挂 on_tick 遍历 AIController；幂等，无行为 NPC 时为空转。
-    attach_ai_system(world)
-    # 渡口（M2-09）：按周期翻转两岸出口；幂等。
-    attach_ferries(world)
-    # 交战（M2-12）：Engaged tick 结算；幂等。
-    attach_combat_system(world)
-    # 门槏（M2-11）：EntryGuard on_before_enter_room；幂等。
-    attach_entry_guards(world)
-    # 昏迷 tick 苏醒（M3-hardening-01）；幂等。
-    attach_unconscious_recovery(world)
+    # 运行时子系统（nature/AI/渡口/交战/门禁/昏迷苏醒）统一接线；与 restore 共用。
+    wire_runtime(world, scene_path)
     return world, player_id
 
 

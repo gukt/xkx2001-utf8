@@ -1196,6 +1196,9 @@ def _cmd_flee(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     engaged = world.get_component(player_id, Engaged)
     if engaged is None:
         return ["你现在没有在交战。"]
+    # 命令期防御性兜底：仅当 world.combat 意外为 None 时补挂交战系统。
+    # 不走 wire_runtime——那会重挂 nature/AI/渡口/门禁，过重且可能改 RNG；
+    # 这不是与 load/restore 并列的第三份接线清单。
     if world.combat is None:
         attach_combat_system(world)
     combat = world.combat
