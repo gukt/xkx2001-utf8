@@ -5,11 +5,12 @@
 覆盖范围：房间 / 物品 / NPC / 玩家初值 / 技能与门派注册表 / 死亡策略，以及门与
 锁等能力字段。
 
-加载逻辑与命令调度（commands）/ ECS 存储（world）保持分离：本模块负责场景 I/O
-与实体构造，不把加载逻辑写进 ``world.py`` 或 ``commands.py``。YAML 里引用了不存在
-的房间键、缺必需字段等结构性错误，抛 ``SceneLoadError``（消息带文件路径与出错的
-数据键），而不是让裸 Python 异常堆栈糊到启动者脸上——这是"加载期数据校验"，与
-存档崩溃恢复的运行时语义是两件不同的事，不要混着实现。
+加载逻辑与命令调度（commands）/ ECS 存储（world）保持分离：本模块只依赖
+components + world + PyYAML，不 import commands，也不把加载逻辑写进 ``world.py``
+或 ``commands.py``。YAML 里引用了不存在的房间键、缺必需字段等结构性错误，抛
+``SceneLoadError``（消息带文件路径与出错的数据键），而不是让裸 Python 异常堆栈
+糊到启动者脸上——这是"加载期数据校验"，与存档崩溃恢复的运行时语义是两件不同的事，
+不要混着实现。
 """
 
 from __future__ import annotations

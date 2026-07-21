@@ -18,6 +18,7 @@ from mud_engine.combat_system import (
     CombatEndContext,
     CombatRoundContext,
     attach_combat_system,
+    resolve_one_strike,
 )
 from mud_engine.components import Engaged, Identity, Vitals
 from mud_engine.events import Deny
@@ -106,102 +107,115 @@ def _engage(tmp_path: Path, *, flee_success_chance: float = 0.5):
     return world, player_id, bandit
 
 
-class WhenBeforeCombatRoundIsVetoed:
-    def test_round_is_skipped_and_qi_unchanged(self, tmp_path: Path) -> None:
-        world, player_id, bandit = _engage(tmp_path)
-        before_p = world.require_component(player_id, Vitals).qi_current
-        before_b = world.require_component(bandit, Vitals).qi_current
-        rounds: list[CombatRoundContext] = []
+class TestCombatEventsContract:
+    class WhenBeforeCombatRoundIsVetoed:
+        def test_round_is_skipped_and_qi_unchanged(self, tmp_path: Path) -> None:
+            world, player_id, bandit = _engage(tmp_path)
+            before_p = world.require_component(player_id, Vitals).qi_current
+            before_b = world.require_component(bandit, Vitals).qi_current
+            rounds: list[CombatRoundContext] = []
 
-        world.events.register(
-            ON_BEFORE_COMBAT_ROUND,
-            lambda ctx: Deny(message="本回合暂停。"),
-        )
-        world.events.register(ON_COMBAT_ROUND, lambda ctx: rounds.append(ctx))
+            world.events.register(
+                ON_BEFORE_COMBAT_ROUND,
+                lambda ctx: Deny(message="本回合暂停。"),
+            )
+            world.events.register(ON_COMBAT_ROUND, lambda ctx: rounds.append(ctx))
 
-        TickLoop(lambda: None, world=world).advance()
+            TickLoop(lambda: None, world=world).advance()
 
-        assert world.require_component(player_id, Vitals).qi_current == before_p
-        assert world.require_component(bandit, Vitals).qi_current == before_b
-        assert rounds == []
-        assert any("本回合暂停" in m for m in world.pending_messages)
-        assert world.has_component(player_id, Engaged)
+            assert world.require_component(player_id, Vitals).qi_current == before_p
+            assert world.require_component(bandit, Vitals).qi_current == before_b
+            assert rounds == []
+            assert any("本回合暂停" in m for m in world.pending_messages)
+            assert world.has_component(player_id, Engaged)
 
-    def test_next_tick_settles_after_veto_lifted(self, tmp_path: Path) -> None:
-        world, player_id, bandit = _engage(tmp_path)
-        before_b = world.require_component(bandit, Vitals).qi_current
-        veto_active = {"on": True}
-        rounds: list[CombatRoundContext] = []
+        def test_next_tick_settles_after_veto_lifted(self, tmp_path: Path) -> None:
+            world, player_id, bandit = _engage(tmp_path)
+            before_b = world.require_component(bandit, Vitals).qi_current
+            veto_on = True
+            rounds: list[CombatRoundContext] = []
 
-        def maybe_deny(ctx: CombatRoundContext):
-            if veto_active["on"]:
-                return Deny(message="本回合暂停。")
-            return None
+            def maybe_deny(ctx: CombatRoundContext):
+                nonlocal veto_on
+                if veto_on:
+                    return Deny(message="本回合暂停。")
+                return None
 
-        world.events.register(ON_BEFORE_COMBAT_ROUND, maybe_deny)
-        world.events.register(ON_COMBAT_ROUND, lambda ctx: rounds.append(ctx))
+            world.events.register(ON_BEFORE_COMBAT_ROUND, maybe_deny)
+            world.events.register(ON_COMBAT_ROUND, lambda ctx: rounds.append(ctx))
 
-        TickLoop(lambda: None, world=world).advance()
-        assert world.require_component(bandit, Vitals).qi_current == before_b
-        assert rounds == []
+            TickLoop(lambda: None, world=world).advance()
+            assert world.require_component(bandit, Vitals).qi_current == before_b
+            assert rounds == []
 
-        veto_active["on"] = False
-        TickLoop(lambda: None, world=world).advance()
-        assert world.require_component(bandit, Vitals).qi_current < before_b
-        assert len(rounds) >= 1
+            veto_on = False
+            TickLoop(lambda: None, world=world).advance()
+            assert world.require_component(bandit, Vitals).qi_current < before_b
+            assert len(rounds) >= 1
 
+    class WhenCombatRoundSettles:
+        def test_on_combat_round_fires_with_matching_context(self, tmp_path: Path) -> None:
+            world, player_id, bandit = _engage(tmp_path)
+            seen: list[CombatRoundContext] = []
 
-class WhenCombatRoundSettles:
-    def test_on_combat_round_fires_with_matching_context(self, tmp_path: Path) -> None:
-        world, player_id, bandit = _engage(tmp_path)
-        seen: list[CombatRoundContext] = []
+            world.events.register(ON_COMBAT_ROUND, lambda ctx: seen.append(ctx))
+            TickLoop(lambda: None, world=world).advance()
 
-        world.events.register(ON_COMBAT_ROUND, lambda ctx: seen.append(ctx))
-        TickLoop(lambda: None, world=world).advance()
+            # 每对双方各出手一次 → 两次 on_combat_round。
+            assert len(seen) == 2
+            pairs = {(c.attacker_id, c.defender_id) for c in seen}
+            assert pairs == {(player_id, bandit), (bandit, player_id)}
+            for ctx in seen:
+                assert ctx.world is world
+                assert ctx.result is not None
 
-        # 每对双方各出手一次 → 两次 on_combat_round（若均未否决且双方仍有 Vitals）。
-        assert len(seen) == 2
-        pairs = {(c.attacker_id, c.defender_id) for c in seen}
-        assert pairs == {(player_id, bandit), (bandit, player_id)}
-        for ctx in seen:
-            assert ctx.world is world
-            assert ctx.result is not None
-            assert ctx.result.damage >= 0
-            defender = world.require_component(ctx.defender_id, Vitals)
-            # 结算后气血应与 result.damage 一致（apply 已写入）。
-            if ctx.result.damage > 0:
-                assert defender.qi_current < defender.qi_max
+        def test_round_result_damage_matches_qi_delta(self, tmp_path: Path) -> None:
+            world, player_id, bandit = _engage(tmp_path)
+            seen: list[CombatRoundContext] = []
+            world.events.register(ON_COMBAT_ROUND, lambda ctx: seen.append(ctx))
 
+            before = world.require_component(bandit, Vitals).qi_current
+            result = resolve_one_strike(
+                world, player_id, bandit, rng=world.combat.rng
+            )
+            after = world.require_component(bandit, Vitals).qi_current
 
-class WhenEngagementEnds:
-    def test_flee_dispatches_on_combat_end_once(self, tmp_path: Path) -> None:
-        world, player_id, bandit = _engage(tmp_path, flee_success_chance=1.0)
-        ends: list[CombatEndContext] = []
+            assert result is not None
+            assert len(seen) == 1
+            assert seen[0].attacker_id == player_id
+            assert seen[0].defender_id == bandit
+            assert seen[0].result is result
+            assert before - after == result.damage
 
-        world.events.register(ON_COMBAT_END, lambda ctx: ends.append(ctx))
-        lines = execute_line(world, player_id, "flee")
+    class WhenEngagementEnds:
+        def test_flee_dispatches_on_combat_end_once(self, tmp_path: Path) -> None:
+            world, player_id, bandit = _engage(tmp_path, flee_success_chance=1.0)
+            ends: list[CombatEndContext] = []
 
-        assert any("脱离" in line or "逃" in line for line in lines)
-        assert len(ends) == 1
-        assert {ends[0].entity_a, ends[0].entity_b} == {player_id, bandit}
-        assert ends[0].reason == "flee"
-        assert ends[0].world is world
-        assert not world.has_component(player_id, Engaged)
-        assert not world.has_component(bandit, Engaged)
+            world.events.register(ON_COMBAT_END, lambda ctx: ends.append(ctx))
+            lines = execute_line(world, player_id, "flee")
 
-    def test_npc_death_dispatches_on_combat_end_once(self, tmp_path: Path) -> None:
-        world, player_id, bandit = _engage(tmp_path)
-        ends: list[CombatEndContext] = []
+            assert any("脱离" in line or "逃" in line for line in lines)
+            assert len(ends) == 1
+            assert {ends[0].entity_a, ends[0].entity_b} == {player_id, bandit}
+            assert ends[0].reason == "flee"
+            assert ends[0].world is world
+            assert not world.has_component(player_id, Engaged)
+            assert not world.has_component(bandit, Engaged)
 
-        world.events.register(ON_COMBAT_END, lambda ctx: ends.append(ctx))
-        # 直接打空气血走死亡流程（clear_engagement reason="death"）。
-        world.require_component(bandit, Vitals).qi_current = 0
-        from mud_engine.death_flow import handle_vitals_depleted
+        def test_npc_death_via_tick_dispatches_on_combat_end_once(
+            self, tmp_path: Path
+        ) -> None:
+            world, player_id, bandit = _engage(tmp_path)
+            ends: list[CombatEndContext] = []
+            world.events.register(ON_COMBAT_END, lambda ctx: ends.append(ctx))
 
-        handle_vitals_depleted(world, bandit, killer_id=player_id, rng=random.Random(0))
+            # 低气血 + tick 自动交战：经 resolve_one_strike → apply → 死亡流程清交战。
+            world.require_component(bandit, Vitals).qi_current = 1
+            TickLoop(lambda: None, world=world).advance()
 
-        assert len(ends) == 1
-        assert {ends[0].entity_a, ends[0].entity_b} == {player_id, bandit}
-        assert ends[0].reason == "death"
-        assert not world.has_component(player_id, Engaged)
-        assert not world.has_component(bandit, Engaged)
+            assert len(ends) == 1
+            assert {ends[0].entity_a, ends[0].entity_b} == {player_id, bandit}
+            assert ends[0].reason == "death"
+            assert not world.has_component(player_id, Engaged)
+            assert not world.has_component(bandit, Engaged)
