@@ -1,7 +1,8 @@
 # GAP 台账
 
 > 声明式场景 YAML / 内容包**当前表达不了什么**、撞墙时怎么降级。  
-> 对应 CONTEXT.md「GAP 台账」词条；创作者契约见 [creator-contract-v0.md](creator-contract-v0.md)。  
+> 对应 CONTEXT.md「GAP 台账」词条；创作者契约见 [creator-contract-v0.md](creator-contract-v0.md)；  
+> 官方轨 / 内容包轨怎么选见 [scene-authoring-guide.md](scene-authoring-guide.md)。  
 > 产出自 M3 停机加固票 [`11`](../.scratch/m3-hardening/issues/11-gap-ledger.md)。
 
 本文档**不是**能力橱窗包：不新建专门展示引擎全部能力的示例内容包，也不预留空脚本沙箱接缝。只列缺口与推荐绕过。
