@@ -58,10 +58,10 @@ class TestSkillBehaviorWiring:
             def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
                 return "额外播报"
 
-            def hit_by(self, ctx: CombatContext) -> None:
+            def hit_by(self, ctx: CombatContext) -> str | None:
                 return None
 
-            def post_action(self, ctx: CombatContext) -> None:
+            def post_action(self, ctx: CombatContext) -> str | None:
                 return None
 
         register_skill_behavior("msg_only", MsgOnly())
@@ -74,30 +74,48 @@ class TestSkillBehaviorWiring:
             def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
                 return None
 
-            def hit_by(self, ctx: CombatContext) -> None:
+            def hit_by(self, ctx: CombatContext) -> str | None:
                 return None
 
-            def post_action(self, ctx: CombatContext) -> None:
+            def post_action(self, ctx: CombatContext) -> str | None:
                 return None
 
         register_skill_behavior("noop_hook", Noop())
         result = resolve_attack(_ctx(skill_id="noop_hook", damage=9), random.Random(1))
         assert result.damage == 9
 
-    def test_post_action_runs_without_changing_result(self) -> None:
+    def test_post_action_runs_without_changing_damage(self) -> None:
         calls: list[str] = []
 
         class Tracker:
             def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
                 return None
 
-            def hit_by(self, ctx: CombatContext) -> None:
+            def hit_by(self, ctx: CombatContext) -> str | None:
                 calls.append("hit_by")
+                return None
 
-            def post_action(self, ctx: CombatContext) -> None:
+            def post_action(self, ctx: CombatContext) -> str | None:
                 calls.append("post_action")
+                return "收招余韵"
 
         register_skill_behavior("tracker", Tracker())
         result = resolve_attack(_ctx(skill_id="tracker", damage=4), random.Random(1))
         assert result.damage == 4
         assert calls == ["hit_by", "post_action"]
+        assert "收招余韵" in result.message_fragments
+
+    def test_resolve_attack_pure_no_cross_call_pollution(self) -> None:
+        """连续两次独立调用互不污染；同输入同 RNG 结果一致。"""
+        clear_skill_behaviors()
+        poison = _ctx(skill_id="poison_strike", damage=10)
+        plain = _ctx(skill_id=None, damage=10)
+
+        a = resolve_attack(poison, random.Random(1))
+        b = resolve_attack(plain, random.Random(1))
+        c = resolve_attack(poison, random.Random(1))
+
+        assert a == c
+        assert any("毒素" in frag for frag in a.message_fragments)
+        assert not any("毒素" in frag for frag in b.message_fragments)
+        assert b.message_fragments == ("测试招命中，造成 10 点伤害",)

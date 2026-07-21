@@ -135,10 +135,10 @@ class TestSkillBehaviorRegistry:
             def hit_ob(self, ctx, damage):  # noqa: ANN001
                 return damage
 
-            def hit_by(self, ctx) -> None:  # noqa: ANN001
+            def hit_by(self, ctx) -> str | None:  # noqa: ANN001
                 return None
 
-            def post_action(self, ctx) -> None:  # noqa: ANN001
+            def post_action(self, ctx) -> str | None:  # noqa: ANN001
                 return None
 
         stub = _Stub()

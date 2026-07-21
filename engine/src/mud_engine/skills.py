@@ -62,9 +62,9 @@ class SkillBehavior(Protocol):
 
     def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None: ...
 
-    def hit_by(self, ctx: CombatContext) -> None: ...
+    def hit_by(self, ctx: CombatContext) -> str | None: ...
 
-    def post_action(self, ctx: CombatContext) -> None: ...
+    def post_action(self, ctx: CombatContext) -> str | None: ...
 
 
 def register_skill_behavior(skill_id: str, behavior: SkillBehavior) -> None:
@@ -95,12 +95,10 @@ class DemoPoisonStrikeBehavior:
     def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
         return max(0, damage + self.BONUS_DAMAGE)
 
-    def hit_by(self, ctx: CombatContext) -> None:
-        from mud_engine.combat import append_round_fragment
+    def hit_by(self, ctx: CombatContext) -> str | None:
+        return "毒素渗入伤口！"
 
-        append_round_fragment("毒素渗入伤口！")
-
-    def post_action(self, ctx: CombatContext) -> None:
+    def post_action(self, ctx: CombatContext) -> str | None:
         return None
 
 
