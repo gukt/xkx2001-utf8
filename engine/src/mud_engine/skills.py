@@ -80,6 +80,37 @@ def get_skill_behavior(skill_id: str) -> SkillBehavior | None:
 def clear_skill_behaviors() -> None:
     """测试/场景重载辅助：清空行为注册表（不进存档的内存态）。"""
     _SKILL_BEHAVIORS.clear()
+    # 示范钩子在 clear 后仍应可用（引擎自带，非场景内容）。
+    _register_builtin_behaviors()
+
+
+class DemoPoisonStrikeBehavior:
+    """示范钩子招式（M2-16）：命中 +5 伤害，并追加中毒播报。
+
+    不实现完整 buff；一次性伤害加成 + 文案即可证明接线生效。
+    """
+
+    BONUS_DAMAGE = 5
+
+    def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
+        return max(0, damage + self.BONUS_DAMAGE)
+
+    def hit_by(self, ctx: CombatContext) -> None:
+        from mud_engine.combat import append_round_fragment
+
+        append_round_fragment("毒素渗入伤口！")
+
+    def post_action(self, ctx: CombatContext) -> None:
+        return None
+
+
+def _register_builtin_behaviors() -> None:
+    """引擎内置示范行为；``clear_skill_behaviors`` 后会重新挂上。"""
+    if "poison_strike" not in _SKILL_BEHAVIORS:
+        _SKILL_BEHAVIORS["poison_strike"] = DemoPoisonStrikeBehavior()
+
+
+_register_builtin_behaviors()
 
 
 def load_skills_from_mapping(raw: object | None, scene_path: Path) -> dict[str, SkillData]:
@@ -238,6 +269,7 @@ def _require_int(
 
 __all__ = [
     "SKILLS",
+    "DemoPoisonStrikeBehavior",
     "SkillBehavior",
     "SkillData",
     "SkillMove",

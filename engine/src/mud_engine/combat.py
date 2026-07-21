@@ -25,6 +25,16 @@ class CombatMoveSnapshot:
     dodge: int
     damage_type: str = "blunt"
     damage: int | None = None  # 固定伤害；None 表示按 force/力量公式结算
+    skill_id: str | None = None  # 所属技能 id；供 SkillBehavior 查表（M2-16）
+
+
+# hit_by / post_action 可往本回合追加播报碎片（不改伤害）；resolve_attack 开头清空。
+_ROUND_EXTRA_FRAGMENTS: list[str] = []
+
+
+def append_round_fragment(text: str) -> None:
+    """供 SkillBehavior.hit_by / post_action 追加本回合播报文案。"""
+    _ROUND_EXTRA_FRAGMENTS.append(text)
 
 
 @dataclass(frozen=True)
@@ -136,6 +146,7 @@ def resolve_attack(
     """
     model = power_model if power_model is not None else _DEFAULT_POWER_MODEL
     move = ctx.move  # 步骤 1–2：已由调用方选定
+    _ROUND_EXTRA_FRAGMENTS.clear()
 
     ap = model.attack_power(ctx)  # 步骤 3
     dp = model.defense_power(ctx)
@@ -165,9 +176,9 @@ def resolve_attack(
             message_fragments=(f"{move.name}被招架",),
         )
 
-    # 步骤 6：算伤害（走注入的 PowerModel；钩子占位对结果无影响）。
+    # 步骤 6：算伤害；``hit_ob`` 可改伤害或追加文案，``hit_by`` 可副作用追加文案。
     damage = model.base_damage(ctx)
-    damage = _invoke_hit_ob(ctx, damage)
+    damage, hit_ob_frags = _invoke_hit_ob(ctx, damage)
     _invoke_hit_by(ctx)
 
     damage = max(0, int(damage))
@@ -181,6 +192,11 @@ def resolve_attack(
     _invoke_riposte(ctx)
     _invoke_post_action(ctx)
 
+    fragments = (
+        f"{move.name}命中，造成 {damage} 点伤害",
+        *hit_ob_frags,
+        *tuple(_ROUND_EXTRA_FRAGMENTS),
+    )
     return CombatRoundResult(
         hit=True,
         dodged=False,
@@ -188,7 +204,7 @@ def resolve_attack(
         damage=damage,
         fatal=fatal,
         move_name=move.name,
-        message_fragments=(f"{move.name}命中，造成 {damage} 点伤害",),
+        message_fragments=fragments,
     )
 
 
@@ -200,14 +216,39 @@ def _roll_opposed(rng: Rng, attack: int, defense: int) -> bool:
     return rng.randrange(total) < defense
 
 
-def _invoke_hit_ob(ctx: CombatContext, damage: int) -> int:
-    """命中后钩子占位（16 号票接入 SkillBehavior.hit_ob）。"""
-    return damage
+def _behavior_for(ctx: CombatContext):
+    from mud_engine.skills import get_skill_behavior
+
+    skill_id = ctx.move.skill_id
+    if not skill_id:
+        return None
+    return get_skill_behavior(skill_id)
+
+
+def _invoke_hit_ob(ctx: CombatContext, damage: int) -> tuple[int, tuple[str, ...]]:
+    """命中后钩子（M2-16）。
+
+    返回值语义：
+    - ``int``：用该值替换本回合伤害；
+    - ``str``：保留原伤害，追加一条播报；
+    - ``None`` / 无钩子：不改伤害、不加文案。
+    """
+    behavior = _behavior_for(ctx)
+    if behavior is None:
+        return damage, ()
+    result = behavior.hit_ob(ctx, damage)
+    if isinstance(result, int):
+        return result, ()
+    if isinstance(result, str):
+        return damage, (result,)
+    return damage, ()
 
 
 def _invoke_hit_by(ctx: CombatContext) -> None:
-    """被击中钩子占位（16 号票接入 SkillBehavior.hit_by）。"""
-    return None
+    """被击中钩子：在 ``hit_ob`` 之后、inflict 之前调用（M2-16）。"""
+    behavior = _behavior_for(ctx)
+    if behavior is not None:
+        behavior.hit_by(ctx)
 
 
 def _invoke_exp_gain(ctx: CombatContext) -> None:
@@ -221,8 +262,10 @@ def _invoke_riposte(ctx: CombatContext) -> None:
 
 
 def _invoke_post_action(ctx: CombatContext) -> None:
-    """招式收尾钩子占位（16 号票接入 SkillBehavior.post_action）。"""
-    return None
+    """招式收尾钩子：在 CombatRoundResult 字段已算完之后调用，不影响本回合数值（M2-16）。"""
+    behavior = _behavior_for(ctx)
+    if behavior is not None:
+        behavior.post_action(ctx)
 
 
 __all__ = [
@@ -232,6 +275,7 @@ __all__ = [
     "DefaultWuxiaPowerModel",
     "PowerModel",
     "Rng",
+    "append_round_fragment",
     "attach_power_model",
     "register_power_model",
     "resolve_attack",

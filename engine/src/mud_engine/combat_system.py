@@ -195,6 +195,7 @@ def select_move(world: World, attacker: EntityId) -> CombatMoveSnapshot:
     if skill_levels is None or not skill_levels.levels:
         return _DEFAULT_MOVE
     best: SkillMove | None = None
+    best_skill_id: str | None = None
     for skill_id, progress in skill_levels.levels.items():
         data: SkillData | None = SKILLS.get(skill_id)
         if data is None:
@@ -204,6 +205,7 @@ def select_move(world: World, attacker: EntityId) -> CombatMoveSnapshot:
                 continue
             if best is None or move.force > best.force:
                 best = move
+                best_skill_id = skill_id
     if best is None:
         return _DEFAULT_MOVE
     return CombatMoveSnapshot(
@@ -212,6 +214,7 @@ def select_move(world: World, attacker: EntityId) -> CombatMoveSnapshot:
         dodge=best.dodge,
         damage_type=best.damage_type,
         damage=best.damage,
+        skill_id=best_skill_id,
     )
 
 
