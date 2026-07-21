@@ -1,0 +1,73 @@
+# 废弃探测站 — 科幻迷你场景（M3-04）
+# 只复用已交付声明式能力：房间/出口/门锁钥匙、valuable、inquiry、shop、currency。
+# 命名空间：outpost_*，与武侠官方包键互不冲突。
+
+rooms:
+  outpost_airlock:
+    name: 气闸舱
+    long: >
+      锈迹斑斑的气闸舱。舱壁上的警示灯早已熄灭，空气里有一股干燥的金属味。
+      一道气密门通向深处的补给舱。
+    exits:
+      east:
+        to: outpost_supply
+        aliases: [补给舱, 东]
+
+  outpost_supply:
+    name: 补给舱
+    long: >
+      货架倾倒、补给箱散落一地。舱室尽头的闸门上了锁，旁边闪着读卡器的暗红色指示灯。
+    exits:
+      west:
+        to: outpost_airlock
+        aliases: [气闸舱, 西]
+      east:
+        to: outpost_control
+        aliases: [主控室, 东]
+        door: locked
+        key: outpost_access_card
+
+  outpost_control:
+    name: 主控室
+    long: >
+      探测站主控室。中央控制台还在低功耗待机，屏幕上滚动着过期的环境读数。
+      一台维修机器人守在旁边。
+    exits:
+      west:
+        to: outpost_supply
+        aliases: [补给舱, 西]
+
+items:
+  outpost_access_card:
+    name: 通行卡
+    aliases: [门卡, 卡片, 卡]
+    short: 一张通行卡
+    long: 边缘磨损的通行卡，条码还能被读卡器识别。
+    placed_in: outpost_supply
+
+  outpost_power_cell:
+    name: 备用能量芯
+    aliases: [能量芯, 电池]
+    short: 一枚备用能量芯
+    long: 标准规格的便携能量芯，还能撑起几小时的设备运转。
+    placed_in: outpost_control
+    valuable: 25
+
+npcs:
+  outpost_repair_bot:
+    name: 维修机器人
+    aliases: [机器人, 维修机]
+    short: 一台维修机器人
+    long: 关节吱呀作响的维修机器人，胸口铭牌写着「UNIT-7」。语音模块仍可用。
+    in_room: outpost_control
+    inquiry:
+      站点: 本站为深空边缘废弃探测站。主电源离线后，仅剩本地应急回路。
+      default: 可询问「站点」。需要备件可查看商店清单。
+    shop:
+      - item: outpost_power_cell
+        resell_discount: 0.5
+
+player:
+  name: 你
+  start_room: outpost_airlock
+  currency: 50
