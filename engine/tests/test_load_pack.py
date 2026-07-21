@@ -58,20 +58,35 @@ class TestWorldPackManifestField:
 
 
 class TestLoadPackSuccess:
-    def test_attaches_manifest_and_matches_load_scene(self, tmp_path: Path) -> None:
+    def test_attaches_manifest_equal_to_load_manifest(self, tmp_path: Path) -> None:
         pack_dir = _write_pack(tmp_path / "pack")
-        expected_manifest = load_manifest(pack_dir)
-        scene_world, scene_player = load_scene(pack_dir / "scene.yaml")
+        expected = load_manifest(pack_dir)
+        world, _ = load_pack(pack_dir)
+        assert world.pack_manifest == expected
 
-        world, player_id = load_pack(pack_dir)
-
-        assert world.pack_manifest == expected_manifest
-        assert player_id == scene_player
+    def test_scene_path_is_pack_scene_absolute(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        world, _ = load_pack(pack_dir)
         assert world.scene_path == (pack_dir / "scene.yaml").resolve()
+
+    def test_player_starts_in_configured_room(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        world, player_id = load_pack(pack_dir)
         room = world.require_component(player_id, Position).room
         assert world.require_component(room, Identity).name == "起始庭院"
+
+    def test_exits_match_scene_graph(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        world, player_id = load_pack(pack_dir)
+        room = world.require_component(player_id, Position).room
         corridor = world.require_component(room, Exits).by_direction["north"].target
         assert world.require_component(corridor, Identity).name == "长廊"
+
+    def test_entity_count_matches_direct_load_scene(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        scene_world, scene_player = load_scene(pack_dir / "scene.yaml")
+        world, player_id = load_pack(pack_dir)
+        assert player_id == scene_player
         assert len(list(world.all_entities())) == len(list(scene_world.all_entities()))
 
 
@@ -85,7 +100,7 @@ class TestLoadPackFailures:
             with pytest.raises(PackManifestError) as exc_info:
                 load_pack(pack_dir)
             spy_load_scene.assert_not_called()
-        assert "manifest" in str(exc_info.value).lower() or "id" in str(exc_info.value)
+        assert "id" in str(exc_info.value)
 
     def test_bad_scene_raises_scene_load_error(self, tmp_path: Path) -> None:
         bad_scene = _MINIMAL_SCENE.replace("to: corridor", "to: nonexistent_room")
@@ -125,19 +140,32 @@ class TestReattachPackManifest:
 
 
 class TestSaveRestoreReattach:
-    def test_manifest_survives_save_restore_via_reattach(self, tmp_path: Path) -> None:
+    def test_restore_leaves_pack_manifest_none(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        world, player_id = load_pack(pack_dir)
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
+        assert restored is not None
+        world2, _ = restored
+        assert world2.pack_manifest is None
+
+    def test_restore_keeps_scene_path(self, tmp_path: Path) -> None:
+        pack_dir = _write_pack(tmp_path / "pack")
+        world, player_id = load_pack(pack_dir)
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
+        assert restored is not None
+        world2, _ = restored
+        assert world2.scene_path == (pack_dir / "scene.yaml").resolve()
+
+    def test_reattach_after_restore_matches_pre_save(self, tmp_path: Path) -> None:
         pack_dir = _write_pack(tmp_path / "pack")
         world, player_id = load_pack(pack_dir)
         before = world.pack_manifest
         assert before is not None
-
-        save_dir = tmp_path / "save"
-        save_world(world, player_id, save_dir)
-        restored = restore_world(save_dir)
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
         assert restored is not None
         world2, _ = restored
-        assert world2.pack_manifest is None
-        assert world2.scene_path == (pack_dir / "scene.yaml").resolve()
-
         reattach_pack_manifest(world2)
         assert world2.pack_manifest == before

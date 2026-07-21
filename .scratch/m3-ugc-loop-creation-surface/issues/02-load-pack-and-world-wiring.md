@@ -15,3 +15,7 @@
 - [x] 端到端复合场景（为 03 号票铺路，本票用直接函数调用而非 CLI 验证）：`load_pack` 建 world → 用现有 `save.py` 的 `save_world`/`restore_world` 走一次存档/恢复 → 对恢复后的新 `World` 手动调 `reattach_pack_manifest` → 断言恢复后的 `pack_manifest` 与恢复前一致。这条测试证明"不扩展 `save.py`"这条决策确实成立，不是纸上假设。
 - [x] `save.py` 未被本票改动（跑一下 `git diff --stat` 或等价确认，防止实现时不小心手滑加了字段序列化）。
 - [x] 现有测试全绿不回归。
+
+## Comments
+
+- 2026-07-21 `/code-review`（fixed point `m3-wave1-start`）：Spec 轴无缺口（`save.py`/`__main__.py`/`load_scene` 均未改）。Standards 轴 fix——拆开 `load_pack` 成功路径与 save/restore/reattach 的复合断言（对齐 `engine/README.md` 测试约定「一方法一焦点」）。

@@ -5,19 +5,19 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与架构不变量。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-21：M3 Wave 1 `/implement` 完成，待 `/code-review`。
+**最后更新**：2026-07-21：M3 Wave 1 `/implement` + `/code-review` fix 完成。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2 完成**；**M3 Wave 0 完成**；**M3 Wave 1 `/implement` 完成**（票 `02`），待 code-review；post-MVP 见 [.scratch/mvp-scope/post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2 完成**；**M3 Wave 0/1 完成**（票 `01`–`02`）；下一步 Wave 2（票 `03`+`04`）；post-MVP 见 [.scratch/mvp-scope/post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)。
 - **工作分支**：`feat/m3-ugc-loop-creation-surface`（Wave 1 fixed point tag：`m3-wave1-start`）。
-- **engine/**：测试绿（585）。
+- **engine/**：测试绿（591）。
 
 ## Done
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **M3 Wave 1 `/implement`**（2026-07-21）：票 `02`——`load_pack` + `World.pack_manifest` + `reattach_pack_manifest`；`save.py` 零改动；fixed point `m3-wave1-start`。585 绿。待 `/code-review`。
+- [x] **M3 Wave 1 `/implement` + `/code-review` fix**（2026-07-21）：票 `02`——`load_pack` + `World.pack_manifest` + `reattach_pack_manifest`；`save.py` 零改动；fixed point `m3-wave1-start`。Review fix：拆成功路径与 restore 复合断言。591 绿。
 - [x] **M3 Wave 0 `/implement` + `/code-review` fix**（2026-07-21）：票 `01`——`PackManifest` + `load_manifest` + `PackManifestError`；fixed point `m3-wave0-start`。Review fix：去掉 helper 路径 Data Clump、合并 `_as_string`、`extra: dict[str, object]`。577 绿。
 - [x] **M3 `/to-spec` + `/to-tickets` 完成**（2026-07-21）：[spec.md](.scratch/m3-ugc-loop-creation-surface/spec.md)（`ready-for-agent`）；5 张票 `01`–`05`；[to-tickets-notes.md](.scratch/m3-ugc-loop-creation-surface/to-tickets-notes.md)；[implement-plan.md](.scratch/m3-ugc-loop-creation-surface/implement-plan.md)（4 wave）。
 - [x] **编辑器丢弃 + post-MVP backlog**（2026-07-21）：[ADR-0006](docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md)；子系统 9→丢弃；Web 创作者平台 + 留言板记入 [post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)；档位 18/4/9/11。
@@ -25,7 +25,7 @@
 
 ## In Progress
 
-当前无进行中项（Wave 1 implement 已提交，等本 session `/code-review`）。
+当前无进行中项。
 
 ## Blocked
 
@@ -33,7 +33,7 @@
 
 ## Next Up
 
-1. M3 Wave 1 `/code-review`（fixed point `m3-wave1-start`）→ fix → 再开 Wave 2（票 `03`+`04`）。
+1. M3 Wave 2 `/implement`：票 `03`（CLI `--pack`/`--validate`）+ 票 `04`（非武侠示例包），见 [implement-plan.md](.scratch/m3-ugc-loop-creation-surface/implement-plan.md)。
 
 ## 交接约定
 
