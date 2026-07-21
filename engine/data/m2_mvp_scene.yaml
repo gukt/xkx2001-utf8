@@ -40,48 +40,58 @@ rooms:
     long: >-
       扬州城心的中央广场，石狮守着旗杆，往来车马络绎不绝。
       四条大街由此散开，是城中枢纽，也是传闻中动态事件的落脚处。
+      东北角可见武庙飞檐。
     outdoors: true
     exits:
       north: { to: yangzhou_beidajie, aliases: [北] }
       south: { to: yangzhou_nandajie, aliases: [南] }
       east: { to: yangzhou_dongdajie, aliases: [东] }
       west: { to: yangzhou_xidajie, aliases: [西] }
+      northeast: { to: yangzhou_wumiao, aliases: [东北, 武庙] }
 
   yangzhou_beidajie:
     name: 北大街
     long: >-
       北大街青石铺就，酒幌与布招随风轻晃，行人多往北门方向去。
+      东侧是热闹客栈。
     outdoors: true
     exits:
       south: { to: yangzhou_guangchang, aliases: [南, 广场] }
       north: { to: yangzhou_beimen, aliases: [北, 北门] }
+      east: { to: yangzhou_kedian, aliases: [东, 客栈] }
 
   yangzhou_nandajie:
     name: 南大街
     long: >-
       南大街较北街略窄，茶香与脚力车的铃声混在一处，尽头是南门。
+      西侧镖局匾额赫然。
     outdoors: true
     exits:
       north: { to: yangzhou_guangchang, aliases: [北, 广场] }
       south: { to: yangzhou_nanmen, aliases: [南, 南门] }
+      west: { to: yangzhou_biaoju, aliases: [西, 镖局] }
 
   yangzhou_dongdajie:
     name: 东大街
     long: >-
-      东大街通向东门，再往东便是出城官道。街边多钱庄商号。
+      东大街通向东门，再往东便是出城官道。街边多钱庄商号，南侧有茶馆。
     outdoors: true
     exits:
       west: { to: yangzhou_guangchang, aliases: [西, 广场] }
       east: { to: yangzhou_dongmen, aliases: [东, 东门] }
+      north: { to: yangzhou_qianzhuang, aliases: [北, 钱庄] }
+      south: { to: yangzhou_chaguan, aliases: [南, 茶馆] }
 
   yangzhou_xidajie:
     name: 西大街
     long: >-
-      西大街连通西门，铁匠铺的锤声隐约可闻，马蹄印留在土路上。
+      西大街连通西门，铁匠铺的锤声隐约可闻，南侧有马厩，马蹄印留在土路上。
     outdoors: true
     exits:
       east: { to: yangzhou_guangchang, aliases: [东, 广场] }
       west: { to: yangzhou_ximen, aliases: [西, 西门] }
+      north: { to: yangzhou_datiepu, aliases: [北, 打铁铺] }
+      south: { to: yangzhou_stable, aliases: [南, 马厩] }
 
   yangzhou_beimen:
     name: 北门
@@ -125,6 +135,57 @@ rooms:
     exits:
       west: { to: yangzhou_dongmen, aliases: [西, 东门] }
 
+  # ── 扬州商业地标 + 马厩（23）──────────────────────────
+  yangzhou_kedian:
+    name: 悦来客栈
+    long: >-
+      客栈大堂灯火通明，账房算盘噼啪作响。店小二穿梭于桌椅之间招呼客官。
+    exits:
+      west: { to: yangzhou_beidajie, aliases: [西, 北大街] }
+
+  yangzhou_qianzhuang:
+    name: 金生钱庄
+    long: >-
+      钱庄柜台后堆着账册与银箱。伙计笑脸相迎，专营银票兑换与钱财往来。
+    exits:
+      south: { to: yangzhou_dongdajie, aliases: [南, 东大街] }
+
+  yangzhou_datiepu:
+    name: 打铁铺
+    long: >-
+      炉火正旺，铁砧上火星四溅。墙上挂着新打的刀剑与农具。
+    exits:
+      south: { to: yangzhou_xidajie, aliases: [南, 西大街] }
+
+  yangzhou_biaoju:
+    name: 龙门镖局
+    long: >-
+      镖局门楣高悬「龙门」二字，镖头在厅中擦拭兵器，墙上挂满镖旗。
+    exits:
+      east: { to: yangzhou_nandajie, aliases: [东, 南大街] }
+
+  yangzhou_wumiao:
+    name: 武庙
+    long: >-
+      武庙香火未绝，关公塑像威严。庙祝低声诵念，供桌上陈列兵器模型。
+    exits:
+      southwest: { to: yangzhou_guangchang, aliases: [西南, 广场] }
+
+  yangzhou_chaguan:
+    name: 富春茶馆
+    long: >-
+      茶馆里氤氲着龙井香气，茶博士提着铜壶穿梭，说书人的惊堂木偶一响。
+    exits:
+      north: { to: yangzhou_dongdajie, aliases: [北, 东大街] }
+
+  yangzhou_stable:
+    name: 马厩
+    long: >-
+      马厩干草铺地，几匹牲口甩着尾巴。马夫招呼客人选购坐骑，出城官道骑乘更方便。
+    outdoors: true
+    exits:
+      north: { to: yangzhou_xidajie, aliases: [北, 西大街] }
+
 # ── 物品 ──────────────────────────────────────────────
 items:
   training_pebble:
@@ -133,6 +194,23 @@ items:
     short: 一枚小石子
     long: 练武场边随手可捡的小石子，可用来练习拾取。
     placed_in: huashan_training
+
+  bank_note:
+    name: 银票
+    aliases: [票]
+    short: 一张银票
+    long: 金生钱庄签发的银票，可流通可兑付。
+    placed_in: yangzhou_qianzhuang
+    valuable: 30
+
+  steel_blade:
+    name: 钢刀
+    aliases: [刀]
+    short: 一把钢刀
+    long: 打铁铺新淬火的钢刀，刃口锋利。
+    placed_in: yangzhou_datiepu
+    valuable: 80
+    tags: [weapon, edged]
 
 # ── NPC ───────────────────────────────────────────────
 npcs:
@@ -180,11 +258,86 @@ npcs:
       城防: 西门城防由我等官兵轮值，闲人莫近城垛。
       default: 闲人免进，有事说事。
 
+  kedian_waiter:
+    name: 店小二
+    aliases: [小二]
+    short: 客栈店小二
+    long: 系着蓝围裙的店小二，笑容可掬。
+    in_room: yangzhou_kedian
+    inquiry:
+      default: 客官里面请，上房还有空位。
+
+  bank_clerk:
+    name: 钱庄伙计
+    aliases: [伙计]
+    short: 钱庄伙计
+    long: 算盘打得飞快的钱庄伙计。
+    in_room: yangzhou_qianzhuang
+    shop:
+      - item: bank_note
+        resell_discount: 0.9
+
+  blacksmith:
+    name: 铁匠
+    aliases: [炉匠]
+    short: 打铁铺铁匠
+    long: 臂膀粗壮的铁匠，额头挂着汗珠。
+    in_room: yangzhou_datiepu
+    shop:
+      - item: steel_blade
+        resell_discount: 0.6
+
+  escort_chief:
+    name: 镖头
+    aliases: [总镖头]
+    short: 龙门镖局镖头
+    long: 一身劲装的镖头，腰间别着短刀。
+    in_room: yangzhou_biaoju
+    inquiry:
+      default: 保镖运货，童叟无欺。
+
+  temple_keeper:
+    name: 庙祝
+    aliases: [祝]
+    short: 武庙庙祝
+    long: 须发皆白的庙祝，恭敬守着香火。
+    in_room: yangzhou_wumiao
+
+  tea_master:
+    name: 茶博士
+    aliases: [茶馆老板]
+    short: 茶馆茶博士
+    long: 提着长嘴铜壶的茶博士，嗓门洪亮。
+    in_room: yangzhou_chaguan
+    inquiry:
+      default: 客官喝什么茶？
+
+  yangzhou_horse:
+    name: 黄骠马
+    aliases: [马, 坐骑]
+    short: 一匹黄骠马
+    long: 皮毛油亮的黄骠马，蹄子结实，适合官道骑乘。
+    in_room: yangzhou_stable
+    mount:
+      ability: 5
+      jingli_current: 80
+      jingli_max: 80
+
+  stable_groom:
+    name: 马夫
+    aliases: [厩夫]
+    short: 马厩马夫
+    long: 叼着草茎的马夫，对牲口很是熟悉。
+    in_room: yangzhou_stable
+    shop:
+      - mount: yangzhou_horse
+        price: 50
+
 # ── 玩家 ──────────────────────────────────────────────
 player:
   name: 你
   start_room: huashan_birth
-  currency: 20
+  currency: 200
   gender: male
   vitals:
     qi: 100
