@@ -1,13 +1,13 @@
-# M2 MVP 场景房间键清单（Wave 4 协调）
+# M2 MVP 场景房间键清单（Wave 4–5）
 
-> 22/23 共用 `yangzhou_*`；25 连接扬州东门 ↔ 少林山门；华山 ↔ 扬州留给 26。
+> 22/23 共用 `yangzhou_*`；25 连接扬州东门 ↔ 少林山门；26 接通华山 ↔ 扬州（`road_huashan_yz`）。
 > 场景文件：`engine/data/m2_mvp_scene.yaml`（单文件，随票累加）。
 
 ## 华山村（21）`huashan_*`
 
 | 键 | 用途 |
 |---|---|
-| `huashan_birth` | 出生点 / 村口 |
+| `huashan_birth` | 出生点 / 村口（南 → `road_huashan_yz`） |
 | `huashan_guide` | 教程向导 |
 | `huashan_training` | 教学木桩 + `NoDeathZone` |
 
@@ -21,8 +21,8 @@
 | `yangzhou_dongdajie` | 东大街 |
 | `yangzhou_xidajie` | 西大街 |
 | `yangzhou_beimen` | 北门 |
-| `yangzhou_nanmen` | 南门 |
-| `yangzhou_dongmen` | 东门（预留 east → 官道，25 接） |
+| `yangzhou_nanmen` | 南门（南 → `road_huashan_yz`） |
+| `yangzhou_dongmen` | 东门（east → `road_yz_east`） |
 | `yangzhou_ximen` | 西门（`count:2` 同名官兵） |
 
 ## 扬州商业+马厩（23）`yangzhou_*`（不与 22 冲突）
@@ -41,16 +41,17 @@
 
 | 键 | 用途 |
 |---|---|
-| `shaolin_shanmen` | 山门（`EntryGuard`；预留 west → 官道，25 接） |
+| `shaolin_shanmen` | 山门（`EntryGuard`；west → `road_shaolin`） |
 | `shaolin_guangchang` | 广场 |
 | `shaolin_damoyuan` | 达摩院 |
 | `shaolin_cangjingge` | 藏经阁 |
 | `shaolin_wuchang` | 武场（学技能） |
 
-## 野外 / 官道 / 渡口（25）
+## 野外 / 官道 / 渡口（25 + 26）
 
 | 键 | 用途 |
 |---|---|
+| `road_huashan_yz` | 华山村口 ↔ 扬州南门官道（26） |
 | `road_yz_east` | 扬州东门外官道（接 `yangzhou_dongmen`） |
 | `wild_edge` | 野外边缘（高 `Terrain.cost`） |
 | `wild_forest` | 野外遭遇区（aggro 山贼） |

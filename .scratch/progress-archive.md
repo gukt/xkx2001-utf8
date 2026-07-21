@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M2 Wave 1 `/code-review` fix**（2026-07-21）：fixed point `m2-wave1-start`。修复：`status` 不展示银两；实体 `skills` 引用始终校验全局 `SKILLS`；`Unconscious`/`Dead` codec 走 `NPC_CAPABILITIES`。462 测试绿。
+
 - [x] **M2 Wave 1 落地：角色成长 / 死亡状态机 / 货币商店 / 门派框架 / 渡船**（2026-07-21）：五票各一 commit。`05`–`09` resolved。fixed point `m2-wave1-start`。
 
 - [x] **M2 Wave 0 落地：注册表 prefactor + 战斗算法 + 技能数据 + spawner 修复**（2026-07-21）：四票各一 commit。`01`–`04` resolved。

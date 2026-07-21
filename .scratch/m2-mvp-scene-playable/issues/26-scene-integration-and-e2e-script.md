@@ -4,13 +4,19 @@
 
 **Blocked by:** 21, 22, 23, 24, 25（六个分区场景内容全部落地）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 六个分区通过出口连成一张连通图（从任意一个分区的任意房间，理论上可以走到其余全部分区——不要求最短路径优化，只要求连通性），房间键无冲突。
-- [ ] 一条端到端剧本测试：出生华山村 -> `ask 向导` 教程对话 -> `attack 木桩` 战斗教学 -> 沿官道前往扬州 -> 在钱庄/打铁铺完成一次 buy 与一次 sell -> 沿另一段官道经野外遭遇一场战斗（胜负均需覆盖，或至少覆盖"胜"路径 + 一条独立测试覆盖玩家战败后的昏迷/死亡分支） -> 经渡口等船过河 -> 抵达少林山门（含一次门槏拒绝 + 一次满足条件通过） -> `join 少林` -> `learn` 少林技能 -> `practice` 该技能获得经验。
-- [ ] 每一步断言玩家可观察输出（命令返回消息）或可查询状态（`Vitals`/`Currency`/`Faction`/`SkillLevels`/`Position` 等），不做 YAML 内部结构的快照测试。
-- [ ] 至少一条独立测试覆盖 spec 用户故事 66 强调的"地理连贯性"：从华山村沿路径实际能走到少林寺，中途每个分区的连接出口都可通行（不是孤岛）。
-- [ ] `PROGRESS.md` 点名的 `_spawn_scan` 修复回归测试（04 号票）在真实六分区场景加载后仍然成立（场景加载不会破坏该修复——若某分区存在 `desired_count=1` 的单例 NPC 更好，作为真实场景下的复核）。
-- [ ] `engine/data/` 下的默认场景文件（或新增一份 M2 专属场景文件，与 M1 `m1_default_scene.yaml` 关系由实现阶段决定并说明——建议新增独立文件，不覆盖/破坏 M1 默认场景，除非确认 M1 verify 脚本不受影响）与 `just verify-*` 系列命令的关系需要梳理清楚，不能让本票破坏现有 `just verify-items`/`verify-npc`/`verify-nature`。
-- [ ] 全部现有测试 + 全部 M2 新增测试绿；`just verify-*` 一键矩阵全绿。
-- [ ] 本票完成后更新 [PROGRESS.md](../../../PROGRESS.md)：Done 追加 M2 收口条目，Next Up 更新为 M3 相关待办（详见 [implement-plan.md](../implement-plan.md) 的收尾说明）。
+- [x] 六个分区通过出口连成一张连通图（从任意一个分区的任意房间，理论上可以走到其余全部分区——不要求最短路径优化，只要求连通性），房间键无冲突。
+- [x] 一条端到端剧本测试：出生华山村 -> `ask 向导` 教程对话 -> `attack 木桩` 战斗教学 -> 沿官道前往扬州 -> 在钱庄/打铁铺完成一次 buy 与一次 sell -> 沿另一段官道经野外遭遇一场战斗（胜负均需覆盖，或至少覆盖"胜"路径 + 一条独立测试覆盖玩家战败后的昏迷/死亡分支） -> 经渡口等船过河 -> 抵达少林山门（含一次门槏拒绝 + 一次满足条件通过） -> `join 少林` -> `learn` 少林技能 -> `practice` 该技能获得经验。
+- [x] 每一步断言玩家可观察输出（命令返回消息）或可查询状态（`Vitals`/`Currency`/`Faction`/`SkillLevels`/`Position` 等），不做 YAML 内部结构的快照测试。
+- [x] 至少一条独立测试覆盖 spec 用户故事 66 强调的"地理连贯性"：从华山村沿路径实际能走到少林寺，中途每个分区的连接出口都可通行（不是孤岛）。
+- [x] `PROGRESS.md` 点名的 `_spawn_scan` 修复回归测试（04 号票）在真实六分区场景加载后仍然成立（场景加载不会破坏该修复——若某分区存在 `desired_count=1` 的单例 NPC 更好，作为真实场景下的复核）。
+- [x] `engine/data/` 下的默认场景文件（或新增一份 M2 专属场景文件，与 M1 `m1_default_scene.yaml` 关系由实现阶段决定并说明——建议新增独立文件，不覆盖/破坏 M1 默认场景，除非确认 M1 verify 脚本不受影响）与 `just verify-*` 系列命令的关系需要梳理清楚，不能让本票破坏现有 `just verify-items`/`verify-npc`/`verify-nature`。
+- [x] 全部现有测试 + 全部 M2 新增测试绿；`just verify-*` 一键矩阵全绿。
+- [x] 本票完成后更新 [PROGRESS.md](../../../PROGRESS.md)：Done 追加 M2 收口条目，Next Up 更新为 M3 相关待办（详见 [implement-plan.md](../implement-plan.md) 的收尾说明）。
+
+## 实现摘要（2026-07-21）
+
+- 补 `road_huashan_yz`：华山村口 ↔ 扬州南门；`death_policy.revive_room=huashan_birth`；罗汉拳 `practice` 数值。
+- 场景仍用独立 `m2_mvp_scene.yaml`（`load_mvp_scene`）；M1 `m1_default_scene.yaml` + `just verify-*` 不变。
+- 测试：`engine/tests/test_m2_e2e_script.py`（连通图 / spawn_scan 实景复核 / 战败昏迷复活 / 全路径剧本）。
