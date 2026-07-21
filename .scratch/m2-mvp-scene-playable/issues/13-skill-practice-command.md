@@ -4,11 +4,15 @@
 
 **Blocked by:** 03（`SkillData` 提供消耗/经验门槏参数），05（`Vitals`/`SkillLevels` 真实组件）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `practice <技能>`：技能不在玩家 `SkillLevels.levels` 里（未学会）给出"你还没学会这个技能"一类提示；已学会但内力/精力不足给出"你现在练不动"一类提示，且不产生任何状态变更。
-- [ ] 成功练习：扣减对应资源（`Vitals.neili_current`/`jingli_current`，具体扣哪个或两个都扣由 `SkillData` 该技能的声明字段决定），增加 `SkillProgress.exp`。
-- [ ] 升级判定：`exp` 达到 `SkillData` 声明的门槏（等级 -> 门槏值的映射或公式，字段形状由实现阶段定，需在 03 号票的 `SkillData` 形状基础上扩展，若 03 号票尚未包含该字段则本票在 03 号票基础上补充）时，`SkillProgress.level` 自动 +1，`exp` 处理方式（清零/结转）需明确并测试锁定，给玩家清晰的升级提示。
-- [ ] 命令层测试覆盖：未学会技能、资源不足、正常练习获得经验（未到门槏）、练习触发升级（到达门槏）四种路径。
-- [ ] 存档往返：`SkillProgress.level`/`exp` 变化后 save→restore 一致。
-- [ ] 现有测试全绿不回归。
+- [x] `practice <技能>`：技能不在玩家 `SkillLevels.levels` 里（未学会）给出"你还没学会这个技能"一类提示；已学会但内力/精力不足给出"你现在练不动"一类提示，且不产生任何状态变更。
+- [x] 成功练习：扣减对应资源（`Vitals.neili_current`/`jingli_current`，具体扣哪个或两个都扣由 `SkillData` 该技能的声明字段决定），增加 `SkillProgress.exp`。
+- [x] 升级判定：`exp` 达到 `SkillData` 声明的门槏（等级 -> 门槏值的映射或公式，字段形状由实现阶段定，需在 03 号票的 `SkillData` 形状基础上扩展，若 03 号票尚未包含该字段则本票在 03 号票基础上补充）时，`SkillProgress.level` 自动 +1，`exp` 处理方式（清零/结转）需明确并测试锁定，给玩家清晰的升级提示。
+- [x] 命令层测试覆盖：未学会技能、资源不足、正常练习获得经验（未到门槏）、练习触发升级（到达门槏）四种路径。
+- [x] 存档往返：`SkillProgress.level`/`exp` 变化后 save→restore 一致。
+- [x] 现有测试全绿不回归。
+
+## Comments
+
+- 2026-07-21：`SkillData.practice_*` + `exp_thresholds`；升级结转剩余 exp。

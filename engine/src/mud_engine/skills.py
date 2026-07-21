@@ -41,6 +41,14 @@ class SkillData:
     skill_type: str
     level_req: int
     moves: tuple[SkillMove, ...] = ()
+    # M2-13 practice：消耗与每次获得经验（纯数据，非硬编码常量）
+    practice_neili_cost: int = 0
+    practice_jingli_cost: int = 0
+    practice_exp_gain: int = 1
+    # 当前等级 -> 升级所需经验；越界用最后一档。空元组表示不可靠练习升级。
+    exp_thresholds: tuple[int, ...] = ()
+    # M2-14 learn：结构化条件 dict（condition_from_data 形状）；None=无额外门槏
+    learn_condition: dict | None = None
 
 
 SKILLS: dict[str, SkillData] = {}
@@ -117,11 +125,65 @@ def _parse_skill(raw: object, skill_id: str, scene_path: Path) -> SkillData:
     moves = tuple(
         _parse_move(entry, skill_id, index, scene_path) for index, entry in enumerate(moves_raw)
     )
+    practice_raw = raw.get("practice")
+    neili_cost = 0
+    jingli_cost = 0
+    exp_gain = 1
+    if practice_raw is not None:
+        if not isinstance(practice_raw, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的技能 '{skill_id}' 的 'practice' 应是映射，"
+                f"实际是 {type(practice_raw).__name__}"
+            )
+        neili_cost = _require_int(
+            practice_raw.get("neili", practice_raw.get("neili_cost", 0)),
+            "practice.neili",
+            skill_id,
+            scene_path,
+        )
+        jingli_cost = _require_int(
+            practice_raw.get("jingli", practice_raw.get("jingli_cost", 0)),
+            "practice.jingli",
+            skill_id,
+            scene_path,
+        )
+        exp_gain = _require_int(
+            practice_raw.get("exp", practice_raw.get("exp_gain", 1)),
+            "practice.exp",
+            skill_id,
+            scene_path,
+        )
+    thresholds_raw = raw.get("exp_thresholds", ())
+    if thresholds_raw is None:
+        thresholds_raw = ()
+    if not isinstance(thresholds_raw, (list, tuple)):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的技能 '{skill_id}' 的 'exp_thresholds' 应是列表，"
+            f"实际是 {type(thresholds_raw).__name__}"
+        )
+    exp_thresholds = tuple(
+        _require_int(v, f"exp_thresholds[{i}]", skill_id, scene_path)
+        for i, v in enumerate(thresholds_raw)
+    )
+    learn_raw = raw.get("learn_condition")
+    learn_condition: dict | None = None
+    if learn_raw is not None:
+        if not isinstance(learn_raw, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的技能 '{skill_id}' 的 "
+                f"'learn_condition' 应是映射，实际是 {type(learn_raw).__name__}"
+            )
+        learn_condition = dict(learn_raw)
     return SkillData(
         skill_id=skill_id,
         skill_type=str(skill_type),
         level_req=level_req,
         moves=moves,
+        practice_neili_cost=neili_cost,
+        practice_jingli_cost=jingli_cost,
+        practice_exp_gain=exp_gain,
+        exp_thresholds=exp_thresholds,
+        learn_condition=learn_condition,
     )
 
 
