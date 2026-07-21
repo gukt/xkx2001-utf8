@@ -4,12 +4,16 @@
 
 **Blocked by:** 03（`SkillData` 门槏字段），05（`SkillLevels` 组件），08（`Faction`/`FactionDefinition`/`map_skill`）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `learn <技能类型>`：无门派归属 -> 明确提示；门派 `map_skill` 无对应映射 -> "你的门派不会这个"；映射到的技能不在该门派 `skill_pool` -> 明确拒绝原因；等级/属性门槏不满足 -> 给出具体缺什么（如"你的根骨不够"），不是笼统"不满足条件"。
-- [ ] 学习条件求值复用 `conditions.evaluate`（08 号票已定的条件子语言），不新写散落 if 比较——`SkillData` 声明的门槏字段需要能表达成 `Condition` 节点（如等级门槏、属性门槏），若 03 号票的 `SkillData` 形状尚不支持，本票在其基础上补充该字段的条件化表达。
-- [ ] 全部通过后：技能 id 写入玩家 `SkillLevels.levels`（初始等级/经验的默认值需明确，如 level=1, exp=0），给出成功提示。
-- [ ] 重复 `learn` 已学会的技能给出提示（不重复添加/不重置进度）。
-- [ ] 命令层测试覆盖：无门派、映射不到、不在技能池、门槏不满足、成功学会、重复学习六种路径。
-- [ ] 存档往返：新学会的技能 save→restore 后仍在 `SkillLevels` 里。
-- [ ] 现有测试全绿不回归。
+- [x] `learn <技能类型>`：无门派归属 -> 明确提示；门派 `map_skill` 无对应映射 -> "你的门派不会这个"；映射到的技能不在该门派 `skill_pool` -> 明确拒绝原因；等级/属性门槏不满足 -> 给出具体缺什么（如"你的根骨不够"），不是笼统"不满足条件"。
+- [x] 学习条件求值复用 `conditions.evaluate`（08 号票已定的条件子语言），不新写散落 if 比较——`SkillData` 声明的门槏字段需要能表达成 `Condition` 节点（如等级门槏、属性门槏），若 03 号票的 `SkillData` 形状尚不支持，本票在其基础上补充该字段的条件化表达。
+- [x] 全部通过后：技能 id 写入玩家 `SkillLevels.levels`（初始等级/经验的默认值需明确，如 level=1, exp=0），给出成功提示。
+- [x] 重复 `learn` 已学会的技能给出提示（不重复添加/不重置进度）。
+- [x] 命令层测试覆盖：无门派、映射不到、不在技能池、门槏不满足、成功学会、重复学习六种路径。
+- [x] 存档往返：新学会的技能 save→restore 后仍在 `SkillLevels` 里。
+- [x] 现有测试全绿不回归。
+
+## Comments
+
+- 2026-07-21：条件 AST 增补 `Gte`（属性门槏）；`learn` 走 map_skill → skill_pool → learn_condition；初始 level=1, exp=0。

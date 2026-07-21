@@ -35,6 +35,7 @@ from mud_engine.conditions import (
     Condition,
     ConditionContext,
     Equals,
+    Gte,
     Not,
     Or,
     Predicate,
@@ -268,6 +269,7 @@ def condition_from_data(data: Mapping | None) -> Condition | None:
     - ``{"predicate": "is_night"}``
     - ``{"equals": {"field": "phase", "value": "night"}}`` 或扁平
       ``{"field": "phase", "value": "night"}``
+    - ``{"gte": {"field": "con", "value": 12}}`` 或 ``{"op": "gte", "field", "value"}``
     - ``{"and": [子条件, ...]}`` / ``{"or": [...]}`` / ``{"not": 子条件}``
     """
     if data is None:
@@ -281,6 +283,13 @@ def condition_from_data(data: Mapping | None) -> Condition | None:
         if isinstance(eq, Mapping):
             return Equals(field=str(eq["field"]), value=eq["value"])
         return None
+    if "gte" in data:
+        gte = data["gte"]
+        if isinstance(gte, Mapping):
+            return Gte(field=str(gte["field"]), value=gte["value"])
+        return None
+    if data.get("op") == "gte" and "field" in data and "value" in data:
+        return Gte(field=str(data["field"]), value=data["value"])
     if "field" in data and "value" in data:
         return Equals(field=str(data["field"]), value=data["value"])
     if "and" in data:
