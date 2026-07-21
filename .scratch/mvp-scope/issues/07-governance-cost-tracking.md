@@ -38,3 +38,10 @@ Status: resolved
 - **止损线-会话类**:维持原提案,单 session 接近 smart zone(~120K token)且无明显进展信号时强制 `/handoff`。
 - **里程碑**:维持原提案的 M0~M4 划分与顺序不变(M0 本地图定稿+CLAUDE.md 重写;M1 核心引擎骨架;M2 一个 MVP 场景端到端可玩;M3 UGC 创作闭环打通一次;M4 商业化支撑点数据模型落地,不要求真实计费)。
 - **AI 成本台账**:取消。不建轻量台账,不参考 `docs/archive/batch-cost.md` 格式记录 token/时长。
+
+### 追加(2026-07-21):post-MVP backlog
+
+M0–M4 **之后**另排里程碑(编号待定,建议 M5 起)。已确认条目见 [post-mvp-backlog.md](../post-mvp-backlog.md):
+
+1. **Web 创作者一站式平台**(创作/验证/上架下架/分成提现/统计/账户/Agent 辅助;独立于引擎)。
+2. **留言板/异步公告**(多人世界互动阶段再评估;引擎 MVP 不做)。

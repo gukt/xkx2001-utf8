@@ -26,3 +26,7 @@ Status: resolved
 - 03 号票(UGC/DSL)细化后需回头核对编辑器系统(9)的归类是否仍准确。
 
 **追加(2026-07-18,10 号票场景选型阶段)**:坐骑与交通系统(38)"仍是暂定"这条已被后续解决——10 号票选场景时用户明确要求 MVP 场景的官道/野外要能骑乘通行、跨区域要有水陆交通联通,坐骑与交通系统(38)整体从"现代化改造+MVP 不做"改判为"MVP 必做",详情见 [08 号票](08-subsystem-classification-research.md) 档位分布最新版。
+
+**追加(2026-07-19)**:02 号票已拍板([ADR-0004](../../../docs/adr/0004-combat-effects-boundary-engine.md));战斗/状态/技能/死亡轮回归类维持 MVP 必做不变,无需重评——第一条遗留关闭。
+
+**追加(2026-07-21)**:03 号票 Refinement + [ADR-0005](../../../docs/adr/0005-m3-ugc-loop-creation-surface.md) 完成;编辑器初核曾维持现代化改造。同日 [ADR-0006](../../../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md):编辑器(9)**改判丢弃**;留言板推迟到多人世界互动;Web 创作者平台列入 [post-mvp-backlog.md](../post-mvp-backlog.md)。跨票遗留清零。档位:现代化改造 9 / 丢弃 11。
