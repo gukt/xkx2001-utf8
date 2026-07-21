@@ -37,6 +37,7 @@ from dataclasses import dataclass
 
 from mud_engine import lookup
 from mud_engine.components import (
+    MOUNT_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
     Container,
     Currency,
@@ -47,9 +48,9 @@ from mud_engine.components import (
     Engaged,
     Exits,
     Faction,
+    Ferry,
     Identity,
     Inquiry,
-    MOUNT_JINGLI_PER_TERRAIN_COST,
     Mount,
     PlayerSession,
     Position,
@@ -407,6 +408,11 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
     passage = exits.by_direction.get(direction)
     if passage is None:
+        # 渡口：船不在此岸时对应方向出口被撤掉；给专用提示（M2-09/25），
+        # 避免玩家只看到笼统的「没有出口」。
+        ferry = world.get_component(room, Ferry)
+        if ferry is not None and direction == ferry.direction:
+            return ["渡船不在此岸，过不了河。"]
         # 解析阶段正常会把"当前房间没有的方向"拦成 NO_TARGET_MATCH；这里保留
         # 兜底，防御手工构造的 Intent 带了不规范方向。
         return [f"那个方向（{direction}）没有出口。"]

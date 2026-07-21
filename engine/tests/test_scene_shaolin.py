@@ -72,6 +72,17 @@ class TestShaolinTemple:
         lines = execute_line(world, player_id, "go east")
         assert any("男" in line or "女" in line or "性别" in line for line in lines)
 
+    def test_entry_guard_denies_other_faction(self) -> None:
+        world, player_id = load_mvp_scene()
+        if not world.has_component(player_id, Faction):
+            world.add_component(player_id, Faction(faction_id="beggars"))
+        else:
+            world.require_component(player_id, Faction).faction_id = "beggars"
+        _move_to(world, player_id, "road_shaolin")
+        lines = execute_line(world, player_id, "go east")
+        assert any("他派" in line or "门派" in line for line in lines)
+        assert world.require_component(player_id, Position).room == _room(world, "road_shaolin")
+
     def test_script_enter_join_learn(self) -> None:
         """不满足门槏拒绝 -> 满足后进入 -> join -> learn。"""
         world, player_id = load_mvp_scene()

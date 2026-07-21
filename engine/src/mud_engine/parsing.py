@@ -25,6 +25,7 @@ from mud_engine.commands import execute, resolve_verb
 from mud_engine.components import (
     Container,
     Exits,
+    Ferry,
     Identity,
     Position,
     Stackable,
@@ -36,7 +37,6 @@ from mud_engine.matching import (
     Candidate,
     EntityCandidate,
     IndexOutOfRange,
-    NoMatch,
     Resolved,
     ResolvedEntity,
     match_entity_target,
@@ -364,7 +364,15 @@ class DeterministicParser(Parser):
     def _direction_candidates(world: World, player_id: EntityId) -> list[Candidate]:
         room = world.require_component(player_id, Position).room
         exits = world.require_component(room, Exits)
-        return [(direction, passage.aliases) for direction, passage in exits.by_direction.items()]
+        candidates: list[Candidate] = [
+            (direction, passage.aliases) for direction, passage in exits.by_direction.items()
+        ]
+        # 渡口：船不在此岸时出口被撤掉，仍把过河方向纳入候选，
+        # 以便 go 到达命令层给出「渡船不在此岸」专用提示（M2-09/25）。
+        ferry = world.get_component(room, Ferry)
+        if ferry is not None and ferry.direction not in exits.by_direction:
+            candidates.append((ferry.direction, ()))
+        return candidates
 
     @staticmethod
     def _item_candidates(world: World, player_id: EntityId, source: str) -> list[Candidate]:

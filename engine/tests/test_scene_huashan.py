@@ -57,6 +57,9 @@ class TestHuashanVillage:
             lines = execute_line(world, player_id, f"ask 向导 about {topic}")
             joined = "\n".join(lines)
             assert needle in joined, f"topic={topic!r} lines={lines!r}"
+        where = execute_line(world, player_id, "ask 向导 about 去哪")
+        where_text = "\n".join(where)
+        assert "扬州" in where_text and ("少林" in where_text or "门派" in where_text)
 
     def test_training_dummy_combat_broadcast(self) -> None:
         world, player_id = load_mvp_scene()

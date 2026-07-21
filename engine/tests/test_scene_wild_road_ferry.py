@@ -11,7 +11,6 @@ from mud_engine.components import (
     Exits,
     Ferry,
     Identity,
-    Mount,
     Position,
     Riding,
     SkillLevels,
@@ -91,6 +90,25 @@ class TestWildRoadAndFerry:
         lines = execute_line(world, player_id, "go across")
         assert world.require_component(player_id, Position).room == _room(world, "ferry_east")
         assert any("东岸" in line or "渡" in line or "岸" in line for line in lines)
+
+    def test_ferry_absent_denies_crossing(self) -> None:
+        world, player_id = load_mvp_scene()
+        _move_to(world, player_id, "ferry_west")
+        # 等船离开西岸
+        for _ in range(6):
+            TickLoop(lambda: None, world=world).advance()
+            if "across" not in world.require_component(
+                _room(world, "ferry_west"), Exits
+            ).by_direction:
+                break
+        assert "across" not in world.require_component(
+            _room(world, "ferry_west"), Exits
+        ).by_direction
+        look = execute_line(world, player_id, "look")
+        assert any("渡船" in line and ("到达" in line or "东岸" in line) for line in look)
+        denied = execute_line(world, player_id, "go across")
+        assert any("渡船不在" in line for line in denied)
+        assert world.require_component(player_id, Position).room == _room(world, "ferry_west")
 
     def test_script_wild_combat_loot_road_ferry(self) -> None:
         """野外遭遇 -> 战胜获战利品 -> 弱马拒行后步行 -> 渡口过河。"""

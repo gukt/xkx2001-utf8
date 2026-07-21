@@ -4,13 +4,13 @@
 
 **Blocked by:** 08（`join` 命令 + `FactionDefinition`），11（`EntryGuard` + `EntityGateContext`），14（`learn` 命令完整实现）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 山门房间挂 `EntryGuard`：条件覆盖性别/是否已属其他门派/所持武器类型（对照 spec 用户故事 38"性别/是否已属其他门派/所持武器类型等场景声明的具体条件"），不满足时给出明确原因文案。
-- [ ] 广场 + 达摩院 + 藏经阁：剧情向房间，各有独立描述与至少一个展示型 NPC（无 `Inquiry`/`Behaviors` 亦可，纯粹"有名字有描述"）。
-- [ ] 武场房间 + 武僧 NPC：`learn <少林技能>`（如"罗汉拳"或对应内力技能类型如"内功"）成功后玩家 `SkillLevels` 出现该技能。
-- [ ] 知客僧 NPC：`join 少林`（或场景声明的具体命令措辞）满足条件后玩家 `Faction.faction_id` 变为少林。
-- [ ] `factions:` 段声明的少林 `FactionDefinition`：`skill_pool`/`map_skill` 正确关联 03 号票 `skills:` 段声明的少林专属技能（如"混元一气功"映射自"内功"技能类型）。
-- [ ] 房间键统一 `shaolin_*` 前缀；出口预留一个方向连接官道/野外（为 25 号票协调）。
-- [ ] 端到端剧本片段测试：不满足门槏时山门拒绝进入 -> 满足条件后进入 -> `join 少林` 成功 -> `learn` 少林专属技能成功。
-- [ ] 现有测试全绿不回归；`just verify-*` 一键矩阵全绿。
+- [x] 山门房间挂 `EntryGuard`：条件覆盖性别/是否已属其他门派/所持武器类型（对照 spec 用户故事 38"性别/是否已属其他门派/所持武器类型等场景声明的具体条件"），不满足时给出明确原因文案。
+- [x] 广场 + 达摩院 + 藏经阁：剧情向房间，各有独立描述与至少一个展示型 NPC（无 `Inquiry`/`Behaviors` 亦可，纯粹"有名字有描述"）。
+- [x] 武场房间 + 武僧 NPC：`learn <少林技能>`（如"罗汉拳"或对应内力技能类型如"内功"）成功后玩家 `SkillLevels` 出现该技能。
+- [x] 知客僧 NPC：`join 少林`（或场景声明的具体命令措辞）满足条件后玩家 `Faction.faction_id` 变为少林。
+- [x] `factions:` 段声明的少林 `FactionDefinition`：`skill_pool`/`map_skill` 正确关联 03 号票 `skills:` 段声明的少林专属技能（如"混元一气功"映射自"内功"技能类型）。
+- [x] 房间键统一 `shaolin_*` 前缀；出口预留一个方向连接官道/野外（为 25 号票协调）。
+- [x] 端到端剧本片段测试：不满足门槏时山门拒绝进入 -> 满足条件后进入 -> `join 少林` 成功 -> `learn` 少林专属技能成功。
+- [x] 现有测试全绿不回归；`just verify-*` 一键矩阵全绿。
