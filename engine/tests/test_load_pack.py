@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
-from mud_engine.components import Exits, Identity, Position
+from mud_engine.components import Engaged, Exits, Identity, Position
 from mud_engine.errors import PackManifestError
 from mud_engine.pack import load_manifest, load_pack, reattach_pack_manifest
+from mud_engine.parsing import execute_line
 from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import SceneLoadError, load_scene
 from mud_engine.world import World
@@ -169,3 +170,80 @@ class TestSaveRestoreReattach:
         world2, _ = restored
         reattach_pack_manifest(world2)
         assert world2.pack_manifest == before
+
+    def test_engaged_and_pack_manifest_survive_save_restore(self, tmp_path: Path) -> None:
+        """B3-4：pack 模式建立 Engaged 后 save→restore，交战与 manifest 均恢复。"""
+        combat_scene = """
+rooms:
+  yard:
+    name: 院子
+    exits: {}
+skills:
+  basic_fist:
+    type: martial
+    level_req: 0
+    moves:
+      - name: 直拳
+        force: 20
+        dodge: 0
+        damage_type: blunt
+        damage: 10
+npcs:
+  bandit:
+    name: 山贼
+    in_room: yard
+    vitals:
+      qi_current: 40
+      qi_max: 40
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
+    attributes:
+      str: 10
+      con: 10
+      dex: 0
+      int: 5
+    skills:
+      basic_fist:
+        level: 1
+        exp: 0
+player:
+  name: 你
+  start_room: yard
+  vitals:
+    qi: 100
+    qi_max: 100
+    neili: 50
+    neili_max: 50
+    jingli: 50
+    jingli_max: 50
+  attributes:
+    str: 20
+    con: 10
+    dex: 0
+    int: 10
+  skills:
+    basic_fist:
+      level: 1
+      exp: 0
+"""
+        pack_dir = _write_pack(tmp_path / "pack", scene=combat_scene)
+        world, player_id = load_pack(pack_dir)
+        before_manifest = world.pack_manifest
+        assert before_manifest is not None
+        execute_line(world, player_id, "attack 山贼")
+        bandit = next(
+            e
+            for e in world.entities_with(Identity)
+            if e != player_id and world.require_component(e, Identity).name == "山贼"
+        )
+        assert world.require_component(player_id, Engaged).opponent == bandit
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
+        assert restored is not None
+        world2, rid = restored
+        assert world2.require_component(rid, Engaged).opponent == bandit
+        assert world2.require_component(bandit, Engaged).opponent == rid
+        reattach_pack_manifest(world2)
+        assert world2.pack_manifest == before_manifest
