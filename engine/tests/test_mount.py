@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Currency, Ferry, Mount, Position, Riding
+from mud_engine.components import Currency, Exits, Ferry, Mount, Position, Riding, Terrain
 from mud_engine.parsing import execute_line
 from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
@@ -113,7 +113,7 @@ rooms:
       east: west_bank
   west_bank:
     name: 西岸渡口
-    cost: 2
+    cost: 3
     ferry:
       far_bank: east_bank
       cross_interval: 3
@@ -122,7 +122,7 @@ rooms:
       west: road
   east_bank:
     name: 东岸渡口
-    cost: 2
+    cost: 3
     ferry:
       far_bank: west_bank
       cross_interval: 3
@@ -133,7 +133,7 @@ npcs:
     name: 黄骠马
     in_room: road
     mount:
-      ability: 5
+      ability: 3
       jingli_current: 80
       jingli_max: 80
 player:
@@ -148,16 +148,22 @@ class TestMountFerryCross:
         world, player_id = load_scene(_write_scene(tmp_path, _MOUNT_FERRY_SCENE))
         execute_line(world, player_id, "ride 黄骠马")
         mount = world.require_component(player_id, Riding).mount_id
+        assert world.require_component(mount, Mount).ability == 3
         road_lines = execute_line(world, player_id, "go east")
         assert not any("骑不过去" in line for line in road_lines)
         west = world.require_component(player_id, Position).room
         assert world.has_component(west, Ferry)
+        assert world.require_component(west, Terrain).cost == 3
+        assert "across" in world.require_component(west, Exits).by_direction
+        look = execute_line(world, player_id, "look")
+        assert any("渡船" in line for line in look)
         assert world.require_component(mount, Position).room == west
+        east = world.require_component(west, Ferry).far_bank
+        assert world.require_component(east, Terrain).cost == 3
         lines = execute_line(world, player_id, "go across")
         assert not any("骑不过去" in line for line in lines)
         assert any("东岸" in line for line in lines)
         player_room = world.require_component(player_id, Position).room
         mount_room = world.require_component(mount, Position).room
-        assert player_room == mount_room
-        assert world.require_component(player_room, Ferry).far_bank != player_room
+        assert player_room == mount_room == east
         assert world.require_component(player_room, Ferry).far_bank == west
