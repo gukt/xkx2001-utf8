@@ -36,6 +36,7 @@ from mud_engine.components import (
     Consumable,
     Container,
     Currency,
+    Dead,
     Description,
     Equippable,
     Faction,
@@ -48,6 +49,7 @@ from mud_engine.components import (
     SkillLevels,
     SkillProgress,
     Stackable,
+    Unconscious,
     Valuable,
     Vitals,
     Weight,
@@ -783,10 +785,11 @@ def _parse_skill_levels(
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的{label}的 skills.{key} 等级/经验非法：{exc}"
             ) from exc
-        # 引用校验：若全局 SKILLS 非空且不含该 id，报错（加载期 fail-fast）。
-        # 允许场景未声明顶层 skills: 时预置等级（测试/最小场景）。
-        if SKILLS and key not in SKILLS:
-            raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 skills 引用未声明技能 '{key}'")
+        # 加载期引用校验：实体 skills 必须指向已声明的全局 SkillData（spec H1）。
+        if key not in SKILLS:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 skills 引用未声明技能 '{key}'"
+            )
     return SkillLevels(levels=levels)
 
 
@@ -924,6 +927,29 @@ def _des_faction(d: dict) -> Faction:
     return Faction(faction_id=None if raw is None else str(raw))
 
 
+def _parse_runtime_marker(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> None:
+    """Unconscious/Dead 仅运行时挂载，无 YAML；本条只贡献存档 codec。"""
+    return None
+
+
+def _ser_unconscious(_c: Unconscious) -> dict:
+    return {}
+
+
+def _des_unconscious(_d: dict) -> Unconscious:
+    return Unconscious()
+
+
+def _ser_dead(_c: Dead) -> dict:
+    return {}
+
+
+def _des_dead(_d: dict) -> Dead:
+    return Dead()
+
+
 NPC_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Inquiry,
@@ -987,6 +1013,21 @@ NPC_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_faction,
         to_dict=_ser_faction,
         from_dict=_des_faction,
+    ),
+    # 运行时 marker：无 YAML 字段；from_yaml 恒 None，只贡献存档 codec（票 06）。
+    CapabilitySpec(
+        component_type=Unconscious,
+        known_fields=frozenset(),
+        from_yaml=_parse_runtime_marker,
+        to_dict=_ser_unconscious,
+        from_dict=_des_unconscious,
+    ),
+    CapabilitySpec(
+        component_type=Dead,
+        known_fields=frozenset(),
+        from_yaml=_parse_runtime_marker,
+        to_dict=_ser_dead,
+        from_dict=_des_dead,
     ),
 ]
 

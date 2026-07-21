@@ -753,9 +753,6 @@ def _cmd_status(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         )
     else:
         lines.append("（未配置基础属性）")
-    currency = world.get_component(player_id, Currency)
-    if currency is not None:
-        lines.append(f"银两：{currency.amount}")
     return lines
 
 

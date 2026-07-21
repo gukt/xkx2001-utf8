@@ -21,6 +21,15 @@ rooms:
   yard:
     name: 院子
     exits: {}
+skills:
+  basic_fist:
+    type: martial
+    level_req: 0
+    moves:
+      - name: 基本拳
+        force: 5
+        dodge: 1
+        damage_type: blunt
 npcs:
   dummy:
     name: 木桩

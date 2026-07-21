@@ -42,7 +42,6 @@ from mud_engine.capabilities import (
 )
 from mud_engine.components import (
     TRANSIENT,
-    Dead,
     Door,
     Doors,
     DoorState,
@@ -52,7 +51,6 @@ from mud_engine.components import (
     NpcSpawnMeta,
     PlayerSession,
     Position,
-    Unconscious,
 )
 from mud_engine.world import EntityId, World
 
@@ -150,30 +148,13 @@ def _des_player_session(d: dict) -> PlayerSession:
     return PlayerSession()
 
 
-def _ser_unconscious(_c: Unconscious) -> dict:
-    return {}
-
-
-def _des_unconscious(_d: dict) -> Unconscious:
-    return Unconscious()
-
-
-def _ser_dead(_c: Dead) -> dict:
-    return {}
-
-
-def _des_dead(_d: dict) -> Dead:
-    return Dead()
-
-
 def _codecs_from_specs(specs: list[CapabilitySpec]) -> dict[type, _Codec]:
     return {spec.component_type: (spec.to_dict, spec.from_dict) for spec in specs}
 
 
 # 物品 / 房间 / NPC 能力 codec 来自各自注册表（M1-31 / M2-01）；固有组件仍在此声明。
-# Description 走 ROOM_CAPABILITIES（含 outdoors）；Inquiry/Behaviors/AIController
-# 走 NPC_CAPABILITIES。新增实体能力只需在对应注册表追加一条，不再改本文件。
-# Unconscious/Dead 是运行时 marker（无 YAML from_yaml），固有登记于此。
+# Description 走 ROOM_CAPABILITIES；Inquiry/Behaviors/AIController/Vitals/…/Unconscious/Dead
+# 走 NPC_CAPABILITIES（含仅 codec、无 YAML 的运行时 marker）。
 _CODECS: dict[type, _Codec] = {}
 _CODECS.update(_codecs_from_specs(CAPABILITIES))
 _CODECS.update(_codecs_from_specs(ROOM_CAPABILITIES))
@@ -186,8 +167,6 @@ _CODECS.update(
         Doors: (_ser_doors, _des_doors),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         PlayerSession: (_ser_player_session, _des_player_session),
-        Unconscious: (_ser_unconscious, _des_unconscious),
-        Dead: (_ser_dead, _des_dead),
     }
 )
 
