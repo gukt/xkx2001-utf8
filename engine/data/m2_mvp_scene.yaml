@@ -1,7 +1,8 @@
 # M2 MVP 武侠题材包场景（Wave 4 起累加；单文件，见 .scratch/m2-mvp-scene-playable/room-keys.md）
 #
 # 分区前缀：huashan_* / yangzhou_* / shaolin_* / wild_* / road_* / ferry_*
-# 已落地：华山村（21）、扬州枢纽（22）、扬州商业（23）、少林寺（24）；野外/官道/渡口（25）后续。
+# 已落地：华山（21）/扬州枢纽（22）/扬州商业（23）/少林（24）/野外官道渡口（25）。
+# 华山↔扬州互联留给票 26。
 
 # ── 房间：华山 + 扬州 + 少林 + 官道桩 ──────────────────
 rooms:
@@ -126,14 +127,78 @@ rooms:
     exits:
       east: { to: yangzhou_xidajie, aliases: [东, 西大街] }
 
-  # 22 预留、25 扩展的官道桩（保证东门 east 出口可加载）
+  # ── 官道 / 野外 / 渡口（25；接通扬州东门 ↔ 少林山门）──
   road_yz_east:
     name: 扬州东门外官道
     long: >-
-      出东门后的官道路段，黄土飞扬。再往东是郊外与通往少林的官道（后续扩展）。
+      出东门后的官道路段，黄土飞扬。东面地势渐险，通往扬州郊外林野。
+      路边拴着一匹矮种马，耐力一般，难走陡坡。
     outdoors: true
     exits:
       west: { to: yangzhou_dongmen, aliases: [西, 东门] }
+      east: { to: wild_edge, aliases: [东, 郊外] }
+
+  wild_edge:
+    name: 扬州郊外陡坡
+    long: >-
+      官道在此折入陡坡，乱石嶙峋。坐骑能力不足者只能下马步行。
+      再往东便是密林遭遇区。
+    outdoors: true
+    cost: 8
+    exits:
+      west: { to: road_yz_east, aliases: [西, 官道] }
+      east: { to: wild_forest, aliases: [东, 密林] }
+
+  wild_forest:
+    name: 扬州郊外密林
+    long: >-
+      林深叶密，鸟雀惊飞。偶有山贼出没，会主动袭击过路人。
+    outdoors: true
+    exits:
+      west: { to: wild_edge, aliases: [西, 陡坡] }
+      east: { to: wild_thicket, aliases: [东, 林深处] }
+
+  wild_thicket:
+    name: 郊外林深处
+    long: >-
+      灌木丛生，小径蜿蜒。东面隐约传来水声，是官道渡口。
+    outdoors: true
+    exits:
+      west: { to: wild_forest, aliases: [西, 密林] }
+      east: { to: ferry_west, aliases: [东, 渡口] }
+
+  ferry_west:
+    name: 官道西岸渡口
+    long: >-
+      河面不宽，渡船按钟点往返两岸。东岸通向少林方向官道。
+    outdoors: true
+    ferry:
+      far_bank: ferry_east
+      cross_interval: 3
+      direction: across
+    exits:
+      west: { to: wild_thicket, aliases: [西, 林深处] }
+
+  ferry_east:
+    name: 官道东岸渡口
+    long: >-
+      东岸渡口石阶湿滑，渡船靠岸时可过河。再往东是少林山门前官道。
+    outdoors: true
+    ferry:
+      far_bank: ferry_west
+      cross_interval: 3
+      direction: across
+    exits:
+      east: { to: road_shaolin, aliases: [东, 官道] }
+
+  road_shaolin:
+    name: 少林山门外官道
+    long: >-
+      官道尽头可见少林山门匾额。西面是渡口，东面即山门。
+    outdoors: true
+    exits:
+      west: { to: ferry_east, aliases: [西, 渡口] }
+      east: { to: shaolin_shanmen, aliases: [东, 山门] }
 
   # ── 扬州商业地标 + 马厩（23）──────────────────────────
   yangzhou_kedian:
@@ -186,15 +251,7 @@ rooms:
     exits:
       north: { to: yangzhou_xidajie, aliases: [北, 西大街] }
 
-  # ── 少林寺（24）+ 山门前官道桩（24 预留，25 扩展）────
-  road_shaolin:
-    name: 少林山门外官道
-    long: >-
-      官道尽头可见少林山门匾额。再往西是渡口与扬州方向的官道（后续扩展）。
-    outdoors: true
-    exits:
-      east: { to: shaolin_shanmen, aliases: [东, 山门] }
-
+  # ── 少林寺（24）──────────────────────────────────────
   shaolin_shanmen:
     name: 少林山门
     long: >-
@@ -275,6 +332,14 @@ items:
     placed_in: yangzhou_datiepu
     valuable: 80
     tags: [weapon, edged]
+
+  bandit_purse:
+    name: 赃银袋
+    aliases: [银袋]
+    short: 一只赃银袋
+    long: 山贼身上搜出的小银袋。
+    placed_in: wild_forest
+    valuable: 5
 
 # ── NPC ───────────────────────────────────────────────
 npcs:
@@ -430,6 +495,43 @@ npcs:
     short: 藏经阁僧人
     long: 手持拂尘的阁僧，轻声整理经卷。
     in_room: shaolin_cangjingge
+
+  road_pony:
+    name: 矮种马
+    aliases: [小马, 劣马]
+    short: 一匹矮种马
+    long: 骨架偏小的矮种马，走平路尚可，陡坡吃力。
+    in_room: road_yz_east
+    mount:
+      ability: 2
+      jingli_current: 40
+      jingli_max: 40
+
+  wild_bandit:
+    name: 山贼
+    aliases: [贼]
+    short: 一名山贼
+    long: 面带凶相的山贼，见人就想动手。
+    in_room: wild_forest
+    respawn: true
+    loot:
+      currency: [15, 15]
+      items: [bandit_purse]
+      kill_exp: 10
+    vitals:
+      qi_current: 35
+      qi_max: 35
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
+    attributes:
+      str: 8
+      con: 8
+      dex: 0
+      int: 5
+    behaviors:
+      - kind: aggro
 
 # ── 技能 / 门派（24：少林专属）────────────────────────
 skills:
