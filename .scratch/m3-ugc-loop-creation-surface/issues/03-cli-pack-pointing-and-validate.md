@@ -21,3 +21,4 @@
 ## Comments
 
 - 2026-07-21 `/implement`：`_main(argv) -> int` + `argparse`；`--pack`/`--validate`；错误前缀「包清单」/「场景内容」；测试 `engine/tests/test_main_cli.py`（stub `run_repl`）。默认路径 `SceneLoadError` 文案仍为「场景数据加载失败」。
+- 2026-07-21 `/code-review` fix（fixed point `m3-wave2-start`）：缺目录不再套「包清单」前缀；无参路径断言 `DEFAULT_SAVE_DIR`；测试拆复合断言 + `When*` 嵌套；抽出 `_enter_repl`、去掉 Middle Man `_format_scene_error`。

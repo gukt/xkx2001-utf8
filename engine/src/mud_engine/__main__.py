@@ -46,6 +46,9 @@ def _main(argv: list[str]) -> int:
 
     if args.pack is not None:
         pack_dir = Path(args.pack)
+        if not pack_dir.is_dir():
+            print(f"内容包目录不存在或不是目录：{pack_dir}", file=sys.stderr)
+            return 1
         if args.validate:
             return _validate_pack(pack_dir)
         return _run_pack(pack_dir)
@@ -78,8 +81,7 @@ def _run_default() -> int:
         # 默认路径文案保持开工前不变（M3-03 验收：无 --pack 零改动）。
         print(f"场景数据加载失败：{exc}", file=sys.stderr)
         return 1
-    tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir), world=world)
-    run_repl(world, player_id, tick_loop=tick_loop)
+    _enter_repl(world, player_id, save_dir)
     return 0
 
 
@@ -90,8 +92,7 @@ def _run_pack(pack_dir: Path) -> int:
     except (PackManifestError, SceneLoadError) as exc:
         print(_format_pack_or_scene_error(exc), file=sys.stderr)
         return 1
-    tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir), world=world)
-    run_repl(world, player_id, tick_loop=tick_loop)
+    _enter_repl(world, player_id, save_dir)
     return 0
 
 
@@ -111,13 +112,14 @@ def _validate_pack(pack_dir: Path) -> int:
     return 0
 
 
+def _enter_repl(world: World, player_id: EntityId, save_dir: Path) -> None:
+    tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir), world=world)
+    run_repl(world, player_id, tick_loop=tick_loop)
+
+
 def _format_pack_or_scene_error(exc: BaseException) -> str:
     if isinstance(exc, PackManifestError):
         return f"包清单错误：{exc}"
-    return _format_scene_error(exc)
-
-
-def _format_scene_error(exc: BaseException) -> str:
     return f"场景内容错误：{exc}"
 
 
@@ -138,8 +140,6 @@ def _load_or_restore_default(save_dir: Path) -> tuple[World, EntityId]:
 
 def _load_or_restore_pack(pack_dir: Path, save_dir: Path) -> tuple[World, EntityId]:
     """``--pack``：有存档则 restore + 重挂（含 ``reattach_pack_manifest``），否则 ``load_pack``。"""
-    if not pack_dir.is_dir():
-        raise PackManifestError(f"内容包目录不存在或不是目录：{pack_dir}")
     if has_save(save_dir):
         restored = restore_world(save_dir)
         if restored is not None:
