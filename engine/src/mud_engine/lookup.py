@@ -16,9 +16,7 @@ from mud_engine.components import Container, Identity, Position
 from mud_engine.world import EntityId, World
 
 
-def find_reachable_container(
-    world: World, player_id: EntityId, name: str
-) -> EntityId | None:
+def find_reachable_container(world: World, player_id: EntityId, name: str) -> EntityId | None:
     """按规范名找可达容器物品：当前房间地面或玩家物品栏内挂 ``Container`` 的物品。
 
     take-from / put（commands）与 take-from 解析（parsing）共用。
@@ -36,9 +34,7 @@ def find_reachable_container(
     return None
 
 
-def iter_lookable_containers(
-    world: World, player_id: EntityId
-) -> Iterator[Container]:
+def iter_lookable_containers(world: World, player_id: EntityId) -> Iterator[Container]:
     """look 物品可达容器：房间地面、玩家物品栏、及其中一层嵌套容器（按 holder 分组）。
 
     ``commands._find_lookable_item``（找首个匹配 entity）与

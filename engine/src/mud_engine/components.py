@@ -326,3 +326,119 @@ class NpcSpawnMeta:
     startroom: EntityId  # 启动固定：出生房间 entity id
     desired_count: int = 1  # 启动固定：该模板期望存活实例数
     respawn: bool = False  # 启动固定：不足 desired_count 时是否补齐
+
+
+# ── 角色成长（M2-05 / spec B2）──────────────────────────────────────────
+# 三个独立组件，不合并成跨领域大杂烩。玩家与 NPC 都可挂（木桩/怪物需 Vitals）。
+
+
+@dataclass
+class Vitals:
+    """气血 / 内力 / 精力两层资源（当前值 + 上限）。运行时可变进存档。"""
+
+    qi_current: int
+    qi_max: int
+    neili_current: int
+    neili_max: int
+    jingli_current: int
+    jingli_max: int
+
+
+@dataclass
+class BaseAttributes:
+    """四维基础属性。字段名避开 Python 关键字；展示文案用中文。
+
+    启动固定为主（M2 无改属性命令），仍进存档以便场景初值跨重启保留。
+    """
+
+    str_: int = 10  # 力量
+    con: int = 10  # 根骨
+    dex: int = 10  # 敏捷
+    int_: int = 10  # 智力
+
+
+@dataclass(frozen=True)
+class SkillProgress:
+    """单技能进度：等级 + 经验。招式内容查全局 ``SKILLS``，不复制。"""
+
+    level: int = 0
+    exp: int = 0
+
+
+@dataclass
+class SkillLevels:
+    """已学技能表（skill_id -> 进度）。运行时可变进存档。"""
+
+    levels: dict[str, SkillProgress] = field(default_factory=dict)
+
+
+# ── 死亡状态机标记（M2-06 / spec C1）────────────────────────────────────
+# 存活 = 两者都不挂；不新增 Alive，避免三态用两个布尔表达出非法组合。
+
+
+@dataclass
+class Unconscious:
+    """昏迷中（marker）。运行时可变进存档。"""
+
+
+@dataclass
+class Dead:
+    """死亡、等待复活流程处理（marker）。运行时可变进存档。"""
+
+
+@dataclass
+class NoDeathZone:
+    """房间级免死区标记：气血耗尽只昏迷、不转 Dead。启动固定。"""
+
+
+# ── 货币与商店（M2-07 / spec D1）────────────────────────────────────────
+
+
+@dataclass
+class Currency:
+    """单一货币余额（银两）。运行时可变进存档。"""
+
+    amount: int = 0
+
+
+@dataclass(frozen=True)
+class ShopEntry:
+    """商店清单一条：物品模板键 + 回购折扣率。"""
+
+    item_template_key: str
+    resell_discount: float = 1.0
+
+
+@dataclass
+class ShopInventory:
+    """NPC 商店声明式清单。启动固定（MVP 库存无限，按模板实例化）。"""
+
+    entries: tuple[ShopEntry, ...] = ()
+
+
+# ── 门派归属（M2-08 / spec E1）──────────────────────────────────────────
+
+
+@dataclass
+class Faction:
+    """角色门派归属。``None`` = 无门派。运行时可变进存档。"""
+
+    faction_id: str | None = None
+
+
+# ── 渡口（M2-09 / spec F2）──────────────────────────────────────────────
+
+
+@dataclass
+class Ferry:
+    """渡口房间组件：对岸房间 + 往返周期 + 过河方向名。
+
+    场景加载时不预先建过河 Exit；由 ``attach_ferries`` 的 on_tick 系统按周期
+    增删。``far_bank`` 在加载期从房间键解析为 EntityId。
+    ``_far_bank_key`` 仅加载中间态（瞬时），解析完成后清空。
+    """
+
+    far_bank: EntityId
+    cross_interval: int
+    direction: str
+    _far_bank_key: str | None = transient_field(None)

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from mud_engine.ai import attach_ai_system
 from mud_engine.cli import run_repl
+from mud_engine.ferry import attach_ferries
 from mud_engine.nature import attach_nature
 from mud_engine.save import has_save, restore_world, save_world
 from mud_engine.scene_loader import SceneLoadError, read_nature_config
@@ -49,6 +50,8 @@ def _load_or_restore(save_dir: Path) -> tuple[World, EntityId]:
             attach_nature(world, config_from_yaml=read_nature_config(scene_path))
             # AI 订阅者不进存档：restore 后重新挂 on_tick（幂等）。
             attach_ai_system(world)
+            # 渡口运行时态不进存档：restore 后按房间 Ferry 组件重建。
+            attach_ferries(world)
             return world, player_id
     return build_world()
 

@@ -19,6 +19,7 @@ from mud_engine.events import EventBus
 if TYPE_CHECKING:
     from mud_engine.ai import AISystem, SpawnerBlueprint
     from mud_engine.combat import PowerModel
+    from mud_engine.ferry import FerryState
     from mud_engine.nature import NatureState
 
 EntityId = int
@@ -72,6 +73,10 @@ class World:
         # 时注册。``_spawn_scan`` 遍历本表而非从存活实例反向聚合，避免 template
         # 全灭后丢失期望值。
         self.spawners: dict[str, SpawnerBlueprint] = {}
+        # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
+        self.item_templates: dict[str, dict] = {}
+        # 渡口运行时态（M2-09）：纯内存、不进存档；由 ``attach_ferries`` 挂载。
+        self.ferries: FerryState | None = None
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
         # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
         self.pending_messages: list[str] = []

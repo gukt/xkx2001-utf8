@@ -210,9 +210,7 @@ class DeterministicParser(Parser):
         # 物品候选来自已解析的容器实体（按规范名找，走共享 lookup，30 号票）。
         container_id = find_reachable_container(world, player_id, container_matched)
         if container_id is None:
-            return ParseFailure(
-                Reason.NO_TARGET_MATCH, original=container_token, verb="get"
-            )
+            return ParseFailure(Reason.NO_TARGET_MATCH, original=container_token, verb="get")
         nested = world.require_component(container_id, Container)
         item_candidates = self._candidates_from_container(world, nested)
         item_matched = self._match_item_token(item_token, item_candidates, verb="get")
@@ -344,9 +342,7 @@ class DeterministicParser(Parser):
         return candidates
 
     @staticmethod
-    def _reachable_container_candidates(
-        world: World, player_id: EntityId
-    ) -> list[Candidate]:
+    def _reachable_container_candidates(world: World, player_id: EntityId) -> list[Candidate]:
         """房间地面 + 玩家物品栏里挂有 Container 的物品。"""
         room = world.require_component(player_id, Position).room
         candidates: list[Candidate] = []

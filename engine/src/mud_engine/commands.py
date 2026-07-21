@@ -37,18 +37,24 @@ from dataclasses import dataclass
 
 from mud_engine import lookup
 from mud_engine.components import (
+    BaseAttributes,
     Container,
+    Currency,
     Description,
     Door,
     Doors,
     DoorState,
     Exits,
+    Faction,
     Identity,
     Inquiry,
     PlayerSession,
     Position,
+    ShopInventory,
+    SkillLevels,
     Stackable,
     Valuable,
+    Vitals,
     Weight,
 )
 from mud_engine.events import Deny, run_vetoable
@@ -347,6 +353,12 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     # 户外房间追加当前时辰 × 天气描述（15/17 号票）；室内不追加。
     if description.outdoors and world.nature is not None:
         lines.append(world.nature.outdoor_desc())
+    # 渡口状态现算（M2-09）：不塞进 Description。
+    from mud_engine.ferry import ferry_status_line
+
+    ferry_line = ferry_status_line(world, room)
+    if ferry_line is not None:
+        lines.append(ferry_line)
     container = world.get_component(room, Container)
     if container and container.items:
         names = _sorted_item_names(world, container)
@@ -554,9 +566,7 @@ def _cmd_get(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if item is None:
         return [missing]
 
-    result = transfer(
-        world, item, src, player_id, player_id=player_id, amount=amount
-    )
+    result = transfer(world, item, src, player_id, player_id=player_id, amount=amount)
     if not result.success:
         return [result.message or "拿不起来。"]
     if amount is not None:
@@ -606,9 +616,7 @@ def _cmd_drop(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     amount: int | None = None
     if intent.args and intent.args[0].isdigit():
         amount = int(intent.args[0])
-    result = transfer(
-        world, item, player_id, room, player_id=player_id, amount=amount
-    )
+    result = transfer(world, item, player_id, room, player_id=player_id, amount=amount)
     if not result.success:
         return [result.message or "放不下。"]
     if amount is not None:
@@ -721,6 +729,245 @@ def _cmd_say(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if not text.strip():
         return ["说什么？用法：say <内容>"]
     return room_say(world, player_id, text)
+
+
+@register("status")
+def _cmd_status(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """展示气血/内力/精力与四维基础属性（M2-05）。"""
+    vitals = world.get_component(player_id, Vitals)
+    attrs = world.get_component(player_id, BaseAttributes)
+    if vitals is None and attrs is None:
+        return ["你还没有角色属性（缺少 Vitals / BaseAttributes 组件）。"]
+    lines: list[str] = []
+    if vitals is not None:
+        lines.append(
+            f"气血：{vitals.qi_current}/{vitals.qi_max}　"
+            f"内力：{vitals.neili_current}/{vitals.neili_max}　"
+            f"精力：{vitals.jingli_current}/{vitals.jingli_max}"
+        )
+    else:
+        lines.append("（未配置气血/内力/精力）")
+    if attrs is not None:
+        lines.append(
+            f"力量：{attrs.str_}　根骨：{attrs.con}　敏捷：{attrs.dex}　智力：{attrs.int_}"
+        )
+    else:
+        lines.append("（未配置基础属性）")
+    currency = world.get_component(player_id, Currency)
+    if currency is not None:
+        lines.append(f"银两：{currency.amount}")
+    return lines
+
+
+@register("skills")
+def _cmd_skills(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """展示已学技能等级/经验（M2-05）。"""
+    skill_levels = world.get_component(player_id, SkillLevels)
+    if skill_levels is None or not skill_levels.levels:
+        return ["你还没有学会任何技能。"]
+    lines = ["你已学会的技能："]
+    for skill_id in sorted(skill_levels.levels):
+        progress = skill_levels.levels[skill_id]
+        lines.append(f"  {skill_id}：等级 {progress.level}，经验 {progress.exp}")
+    return lines
+
+
+# 商店清单未包含该物品类型时的默认回购折扣（明确策略，非未定义行为）：
+# 按 Valuable.value × 0.5 收购。清单内条目用各自 resell_discount。
+_DEFAULT_RESELL_DISCOUNT = 0.5
+
+
+@register("buy")
+def _cmd_buy(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """从同房间商店 NPC 购买物品（M2-07）。"""
+    item_name = intent.target or (intent.args[0] if intent.args else None)
+    if not item_name:
+        return ["买什么？用法：buy <物品>"]
+    shop_npc = _find_shop_npc(world, player_id)
+    if shop_npc is None:
+        return ["这里没有商店。"]
+    shop = world.require_component(shop_npc, ShopInventory)
+    entry = _shop_entry_by_item_name(world, shop, item_name)
+    if entry is None:
+        return [f"店里没有「{item_name}」出售。"]
+    template = world.item_templates.get(entry.item_template_key)
+    if template is None:
+        return [f"店里没有「{item_name}」出售。"]
+    # 价格：从模板实例化后读 Valuable（加载期已校验模板有价值字段）。
+    from mud_engine.scene_loader import instantiate_item
+
+    price = _template_price(world, entry.item_template_key)
+    if price is None:
+        return [f"「{item_name}」无法计价。"]
+    currency = world.get_component(player_id, Currency)
+    if currency is None:
+        return ["你身上没有钱袋。"]
+    if currency.amount < price:
+        return [f"银两不足（需要 {price}，你有 {currency.amount}）。"]
+    item = instantiate_item(world, entry.item_template_key)
+    if not world.has_component(shop_npc, Container):
+        world.add_component(shop_npc, Container())
+    world.require_component(shop_npc, Container).items.add(item)
+    result = transfer(world, item, shop_npc, player_id, player_id=player_id)
+    if not result.success:
+        # 回滚：销毁物品，不扣款。
+        world.require_component(shop_npc, Container).items.discard(item)
+        world.destroy_entity(item)
+        return [result.message]
+    currency.amount -= price
+    return [f"你花了 {price} 两银子买下了{item_name}。"]
+
+
+@register("sell")
+def _cmd_sell(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """把物品卖给同房间商店 NPC（M2-07）。"""
+    item_name = intent.target or (intent.args[0] if intent.args else None)
+    if not item_name:
+        return ["卖什么？用法：sell <物品>"]
+    shop_npc = _find_shop_npc(world, player_id)
+    if shop_npc is None:
+        return ["这里没有商店。"]
+    player_bag = world.require_component(player_id, Container)
+    item = _find_item_in_container(world, player_bag, item_name)
+    if item is None:
+        return [f"你身上没有「{item_name}」。"]
+    valuable = world.get_component(item, Valuable)
+    if valuable is None:
+        return [f"「{item_name}」无法出售（没有标价）。"]
+    shop = world.require_component(shop_npc, ShopInventory)
+    discount = _resell_discount_for_item(world, shop, item)
+    payout = int(valuable.value * discount)
+    currency = world.get_component(player_id, Currency)
+    if currency is None:
+        world.add_component(player_id, Currency(amount=0))
+        currency = world.require_component(player_id, Currency)
+    if not world.has_component(shop_npc, Container):
+        world.add_component(shop_npc, Container())
+    result = transfer(world, item, player_id, shop_npc, player_id=player_id)
+    if not result.success:
+        return [result.message]
+    currency.amount += payout
+    return [f"你卖掉了{item_name}，得到 {payout} 两银子。"]
+
+
+@register("join")
+def _cmd_join(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """加入门派（M2-08）。
+
+    MVP 策略：已有门派归属时允许直接覆盖为新门派（不做"先退出"流程），
+    降低早期内容复杂度；换门派的叙事/惩罚留给后续题材包。
+    """
+    from mud_engine.conditions import evaluate
+    from mud_engine.factions import FACTIONS
+
+    faction_token = intent.target or (intent.args[0] if intent.args else None)
+    if not faction_token:
+        return ["加入哪个门派？用法：join <门派>"]
+    # 支持按 id 或 display_name 匹配。
+    definition = FACTIONS.get(faction_token)
+    if definition is None:
+        for entry in FACTIONS.values():
+            if entry.display_name == faction_token or entry.faction_id == faction_token:
+                definition = entry
+                break
+    if definition is None:
+        return [f"没有叫做「{faction_token}」的门派。"]
+    if definition.join_condition is not None:
+        ctx = _JoinContext(world, player_id)
+        if not evaluate(definition.join_condition, ctx):
+            reason = _join_deny_reason(definition.join_condition, ctx)
+            return [f"无法加入{definition.display_name}：{reason}"]
+    faction = world.get_component(player_id, Faction)
+    if faction is None:
+        world.add_component(player_id, Faction(faction_id=definition.faction_id))
+    else:
+        faction.faction_id = definition.faction_id
+    return [f"你加入了{definition.display_name}。"]
+
+
+class _JoinContext:
+    """join 命令专用最小 ConditionContext（M2-08；通用 EntityGateContext 见 11 号票）。"""
+
+    def __init__(self, world: World, player_id: EntityId) -> None:
+        self._world = world
+        self._player_id = player_id
+        nature = world.nature
+        self.phase = getattr(nature, "phase", "day") if nature else "day"
+        self.is_night = bool(getattr(nature, "is_night", False)) if nature else False
+        self.is_day = bool(getattr(nature, "is_day", True)) if nature else True
+        self.is_raining = bool(getattr(nature, "is_raining", False)) if nature else False
+        faction = world.get_component(player_id, Faction)
+        self.faction_id = faction.faction_id if faction else None
+        self.has_faction = self.faction_id is not None
+
+    def __getattr__(self, name: str) -> object:
+        # 允许 join_condition 用 equals 查任意暴露属性；未知属性返回 None。
+        return None
+
+
+def _join_deny_reason(condition: object, ctx: _JoinContext) -> str:
+    """尽量给出具体缺什么，而不是笼统"不满足条件"。"""
+    from mud_engine.conditions import Equals, Predicate
+
+    if isinstance(condition, Equals):
+        actual = getattr(ctx, condition.field, None)
+        return f"需要 {condition.field}={condition.value!r}（当前为 {actual!r}）"
+    if isinstance(condition, Predicate):
+        return f"需要满足 {condition.name}"
+    return "不满足加入条件"
+
+
+def _find_shop_npc(world: World, player_id: EntityId) -> EntityId | None:
+    room = _player_room(world, player_id)
+    for entity in world.entities_in_room(room, exclude=player_id):
+        if world.has_component(entity, ShopInventory):
+            return entity
+    return None
+
+
+def _shop_entry_by_item_name(world: World, shop: ShopInventory, item_name: str):
+    for entry in shop.entries:
+        template = world.item_templates.get(entry.item_template_key)
+        if template is None:
+            continue
+        if str(template.get("name", "")) == item_name:
+            return entry
+        aliases = template.get("aliases") or ()
+        if item_name in {str(a) for a in aliases}:
+            return entry
+    return None
+
+
+def _template_price(world: World, template_key: str) -> int | None:
+    raw = world.item_templates.get(template_key)
+    if raw is None:
+        return None
+    if "valuable" in raw:
+        v = raw["valuable"]
+        if isinstance(v, dict):
+            v = v.get("value")
+        try:
+            return int(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+    if "value" in raw:
+        try:
+            return int(raw["value"])  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _resell_discount_for_item(world: World, shop: ShopInventory, item: EntityId) -> float:
+    """清单内用条目折扣；清单外用 ``_DEFAULT_RESELL_DISCOUNT``（见模块常量注释）。"""
+    identity = world.require_component(item, Identity)
+    for entry in shop.entries:
+        template = world.item_templates.get(entry.item_template_key)
+        if template is None:
+            continue
+        if str(template.get("name", "")) == identity.name:
+            return entry.resell_discount
+    return _DEFAULT_RESELL_DISCOUNT
 
 
 def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:

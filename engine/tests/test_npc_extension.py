@@ -159,9 +159,10 @@ npcs:
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         npc = _find_npc(world, player_id, "守卫")
         assert npc is not None
-        assert world.require_component(npc, Position).room == world.require_component(
-            player_id, Position
-        ).room
+        assert (
+            world.require_component(npc, Position).room
+            == world.require_component(player_id, Position).room
+        )
 
     def test_existing_single_static_npc_still_loads(self) -> None:
         world, player_id = build_world()
@@ -353,9 +354,7 @@ npcs:
         loop.advance()
         assert world.pending_messages == []
 
-    def test_chatter_speaks_at_night(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_chatter_speaks_at_night(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         # 夜里（is_night=True）：条件满足，Chatter 说话。
         scene = (
             _BASE_ROOMS

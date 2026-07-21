@@ -108,7 +108,9 @@ class TestSkillsYamlLoading:
         assert SKILLS == {}
 
     def test_force_non_numeric_raises_with_location(self, tmp_path: Path) -> None:
-        bad = _BASE + """
+        bad = (
+            _BASE
+            + """
 skills:
   broken:
     type: martial
@@ -119,6 +121,7 @@ skills:
         dodge: 1
         damage_type: blunt
 """
+        )
         with pytest.raises(SceneLoadError) as exc_info:
             load_scene(_write_scene(tmp_path, bad))
         msg = str(exc_info.value)

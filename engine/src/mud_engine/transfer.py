@@ -166,11 +166,7 @@ def transfer(
     # 拆分时实际进入目标的是新实体；合并时不增加槽位数。先算"将放入目标的实体"
     # 与"将增加的重量"，再做容量/重量校验。
     will_merge = _find_merge_target(world, dst_container, item) is not None
-    split = (
-        stackable is not None
-        and move_amount is not None
-        and move_amount < stackable.amount
-    )
+    split = stackable is not None and move_amount is not None and move_amount < stackable.amount
     # 整堆转移且合并 → 不占新槽；拆分后合并 → 不占新槽；否则占 1 槽（除非目标已有该实体，不会）。
     needs_new_slot = not will_merge
     added_weight = _transfer_weight(world, item, move_amount)
@@ -282,9 +278,7 @@ def _check_capacity(container: Container, *, needs_new_slot: bool) -> TransferRe
     return None
 
 
-def _check_weight(
-    world: World, container: Container, added_weight: float
-) -> TransferResult | None:
+def _check_weight(world: World, container: Container, added_weight: float) -> TransferResult | None:
     if container.max_weight is None:
         return None
     total = container_total_weight(world, container) + added_weight
@@ -297,9 +291,7 @@ def _check_weight(
     return None
 
 
-def _find_merge_target(
-    world: World, container: Container, item: EntityId
-) -> EntityId | None:
+def _find_merge_target(world: World, container: Container, item: EntityId) -> EntityId | None:
     """目标容器里可与 ``item`` 合并的同名 Stackable（不含 item 自身）。"""
     if world.get_component(item, Stackable) is None:
         return None

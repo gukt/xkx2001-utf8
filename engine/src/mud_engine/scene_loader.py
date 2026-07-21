@@ -21,7 +21,12 @@ from pathlib import Path
 import yaml
 
 from mud_engine.ai import SpawnerBlueprint, attach_ai_system, spawn_from_blueprint
-from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
+from mud_engine.capabilities import (
+    CAPABILITIES,
+    NPC_CAPABILITIES,
+    ROOM_CAPABILITIES,
+    CapabilitySpec,
+)
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -32,12 +37,17 @@ from mud_engine.components import (
     DoorState,
     Exit,
     Exits,
+    Faction,
+    Ferry,
     Identity,
     Inquiry,
     PlayerSession,
     Position,
+    ShopInventory,
 )
 from mud_engine.errors import SceneLoadError
+from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
+from mud_engine.ferry import attach_ferries
 from mud_engine.nature import attach_nature
 from mud_engine.skills import load_skills_from_mapping, replace_skills_registry
 from mud_engine.world import EntityId, World
@@ -62,12 +72,16 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
 
     world = World()
     world.scene_path = scene_path.resolve()
-    # skills: 是全局注册表（非实体）；每次加载清空重建，避免两次加载互相污染（M2-03）。
+    # skills:/factions: 是全局注册表（非实体）；每次加载清空重建，避免两次加载互相污染。
     replace_skills_registry(load_skills_from_mapping(data.get("skills"), scene_path))
+    replace_factions_registry(load_factions_from_mapping(data.get("factions"), scene_path))
     room_ids = _build_rooms(world, rooms, scene_path)
+    _resolve_ferry_refs(world, room_ids, scene_path)
     item_ids = _build_items(world, items, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
     _build_npcs(world, npcs, room_ids, scene_path)
+    _validate_shop_inventories(world, scene_path)
+    _validate_faction_refs(world, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
     _capture_top_level_unknown_sections(world, data)
     # Nature（13 号票）：从透传的 nature 段（若有）挂载时辰循环；无配置则用默认四相。
@@ -75,6 +89,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     attach_nature(world)
     # NPC AI（25 号票）：挂 on_tick 遍历 AIController；幂等，无行为 NPC 时为空转。
     attach_ai_system(world)
+    # 渡口（M2-09）：按周期翻转两岸出口；幂等。
+    attach_ferries(world)
     return world, player_id
 
 
@@ -106,9 +122,11 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 # CAPABILITIES）。以下两项**刻意不**扫平进能力注册表：
 # - ``_PLAYER_KNOWN_FIELDS``：player 段字段少，后续 Currency/Faction 初值直接加
 #   进本集合即可，不为个别字段建注册表。
-# - ``_TOP_LEVEL_KNOWN_SECTIONS``：``skills:`` 已由 M2-03 加入（全局 SkillData
-#   注册表）；``factions:`` 仍留给 08 号票。二者都是全局注册表模式，不是实体能力。
-_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player", "skills"})
+# - ``_TOP_LEVEL_KNOWN_SECTIONS``：``skills:`` / ``factions:`` 是全局注册表模式，
+#   不是实体能力（M2-03 / M2-08）。
+_TOP_LEVEL_KNOWN_SECTIONS = frozenset(
+    {"rooms", "items", "npcs", "player", "skills", "factions"}
+)
 _ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS
@@ -142,7 +160,12 @@ _NPC_KNOWN_FIELDS = frozenset(
     _NPC_INTRINSIC_FIELDS
     | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
 )
-_PLAYER_KNOWN_FIELDS = frozenset({"name", "start_room"})
+# 玩家段：能力字段与 NPC 注册表对齐（vitals/attributes/skills/currency/faction），
+# 不为玩家单独建注册表（M2-01 docstring）。
+_PLAYER_KNOWN_FIELDS = frozenset(
+    {"name", "start_room"}
+    | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
+)
 
 
 def _capture_top_level_unknown_sections(world: World, data: Mapping) -> None:
@@ -390,6 +413,8 @@ def _build_items(
         room_container.items.add(item)
         _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
         item_ids[str(item_key)] = item
+        # 商店 buy 按模板键实例化：保留原始 YAML（M2-07）。
+        world.item_templates[str(item_key)] = dict(data)
     return item_ids
 
 
@@ -477,6 +502,13 @@ def _build_npcs(
         capability_seed = _parse_npc_capabilities(
             data, label=label, scene_path=scene_path
         )
+        # Inquiry/Behaviors/AIController 有专属蓝图字段；其余进 extras.capabilities。
+        _SPECIAL_NPC = {Inquiry, Behaviors, AIController}
+        extra_caps = tuple(
+            component
+            for ctype, component in capability_seed.items()
+            if ctype not in _SPECIAL_NPC
+        )
         blueprint = SpawnerBlueprint(
             template_key=str(npc_key),
             name=str(name),
@@ -493,10 +525,16 @@ def _build_npcs(
                 if AIController in capability_seed
                 else 1
             ),
+            extras={"capabilities": extra_caps} if extra_caps else {},
         )
         world.spawners[str(npc_key)] = blueprint
         for _ in range(count):
             npc = spawn_from_blueprint(world, blueprint, room=room_id)
+            # 商店 NPC 需要 Container 才能走 transfer 收货/发货。
+            if world.has_component(npc, ShopInventory) and not world.has_component(
+                npc, Container
+            ):
+                world.add_component(npc, Container())
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
@@ -542,7 +580,7 @@ def _build_player(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> EntityId:
-    """建玩家实体（Identity+Position+Container+PlayerSession）。玩家不挂 Description。"""
+    """建玩家实体（Identity+Position+Container+PlayerSession + 可选成长/经济能力）。"""
     name = player.get("name")
     if not name:
         raise SceneLoadError(f"场景文件 {scene_path} 的 player 缺少必需字段 'name'")
@@ -558,6 +596,25 @@ def _build_player(
     world.add_component(player_id, Position(room=room_ids[str(start_room)]))
     world.add_component(player_id, Container())
     world.add_component(player_id, PlayerSession())
+    # 复用 NPC 能力注册表解析 vitals/attributes/skills/currency/faction 等。
+    _attach_capability_specs(
+        world,
+        player_id,
+        player,
+        NPC_CAPABILITIES,
+        label="player",
+        scene_path=scene_path,
+    )
+    faction = world.get_component(player_id, Faction)
+    if (
+        faction is not None
+        and faction.faction_id is not None
+        and faction.faction_id not in FACTIONS
+    ):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 player.faction "
+            f"'{faction.faction_id}' 不是已声明的门派"
+        )
     _capture_entity_unknown_fields(world, player_id, player, _PLAYER_KNOWN_FIELDS)
     return player_id
 
@@ -600,4 +657,100 @@ def _attach_identity_and_description(
     )
 
 
-__all__ = ["SceneLoadError", "load_scene", "read_nature_config"]
+def _resolve_ferry_refs(
+    world: World, room_ids: dict[str, EntityId], scene_path: Path
+) -> None:
+    """把 Ferry._far_bank_key 解析为 EntityId，并校验两岸互相指向。"""
+    key_by_id = {eid: key for key, eid in room_ids.items()}
+    for room in list(world.entities_with(Ferry)):
+        ferry = world.require_component(room, Ferry)
+        key = ferry._far_bank_key
+        if not key:
+            continue
+        if key not in room_ids:
+            room_key = key_by_id.get(room, str(room))
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 ferry.far_bank "
+                f"'{key}' 不是已定义的房间"
+            )
+        far = room_ids[key]
+        far_ferry = world.get_component(far, Ferry)
+        if far_ferry is None:
+            room_key = key_by_id.get(room, str(room))
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 ferry.far_bank "
+                f"'{key}' 未挂 Ferry 组件"
+            )
+        ferry.far_bank = far
+        ferry._far_bank_key = None
+    # 互指校验（两端 far_bank 必须互相指向）。
+    for room in list(world.entities_with(Ferry)):
+        ferry = world.require_component(room, Ferry)
+        far_ferry = world.require_component(ferry.far_bank, Ferry)
+        if far_ferry.far_bank != room:
+            room_key = key_by_id.get(room, str(room))
+            far_key = key_by_id.get(ferry.far_bank, str(ferry.far_bank))
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的渡口 '{room_key}' 与 '{far_key}' "
+                f"的 ferry.far_bank 未互相指向"
+            )
+
+
+def _validate_shop_inventories(world: World, scene_path: Path) -> None:
+    """商店引用的物品模板必须存在且声明 Valuable（加载期，非运行时）。"""
+    for npc in world.entities_with(ShopInventory):
+        shop = world.require_component(npc, ShopInventory)
+        npc_name = world.require_component(npc, Identity).name
+        for entry in shop.entries:
+            key = entry.item_template_key
+            if key not in world.item_templates:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的商店 NPC '{npc_name}' "
+                    f"引用未定义的物品模板 '{key}'"
+                )
+            # 用模板字段判断是否声明了价值（不等待运行时 buy）。
+            raw = world.item_templates[key]
+            if "valuable" not in raw and "value" not in raw:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的商店 NPC '{npc_name}' "
+                    f"引用的物品模板 '{key}' 未声明 Valuable（valuable/value）"
+                )
+
+
+def _validate_faction_refs(world: World, scene_path: Path) -> None:
+    """NPC Faction 引用必须在 FACTIONS 中声明。"""
+    for entity in world.entities_with(Faction):
+        faction = world.require_component(entity, Faction)
+        if faction.faction_id is None:
+            continue
+        if faction.faction_id not in FACTIONS:
+            name = world.require_component(entity, Identity).name
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的实体 '{name}' 的 faction "
+                f"'{faction.faction_id}' 不是已声明的门派"
+            )
+
+
+def instantiate_item(world: World, template_key: str) -> EntityId:
+    """按 ``world.item_templates`` 实例化一件新物品（商店 buy 用）。"""
+    data = world.item_templates.get(template_key)
+    if data is None:
+        raise KeyError(f"未知物品模板：{template_key}")
+    item = world.create_entity()
+    # scene_path 仅用于报错文案；模板已在加载期校验过。
+    scene_path = world.scene_path or Path("<memory>")
+    _attach_identity_and_description(
+        world, item, data, label=f"物品模板 '{template_key}'", scene_path=scene_path
+    )
+    _attach_item_capabilities(
+        world, item, data, label=f"物品模板 '{template_key}'", scene_path=scene_path
+    )
+    return item
+
+
+__all__ = [
+    "SceneLoadError",
+    "instantiate_item",
+    "load_scene",
+    "read_nature_config",
+]

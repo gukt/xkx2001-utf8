@@ -287,11 +287,7 @@ class TestStacking:
         messages = execute_line(world, player_id, "get 铜钱")
         assert any("铜钱" in m for m in messages)
         inv = world.require_component(player_id, Container)
-        coins = [
-            i
-            for i in inv.items
-            if world.require_component(i, Identity).name == "铜钱"
-        ]
+        coins = [i for i in inv.items if world.require_component(i, Identity).name == "铜钱"]
         assert len(coins) == 1
         assert world.require_component(coins[0], Stackable).amount == 5
 

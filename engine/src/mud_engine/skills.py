@@ -102,14 +102,11 @@ def replace_skills_registry(skills: dict[str, SkillData]) -> None:
 def _parse_skill(raw: object, skill_id: str, scene_path: Path) -> SkillData:
     if not isinstance(raw, Mapping):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的技能 '{skill_id}' 应是映射，"
-            f"实际是 {type(raw).__name__}"
+            f"场景文件 {scene_path} 的技能 '{skill_id}' 应是映射，实际是 {type(raw).__name__}"
         )
     skill_type = raw.get("type")
     if skill_type is None or skill_type == "":
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的技能 '{skill_id}' 缺少必需字段 'type'"
-        )
+        raise SceneLoadError(f"场景文件 {scene_path} 的技能 '{skill_id}' 缺少必需字段 'type'")
     level_req = _require_int(raw.get("level_req", 0), "level_req", skill_id, scene_path)
     moves_raw = raw.get("moves", ())
     if not isinstance(moves_raw, (list, tuple)):
@@ -118,8 +115,7 @@ def _parse_skill(raw: object, skill_id: str, scene_path: Path) -> SkillData:
             f"实际是 {type(moves_raw).__name__}"
         )
     moves = tuple(
-        _parse_move(entry, skill_id, index, scene_path)
-        for index, entry in enumerate(moves_raw)
+        _parse_move(entry, skill_id, index, scene_path) for index, entry in enumerate(moves_raw)
     )
     return SkillData(
         skill_id=skill_id,
@@ -129,9 +125,7 @@ def _parse_skill(raw: object, skill_id: str, scene_path: Path) -> SkillData:
     )
 
 
-def _parse_move(
-    raw: object, skill_id: str, index: int, scene_path: Path
-) -> SkillMove:
+def _parse_move(raw: object, skill_id: str, index: int, scene_path: Path) -> SkillMove:
     label = f"技能 '{skill_id}' 的 moves[{index}]"
     if not isinstance(raw, Mapping):
         raise SceneLoadError(
@@ -171,9 +165,7 @@ def _require_int(
     if move_index is not None:
         where = f"{where} 的 moves[{move_index}]"
     if raw is None:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{where}缺少必需字段 '{field}'"
-        )
+        raise SceneLoadError(f"场景文件 {scene_path} 的{where}缺少必需字段 '{field}'")
     try:
         return int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError) as exc:

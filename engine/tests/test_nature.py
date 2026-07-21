@@ -142,9 +142,7 @@ nature:
         # 透传仍保留
         assert "nature" in world.extension_data
 
-    def test_restore_reattach_keeps_custom_phases_from_scene_file(
-        self, tmp_path: Path
-    ) -> None:
+    def test_restore_reattach_keeps_custom_phases_from_scene_file(self, tmp_path: Path) -> None:
         """崩溃恢复后 extension_data 为空，须从场景文件重读 nature 配置。"""
         scene = """
 rooms:

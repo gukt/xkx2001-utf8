@@ -30,19 +30,30 @@ from pathlib import Path
 
 from mud_engine.components import (
     AIController,
+    BaseAttributes,
     Behaviors,
     BehaviorSpec,
     Consumable,
     Container,
+    Currency,
     Description,
     Equippable,
+    Faction,
+    Ferry,
     Inquiry,
     ItemFlags,
+    NoDeathZone,
+    ShopEntry,
+    ShopInventory,
+    SkillLevels,
+    SkillProgress,
     Stackable,
     Valuable,
+    Vitals,
     Weight,
 )
 from mud_engine.errors import SceneLoadError
+from mud_engine.skills import SKILLS
 
 
 @dataclass(frozen=True)
@@ -66,6 +77,7 @@ class CapabilitySpec:
 # 每条解析函数在 ``from_yaml(data, label, scene_path, attached)`` 签名下保持原语义，
 # 失败抛 ``SceneLoadError`` 并带定位信息。``attached`` 是当前物品已挂载组件映射，
 # Weight 用它判断是否需要跳过（Stackable 物品用 unit_weight*amount，不挂 Weight）。
+
 
 def _parse_stackable(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
@@ -198,9 +210,7 @@ def _parse_item_container(
         cap = None if max_capacity is None else int(max_capacity)
         w = None if max_weight is None else float(max_weight)
     except (TypeError, ValueError) as exc:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的容器上限字段非法：{exc}"
-        ) from exc
+        raise SceneLoadError(f"场景文件 {scene_path} 的{label}的容器上限字段非法：{exc}") from exc
     return Container(max_capacity=cap, max_weight=w)
 
 
@@ -223,6 +233,7 @@ def _parse_weight(
 
 # ── 序列化 / 反序列化（从 save.py 移来）──────────────────────────────────
 # 把原 _ser_X / _des_X 移入 specs，保持原 JSON dict 形状不变。
+
 
 def _ser_stackable(c: Stackable) -> dict:
     return {"amount": c.amount, "unit_weight": c.unit_weight}
@@ -364,7 +375,8 @@ CAPABILITY_COMPONENT_TYPES: frozenset[type] = frozenset(
 # 返回 None，避免重复挂载。Description codec 挂在本表而非 NPC_CAPABILITIES：
 # 房间/物品/NPC 共用同一组件类型，save.py 按类型查 codec 一次即可（票 01
 # code-review：组织不对称但功能等价，刻意不在 NPC 表重复登记）。
-# 后续 Terrain/NoDeathZone/EntryGuard/Ferry 按物品能力写法追加真正的 from_yaml。
+# NoDeathZone / Ferry 等按物品能力写法追加真正的 from_yaml。
+
 
 def _parse_room_description(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
@@ -382,6 +394,86 @@ def _des_description(d: dict) -> Description:
     return Description(short=d["short"], long=d["long"], outdoors=bool(d.get("outdoors", False)))
 
 
+def _parse_no_death_zone(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> NoDeathZone | None:
+    """``no_death: true`` → 挂 NoDeathZone；缺省 / false 不挂。"""
+    raw = data.get("no_death")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return NoDeathZone()
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'no_death' 应是 true/false，实际是 {raw!r}"
+    )
+
+
+def _ser_no_death_zone(_c: NoDeathZone) -> dict:
+    return {}
+
+
+def _des_no_death_zone(_d: dict) -> NoDeathZone:
+    return NoDeathZone()
+
+
+def _parse_ferry(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Ferry | None:
+    """``ferry: {far_bank, cross_interval, direction}``；far_bank 键稍后解析。"""
+    raw = data.get("ferry")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'ferry' 应是映射，实际是 {type(raw).__name__}"
+        )
+    far_key = raw.get("far_bank")
+    if not far_key:
+        raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 ferry 缺少必需字段 'far_bank'")
+    direction = raw.get("direction")
+    if not direction:
+        raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 ferry 缺少必需字段 'direction'")
+    interval_raw = raw.get("cross_interval")
+    if interval_raw is None:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 ferry 缺少必需字段 'cross_interval'"
+        )
+    try:
+        interval = int(interval_raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 ferry.cross_interval 应是正整数，"
+            f"实际是 {interval_raw!r}"
+        ) from exc
+    if interval < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 ferry.cross_interval 应 >= 1，实际是 {interval}"
+        )
+    # far_bank 房间键在 scene_loader 建完全部房间后再解析为 EntityId。
+    return Ferry(
+        far_bank=0,
+        cross_interval=interval,
+        direction=str(direction),
+        _far_bank_key=str(far_key),
+    )
+
+
+def _ser_ferry(c: Ferry) -> dict:
+    return {
+        "far_bank": c.far_bank,
+        "cross_interval": c.cross_interval,
+        "direction": c.direction,
+    }
+
+
+def _des_ferry(d: dict) -> Ferry:
+    return Ferry(
+        far_bank=int(d["far_bank"]),
+        cross_interval=int(d["cross_interval"]),
+        direction=str(d["direction"]),
+    )
+
+
 ROOM_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Description,
@@ -390,12 +482,27 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         to_dict=_ser_description,
         from_dict=_des_description,
     ),
+    CapabilitySpec(
+        component_type=NoDeathZone,
+        known_fields=frozenset({"no_death"}),
+        from_yaml=_parse_no_death_zone,
+        to_dict=_ser_no_death_zone,
+        from_dict=_des_no_death_zone,
+    ),
+    CapabilitySpec(
+        component_type=Ferry,
+        known_fields=frozenset({"ferry"}),
+        from_yaml=_parse_ferry,
+        to_dict=_ser_ferry,
+        from_dict=_des_ferry,
+    ),
 ]
 
 
 # ── NPC 级能力（M2-01）──────────────────────────────────────────────────
 # 顺序：Inquiry 独立；Behaviors 在 AIController 之前（AIController 仅在有
 # behaviors 时挂载，与 M1 语义一致）。
+
 
 def _parse_inquiry(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
@@ -406,8 +513,7 @@ def _parse_inquiry(
         return None
     if not isinstance(raw, Mapping):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 'inquiry' 应是映射，"
-            f"实际是 {type(raw).__name__}"
+            f"场景文件 {scene_path} 的{label}的 'inquiry' 应是映射，实际是 {type(raw).__name__}"
         )
     topics: dict[str, str] = {}
     default: str | None = None
@@ -433,8 +539,7 @@ def _parse_behaviors(
         return None
     if not isinstance(raw, (list, tuple)):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 'behaviors' 应是列表，"
-            f"实际是 {type(raw).__name__}"
+            f"场景文件 {scene_path} 的{label}的 'behaviors' 应是列表，实际是 {type(raw).__name__}"
         )
     entries: list[BehaviorSpec] = []
     for index, entry in enumerate(raw):
@@ -492,13 +597,11 @@ def _parse_ai_controller(
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应是正整数，"
-            f"实际是 {raw!r}"
+            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应是正整数，实际是 {raw!r}"
         ) from None
     if value < 1:
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应 >= 1，"
-            f"实际是 {value}"
+            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应 >= 1，实际是 {value}"
         )
     return AIController(tick_interval=value)
 
@@ -551,6 +654,276 @@ def _des_ai_controller(d: dict) -> AIController:
     return AIController(tick_interval=int(d.get("tick_interval", 1)))
 
 
+# ── NPC/玩家成长与经济能力（M2-05/07/08）────────────────────────────────
+
+
+def _parse_vitals(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Vitals | None:
+    """``vitals:`` 映射；缺省不挂（调用方可给玩家合理默认）。"""
+    raw = data.get("vitals")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'vitals' 应是映射，实际是 {type(raw).__name__}"
+        )
+
+    def _pair(prefix: str, default_max: int = 100) -> tuple[int, int]:
+        cur_key, max_key = f"{prefix}_current", f"{prefix}_max"
+        # 也接受简写 qi / qi_max。
+        cur = raw.get(cur_key, raw.get(prefix, default_max))
+        mx = raw.get(max_key, cur if cur_key in raw or prefix in raw else default_max)
+        try:
+            return int(cur), int(mx)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 vitals.{prefix} 应是整数：{exc}"
+            ) from exc
+
+    qi_c, qi_m = _pair("qi")
+    neili_c, neili_m = _pair("neili")
+    jingli_c, jingli_m = _pair("jingli")
+    return Vitals(
+        qi_current=qi_c,
+        qi_max=qi_m,
+        neili_current=neili_c,
+        neili_max=neili_m,
+        jingli_current=jingli_c,
+        jingli_max=jingli_m,
+    )
+
+
+def _ser_vitals(c: Vitals) -> dict:
+    return {
+        "qi_current": c.qi_current,
+        "qi_max": c.qi_max,
+        "neili_current": c.neili_current,
+        "neili_max": c.neili_max,
+        "jingli_current": c.jingli_current,
+        "jingli_max": c.jingli_max,
+    }
+
+
+def _des_vitals(d: dict) -> Vitals:
+    return Vitals(
+        qi_current=int(d["qi_current"]),
+        qi_max=int(d["qi_max"]),
+        neili_current=int(d["neili_current"]),
+        neili_max=int(d["neili_max"]),
+        jingli_current=int(d["jingli_current"]),
+        jingli_max=int(d["jingli_max"]),
+    )
+
+
+def _parse_attributes(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> BaseAttributes | None:
+    """``attributes:`` 四维；缺省不挂。"""
+    raw = data.get("attributes")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'attributes' 应是映射，实际是 {type(raw).__name__}"
+        )
+
+    def _int(key: str, alt: str, default: int) -> int:
+        val = raw.get(key, raw.get(alt, default))
+        try:
+            return int(val)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 attributes.{key} 应是整数，实际是 {val!r}"
+            ) from exc
+
+    return BaseAttributes(
+        str_=_int("str_", "str", 10),
+        con=_int("con", "con", 10),
+        dex=_int("dex", "dex", 10),
+        int_=_int("int_", "int", 10),
+    )
+
+
+def _ser_attributes(c: BaseAttributes) -> dict:
+    return {"str_": c.str_, "con": c.con, "dex": c.dex, "int_": c.int_}
+
+
+def _des_attributes(d: dict) -> BaseAttributes:
+    return BaseAttributes(
+        str_=int(d.get("str_", d.get("str", 10))),
+        con=int(d.get("con", 10)),
+        dex=int(d.get("dex", 10)),
+        int_=int(d.get("int_", d.get("int", 10))),
+    )
+
+
+def _parse_skill_levels(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> SkillLevels | None:
+    """实体级 ``skills:``（与顶层 SkillData 注册表不同层级）。"""
+    raw = data.get("skills")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'skills' 应是映射，实际是 {type(raw).__name__}"
+        )
+    levels: dict[str, SkillProgress] = {}
+    for skill_id, entry in raw.items():
+        key = str(skill_id)
+        if isinstance(entry, Mapping):
+            level = entry.get("level", 0)
+            exp = entry.get("exp", 0)
+        else:
+            level, exp = entry, 0
+        try:
+            levels[key] = SkillProgress(level=int(level), exp=int(exp))  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 skills.{key} 等级/经验非法：{exc}"
+            ) from exc
+        # 引用校验：若全局 SKILLS 非空且不含该 id，报错（加载期 fail-fast）。
+        # 允许场景未声明顶层 skills: 时预置等级（测试/最小场景）。
+        if SKILLS and key not in SKILLS:
+            raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 skills 引用未声明技能 '{key}'")
+    return SkillLevels(levels=levels)
+
+
+def _ser_skill_levels(c: SkillLevels) -> dict:
+    return {"levels": {sid: {"level": p.level, "exp": p.exp} for sid, p in c.levels.items()}}
+
+
+def _des_skill_levels(d: dict) -> SkillLevels:
+    raw = d.get("levels", {})
+    levels = {
+        str(sid): SkillProgress(level=int(p["level"]), exp=int(p.get("exp", 0)))
+        for sid, p in raw.items()
+    }
+    return SkillLevels(levels=levels)
+
+
+def _parse_currency(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Currency | None:
+    """``currency: N`` 或 ``currency: {amount: N}``。"""
+    if "currency" not in data:
+        return None
+    raw = data["currency"]
+    if isinstance(raw, Mapping):
+        raw = raw.get("amount")
+    if raw is None:
+        return None
+    try:
+        amount = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 currency 应是整数，实际是 {raw!r}"
+        ) from exc
+    if amount < 0:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 currency 不能为负，实际是 {amount}"
+        )
+    return Currency(amount=amount)
+
+
+def _ser_currency(c: Currency) -> dict:
+    return {"amount": c.amount}
+
+
+def _des_currency(d: dict) -> Currency:
+    return Currency(amount=int(d.get("amount", 0)))
+
+
+def _parse_shop(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> ShopInventory | None:
+    """``shop:`` 列表；条目 ``{item, resell_discount?}`` 或裸模板键字符串。
+
+    物品模板存在性与 Valuable 校验由 scene_loader 在 items 建完后补做
+    （本函数解析时 item_templates 可能尚未就绪）。
+    """
+    raw = data.get("shop")
+    if raw is None:
+        return None
+    if not isinstance(raw, (list, tuple)):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'shop' 应是列表，实际是 {type(raw).__name__}"
+        )
+    entries: list[ShopEntry] = []
+    for index, entry in enumerate(raw):
+        if isinstance(entry, str):
+            entries.append(ShopEntry(item_template_key=entry))
+            continue
+        if not isinstance(entry, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 shop[{index}] "
+                f"应是映射或模板键字符串，实际是 {type(entry).__name__}"
+            )
+        key = entry.get("item") or entry.get("item_template_key")
+        if not key:
+            raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 shop[{index}] 缺少 'item'")
+        discount_raw = entry.get("resell_discount", 1.0)
+        try:
+            discount = float(discount_raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 shop[{index}] "
+                f"的 resell_discount 应是数字，实际是 {discount_raw!r}"
+            ) from exc
+        entries.append(ShopEntry(item_template_key=str(key), resell_discount=discount))
+    return ShopInventory(entries=tuple(entries))
+
+
+def _ser_shop(c: ShopInventory) -> dict:
+    return {
+        "entries": [
+            {
+                "item_template_key": e.item_template_key,
+                "resell_discount": e.resell_discount,
+            }
+            for e in c.entries
+        ]
+    }
+
+
+def _des_shop(d: dict) -> ShopInventory:
+    entries = tuple(
+        ShopEntry(
+            item_template_key=str(e["item_template_key"]),
+            resell_discount=float(e.get("resell_discount", 1.0)),
+        )
+        for e in d.get("entries", [])
+    )
+    return ShopInventory(entries=entries)
+
+
+def _parse_faction(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Faction | None:
+    """``faction: <id>`` 或 ``faction: {id: ...}``；缺省不挂（无门派）。
+
+    引用未声明门派的校验在 scene_loader（FACTIONS 加载后）补做。
+    """
+    if "faction" not in data:
+        return None
+    raw = data["faction"]
+    if raw is None:
+        return Faction(faction_id=None)
+    if isinstance(raw, Mapping):
+        raw = raw.get("id", raw.get("faction_id"))
+    return Faction(faction_id=str(raw) if raw is not None else None)
+
+
+def _ser_faction(c: Faction) -> dict:
+    return {"faction_id": c.faction_id}
+
+
+def _des_faction(d: dict) -> Faction:
+    raw = d.get("faction_id")
+    return Faction(faction_id=None if raw is None else str(raw))
+
+
 NPC_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Inquiry,
@@ -572,6 +945,48 @@ NPC_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_ai_controller,
         to_dict=_ser_ai_controller,
         from_dict=_des_ai_controller,
+    ),
+    CapabilitySpec(
+        component_type=Vitals,
+        known_fields=frozenset({"vitals"}),
+        from_yaml=_parse_vitals,
+        to_dict=_ser_vitals,
+        from_dict=_des_vitals,
+    ),
+    CapabilitySpec(
+        component_type=BaseAttributes,
+        known_fields=frozenset({"attributes"}),
+        from_yaml=_parse_attributes,
+        to_dict=_ser_attributes,
+        from_dict=_des_attributes,
+    ),
+    CapabilitySpec(
+        component_type=SkillLevels,
+        known_fields=frozenset({"skills"}),
+        from_yaml=_parse_skill_levels,
+        to_dict=_ser_skill_levels,
+        from_dict=_des_skill_levels,
+    ),
+    CapabilitySpec(
+        component_type=Currency,
+        known_fields=frozenset({"currency"}),
+        from_yaml=_parse_currency,
+        to_dict=_ser_currency,
+        from_dict=_des_currency,
+    ),
+    CapabilitySpec(
+        component_type=ShopInventory,
+        known_fields=frozenset({"shop"}),
+        from_yaml=_parse_shop,
+        to_dict=_ser_shop,
+        from_dict=_des_shop,
+    ),
+    CapabilitySpec(
+        component_type=Faction,
+        known_fields=frozenset({"faction"}),
+        from_yaml=_parse_faction,
+        to_dict=_ser_faction,
+        from_dict=_des_faction,
     ),
 ]
 

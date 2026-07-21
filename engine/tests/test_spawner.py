@@ -12,7 +12,6 @@ from pathlib import Path
 from mud_engine.ai import spawn_scan
 from mud_engine.components import Description, Identity, NpcSpawnMeta, Position
 from mud_engine.scene_loader import load_scene
-from mud_engine.world import World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -64,7 +63,7 @@ class TestSpawnerBlueprintTotalWipeout:
             if world.require_component(e, NpcSpawnMeta).template_key == "gate_master"
         ]
         assert len(victims) == 1
-        old_meta_id = id(world.require_component(victims[0], NpcSpawnMeta))
+        old_entity = victims[0]
         for entity in victims:
             world.destroy_entity(entity)
 
@@ -82,6 +81,7 @@ class TestSpawnerBlueprintTotalWipeout:
         ]
         assert len(rebuilt) == 1
         npc = rebuilt[0]
+        assert npc != old_entity  # 新实体，非复活原 id
         assert world.require_component(npc, Identity).name == blueprint.name
         assert world.require_component(npc, Description).short == blueprint.short
         assert world.require_component(npc, Description).long == blueprint.long
@@ -90,8 +90,6 @@ class TestSpawnerBlueprintTotalWipeout:
         assert meta.desired_count == 1
         assert meta.respawn is True
         assert meta.startroom == blueprint.startroom
-        # 新实例带全新 NpcSpawnMeta（不为上一实例对象）。
-        assert id(meta) != old_meta_id
 
     def test_respawn_false_template_not_rebuilt_after_wipeout(self, tmp_path: Path) -> None:
         world, _ = load_scene(_write_scene(tmp_path, _SCENE_RESPAWN))
