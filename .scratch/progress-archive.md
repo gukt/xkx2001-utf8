@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M2 Wave 0 落地：注册表 prefactor + 战斗算法 + 技能数据 + spawner 修复**（2026-07-21）：四票各一 commit。`01`–`04` resolved。
+
 - [x] **M2 `/to-tickets` 拆票 + 实现计划**（2026-07-21）：26 张票 + [implement-plan.md](m2-mvp-scene-playable/implement-plan.md)。
 
 - [x] **`verify/m1-items` 物品命令补齐 + 场景夹具 + 一键矩阵**（2026-07-20）：[`just verify-items`](justfile)；[verify-items-cli.md](m1-core-engine-skeleton/verify-items-cli.md)。
