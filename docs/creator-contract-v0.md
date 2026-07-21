@@ -71,7 +71,7 @@ python -m mud_engine --pack <包目录> --validate --strict
 
 ## 官方轨与内容包轨
 
-场景 YAML 字段集合被两条加载轨道共用：无 `manifest` 的官方单文件，与带 `manifest.yaml` 的内容包。入口差异与范本见 [场景创作双轨说明](scene-authoring-guide.md)（M3 停机加固票 [`09`](../.scratch/m3-hardening/issues/09-scene-authoring-two-tracks-doc.md)）。
+场景 YAML 字段集合被两条加载轨道共用：无 `manifest` 的官方单文件，与带 `manifest.yaml` 的内容包。入口差异与范本见 [场景创作：官方轨与内容包轨](scene-authoring-guide.md)（M3 停机加固票 [`09`](../.scratch/m3-hardening/issues/09-scene-authoring-two-tracks-doc.md)）。
 
 ## 契约表达不到的地方
 

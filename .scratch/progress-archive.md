@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 引擎房间保真：session 笔记落盘并排队**（2026-07-21）：LPC vs 引擎缺口对照写入 [.scratch/pre-m4-engine-room-fidelity/](pre-m4-engine-room-fidelity/)（[README](pre-m4-engine-room-fidelity/README.md) + [session-notes](pre-m4-engine-room-fidelity/session-notes-2026-07-21.md)）；`PROGRESS` Next Up 与 `CONTEXT` 词条标明 **加固整体完成后、M4 前** 开 `/grill-with-docs`。未开 to-spec / 未实现。
+
 - [x] **M3 停机加固 `/to-tickets` 完成**（2026-07-21）：spec.md 拆成 11 张票（[m3-hardening/issues/](m3-hardening/issues/)）——**Wave P0** 七张实现票（`01`–`07`）+ **Wave B3** 四张（`08`–`11`）；配套 [to-tickets-notes.md](m3-hardening/to-tickets-notes.md) + [implement-plan.md](m3-hardening/implement-plan.md)。
 
 - [x] **M3 停机加固 `/to-spec` 完成**（2026-07-21）：[spec.md](m3-hardening/spec.md)（`ready-for-agent`）——同一 spec 两 wave：**Wave P0** + **Wave B3**；OOS：P1-1/5/8/9、评审 P2、M4。
