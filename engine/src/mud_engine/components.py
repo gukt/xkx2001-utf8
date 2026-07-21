@@ -403,10 +403,17 @@ class Currency:
 
 @dataclass(frozen=True)
 class ShopEntry:
-    """商店清单一条：物品模板键 + 回购折扣率。"""
+    """商店清单一条：物品模板键或坐骑模板键 + 可选定价/回购折扣。
 
-    item_template_key: str
+    物品条目：``item_template_key`` 非空，价格取物品 ``Valuable``。
+    坐骑条目（M2-10）：``mount_template_key`` 非空，``price`` 必填；买后
+    在玩家房间生成坐骑实例（不进物品栏）。二者互斥。
+    """
+
+    item_template_key: str | None = None
+    mount_template_key: str | None = None
     resell_discount: float = 1.0
+    price: int | None = None
 
 
 @dataclass
@@ -437,6 +444,55 @@ class Engaged:
     """
 
     opponent: EntityId
+
+
+# ── 坐骑与骑乘（M2-10 / spec F1）────────────────────────────────────────
+
+
+@dataclass
+class Mount:
+    """坐骑能力：通行能力值 + 精力 + 当前骑手。运行时可变进存档（ridden_by）。"""
+
+    ability: int
+    jingli_current: int
+    jingli_max: int
+    ridden_by: EntityId | None = None
+
+
+@dataclass
+class Riding:
+    """骑乘中：指向所骑坐骑实体。运行时可变进存档。"""
+
+    mount_id: EntityId
+
+
+# ── 门槏与身份快照辅助（M2-11 / spec E2）────────────────────────────────
+
+
+@dataclass
+class Gender:
+    """性别标记。题材包决定取值集合，引擎不校验枚举。启动固定为主。"""
+
+    value: str
+
+
+@dataclass(frozen=True)
+class ItemTags:
+    """物品语义标签（如 weapon/edged），供门槏现算。启动固定。"""
+
+    tags: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class EntryGuard:
+    """房间进入门槏：条件 + 拒绝文案。启动固定。
+
+    ``condition`` 存结构化 dict（与 ``condition_from_data`` 同形），求值时再转节点，
+    避免 Condition 图进存档时的复杂序列化。
+    """
+
+    condition: dict
+    deny_message: str
 
 
 # ── 渡口（M2-09 / spec F2）──────────────────────────────────────────────

@@ -11,6 +11,7 @@ from pathlib import Path
 from mud_engine.ai import attach_ai_system
 from mud_engine.cli import run_repl
 from mud_engine.combat_system import attach_combat_system
+from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.ferry import attach_ferries
 from mud_engine.nature import attach_nature
 from mud_engine.save import has_save, restore_world, save_world
@@ -55,6 +56,7 @@ def _load_or_restore(save_dir: Path) -> tuple[World, EntityId]:
             attach_ferries(world)
             # 交战调度不进存档：restore 后重新挂 on_tick（幂等）。
             attach_combat_system(world)
+            attach_entry_guards(world)
             return world, player_id
     return build_world()
 

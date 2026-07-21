@@ -4,13 +4,17 @@
 
 **Blocked by:** 01（`Mount`/`Riding` 走注册表挂载），07（购买坐骑复用/扩展 `buy` 命令与 `Currency` 扣款）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Mount(ability, jingli_current, jingli_max, ridden_by)` 组件落地，走 NPC 级能力注册表（YAML `mount:` 字段）；`Riding(mount_id)` 组件挂骑手身上。
-- [ ] `ride <坐骑>`：目标须是玩家可达（同房间）且未被骑乘的坐骑，成功后双向设置 `Riding.mount_id`/`Mount.ridden_by`；已在骑乘中再次 `ride` 给出提示；`unride`：清空双向引用，坐骑留在当前房间。
-- [ ] `go` 命令扩展：骑乘状态下移动，坐骑 `Position` 与骑手同步换房间；命令测试覆盖"骑乘时移动后 `look` 坐骑所在房间与骑手一致"。
-- [ ] 明确记录本票关于"购买坐骑"机制的具体实现选择（无论是扩展 `buy` 命令、还是新增专属 `buy_mount`/`hire` 一类命令，选一个写清楚并在本票 Comments 追加说明），供 23 号票（扬州马厩场景内容）直接对照使用，不留歧义给内容票现场发明。
-- [ ] 购买坐骑：扣款走 `Currency`（复用 07 号票机制）；成功后坐骑实体出现在玩家当前房间（立即可 `ride`），不进玩家 `Container`。
-- [ ] 移动效率/描述差异（spec"移动描述与移动效率都会体现'骑着走'"）：至少在 `go` 命令消息文案层面体现骑乘状态（本票不要求实现真实移动速度数值差异，MVP 移动始终是"一步到位"，见 spec F1 决策）。
-- [ ] 存档往返：`Mount`/`Riding` 双向引用 save→restore 后一致。
-- [ ] 现有测试全绿不回归。
+- [x] `Mount(ability, jingli_current, jingli_max, ridden_by)` 组件落地，走 NPC 级能力注册表（YAML `mount:` 字段）；`Riding(mount_id)` 组件挂骑手身上。
+- [x] `ride <坐骑>`：目标须是玩家可达（同房间）且未被骑乘的坐骑，成功后双向设置 `Riding.mount_id`/`Mount.ridden_by`；已在骑乘中再次 `ride` 给出提示；`unride`：清空双向引用，坐骑留在当前房间。
+- [x] `go` 命令扩展：骑乘状态下移动，坐骑 `Position` 与骑手同步换房间；命令测试覆盖"骑乘时移动后 `look` 坐骑所在房间与骑手一致"。
+- [x] 明确记录本票关于"购买坐骑"机制的具体实现选择（无论是扩展 `buy` 命令、还是新增专属 `buy_mount`/`hire` 一类命令，选一个写清楚并在本票 Comments 追加说明），供 23 号票（扬州马厩场景内容）直接对照使用，不留歧义给内容票现场发明。
+- [x] 购买坐骑：扣款走 `Currency`（复用 07 号票机制）；成功后坐骑实体出现在玩家当前房间（立即可 `ride`），不进玩家 `Container`。
+- [x] 移动效率/描述差异（spec"移动描述与移动效率都会体现'骑着走'"）：至少在 `go` 命令消息文案层面体现骑乘状态（本票不要求实现真实移动速度数值差异，MVP 移动始终是"一步到位"，见 spec F1 决策）。
+- [x] 存档往返：`Mount`/`Riding` 双向引用 save→restore 后一致。
+- [x] 现有测试全绿不回归。
+
+## Comments
+
+- 2026-07-21：购买机制选定**扩展 `buy` 命令**：`ShopEntry.mount_template_key` + `price`；`spawn_from_blueprint` 到当前房间，不进物品栏。MVP 不做归属校验。

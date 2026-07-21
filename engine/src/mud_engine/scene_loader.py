@@ -42,10 +42,12 @@ from mud_engine.components import (
     Ferry,
     Identity,
     Inquiry,
+    Mount,
     PlayerSession,
     Position,
     ShopInventory,
 )
+from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
 from mud_engine.ferry import attach_ferries
@@ -94,6 +96,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     attach_ferries(world)
     # 交战（M2-12）：Engaged tick 结算；幂等。
     attach_combat_system(world)
+    # 门槏（M2-11）：EntryGuard on_before_enter_room；幂等。
+    attach_entry_guards(world)
     return world, player_id
 
 
@@ -678,17 +682,34 @@ def _resolve_ferry_refs(world: World, room_ids: dict[str, EntityId], scene_path:
 
 
 def _validate_shop_inventories(world: World, scene_path: Path) -> None:
-    """商店引用的物品模板必须存在且声明 Valuable（加载期，非运行时）。"""
+    """商店引用：物品须有 Valuable；坐骑须在 spawners 且蓝图带 Mount。"""
     for npc in world.entities_with(ShopInventory):
         shop = world.require_component(npc, ShopInventory)
         npc_name = world.require_component(npc, Identity).name
         for entry in shop.entries:
+            if entry.mount_template_key:
+                key = entry.mount_template_key
+                blueprint = world.spawners.get(key)
+                if blueprint is None:
+                    raise SceneLoadError(
+                        f"场景文件 {scene_path} 的商店 NPC '{npc_name}' "
+                        f"引用未定义的坐骑模板 '{key}'"
+                    )
+                caps = blueprint.extras.get("capabilities", ())
+                has_mount = isinstance(caps, (list, tuple)) and any(
+                    isinstance(c, Mount) for c in caps
+                )
+                if not has_mount:
+                    raise SceneLoadError(
+                        f"场景文件 {scene_path} 的商店 NPC '{npc_name}' "
+                        f"引用的坐骑模板 '{key}' 未声明 mount:"
+                    )
+                continue
             key = entry.item_template_key
-            if key not in world.item_templates:
+            if not key or key not in world.item_templates:
                 raise SceneLoadError(
                     f"场景文件 {scene_path} 的商店 NPC '{npc_name}' 引用未定义的物品模板 '{key}'"
                 )
-            # 用模板字段判断是否声明了价值（不等待运行时 buy）。
             raw = world.item_templates[key]
             if "valuable" not in raw and "value" not in raw:
                 raise SceneLoadError(

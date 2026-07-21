@@ -49,10 +49,13 @@ from mud_engine.components import (
     Faction,
     Identity,
     Inquiry,
+    Mount,
     PlayerSession,
     Position,
+    Riding,
     ShopInventory,
     SkillLevels,
+    SkillProgress,
     Stackable,
     Valuable,
     Vitals,
@@ -426,12 +429,26 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     # 移动发生。
     position = world.require_component(player_id, Position)
     position.room = passage.target
+    riding_line: str | None = None
+    riding = world.get_component(player_id, Riding)
+    if riding is not None:
+        mount_pos = world.get_component(riding.mount_id, Position)
+        if mount_pos is not None:
+            mount_pos.room = passage.target
+        mount_name = "坐骑"
+        mid = world.get_component(riding.mount_id, Identity)
+        if mid is not None:
+            mount_name = mid.name
+        riding_line = f"你骑着{mount_name}前行。"
     # after：先离开旧房间、再进入新房间（对应 LPC move 先 leave 旧环境再 enter 新）。
     # 两者共用 EnterRoomContext 形状，事件名区分语义。fire-and-forget 不短路。
     enter_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)
     world.events.dispatch(ON_LEAVE_ROOM, enter_ctx)
     world.events.dispatch(ON_ENTER_ROOM, enter_ctx)
-    return _cmd_look(world, player_id, Intent(verb="look", target=None))
+    look_lines = _cmd_look(world, player_id, Intent(verb="look", target=None))
+    if riding_line is not None:
+        return [riding_line, *look_lines]
+    return look_lines
 
 
 @register("open")
@@ -777,24 +794,36 @@ _DEFAULT_RESELL_DISCOUNT = 0.5
 
 @register("buy")
 def _cmd_buy(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """从同房间商店 NPC 购买物品（M2-07）。"""
+    """从同房间商店 NPC 购买物品或坐骑（M2-07 / M2-10）。
+
+    坐骑购买机制（M2-10 Comments）：扩展本命令——``ShopEntry.mount_template_key``
+    指向 ``world.spawners`` 中带 ``Mount`` 的 NPC 蓝图；扣 ``Currency`` 后
+    ``spawn_from_blueprint`` 到玩家当前房间（不进物品栏，立即可 ``ride``）。
+    """
     item_name = intent.target or (intent.args[0] if intent.args else None)
     if not item_name:
-        return ["买什么？用法：buy <物品>"]
+        return ["买什么？用法：buy <物品|坐骑>"]
     shop_npc = _find_shop_npc(world, player_id)
     if shop_npc is None:
         return ["这里没有商店。"]
     shop = world.require_component(shop_npc, ShopInventory)
-    entry = _shop_entry_by_item_name(world, shop, item_name)
+    entry = _shop_entry_by_name(world, shop, item_name)
     if entry is None:
         return [f"店里没有「{item_name}」出售。"]
-    template = world.item_templates.get(entry.item_template_key)
+
+    if entry.mount_template_key:
+        return _buy_mount(world, player_id, entry, item_name)
+
+    template = world.item_templates.get(entry.item_template_key or "")
     if template is None:
         return [f"店里没有「{item_name}」出售。"]
-    # 价格：从模板实例化后读 Valuable（加载期已校验模板有价值字段）。
     from mud_engine.scene_loader import instantiate_item
 
-    price = _template_price(world, entry.item_template_key)
+    price = (
+        entry.price
+        if entry.price is not None
+        else _template_price(world, entry.item_template_key or "")
+    )
     if price is None:
         return [f"「{item_name}」无法计价。"]
     currency = world.get_component(player_id, Currency)
@@ -802,18 +831,202 @@ def _cmd_buy(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         return ["你身上没有钱袋。"]
     if currency.amount < price:
         return [f"银两不足（需要 {price}，你有 {currency.amount}）。"]
-    item = instantiate_item(world, entry.item_template_key)
+    item = instantiate_item(world, entry.item_template_key or "")
     if not world.has_component(shop_npc, Container):
         world.add_component(shop_npc, Container())
     world.require_component(shop_npc, Container).items.add(item)
     result = transfer(world, item, shop_npc, player_id, player_id=player_id)
     if not result.success:
-        # 回滚：销毁物品，不扣款。
         world.require_component(shop_npc, Container).items.discard(item)
         world.destroy_entity(item)
         return [result.message]
     currency.amount -= price
     return [f"你花了 {price} 两银子买下了{item_name}。"]
+
+
+def _buy_mount(world: World, player_id: EntityId, entry, item_name: str) -> list[str]:
+    from mud_engine.ai import spawn_from_blueprint
+
+    key = entry.mount_template_key
+    assert key is not None
+    blueprint = world.spawners.get(key)
+    if blueprint is None:
+        return [f"店里没有「{item_name}」出售。"]
+    price = entry.price
+    if price is None:
+        return [f"「{item_name}」无法计价。"]
+    currency = world.get_component(player_id, Currency)
+    if currency is None:
+        return ["你身上没有钱袋。"]
+    if currency.amount < price:
+        return [f"银两不足（需要 {price}，你有 {currency.amount}）。"]
+    room = _player_room(world, player_id)
+    mount = spawn_from_blueprint(world, blueprint, room=room)
+    # 新实例尚未被骑乘。
+    mount_comp = world.get_component(mount, Mount)
+    if mount_comp is not None:
+        mount_comp.ridden_by = None
+    currency.amount -= price
+    name = world.require_component(mount, Identity).name
+    return [f"你花了 {price} 两银子买下了{name}。它就在你身边，可以 ride。"]
+
+
+@register("ride")
+def _cmd_ride(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """骑上同房间未被骑乘的坐骑（M2-10）。"""
+    mount_name = intent.target or (intent.args[0] if intent.args else None)
+    if not mount_name:
+        return ["骑什么？用法：ride <坐骑>"]
+    if world.has_component(player_id, Riding):
+        return ["你已经在骑乘中了。"]
+    mount = _find_mount_in_room(world, player_id, mount_name)
+    if mount is None:
+        return [f"这里没有可骑乘的「{mount_name}」。"]
+    mount_comp = world.require_component(mount, Mount)
+    if mount_comp.ridden_by is not None:
+        return [f"「{mount_name}」已经被骑着了。"]
+    mount_comp.ridden_by = player_id
+    world.add_component(player_id, Riding(mount_id=mount))
+    name = world.require_component(mount, Identity).name
+    return [f"你骑上了{name}。"]
+
+
+@register("unride")
+def _cmd_unride(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """下马：清除双向 Riding/Mount.ridden_by，坐骑留在当前房间。"""
+    riding = world.get_component(player_id, Riding)
+    if riding is None:
+        return ["你现在没有在骑马。"]
+    mount = riding.mount_id
+    world.remove_component(player_id, Riding)
+    mount_comp = world.get_component(mount, Mount)
+    if mount_comp is not None and mount_comp.ridden_by == player_id:
+        mount_comp.ridden_by = None
+    name = (
+        world.require_component(mount, Identity).name
+        if world.get_component(mount, Identity)
+        else "坐骑"
+    )
+    return [f"你从{name}上下来了。"]
+
+
+@register("practice")
+def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """练习已学会的技能（M2-13）。消耗/经验门槏来自 SkillData。"""
+    from mud_engine.skills import SKILLS
+
+    skill_token = intent.target or (intent.args[0] if intent.args else None)
+    if not skill_token:
+        return ["练习什么？用法：practice <技能>"]
+    skill_levels = world.get_component(player_id, SkillLevels)
+    if skill_levels is None or skill_token not in skill_levels.levels:
+        return ["你还没学会这个技能。"]
+    data = SKILLS.get(skill_token)
+    if data is None:
+        return [f"技能「{skill_token}」数据缺失。"]
+    vitals = world.get_component(player_id, Vitals)
+    if vitals is None:
+        return ["你现在练不动。"]
+    if (
+        vitals.neili_current < data.practice_neili_cost
+        or vitals.jingli_current < data.practice_jingli_cost
+    ):
+        return ["你现在练不动（内力或精力不足）。"]
+    vitals.neili_current -= data.practice_neili_cost
+    vitals.jingli_current -= data.practice_jingli_cost
+    progress = skill_levels.levels[skill_token]
+    new_exp = progress.exp + data.practice_exp_gain
+    new_level = progress.level
+    leveled = False
+    # 升级：exp 达到当前等级门槏后 level+1，结转剩余 exp（可连升）。
+    while data.exp_thresholds:
+        idx = min(new_level, len(data.exp_thresholds) - 1)
+        need = data.exp_thresholds[idx]
+        if need <= 0 or new_exp < need:
+            break
+        new_exp -= need
+        new_level += 1
+        leveled = True
+    skill_levels.levels[skill_token] = SkillProgress(level=new_level, exp=new_exp)
+    lines = [f"你练习了{skill_token}，经验 +{data.practice_exp_gain}。"]
+    if leveled:
+        lines.append(f"你的{skill_token}升到了 {new_level} 级！")
+    return lines
+
+
+@register("learn")
+def _cmd_learn(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向门派技能池学习技能类型（M2-14）：map_skill → skill_pool → learn_condition。"""
+    from mud_engine.ai import condition_from_data
+    from mud_engine.conditions import evaluate
+    from mud_engine.entity_gate import EntityGateContext
+    from mud_engine.factions import FACTIONS
+    from mud_engine.skills import SKILLS
+
+    skill_type = intent.target or (intent.args[0] if intent.args else None)
+    if not skill_type:
+        return ["学习什么？用法：learn <技能类型>"]
+    faction = world.get_component(player_id, Faction)
+    if faction is None or faction.faction_id is None:
+        return ["你还没有门派。"]
+    definition = FACTIONS.get(faction.faction_id)
+    if definition is None:
+        return ["你还没有门派。"]
+    skill_id = definition.map_skill.get(skill_type)
+    if skill_id is None:
+        return ["你的门派不会这个。"]
+    if skill_id not in definition.skill_pool:
+        return [f"「{skill_id}」不在本门技能池内。"]
+    data = SKILLS.get(skill_id)
+    if data is None:
+        return [f"技能「{skill_id}」尚未载入。"]
+    skill_levels = world.get_component(player_id, SkillLevels)
+    if skill_levels is not None and skill_id in skill_levels.levels:
+        return [f"你已经学会了{skill_id}。"]
+    gate = EntityGateContext(world, player_id)
+    if data.learn_condition is not None:
+        cond = condition_from_data(data.learn_condition)
+        if cond is not None and not evaluate(cond, gate):
+            reason = _learn_deny_reason(cond, gate)
+            return [reason]
+    if skill_levels is None:
+        world.add_component(player_id, SkillLevels(levels={}))
+        skill_levels = world.require_component(player_id, SkillLevels)
+    skill_levels.levels[skill_id] = SkillProgress(level=1, exp=0)
+    return [f"你学会了{skill_id}。"]
+
+
+def _learn_deny_reason(condition: object, ctx) -> str:
+    from mud_engine.conditions import Equals, Gte, Predicate
+
+    if isinstance(condition, Gte):
+        actual = getattr(ctx, condition.field, None)
+        labels = {
+            "con": "根骨",
+            "str": "力量",
+            "str_": "力量",
+            "dex": "敏捷",
+            "int": "智力",
+            "int_": "智力",
+        }
+        label = labels.get(condition.field, condition.field)
+        return f"你的{label}不够（需要 >= {condition.value!r}，当前 {actual!r}）。"
+    if isinstance(condition, Equals):
+        actual = getattr(ctx, condition.field, None)
+        field = condition.field
+        labels = {
+            "con": "根骨",
+            "str": "力量",
+            "str_": "力量",
+            "dex": "敏捷",
+            "int": "智力",
+            "int_": "智力",
+        }
+        label = labels.get(field, field)
+        return f"你的{label}不够（需要 {condition.value!r}，当前 {actual!r}）。"
+    if isinstance(condition, Predicate):
+        return f"需要满足 {condition.name}"
+    return "不满足学习条件。"
 
 
 @register("sell")
@@ -987,8 +1200,18 @@ def _find_shop_npc(world: World, player_id: EntityId) -> EntityId | None:
     return None
 
 
-def _shop_entry_by_item_name(world: World, shop: ShopInventory, item_name: str):
+def _shop_entry_by_name(world: World, shop: ShopInventory, item_name: str):
+    """按物品模板名或坐骑蓝图名匹配商店条目。"""
     for entry in shop.entries:
+        if entry.mount_template_key:
+            blueprint = world.spawners.get(entry.mount_template_key)
+            if blueprint is None:
+                continue
+            if blueprint.name == item_name or item_name in blueprint.aliases:
+                return entry
+            continue
+        if not entry.item_template_key:
+            continue
         template = world.item_templates.get(entry.item_template_key)
         if template is None:
             continue
@@ -997,6 +1220,24 @@ def _shop_entry_by_item_name(world: World, shop: ShopInventory, item_name: str):
         aliases = template.get("aliases") or ()
         if item_name in {str(a) for a in aliases}:
             return entry
+    return None
+
+
+def _shop_entry_by_item_name(world: World, shop: ShopInventory, item_name: str):
+    """兼容旧名。"""
+    return _shop_entry_by_name(world, shop, item_name)
+
+
+def _find_mount_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
+    room = _player_room(world, player_id)
+    for entity in world.entities_in_room(room, exclude=player_id):
+        if not world.has_component(entity, Mount):
+            continue
+        identity = world.get_component(entity, Identity)
+        if identity is None:
+            continue
+        if identity.name == name or name in identity.aliases:
+            return entity
     return None
 
 
@@ -1024,6 +1265,8 @@ def _resell_discount_for_item(world: World, shop: ShopInventory, item: EntityId)
     """清单内用条目折扣；清单外用 ``_DEFAULT_RESELL_DISCOUNT``（见模块常量注释）。"""
     identity = world.require_component(item, Identity)
     for entry in shop.entries:
+        if not entry.item_template_key:
+            continue
         template = world.item_templates.get(entry.item_template_key)
         if template is None:
             continue

@@ -39,12 +39,17 @@ from mud_engine.components import (
     Dead,
     Description,
     Engaged,
+    EntryGuard,
     Equippable,
     Faction,
     Ferry,
+    Gender,
     Inquiry,
     ItemFlags,
+    ItemTags,
+    Mount,
     NoDeathZone,
+    Riding,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -294,6 +299,30 @@ def _des_weight(d: dict) -> Weight:
     return Weight(value=float(d.get("value", 0.0)))
 
 
+def _parse_item_tags(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> ItemTags | None:
+    """``tags: [weapon, edged]`` 或 ``item_tags: [...]``。"""
+    raw = data.get("tags", data.get("item_tags"))
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return ItemTags(tags=frozenset({raw}))
+    if not isinstance(raw, (list, tuple, set, frozenset)):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 tags 应是列表，实际是 {type(raw).__name__}"
+        )
+    return ItemTags(tags=frozenset(str(t) for t in raw))
+
+
+def _ser_item_tags(c: ItemTags) -> dict:
+    return {"tags": sorted(c.tags)}
+
+
+def _des_item_tags(d: dict) -> ItemTags:
+    return ItemTags(tags=frozenset(str(t) for t in d.get("tags", ())))
+
+
 def _ser_container(c: Container) -> dict:
     payload: dict = {"items": sorted(c.items)}
     if c.max_capacity is not None:
@@ -364,6 +393,13 @@ CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_weight,
         to_dict=_ser_weight,
         from_dict=_des_weight,
+    ),
+    CapabilitySpec(
+        component_type=ItemTags,
+        known_fields=frozenset({"tags", "item_tags"}),
+        from_yaml=_parse_item_tags,
+        to_dict=_ser_item_tags,
+        from_dict=_des_item_tags,
     ),
 ]
 
@@ -477,6 +513,35 @@ def _des_ferry(d: dict) -> Ferry:
     )
 
 
+def _parse_entry_guard(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> EntryGuard | None:
+    """``entry_guard: {condition: {...}, deny_message: "..."}``。"""
+    raw = data.get("entry_guard")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'entry_guard' 应是映射，实际是 {type(raw).__name__}"
+        )
+    cond = raw.get("condition")
+    if not isinstance(cond, Mapping):
+        raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 entry_guard.condition 应是映射")
+    msg = raw.get("deny_message") or raw.get("message") or "你不能进入此地。"
+    return EntryGuard(condition=dict(cond), deny_message=str(msg))
+
+
+def _ser_entry_guard(c: EntryGuard) -> dict:
+    return {"condition": dict(c.condition), "deny_message": c.deny_message}
+
+
+def _des_entry_guard(d: dict) -> EntryGuard:
+    return EntryGuard(
+        condition=dict(d.get("condition", {})),
+        deny_message=str(d.get("deny_message", "你不能进入此地。")),
+    )
+
+
 ROOM_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Description,
@@ -498,6 +563,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_ferry,
         to_dict=_ser_ferry,
         from_dict=_des_ferry,
+    ),
+    CapabilitySpec(
+        component_type=EntryGuard,
+        known_fields=frozenset({"entry_guard"}),
+        from_yaml=_parse_entry_guard,
+        to_dict=_ser_entry_guard,
+        from_dict=_des_entry_guard,
     ),
 ]
 
@@ -840,11 +912,7 @@ def _des_currency(d: dict) -> Currency:
 def _parse_shop(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> ShopInventory | None:
-    """``shop:`` 列表；条目 ``{item, resell_discount?}`` 或裸模板键字符串。
-
-    物品模板存在性与 Valuable 校验由 scene_loader 在 items 建完后补做
-    （本函数解析时 item_templates 可能尚未就绪）。
-    """
+    """``shop:`` 列表；条目 ``{item, ...}`` / ``{mount, price}`` / 裸物品模板键。"""
     raw = data.get("shop")
     if raw is None:
         return None
@@ -862,9 +930,8 @@ def _parse_shop(
                 f"场景文件 {scene_path} 的{label}的 shop[{index}] "
                 f"应是映射或模板键字符串，实际是 {type(entry).__name__}"
             )
-        key = entry.get("item") or entry.get("item_template_key")
-        if not key:
-            raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 shop[{index}] 缺少 'item'")
+        mount_key = entry.get("mount") or entry.get("mount_template_key")
+        item_key = entry.get("item") or entry.get("item_template_key")
         discount_raw = entry.get("resell_discount", 1.0)
         try:
             discount = float(discount_raw)  # type: ignore[arg-type]
@@ -873,7 +940,39 @@ def _parse_shop(
                 f"场景文件 {scene_path} 的{label}的 shop[{index}] "
                 f"的 resell_discount 应是数字，实际是 {discount_raw!r}"
             ) from exc
-        entries.append(ShopEntry(item_template_key=str(key), resell_discount=discount))
+        price = None
+        if "price" in entry and entry["price"] is not None:
+            try:
+                price = int(entry["price"])  # type: ignore[arg-type]
+            except (TypeError, ValueError) as exc:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的{label}的 shop[{index}] "
+                    f"的 price 应是整数，实际是 {entry['price']!r}"
+                ) from exc
+        if mount_key:
+            if price is None or price < 0:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的{label}的 shop[{index}] 出售坐骑时必须声明非负 price"
+                )
+            entries.append(
+                ShopEntry(
+                    mount_template_key=str(mount_key),
+                    resell_discount=discount,
+                    price=price,
+                )
+            )
+            continue
+        if not item_key:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 shop[{index}] 缺少 'item' 或 'mount'"
+            )
+        entries.append(
+            ShopEntry(
+                item_template_key=str(item_key),
+                resell_discount=discount,
+                price=price,
+            )
+        )
     return ShopInventory(entries=tuple(entries))
 
 
@@ -882,7 +981,9 @@ def _ser_shop(c: ShopInventory) -> dict:
         "entries": [
             {
                 "item_template_key": e.item_template_key,
+                "mount_template_key": e.mount_template_key,
                 "resell_discount": e.resell_discount,
+                "price": e.price,
             }
             for e in c.entries
         ]
@@ -892,8 +993,14 @@ def _ser_shop(c: ShopInventory) -> dict:
 def _des_shop(d: dict) -> ShopInventory:
     entries = tuple(
         ShopEntry(
-            item_template_key=str(e["item_template_key"]),
+            item_template_key=(
+                None if e.get("item_template_key") in (None, "") else str(e["item_template_key"])
+            ),
+            mount_template_key=(
+                None if e.get("mount_template_key") in (None, "") else str(e["mount_template_key"])
+            ),
             resell_discount=float(e.get("resell_discount", 1.0)),
+            price=None if e.get("price") is None else int(e["price"]),
         )
         for e in d.get("entries", [])
     )
@@ -955,6 +1062,80 @@ def _ser_engaged(c: Engaged) -> dict:
 
 def _des_engaged(d: dict) -> Engaged:
     return Engaged(opponent=int(d["opponent"]))
+
+
+def _parse_mount(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Mount | None:
+    """``mount: {ability, jingli/jingli_current, jingli_max}``。"""
+    raw = data.get("mount")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'mount' 应是映射，实际是 {type(raw).__name__}"
+        )
+    try:
+        ability = int(raw.get("ability", 1))
+        jingli_max = int(raw.get("jingli_max", raw.get("jingli", 100)))
+        jingli_current = int(raw.get("jingli_current", jingli_max))
+    except (TypeError, ValueError) as exc:
+        raise SceneLoadError(f"场景文件 {scene_path} 的{label}的 mount 字段应是整数") from exc
+    return Mount(
+        ability=ability,
+        jingli_current=jingli_current,
+        jingli_max=jingli_max,
+        ridden_by=None,
+    )
+
+
+def _ser_mount(c: Mount) -> dict:
+    return {
+        "ability": c.ability,
+        "jingli_current": c.jingli_current,
+        "jingli_max": c.jingli_max,
+        "ridden_by": c.ridden_by,
+    }
+
+
+def _des_mount(d: dict) -> Mount:
+    ridden = d.get("ridden_by")
+    return Mount(
+        ability=int(d.get("ability", 1)),
+        jingli_current=int(d.get("jingli_current", 0)),
+        jingli_max=int(d.get("jingli_max", 0)),
+        ridden_by=None if ridden is None else int(ridden),
+    )
+
+
+def _ser_riding(c: Riding) -> dict:
+    return {"mount_id": int(c.mount_id)}
+
+
+def _des_riding(d: dict) -> Riding:
+    return Riding(mount_id=int(d["mount_id"]))
+
+
+def _parse_gender(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Gender | None:
+    """``gender: male`` 或 ``gender: {value: ...}``。"""
+    if "gender" not in data:
+        return None
+    raw = data["gender"]
+    if raw is None:
+        return None
+    if isinstance(raw, Mapping):
+        raw = raw.get("value", raw.get("gender"))
+    return Gender(value=str(raw))
+
+
+def _ser_gender(c: Gender) -> dict:
+    return {"value": c.value}
+
+
+def _des_gender(d: dict) -> Gender:
+    return Gender(value=str(d.get("value", "")))
 
 
 NPC_CAPABILITIES: list[CapabilitySpec] = [
@@ -1042,6 +1223,27 @@ NPC_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_runtime_marker,
         to_dict=_ser_engaged,
         from_dict=_des_engaged,
+    ),
+    CapabilitySpec(
+        component_type=Mount,
+        known_fields=frozenset({"mount"}),
+        from_yaml=_parse_mount,
+        to_dict=_ser_mount,
+        from_dict=_des_mount,
+    ),
+    CapabilitySpec(
+        component_type=Riding,
+        known_fields=frozenset(),
+        from_yaml=_parse_runtime_marker,
+        to_dict=_ser_riding,
+        from_dict=_des_riding,
+    ),
+    CapabilitySpec(
+        component_type=Gender,
+        known_fields=frozenset({"gender"}),
+        from_yaml=_parse_gender,
+        to_dict=_ser_gender,
+        from_dict=_des_gender,
     ),
 ]
 
