@@ -143,9 +143,11 @@ def _tick_behavior(
     rng: Rng,
     cond_ctx: ConditionContext,
 ) -> None:
-    """按 kind 分发单条行为；M1 只认识 chatter，未知 kind 静默跳过。"""
+    """按 kind 分发单条行为；认识 chatter / aggro，未知 kind 静默跳过。"""
     if spec.kind == "chatter":
         _tick_chatter(world, entity, spec, rng=rng, cond_ctx=cond_ctx)
+    elif spec.kind == "aggro":
+        _tick_aggro(world, entity, spec, cond_ctx=cond_ctx)
 
 
 def _tick_chatter(
@@ -172,6 +174,40 @@ def _tick_chatter(
     from mud_engine.commands import room_say
 
     room_say(world, entity, text)
+
+
+def _tick_aggro(
+    world: World,
+    entity: EntityId,
+    spec: BehaviorSpec,
+    *,
+    cond_ctx: ConditionContext,
+) -> None:
+    """Aggro（M2-19）：条件通过后攻击同房间第一个未交战的玩家。
+
+    目标遍历按 entity id 升序，保证确定性（不依赖 set 遍历顺序）。
+    建立交战复用 ``try_engage``（与 attack 命令同一底层函数）。
+    """
+    from mud_engine.combat_system import try_engage
+    from mud_engine.components import Engaged, PlayerSession, Position
+
+    condition = condition_from_data(spec.when)
+    if condition is not None and not evaluate(condition, cond_ctx):
+        return
+    if world.has_component(entity, Engaged):
+        return
+    pos = world.get_component(entity, Position)
+    if pos is None:
+        return
+    # 确定性：按 entity id 排序后取第一个未 Engaged 的玩家。
+    candidates = sorted(
+        e
+        for e in world.entities_in_room(pos.room, exclude=entity)
+        if world.has_component(e, PlayerSession) and not world.has_component(e, Engaged)
+    )
+    if not candidates:
+        return
+    try_engage(world, entity, candidates[0])
 
 
 def spawn_scan(world: World) -> None:
