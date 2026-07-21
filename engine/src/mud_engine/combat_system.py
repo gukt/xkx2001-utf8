@@ -147,7 +147,7 @@ def resolve_one_strike(
         return None
     power = world.power_model
     result = resolve_attack(combat_ctx, rng, power_model=power)
-    apply_combat_result(world, defender, result)
+    apply_combat_result(world, defender, result, attacker=attacker)
     world.events.dispatch(
         ON_COMBAT_ROUND,
         CombatRoundContext(
@@ -218,14 +218,25 @@ def select_move(world: World, attacker: EntityId) -> CombatMoveSnapshot:
     )
 
 
-def apply_combat_result(world: World, defender: EntityId, result: CombatRoundResult) -> None:
-    """把伤害写回防御方 Vitals（本票不触发死亡状态机）。"""
+def apply_combat_result(
+    world: World,
+    defender: EntityId,
+    result: CombatRoundResult,
+    *,
+    attacker: EntityId | None = None,
+) -> None:
+    """把伤害写回防御方 Vitals；气血归零时分流玩家/NPC 死亡流程（M2-17/18）。"""
     if result.damage <= 0:
         return
     vitals = world.get_component(defender, Vitals)
     if vitals is None:
         return
     vitals.qi_current = max(0, vitals.qi_current - result.damage)
+    if vitals.qi_current <= 0:
+        from mud_engine.death_flow import handle_vitals_depleted
+
+        rng = getattr(getattr(world, "combat", None), "rng", None)
+        handle_vitals_depleted(world, defender, killer_id=attacker, rng=rng)
 
 
 def _on_combat_tick(context: TickContext) -> None:

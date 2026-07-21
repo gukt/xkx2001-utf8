@@ -64,6 +64,7 @@ from mud_engine.components import (
     Vitals,
     Weight,
 )
+from mud_engine.death_flow import UNCONSCIOUS_BLOCKED_VERBS
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
 from mud_engine.npc_query import is_askable_npc
@@ -257,6 +258,13 @@ def execute(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if intent.verb not in _REGISTRY:
         # 未知动词无处理函数：before/after 不挂（否决一个不存在的命令无意义）。
         return _unknown_verb_message(intent.verb)
+
+    # 昏迷态行为限制（M2-17 / to-tickets 决策 4）：至少禁止 attack/flee/go 等行动。
+    if (
+        world.has_component(player_id, Unconscious)
+        and intent.verb in UNCONSCIOUS_BLOCKED_VERBS
+    ):
+        return ["你昏迷不醒，无法行动。"]
 
     denial, effective_intent = _run_before_hooks(world, player_id, intent)
     if denial is not None:

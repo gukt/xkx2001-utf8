@@ -78,6 +78,10 @@ class World:
         self.spawners: dict[str, SpawnerBlueprint] = {}
         # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
         self.item_templates: dict[str, dict] = {}
+        # 房间键 → entity id（M2-17 复活点解析）；纯内存、不进存档。
+        self.room_ids: dict[str, EntityId] = {}
+        # 死亡策略（M2-17）；纯内存、不进存档，由 load_scene 填充。
+        self.death_policy: object | None = None
         # 渡口运行时态（M2-09）：纯内存、不进存档；由 ``attach_ferries`` 挂载。
         self.ferries: FerryState | None = None
         # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的

@@ -1,0 +1,200 @@
+"""M2-17 / M2-18：玩家死亡流程 + NPC 击杀掉落 / 重生。"""
+
+from __future__ import annotations
+
+import random
+from pathlib import Path
+
+from mud_engine.components import (
+    Container,
+    Currency,
+    Engaged,
+    Identity,
+    NpcSpawnMeta,
+    Position,
+    SkillLevels,
+    Unconscious,
+    Vitals,
+)
+from mud_engine.death_flow import ON_BEFORE_DEATH, DeathContext, handle_vitals_depleted
+from mud_engine.events import Deny
+from mud_engine.parsing import execute_line
+from mud_engine.scene_loader import load_scene
+
+
+def _write_scene(tmp_path: Path, content: str) -> Path:
+    path = tmp_path / "scene.yaml"
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+_BASE = """
+rooms:
+  yard:
+    name: 院子
+    exits:
+      north: village
+  village:
+    name: 华山村
+    no_death: true
+    exits:
+      south: yard
+death_policy:
+  penalty_ratio: 0.5
+  revive_room: village
+  drop_currency: true
+  drop_items: true
+items:
+  herb:
+    name: 解毒丹
+    short: 解毒丹
+    placed_in: yard
+skills:
+  basic_fist:
+    type: martial
+    level_req: 0
+    moves:
+      - name: 直拳
+        force: 50
+        dodge: 0
+        damage_type: blunt
+        damage: 50
+npcs:
+  bandit:
+    name: 山贼
+    in_room: yard
+    respawn: true
+    count: 1
+    loot:
+      currency: [10, 10]
+      items: [herb]
+      kill_exp: 7
+    vitals:
+      qi_current: 30
+      qi_max: 30
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
+    attributes:
+      str: 5
+      con: 5
+      dex: 0
+      int: 5
+    skills:
+      basic_fist:
+        level: 1
+        exp: 0
+player:
+  name: 你
+  start_room: yard
+  currency: 100
+  vitals:
+    qi: 20
+    qi_max: 100
+    neili: 50
+    neili_max: 50
+    jingli: 50
+    jingli_max: 50
+  attributes:
+    str: 30
+    con: 10
+    dex: 0
+    int: 10
+  skills:
+    basic_fist:
+      level: 1
+      exp: 40
+"""
+
+
+def _npc_named(world, name: str):
+    for entity in world.entities_with(Identity, NpcSpawnMeta):
+        if world.require_component(entity, Identity).name == name:
+            return entity
+    return None
+
+
+class TestPlayerDeathFlow:
+    def test_first_deplete_unconscious_second_kills_and_revives(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        # 背包放一解毒丹（从地面 take 或直接放）：用商店路径太重，改从 items 地面拿
+        # 场景未放地上物品；直接断言惩罚与复活即可。
+        vitals = world.require_component(player_id, Vitals)
+        vitals.qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Position).room == world.room_ids["yard"]
+
+        # 昏迷中再次归零 → 死亡完整流程
+        vitals.qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert not world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Position).room == world.room_ids["village"]
+        assert world.require_component(player_id, Vitals).qi_current == 100
+        assert world.require_component(player_id, Currency).amount == 50  # 100 * 0.5
+        exp = world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
+        assert exp == 20  # 40 * 0.5
+
+    def test_no_death_zone_stays_unconscious(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        execute_line(world, player_id, "go north")
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert world.has_component(player_id, Unconscious)
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Currency).amount == 100
+
+    def test_before_death_deny_skips_flow(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)  # → unconscious
+        world.events.register(ON_BEFORE_DEATH, lambda ctx: Deny(message="免死符生效。"))
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Currency).amount == 100
+        assert world.require_component(player_id, Position).room == world.room_ids["yard"]
+
+    def test_unconscious_blocks_attack(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        world.add_component(player_id, Unconscious())
+        lines = execute_line(world, player_id, "attack 山贼")
+        assert any("昏迷" in line for line in lines)
+
+
+class TestNpcDeathAndLoot:
+    def test_kill_npc_grants_loot_and_exp(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        bandit = _npc_named(world, "山贼")
+        assert bandit is not None
+        world.require_component(bandit, Vitals).qi_current = 0
+        before_money = world.require_component(player_id, Currency).amount
+        before_exp = world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
+        handle_vitals_depleted(world, bandit, killer_id=player_id, rng=random.Random(0))
+        assert _npc_named(world, "山贼") is None
+        assert world.require_component(player_id, Currency).amount == before_money + 10
+        assert (
+            world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
+            == before_exp + 7
+        )
+        yard = world.room_ids["yard"]
+        floor_names = [
+            world.require_component(i, Identity).name
+            for i in world.require_component(yard, Container).items
+        ]
+        assert "解毒丹" in floor_names
+
+    def test_respawn_after_scan(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        from mud_engine.ai import spawn_scan
+
+        bandit = _npc_named(world, "山贼")
+        assert bandit is not None
+        world.require_component(bandit, Vitals).qi_current = 0
+        handle_vitals_depleted(world, bandit, killer_id=player_id, rng=random.Random(0))
+        assert _npc_named(world, "山贼") is None
+        spawn_scan(world)
+        assert _npc_named(world, "山贼") is not None

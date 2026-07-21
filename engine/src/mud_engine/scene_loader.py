@@ -28,6 +28,7 @@ from mud_engine.capabilities import (
     CapabilitySpec,
 )
 from mud_engine.combat_system import attach_combat_system
+from mud_engine.death_flow import parse_death_policy, parse_loot_table
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -79,6 +80,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     replace_skills_registry(load_skills_from_mapping(data.get("skills"), scene_path))
     replace_factions_registry(load_factions_from_mapping(data.get("factions"), scene_path))
     room_ids = _build_rooms(world, rooms, scene_path)
+    world.room_ids = dict(room_ids)
+    world.death_policy = parse_death_policy(data.get("death_policy"))
     _resolve_ferry_refs(world, room_ids, scene_path)
     item_ids = _build_items(world, items, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
@@ -131,7 +134,9 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 #   进本集合即可，不为个别字段建注册表。
 # - ``_TOP_LEVEL_KNOWN_SECTIONS``：``skills:`` / ``factions:`` 是全局注册表模式，
 #   不是实体能力（M2-03 / M2-08）。
-_TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player", "skills", "factions"})
+_TOP_LEVEL_KNOWN_SECTIONS = frozenset(
+    {"rooms", "items", "npcs", "player", "skills", "factions", "death_policy"}
+)
 _ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
@@ -158,6 +163,7 @@ _NPC_INTRINSIC_FIELDS = frozenset(
         "startroom",
         "count",
         "respawn",
+        "loot",
     }
 )
 _NPC_KNOWN_FIELDS = frozenset(
@@ -505,6 +511,12 @@ def _build_npcs(
         extra_caps = tuple(
             component for ctype, component in capability_seed.items() if ctype not in _SPECIAL_NPC
         )
+        extras: dict[str, object] = {}
+        if extra_caps:
+            extras["capabilities"] = extra_caps
+        loot = parse_loot_table(data.get("loot"))
+        if loot is not None:
+            extras["loot"] = loot
         blueprint = SpawnerBlueprint(
             template_key=str(npc_key),
             name=str(name),
@@ -521,7 +533,7 @@ def _build_npcs(
                 if AIController in capability_seed
                 else 1
             ),
-            extras={"capabilities": extra_caps} if extra_caps else {},
+            extras=extras,
         )
         world.spawners[str(npc_key)] = blueprint
         for _ in range(count):
