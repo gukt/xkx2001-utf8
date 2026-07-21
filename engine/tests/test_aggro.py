@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Engaged, Identity, PlayerSession
+from mud_engine.components import Engaged, Identity
 from mud_engine.scene_loader import load_scene
 from mud_engine.tick import TickLoop
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mud_engine.combat_system import clear_engagement, select_move
 from mud_engine.components import (
     Container,
     Currency,
@@ -27,7 +28,6 @@ from mud_engine.components import (
     Unconscious,
     Vitals,
 )
-from mud_engine.combat_system import clear_engagement, select_move
 from mud_engine.death import DeathState, next_death_state
 from mud_engine.events import run_vetoable
 from mud_engine.transfer import transfer

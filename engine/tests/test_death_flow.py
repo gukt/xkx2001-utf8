@@ -8,7 +8,6 @@ from pathlib import Path
 from mud_engine.components import (
     Container,
     Currency,
-    Engaged,
     Identity,
     NpcSpawnMeta,
     Position,
@@ -16,7 +15,7 @@ from mud_engine.components import (
     Unconscious,
     Vitals,
 )
-from mud_engine.death_flow import ON_BEFORE_DEATH, DeathContext, handle_vitals_depleted
+from mud_engine.death_flow import ON_BEFORE_DEATH, handle_vitals_depleted
 from mud_engine.events import Deny
 from mud_engine.parsing import execute_line
 from mud_engine.scene_loader import load_scene

@@ -9,6 +9,7 @@ Seams：
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -25,6 +26,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXAMPLE_PACK = (
     _REPO_ROOT / ".scratch" / "m3-ugc-loop-creation-surface" / "example-pack"
 )
+
+# 04 号票命令清单：(命令, 期望子串)；末步 look 确认终点描述。
+_JOURNEY_STEPS: list[tuple[str, str]] = [
+    ("look", "气闸舱"),
+    ("go east", "补给舱"),
+    ("get 通行卡", "通行卡"),
+    ("unlock east", "解锁"),
+    ("open east", "打开"),
+    ("go east", "主控室"),
+    ("ask 维修机器人 about 站点", "废弃探测站"),
+    ("ask 维修机器人 about 未知话题xyz", "可询问"),
+    ("buy 备用能量芯", "备用能量芯"),
+    ("look", "主控室"),
+]
 
 
 def _copy_example_pack(dest: Path) -> Path:
@@ -52,6 +67,29 @@ def _combined(messages: list[str]) -> str:
     return "\n".join(messages)
 
 
+def _arrive_control(world: World, player_id: EntityId) -> None:
+    execute_line(world, player_id, "go east")
+    execute_line(world, player_id, "get 通行卡")
+    execute_line(world, player_id, "unlock east")
+    execute_line(world, player_id, "open east")
+    execute_line(world, player_id, "go east")
+
+
+def _play_move_and_get_then_save(
+    world: World,
+    player_id: EntityId,
+    *,
+    tick_loop,
+    after: Callable[[World, EntityId], None] | None = None,
+) -> None:
+    execute_line(world, player_id, "go east")
+    execute_line(world, player_id, "get 通行卡")
+    if after is not None:
+        after(world, player_id)
+    assert tick_loop is not None
+    tick_loop.force_save()
+
+
 @pytest.fixture
 def stub_repl(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     stub = MagicMock()
@@ -67,81 +105,106 @@ class TestM3PackJourney:
         messages = execute_line(world, player_id, "look")
         assert "气闸舱" in _combined(messages)
 
-    def test_go_east_reaches_supply(self, tmp_path: Path) -> None:
+    def test_go_east_message_names_supply(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
         messages = execute_line(world, player_id, "go east")
         assert "补给舱" in _combined(messages)
+
+    def test_go_east_moves_to_supply_room(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        execute_line(world, player_id, "go east")
         assert world.require_component(player_id, Position).room == _room(
             world, "outpost_supply"
         )
 
-    def test_get_access_card(self, tmp_path: Path) -> None:
+    def test_get_access_card_message(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
         execute_line(world, player_id, "go east")
         messages = execute_line(world, player_id, "get 通行卡")
         assert "通行卡" in _combined(messages)
-        assert "通行卡" in _inventory_names(world, player_id)
 
-    def test_unlock_open_and_enter_control(self, tmp_path: Path) -> None:
+    def test_get_access_card_adds_to_inventory(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
         execute_line(world, player_id, "go east")
         execute_line(world, player_id, "get 通行卡")
-        unlock = execute_line(world, player_id, "unlock east")
-        assert "解锁" in _combined(unlock)
-        open_msgs = execute_line(world, player_id, "open east")
-        assert "打开" in _combined(open_msgs)
-        enter = execute_line(world, player_id, "go east")
-        assert "主控室" in _combined(enter)
+        assert "通行卡" in _inventory_names(world, player_id)
+
+    def test_unlock_east_message(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        execute_line(world, player_id, "go east")
+        execute_line(world, player_id, "get 通行卡")
+        messages = execute_line(world, player_id, "unlock east")
+        assert "解锁" in _combined(messages)
+
+    def test_open_east_message(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        execute_line(world, player_id, "go east")
+        execute_line(world, player_id, "get 通行卡")
+        execute_line(world, player_id, "unlock east")
+        messages = execute_line(world, player_id, "open east")
+        assert "打开" in _combined(messages)
+
+    def test_enter_control_message(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        execute_line(world, player_id, "go east")
+        execute_line(world, player_id, "get 通行卡")
+        execute_line(world, player_id, "unlock east")
+        execute_line(world, player_id, "open east")
+        messages = execute_line(world, player_id, "go east")
+        assert "主控室" in _combined(messages)
+
+    def test_enter_control_room_id(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        _arrive_control(world, player_id)
         assert world.require_component(player_id, Position).room == _room(
             world, "outpost_control"
         )
 
     def test_ask_inquiry_topic(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
-        self._arrive_control(world, player_id)
+        _arrive_control(world, player_id)
         messages = execute_line(world, player_id, "ask 维修机器人 about 站点")
         assert "废弃探测站" in _combined(messages)
 
     def test_ask_inquiry_default(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
-        self._arrive_control(world, player_id)
+        _arrive_control(world, player_id)
         messages = execute_line(world, player_id, "ask 维修机器人 about 未知话题xyz")
         assert "可询问" in _combined(messages)
 
-    def test_buy_power_cell(self, tmp_path: Path) -> None:
+    def test_buy_power_cell_message(self, tmp_path: Path) -> None:
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
-        self._arrive_control(world, player_id)
-        before = world.require_component(player_id, Currency).amount
+        _arrive_control(world, player_id)
         messages = execute_line(world, player_id, "buy 备用能量芯")
         assert "备用能量芯" in _combined(messages)
+
+    def test_buy_power_cell_decrements_currency(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        _arrive_control(world, player_id)
+        before = world.require_component(player_id, Currency).amount
+        execute_line(world, player_id, "buy 备用能量芯")
         assert world.require_component(player_id, Currency).amount == before - 25
+
+    def test_buy_power_cell_adds_to_inventory(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        _arrive_control(world, player_id)
+        execute_line(world, player_id, "buy 备用能量芯")
         assert "备用能量芯" in _inventory_names(world, player_id)
 
-    def test_full_loop_ends_in_control_room(self, tmp_path: Path) -> None:
-        """整条 04 号票序列串跑一遍，终点为主控室。"""
+    def test_full_loop_asserts_every_step_message(self, tmp_path: Path) -> None:
+        """整条 04 号票序列串跑，逐步断言关键返回消息。"""
         world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
-        execute_line(world, player_id, "look")
-        execute_line(world, player_id, "go east")
-        execute_line(world, player_id, "get 通行卡")
-        execute_line(world, player_id, "unlock east")
-        execute_line(world, player_id, "open east")
-        execute_line(world, player_id, "go east")
-        execute_line(world, player_id, "ask 维修机器人 about 站点")
-        execute_line(world, player_id, "ask 维修机器人 about 未知话题xyz")
-        execute_line(world, player_id, "buy 备用能量芯")
-        look = execute_line(world, player_id, "look")
-        assert "主控室" in _combined(look)
+        for line, needle in _JOURNEY_STEPS:
+            messages = execute_line(world, player_id, line)
+            assert needle in _combined(messages), f"{line!r} 缺少 {needle!r}"
+
+    def test_full_loop_ends_in_control_room(self, tmp_path: Path) -> None:
+        world, player_id = load_pack(_copy_example_pack(tmp_path / "pack"))
+        for line, _needle in _JOURNEY_STEPS:
+            execute_line(world, player_id, line)
         assert world.require_component(player_id, Position).room == _room(
             world, "outpost_control"
         )
-
-    @staticmethod
-    def _arrive_control(world: World, player_id: EntityId) -> None:
-        execute_line(world, player_id, "go east")
-        execute_line(world, player_id, "get 通行卡")
-        execute_line(world, player_id, "unlock east")
-        execute_line(world, player_id, "open east")
-        execute_line(world, player_id, "go east")
 
 
 class TestM3ValidateBadPacks:
@@ -212,6 +275,30 @@ class TestM3ValidateBadPacks:
 
 
 class TestM3PackCliSaveRestore:
+    def test_first_pack_run_returns_zero(
+        self, tmp_path: Path, stub_repl: MagicMock
+    ) -> None:
+        pack_dir = _copy_example_pack(tmp_path / "pack")
+
+        def play_and_save(world, player_id, *, tick_loop=None, **_kwargs):
+            _play_move_and_get_then_save(world, player_id, tick_loop=tick_loop)
+
+        stub_repl.side_effect = play_and_save
+        assert _main(["--pack", str(pack_dir)]) == 0
+
+    def test_restore_run_returns_zero(
+        self, tmp_path: Path, stub_repl: MagicMock
+    ) -> None:
+        pack_dir = _copy_example_pack(tmp_path / "pack")
+
+        def play_and_save(world, player_id, *, tick_loop=None, **_kwargs):
+            _play_move_and_get_then_save(world, player_id, tick_loop=tick_loop)
+
+        stub_repl.side_effect = play_and_save
+        _main(["--pack", str(pack_dir)])
+        stub_repl.side_effect = lambda *a, **k: None
+        assert _main(["--pack", str(pack_dir)]) == 0
+
     def test_restores_position_after_save(
         self, tmp_path: Path, stub_repl: MagicMock
     ) -> None:
@@ -219,24 +306,21 @@ class TestM3PackCliSaveRestore:
         saved_room: list[str] = []
 
         def play_and_save(world, player_id, *, tick_loop=None, **_kwargs):
-            execute_line(world, player_id, "go east")
-            execute_line(world, player_id, "get 通行卡")
-            saved_room.append(_player_room_name(world, player_id))
-            assert tick_loop is not None
-            tick_loop.force_save()
+            _play_move_and_get_then_save(
+                world,
+                player_id,
+                tick_loop=tick_loop,
+                after=lambda w, p: saved_room.append(_player_room_name(w, p)),
+            )
 
         stub_repl.side_effect = play_and_save
-        assert _main(["--pack", str(pack_dir)]) == 0
-
-        restored: list[World] = []
+        _main(["--pack", str(pack_dir)])
 
         def capture_restore(world, player_id, **_kwargs):
-            restored.append(world)
             assert _player_room_name(world, player_id) == saved_room[0]
 
         stub_repl.side_effect = capture_restore
-        assert _main(["--pack", str(pack_dir)]) == 0
-        assert len(restored) == 1
+        _main(["--pack", str(pack_dir)])
 
     def test_restores_inventory_after_save(
         self, tmp_path: Path, stub_repl: MagicMock
@@ -245,11 +329,12 @@ class TestM3PackCliSaveRestore:
         saved_inv: list[set[str]] = []
 
         def play_and_save(world, player_id, *, tick_loop=None, **_kwargs):
-            execute_line(world, player_id, "go east")
-            execute_line(world, player_id, "get 通行卡")
-            saved_inv.append(_inventory_names(world, player_id))
-            assert tick_loop is not None
-            tick_loop.force_save()
+            _play_move_and_get_then_save(
+                world,
+                player_id,
+                tick_loop=tick_loop,
+                after=lambda w, p: saved_inv.append(_inventory_names(w, p)),
+            )
 
         stub_repl.side_effect = play_and_save
         _main(["--pack", str(pack_dir)])
@@ -267,9 +352,7 @@ class TestM3PackCliSaveRestore:
         expected = load_manifest(pack_dir)
 
         def play_and_save(world, player_id, *, tick_loop=None, **_kwargs):
-            execute_line(world, player_id, "go east")
-            assert tick_loop is not None
-            tick_loop.force_save()
+            _play_move_and_get_then_save(world, player_id, tick_loop=tick_loop)
 
         stub_repl.side_effect = play_and_save
         _main(["--pack", str(pack_dir)])

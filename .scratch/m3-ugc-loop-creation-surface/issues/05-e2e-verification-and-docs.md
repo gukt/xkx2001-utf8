@@ -17,4 +17,5 @@
 
 ## Comments
 
-- 2026-07-21 `/implement`：落地如上。ADR-0005 与本次实现一致（manifest + 声明式包外内容 + `--validate` 校验契约），无需修订记录。`just lint` 仓库内仍有与本票无关的既有 I001/F401；本票新增文件 ruff 干净。
+- 2026-07-21 `/implement`：落地如上。ADR-0005 与本次实现一致（manifest + 声明式包外内容 + `--validate` 校验契约）；补「落地核对」段，不改判 Status。
+- 2026-07-21 `/code-review` fix：拆复合断言；`test_full_loop_asserts_every_step_message` 逐步断言；补 `test_verify_m3_matrix.py`；ruff 清仓库既有 I001/F401，使 `just lint` 全绿。

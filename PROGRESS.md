@@ -11,13 +11,13 @@
 
 - **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 完成**；下一步 M4（商业化支撑点数据模型，不要求真实计费）；post-MVP 见 [.scratch/mvp-scope/post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)。
 - **工作分支**：`feat/m3-ugc-loop-creation-surface`（Wave 3 fixed point tag：`m3-wave3-start`）。
-- **engine/**：测试绿（638）。
+- **engine/**：测试绿（649）。
 
 ## Done
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **M3 UGC 闭环打通一次**（2026-07-21）：Wave 3 票 [05](.scratch/m3-ugc-loop-creation-surface/issues/05-e2e-verification-and-docs.md)——`test_m3_pack_loop.py` + `verify_m3_pack_loop.py` + `just verify-m3`；示例包端到端剧本 / 坏包 `--validate` / CLI 存档恢复；[spec](.scratch/m3-ugc-loop-creation-surface/spec.md)。638 绿。
+- [x] **M3 UGC 闭环打通一次**（2026-07-21）：Wave 3 票 [05](.scratch/m3-ugc-loop-creation-surface/issues/05-e2e-verification-and-docs.md)——`test_m3_pack_loop.py` + `verify_m3_pack_loop.py` + `just verify-m3`；示例包端到端剧本 / 坏包 `--validate` / CLI 存档恢复；[spec](.scratch/m3-ugc-loop-creation-surface/spec.md)。Review fix 后测试绿。
 - [x] **M3 Wave 2 `/implement` + `/code-review` fix**（2026-07-21）：票 `03` CLI `--pack`/`--validate` + 票 `04` 废弃探测站示例包；fixed point `m3-wave2-start`。Review fix：缺目录错误前缀分层、默认存档目录断言、测试拆复合断言。621 绿。
 - [x] **M3 Wave 1 `/implement` + `/code-review` fix**（2026-07-21）：票 `02`——`load_pack` + `World.pack_manifest` + `reattach_pack_manifest`；`save.py` 零改动；fixed point `m3-wave1-start`。Review fix：拆成功路径与 restore 复合断言。591 绿。
 - [x] **M3 Wave 0 `/implement` + `/code-review` fix**（2026-07-21）：票 `01`——`PackManifest` + `load_manifest` + `PackManifestError`；fixed point `m3-wave0-start`。Review fix：去掉 helper 路径 Data Clump、合并 `_as_string`、`extra: dict[str, object]`。577 绿。
@@ -34,7 +34,6 @@
 ## Next Up
 
 1. M4：商业化支撑点的数据模型落地（账本 / 题材包归属 / 消费埋点），不要求真实计费——对照 [07 号票](.scratch/mvp-scope/issues/07-governance-cost-tracking.md) 与 [06 号票](.scratch/mvp-scope/issues/06-scaling-commercialization-support-points.md)。建议先 `/to-spec`。
-2. （可选）本分支 `feat/m3-ugc-loop-creation-surface` 的 `/code-review`（fixed point `m3-wave3-start`）→ fix → 合并回主干（需用户明确要求时再合）。
 
 ## 交接约定
 

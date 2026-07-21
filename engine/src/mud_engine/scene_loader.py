@@ -28,7 +28,6 @@ from mud_engine.capabilities import (
     CapabilitySpec,
 )
 from mud_engine.combat_system import attach_combat_system
-from mud_engine.death_flow import parse_death_policy, parse_loot_table
 from mud_engine.components import (
     AIController,
     Behaviors,
@@ -48,6 +47,7 @@ from mud_engine.components import (
     Position,
     ShopInventory,
 )
+from mud_engine.death_flow import parse_death_policy, parse_loot_table
 from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry

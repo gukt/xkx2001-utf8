@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from pathlib import Path
 
 from mud_engine.combat import CombatContext, CombatMoveSnapshot, resolve_attack
 from mud_engine.skills import (
