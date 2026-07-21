@@ -1,13 +1,22 @@
-"""物品能力组件注册机制（31 号票 Shotgun Surgery 去重）。
+"""实体能力组件注册机制（M1-31 物品 + M2-01 房间/NPC）。
 
-新增一个 item 能力组件原本要散落改三文件四点：components.py（组件类）+
-scene_loader._attach_item_capabilities / _ITEM_KNOWN_FIELDS（加载）+
-save._ser_X / _des_X / _CODECS（存档）。本模块把每个能力自描述为
-``CapabilitySpec``（YAML 解析、dict 序列化、dict 反序列化、已知 YAML 字段），
-统一注册到 ``CAPABILITIES`` 列表；scene_loader 与 save 都消费该列表。
+新增一个能力组件原本要散落改三文件四点：components.py（组件类）+
+scene_loader 已知字段集合 / 挂载逻辑（加载）+ save._ser_X / _des_X / _CODECS
+（存档）。本模块把每个能力自描述为 ``CapabilitySpec``（YAML 解析、dict 序列化、
+dict 反序列化、已知 YAML 字段），按实体类别注册到：
 
-新增能力时只需：1) 在 components.py 定义组件类；2) 在本模块追加一条
-``CapabilitySpec``（3 个 callable + 1 字段集合）。不再散落三文件。
+- ``CAPABILITIES``：物品级（M1-31）
+- ``ROOM_CAPABILITIES``：房间级（M2-01；块 B~G 后续追加 Terrain 等）
+- ``NPC_CAPABILITIES``：NPC 级（M2-01；块 B~G 后续追加 Vitals/Faction 等）
+
+``CapabilitySpec`` 形状三类共用，后续票追加新能力时直接照抄物品写法。
+
+不在本模块扫平范围内（M2-01 刻意收缩，避免过度设计）：
+
+- ``_PLAYER_KNOWN_FIELDS``（``name``/``start_room``）：player 段字段少，后续如需
+  给玩家挂 Currency/Faction 初始值，直接加进该 frozenset，不为个别字段建注册表。
+- ``_TOP_LEVEL_KNOWN_SECTIONS``：新顶层段（``factions:``/``skills:``）是全局注册表
+  模式，不是"实体能力"模式，由各自票（03/08）决定。
 
 YAML 解析失败抛 ``mud_engine.errors.SceneLoadError``（叶子错误模块，避免本模块
 与 scene_loader 为共享错误类型而循环依赖）。
@@ -20,9 +29,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mud_engine.components import (
+    AIController,
+    Behaviors,
+    BehaviorSpec,
     Consumable,
     Container,
+    Description,
     Equippable,
+    Inquiry,
     ItemFlags,
     Stackable,
     Valuable,
@@ -343,8 +357,227 @@ CAPABILITY_COMPONENT_TYPES: frozenset[type] = frozenset(
     spec.component_type for spec in CAPABILITIES
 )
 
+
+# ── 房间级能力（M2-01）──────────────────────────────────────────────────
+# Description 本身由 scene_loader._attach_identity_and_description 挂载（含
+# outdoors）；本条只贡献 known_fields（outdoors）与存档 codec，from_yaml 恒
+# 返回 None，避免重复挂载。后续 Terrain/NoDeathZone/EntryGuard/Ferry 按物品
+# 能力写法追加真正的 from_yaml 即可。
+
+def _parse_room_description(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> None:
+    """房间 Description 已由固有装配路径挂载；此处只占位以保持 CapabilitySpec 形状。"""
+    return None
+
+
+def _ser_description(c: Description) -> dict:
+    return {"short": c.short, "long": c.long, "outdoors": c.outdoors}
+
+
+def _des_description(d: dict) -> Description:
+    # outdoors 缺省 False：兼容旧存档（15 号票前无此字段）。
+    return Description(short=d["short"], long=d["long"], outdoors=bool(d.get("outdoors", False)))
+
+
+ROOM_CAPABILITIES: list[CapabilitySpec] = [
+    CapabilitySpec(
+        component_type=Description,
+        known_fields=frozenset({"outdoors"}),
+        from_yaml=_parse_room_description,
+        to_dict=_ser_description,
+        from_dict=_des_description,
+    ),
+]
+
+
+# ── NPC 级能力（M2-01）──────────────────────────────────────────────────
+# 顺序：Inquiry 独立；Behaviors 在 AIController 之前（AIController 仅在有
+# behaviors 时挂载，与 M1 语义一致）。
+
+def _parse_inquiry(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Inquiry | None:
+    """``inquiry: { topic: 文案, default: 兜底, handler: 钩子名 }``；缺省 None。"""
+    raw = data.get("inquiry")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'inquiry' 应是映射，"
+            f"实际是 {type(raw).__name__}"
+        )
+    topics: dict[str, str] = {}
+    default: str | None = None
+    handler: str | None = None
+    for key, value in raw.items():
+        key_s = str(key)
+        if key_s == "default":
+            default = str(value)
+            continue
+        if key_s == "handler":
+            handler = None if value is None else str(value)
+            continue
+        topics[key_s] = str(value)
+    return Inquiry(topics=topics, default=default, handler=handler)
+
+
+def _parse_behaviors(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> Behaviors | None:
+    """``behaviors:`` 列表为 ``Behaviors``；缺省 / 空列表返回 None。"""
+    raw = data.get("behaviors")
+    if raw is None:
+        return None
+    if not isinstance(raw, (list, tuple)):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'behaviors' 应是列表，"
+            f"实际是 {type(raw).__name__}"
+        )
+    entries: list[BehaviorSpec] = []
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 behaviors[{index}] "
+                f"应是映射，实际是 {type(entry).__name__}"
+            )
+        kind = str(entry.get("kind", ""))
+        if not kind:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 behaviors[{index}] 缺少 'kind'"
+            )
+        msgs_raw = entry.get("chat_msgs", ())
+        if not isinstance(msgs_raw, (list, tuple)):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 behaviors[{index}] "
+                f"的消息列表应是列表，实际是 {type(msgs_raw).__name__}"
+            )
+        chance_raw = entry.get("chat_chance", 0.0)
+        try:
+            chance = float(chance_raw)
+        except (TypeError, ValueError):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 behaviors[{index}] "
+                f"的概率应是数字，实际是 {chance_raw!r}"
+            ) from None
+        when = entry.get("when")
+        if when is not None and not isinstance(when, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 behaviors[{index}] "
+                f"的 'when' 应是映射，实际是 {type(when).__name__}"
+            )
+        entries.append(
+            BehaviorSpec(
+                kind=kind,
+                chat_msgs=tuple(str(m) for m in msgs_raw),
+                chat_chance=chance,
+                when=dict(when) if when is not None else None,
+            )
+        )
+    if not entries:
+        return None
+    return Behaviors(entries=entries)
+
+
+def _parse_ai_controller(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> AIController | None:
+    """有 Behaviors 时才挂 AIController；``tick_interval`` 默认 1。"""
+    if Behaviors not in attached:
+        return None
+    raw = data.get("tick_interval", 1)
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应是正整数，"
+            f"实际是 {raw!r}"
+        ) from None
+    if value < 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'tick_interval' 应 >= 1，"
+            f"实际是 {value}"
+        )
+    return AIController(tick_interval=value)
+
+
+def _ser_inquiry(c: Inquiry) -> dict:
+    return {"topics": dict(c.topics), "default": c.default, "handler": c.handler}
+
+
+def _des_inquiry(d: dict) -> Inquiry:
+    return Inquiry(
+        topics=dict(d.get("topics", {})),
+        default=d.get("default"),
+        handler=d.get("handler"),
+    )
+
+
+def _ser_behaviors(c: Behaviors) -> dict:
+    return {
+        "entries": [
+            {
+                "kind": e.kind,
+                "chat_msgs": list(e.chat_msgs),
+                "chat_chance": e.chat_chance,
+                "when": e.when,
+            }
+            for e in c.entries
+        ]
+    }
+
+
+def _des_behaviors(d: dict) -> Behaviors:
+    entries: list[BehaviorSpec] = []
+    for raw in d.get("entries", []):
+        entries.append(
+            BehaviorSpec(
+                kind=str(raw["kind"]),
+                chat_msgs=tuple(raw.get("chat_msgs", [])),
+                chat_chance=float(raw.get("chat_chance", 0.0)),
+                when=raw.get("when"),
+            )
+        )
+    return Behaviors(entries=entries)
+
+
+def _ser_ai_controller(c: AIController) -> dict:
+    return {"tick_interval": c.tick_interval}
+
+
+def _des_ai_controller(d: dict) -> AIController:
+    return AIController(tick_interval=int(d.get("tick_interval", 1)))
+
+
+NPC_CAPABILITIES: list[CapabilitySpec] = [
+    CapabilitySpec(
+        component_type=Inquiry,
+        known_fields=frozenset({"inquiry"}),
+        from_yaml=_parse_inquiry,
+        to_dict=_ser_inquiry,
+        from_dict=_des_inquiry,
+    ),
+    CapabilitySpec(
+        component_type=Behaviors,
+        known_fields=frozenset({"behaviors"}),
+        from_yaml=_parse_behaviors,
+        to_dict=_ser_behaviors,
+        from_dict=_des_behaviors,
+    ),
+    CapabilitySpec(
+        component_type=AIController,
+        known_fields=frozenset({"tick_interval"}),
+        from_yaml=_parse_ai_controller,
+        to_dict=_ser_ai_controller,
+        from_dict=_des_ai_controller,
+    ),
+]
+
+
 __all__ = [
     "CAPABILITIES",
     "CAPABILITY_COMPONENT_TYPES",
     "CapabilitySpec",
+    "NPC_CAPABILITIES",
+    "ROOM_CAPABILITIES",
 ]

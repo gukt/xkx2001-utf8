@@ -34,12 +34,9 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from mud_engine.capabilities import CAPABILITIES
+from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
 from mud_engine.components import (
     TRANSIENT,
-    AIController,
-    Behaviors,
-    BehaviorSpec,
     Description,
     Door,
     Doors,
@@ -47,7 +44,6 @@ from mud_engine.components import (
     Exit,
     Exits,
     Identity,
-    Inquiry,
     NpcSpawnMeta,
     PlayerSession,
     Position,
@@ -75,15 +71,6 @@ def _ser_identity(c: Identity) -> dict:
 
 def _des_identity(d: dict) -> Identity:
     return Identity(name=d["name"], aliases=tuple(d.get("aliases", [])))
-
-
-def _ser_description(c: Description) -> dict:
-    return {"short": c.short, "long": c.long, "outdoors": c.outdoors}
-
-
-def _des_description(d: dict) -> Description:
-    # outdoors 缺省 False：兼容旧存档（15 号票前无此字段）。
-    return Description(short=d["short"], long=d["long"], outdoors=bool(d.get("outdoors", False)))
 
 
 def _ser_position(c: Position) -> dict:
@@ -131,54 +118,6 @@ def _des_doors(d: dict) -> Doors:
     return doors
 
 
-def _ser_ai_controller(c: AIController) -> dict:
-    return {"tick_interval": c.tick_interval}
-
-
-def _des_ai_controller(d: dict) -> AIController:
-    return AIController(tick_interval=int(d.get("tick_interval", 1)))
-
-
-def _ser_behaviors(c: Behaviors) -> dict:
-    return {
-        "entries": [
-            {
-                "kind": e.kind,
-                "chat_msgs": list(e.chat_msgs),
-                "chat_chance": e.chat_chance,
-                "when": e.when,
-            }
-            for e in c.entries
-        ]
-    }
-
-
-def _des_behaviors(d: dict) -> Behaviors:
-    entries: list[BehaviorSpec] = []
-    for raw in d.get("entries", []):
-        entries.append(
-            BehaviorSpec(
-                kind=str(raw["kind"]),
-                chat_msgs=tuple(raw.get("chat_msgs", [])),
-                chat_chance=float(raw.get("chat_chance", 0.0)),
-                when=raw.get("when"),
-            )
-        )
-    return Behaviors(entries=entries)
-
-
-def _ser_inquiry(c: Inquiry) -> dict:
-    return {"topics": dict(c.topics), "default": c.default, "handler": c.handler}
-
-
-def _des_inquiry(d: dict) -> Inquiry:
-    return Inquiry(
-        topics=dict(d.get("topics", {})),
-        default=d.get("default"),
-        handler=d.get("handler"),
-    )
-
-
 def _ser_npc_spawn_meta(c: NpcSpawnMeta) -> dict:
     return {
         "template_key": c.template_key,
@@ -205,22 +144,23 @@ def _des_player_session(d: dict) -> PlayerSession:
     return PlayerSession()
 
 
-# 31 号票：物品能力组件的 codec 来自 ``capabilities.CAPABILITIES`` 注册表；
-# 非物品组件（Identity/Description/Position/Exits/Doors/NPC 相关）仍直接在此声明。
-# 这样新增 item 能力只需在 capabilities 注册一条 spec，不再改 save.py 三处。
-_CODECS: dict[type, _Codec] = {
-    spec.component_type: (spec.to_dict, spec.from_dict) for spec in CAPABILITIES
-}
+def _codecs_from_specs(specs: list[CapabilitySpec]) -> dict[type, _Codec]:
+    return {spec.component_type: (spec.to_dict, spec.from_dict) for spec in specs}
+
+
+# 物品 / 房间 / NPC 能力 codec 来自各自注册表（M1-31 / M2-01）；固有组件仍在此声明。
+# Description 走 ROOM_CAPABILITIES（含 outdoors）；Inquiry/Behaviors/AIController
+# 走 NPC_CAPABILITIES。新增实体能力只需在对应注册表追加一条，不再改本文件。
+_CODECS: dict[type, _Codec] = {}
+_CODECS.update(_codecs_from_specs(CAPABILITIES))
+_CODECS.update(_codecs_from_specs(ROOM_CAPABILITIES))
+_CODECS.update(_codecs_from_specs(NPC_CAPABILITIES))
 _CODECS.update(
     {
         Identity: (_ser_identity, _des_identity),
-        Description: (_ser_description, _des_description),
         Position: (_ser_position, _des_position),
         Exits: (_ser_exits, _des_exits),
         Doors: (_ser_doors, _des_doors),
-        AIController: (_ser_ai_controller, _des_ai_controller),
-        Behaviors: (_ser_behaviors, _des_behaviors),
-        Inquiry: (_ser_inquiry, _des_inquiry),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         PlayerSession: (_ser_player_session, _des_player_session),
     }

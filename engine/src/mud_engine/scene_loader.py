@@ -21,11 +21,8 @@ from pathlib import Path
 import yaml
 
 from mud_engine.ai import attach_ai_system
-from mud_engine.capabilities import CAPABILITIES
+from mud_engine.capabilities import CAPABILITIES, CapabilitySpec, NPC_CAPABILITIES, ROOM_CAPABILITIES
 from mud_engine.components import (
-    AIController,
-    Behaviors,
-    BehaviorSpec,
     Container,
     Description,
     Door,
@@ -34,7 +31,6 @@ from mud_engine.components import (
     Exit,
     Exits,
     Identity,
-    Inquiry,
     NpcSpawnMeta,
     PlayerSession,
     Position,
@@ -100,8 +96,19 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 # 原样透传到扩展数据容器留着不丢，M1 不解析不执行（11 号票）。透传不是设计、
 # 只是不丢弃，故不违反"M1 不预支 M3 设计"--M3 引入规则引擎时旧场景数据不必重写。
 # nature 顶层段继续走透传（不列入已知段），由 attach_nature 消费 extension_data。
+#
+# M2-01：房间/NPC 能力字段从 ROOM_CAPABILITIES / NPC_CAPABILITIES 聚合（同物品
+# CAPABILITIES）。以下两项**刻意不**扫平进能力注册表：
+# - ``_PLAYER_KNOWN_FIELDS``：player 段字段少，后续 Currency/Faction 初值直接加
+#   进本集合即可，不为个别字段建注册表。
+# - ``_TOP_LEVEL_KNOWN_SECTIONS``：新顶层段（skills:/factions:）是全局注册表模式，
+#   由 03/08 号票各自决定，不是"实体能力"模式。
 _TOP_LEVEL_KNOWN_SECTIONS = frozenset({"rooms", "items", "npcs", "player"})
-_ROOM_KNOWN_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "outdoors"})
+_ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
+_ROOM_KNOWN_FIELDS = frozenset(
+    _ROOM_INTRINSIC_FIELDS
+    | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
+)
 # 物品能力字段（18/21/22/24 号票 + 31 号票注册表）：从 ``CAPABILITIES``
 # 聚合每个能力的 known_fields，避免新增能力时漏改 _ITEM_KNOWN_FIELDS 导致透传误吞字段。
 _ITEM_KNOWN_FIELDS = frozenset(
@@ -114,7 +121,7 @@ _ITEM_KNOWN_FIELDS = frozenset(
     }
     | {field for spec in CAPABILITIES for field in spec.known_fields}
 )
-_NPC_KNOWN_FIELDS = frozenset(
+_NPC_INTRINSIC_FIELDS = frozenset(
     {
         "name",
         "aliases",
@@ -124,10 +131,11 @@ _NPC_KNOWN_FIELDS = frozenset(
         "startroom",
         "count",
         "respawn",
-        "inquiry",
-        "behaviors",
-        "tick_interval",
     }
+)
+_NPC_KNOWN_FIELDS = frozenset(
+    _NPC_INTRINSIC_FIELDS
+    | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
 )
 _PLAYER_KNOWN_FIELDS = frozenset({"name", "start_room"})
 
@@ -202,16 +210,20 @@ def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, En
     for room_key, raw in rooms.items():
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
         room = world.create_entity()
+        label = f"房间 '{room_key}'"
         _attach_identity_and_description(
             world,
             room,
             data,
-            label=f"房间 '{room_key}'",
+            label=label,
             scene_path=scene_path,
             outdoors=bool(data.get("outdoors", False)),
         )
         world.add_component(room, Exits())
         world.add_component(room, Container())
+        _attach_capability_specs(
+            world, room, data, ROOM_CAPABILITIES, label=label, scene_path=scene_path
+        )
         _capture_entity_unknown_fields(world, room, data, _ROOM_KNOWN_FIELDS)
         room_ids[room_key] = room
     return room_ids
@@ -384,17 +396,31 @@ def _attach_item_capabilities(
     label: str,
     scene_path: Path,
 ) -> None:
-    """按 YAML 声明挂载物品能力组件（31 号票改走统一注册表 CAPABILITIES）。
+    """按 YAML 声明挂载物品能力组件（31 号票改走统一注册表 CAPABILITIES）。"""
+    _attach_capability_specs(
+        world, item, data, CAPABILITIES, label=label, scene_path=scene_path
+    )
 
-    遍历 CAPABILITIES，调用每条 spec 的 from_yaml；返回非 None 则挂载。
-    attached 记录已挂载组件，供 Weight 判断是否与 Stackable 互斥。注册表顺序
-    重要：Stackable 必须在 Weight 之前处理。
+
+def _attach_capability_specs(
+    world: World,
+    entity: EntityId,
+    data: Mapping,
+    specs: list[CapabilitySpec],
+    *,
+    label: str,
+    scene_path: Path,
+) -> None:
+    """遍历能力注册表，调用每条 spec 的 from_yaml；返回非 None 则挂载。
+
+    ``attached`` 记录已挂载组件，供互斥/依赖判定（如 Weight↔Stackable、
+    AIController 依赖 Behaviors）。注册表顺序重要。
     """
     attached: dict[type, object] = {}
-    for spec in CAPABILITIES:
+    for spec in specs:
         component = spec.from_yaml(data, label, scene_path, attached)
         if component is not None:
-            world.add_component(item, component)
+            world.add_component(entity, component)
             attached[type(component)] = component
 
 
@@ -404,7 +430,7 @@ def _build_npcs(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
-    """建 NPC：基础组件 + 可选 Inquiry/AIController/Behaviors + Spawn meta（25~27）。
+    """建 NPC：基础组件 + NPC_CAPABILITIES（Inquiry/Behaviors/AIController）+ Spawn meta。
 
     ``count`` 控制实例数（默认 1）；``startroom`` 可作 ``in_room`` 别名，也可
     单独声明出生房（与 in_room 并存时：位置用 in_room，spawn meta 用 startroom）。
@@ -430,13 +456,11 @@ def _build_npcs(
         respawn = bool(data.get("respawn", False))
         room_id = room_ids[str(room_key)]
         startroom_id = room_ids[str(start_key)]
-        inquiry = _parse_inquiry(data.get("inquiry"), npc_key, scene_path)
-        behaviors = _parse_behaviors(data.get("behaviors"), npc_key, scene_path)
-        tick_interval = _npc_tick_interval(data.get("tick_interval", 1), npc_key, scene_path)
+        label = f"NPC '{npc_key}'"
         for _ in range(count):
             npc = world.create_entity()
             _attach_identity_and_description(
-                world, npc, data, label=f"NPC '{npc_key}'", scene_path=scene_path
+                world, npc, data, label=label, scene_path=scene_path
             )
             world.add_component(npc, Position(room=room_id))
             world.add_component(
@@ -448,18 +472,16 @@ def _build_npcs(
                     respawn=respawn,
                 ),
             )
-            if inquiry is not None:
-                world.add_component(npc, inquiry)
-            if behaviors is not None:
-                world.add_component(npc, AIController(tick_interval=tick_interval))
-                world.add_component(npc, behaviors)
+            _attach_capability_specs(
+                world, npc, data, NPC_CAPABILITIES, label=label, scene_path=scene_path
+            )
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
 
 
 def _parse_positive_int(
     raw: object, field: str, npc_key: object, scene_path: Path
 ) -> int:
-    """解析正整数字段（count / tick_interval 共用）：须为 >= 1 的整数。"""
+    """解析正整数字段（count 等）：须为 >= 1 的整数。"""
     try:
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -478,90 +500,6 @@ def _parse_positive_int(
 def _npc_count(raw: object, npc_key: object, scene_path: Path) -> int:
     """解析 count：默认 1，须为正整数。"""
     return _parse_positive_int(raw, "count", npc_key, scene_path)
-
-
-def _npc_tick_interval(raw: object, npc_key: object, scene_path: Path) -> int:
-    """解析 tick_interval：默认 1，须为正整数。"""
-    return _parse_positive_int(raw, "tick_interval", npc_key, scene_path)
-
-
-def _parse_inquiry(raw: object, npc_key: object, scene_path: Path) -> Inquiry | None:
-    """解析 inquiry：``{ topic: 文案, default: 兜底, handler: 钩子名 }``；缺省 None。"""
-    if raw is None:
-        return None
-    if not isinstance(raw, Mapping):
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'inquiry' 应是映射，"
-            f"实际是 {type(raw).__name__}"
-        )
-    topics: dict[str, str] = {}
-    default: str | None = None
-    handler: str | None = None
-    for key, value in raw.items():
-        key_s = str(key)
-        if key_s == "default":
-            default = str(value)
-            continue
-        if key_s == "handler":
-            handler = None if value is None else str(value)
-            continue
-        topics[key_s] = str(value)
-    return Inquiry(topics=topics, default=default, handler=handler)
-
-
-def _parse_behaviors(raw: object, npc_key: object, scene_path: Path) -> Behaviors | None:
-    """解析 behaviors 列表为 ``Behaviors`` 组件；缺省 / 空列表返回 None。"""
-    if raw is None:
-        return None
-    if not isinstance(raw, (list, tuple)):
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 'behaviors' 应是列表，"
-            f"实际是 {type(raw).__name__}"
-        )
-    entries: list[BehaviorSpec] = []
-    for index, entry in enumerate(raw):
-        if not isinstance(entry, Mapping):
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
-                f"应是映射，实际是 {type(entry).__name__}"
-            )
-        kind = str(entry.get("kind", ""))
-        if not kind:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] 缺少 'kind'"
-            )
-        # Chatter 字段：chat_msgs / chat_chance（spec D5 约定键名，不兼容旧别名）。
-        msgs_raw = entry.get("chat_msgs", ())
-        if not isinstance(msgs_raw, (list, tuple)):
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
-                f"的消息列表应是列表，实际是 {type(msgs_raw).__name__}"
-            )
-        chance_raw = entry.get("chat_chance", 0.0)
-        try:
-            chance = float(chance_raw)
-        except (TypeError, ValueError):
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
-                f"的概率应是数字，实际是 {chance_raw!r}"
-            ) from None
-        when = entry.get("when")
-        if when is not None and not isinstance(when, Mapping):
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 behaviors[{index}] "
-                f"的 'when' 应是映射，实际是 {type(when).__name__}"
-            )
-        entries.append(
-            BehaviorSpec(
-                kind=kind,
-                chat_msgs=tuple(str(m) for m in msgs_raw),
-                chat_chance=chance,
-                when=dict(when) if when is not None else None,
-            )
-        )
-    if not entries:
-        return None
-    return Behaviors(entries=entries)
 
 
 def _build_player(
