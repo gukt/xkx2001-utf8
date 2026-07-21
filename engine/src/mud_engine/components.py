@@ -378,7 +378,13 @@ class SkillLevels:
 
 @dataclass
 class Unconscious:
-    """昏迷中（marker）。运行时可变进存档。"""
+    """昏迷中。运行时可变进存档。
+
+    ``ticks_remaining``：距自然苏醒剩余 tick；陷入昏迷时按 DeathPolicy 写入初值。
+    缺省 5 与 ``DeathPolicy.unconscious_recovery_ticks`` 默认对齐（老调用/老存档兜底）。
+    """
+
+    ticks_remaining: int = 5
 
 
 @dataclass

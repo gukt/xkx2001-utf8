@@ -29,7 +29,7 @@ from mud_engine.components import (
     Vitals,
 )
 from mud_engine.death import DeathState, next_death_state
-from mud_engine.events import run_vetoable
+from mud_engine.events import ON_TICK, TickContext, run_vetoable
 from mud_engine.transfer import transfer
 
 if TYPE_CHECKING:
@@ -79,6 +79,8 @@ class DeathPolicy:
     revive_room_key: str = "huashan_village"
     drop_items: bool = True
     drop_currency: bool = True
+    unconscious_recovery_ticks: int = 5
+    recovery_vitals_ratio: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -118,6 +120,12 @@ def parse_death_policy(raw: object | None) -> DeathPolicy:
         revive_room_key=str(revive),
         drop_items=bool(raw.get("drop_items", base.drop_items)),
         drop_currency=bool(raw.get("drop_currency", base.drop_currency)),
+        unconscious_recovery_ticks=int(
+            raw.get("unconscious_recovery_ticks", base.unconscious_recovery_ticks)
+        ),
+        recovery_vitals_ratio=float(
+            raw.get("recovery_vitals_ratio", base.recovery_vitals_ratio)
+        ),
     )
 
 
@@ -178,9 +186,13 @@ def _handle_player_depleted(
     in_safe = world.has_component(pos.room, NoDeathZone)
     current = current_death_state(world, player_id)
     nxt = next_death_state(current, in_no_death_zone=in_safe, vitals_depleted=True)
+    policy: DeathPolicy = getattr(world, "death_policy", None) or default_death_policy()
     if nxt is DeathState.UNCONSCIOUS:
         if not world.has_component(player_id, Unconscious):
-            world.add_component(player_id, Unconscious())
+            world.add_component(
+                player_id,
+                Unconscious(ticks_remaining=policy.unconscious_recovery_ticks),
+            )
         if world.has_component(player_id, Engaged):
             clear_engagement(world, player_id, reason="unconscious")
         world.pending_messages.append("你伤势过重，昏迷了过去。")
@@ -207,7 +219,13 @@ def _execute_player_death(
         if world.has_component(player_id, Dead):
             world.remove_component(player_id, Dead)
         if not world.has_component(player_id, Unconscious):
-            world.add_component(player_id, Unconscious())
+            deny_policy: DeathPolicy = (
+                getattr(world, "death_policy", None) or default_death_policy()
+            )
+            world.add_component(
+                player_id,
+                Unconscious(ticks_remaining=deny_policy.unconscious_recovery_ticks),
+            )
         world.pending_messages.append(denial)
         return
 
@@ -384,6 +402,27 @@ def _grant_kill_exp(world: World, killer_id: EntityId, amount: int) -> None:
     skills.levels[sid] = SkillProgress(level=prog.level, exp=prog.exp + amount)
 
 
+def attach_unconscious_recovery(world: World) -> None:
+    """挂载昏迷 tick 苏醒（幂等）。与 ``attach_ai_system`` / ``attach_ferries`` 同构。"""
+    if _on_unconscious_tick not in world.events.handlers_for(ON_TICK):
+        world.events.register(ON_TICK, _on_unconscious_tick)
+
+
+def _on_unconscious_tick(context: TickContext) -> None:
+    world = context.world
+    policy: DeathPolicy = getattr(world, "death_policy", None) or default_death_policy()
+    for entity in list(world.entities_with(Unconscious)):
+        unc = world.require_component(entity, Unconscious)
+        unc.ticks_remaining -= 1
+        if unc.ticks_remaining > 0:
+            continue
+        world.remove_component(entity, Unconscious)
+        vitals = world.get_component(entity, Vitals)
+        if vitals is not None:
+            vitals.qi_current = max(1, int(vitals.qi_max * policy.recovery_vitals_ratio))
+        world.pending_messages.append("你悠悠转醒")
+
+
 __all__ = [
     "DeathContext",
     "DeathPolicy",
@@ -392,6 +431,7 @@ __all__ = [
     "ON_DEATH",
     "ON_REVIVE",
     "UNCONSCIOUS_BLOCKED_VERBS",
+    "attach_unconscious_recovery",
     "current_death_state",
     "default_death_policy",
     "handle_vitals_depleted",

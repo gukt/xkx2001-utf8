@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 
 from mud_engine.components import (
     Container,
     Currency,
+    Engaged,
     Identity,
     NpcSpawnMeta,
     Position,
@@ -18,7 +20,9 @@ from mud_engine.components import (
 from mud_engine.death_flow import ON_BEFORE_DEATH, handle_vitals_depleted
 from mud_engine.events import Deny
 from mud_engine.parsing import execute_line
+from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
+from mud_engine.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -229,3 +233,73 @@ class TestNpcDeathAndLoot:
         assert _npc_named(world, "山贼") is None
         spawn_scan(world)
         assert _npc_named(world, "山贼") is not None
+
+
+class TestUnconsciousTickRecovery:
+    """M3-hardening-01：昏迷 tick 自动苏醒（tick 层 seam）。"""
+
+    def test_ticks_decrement_then_wake_with_vitals(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        unc = world.require_component(player_id, Unconscious)
+        assert unc.ticks_remaining == 5  # DeathPolicy 默认
+
+        loop = TickLoop(lambda: None, world=world, interval=100)
+        for remaining in (4, 3, 2, 1):
+            loop.advance()
+            assert world.has_component(player_id, Unconscious)
+            assert (
+                world.require_component(player_id, Unconscious).ticks_remaining == remaining
+            )
+
+        loop.advance()  # 归零 → 苏醒
+        assert not world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Vitals).qi_current == 20  # max(1, 100*0.2)
+        assert not world.has_component(player_id, Engaged)
+        assert any("悠悠转醒" in msg for msg in world.pending_messages)
+
+    def test_scene_can_override_recovery_policy(self, tmp_path: Path) -> None:
+        scene = _BASE.replace(
+            """death_policy:
+  penalty_ratio: 0.5
+  revive_room: village
+  drop_currency: true
+  drop_items: true
+""",
+            """death_policy:
+  penalty_ratio: 0.5
+  revive_room: village
+  drop_currency: true
+  drop_items: true
+  unconscious_recovery_ticks: 2
+  recovery_vitals_ratio: 0.5
+""",
+        )
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        world.require_component(player_id, Vitals).qi_current = 0
+        handle_vitals_depleted(world, player_id)
+        assert world.require_component(player_id, Unconscious).ticks_remaining == 2
+
+        loop = TickLoop(lambda: None, world=world, interval=100)
+        loop.advance()
+        assert world.has_component(player_id, Unconscious)
+        loop.advance()
+        assert not world.has_component(player_id, Unconscious)
+        assert world.require_component(player_id, Vitals).qi_current == 50  # 100 * 0.5
+
+    def test_legacy_save_missing_ticks_falls_back_to_default(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _BASE))
+        world.add_component(player_id, Unconscious(ticks_remaining=3))
+        save_dir = tmp_path / "save"
+        save_world(world, player_id, save_dir)
+
+        entity_path = (save_dir / "current").resolve() / f"entity_{player_id}.json"
+        record = json.loads(entity_path.read_text(encoding="utf-8"))
+        record["components"]["Unconscious"] = {}  # 模拟老存档缺字段
+        entity_path.write_text(json.dumps(record), encoding="utf-8")
+
+        restored = restore_world(save_dir)
+        assert restored is not None
+        rworld, rid = restored
+        assert rworld.require_component(rid, Unconscious).ticks_remaining == 5

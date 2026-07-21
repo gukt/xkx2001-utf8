@@ -1081,12 +1081,13 @@ def _parse_runtime_marker(
     return None
 
 
-def _ser_unconscious(_c: Unconscious) -> dict:
-    return {}
+def _ser_unconscious(c: Unconscious) -> dict:
+    return {"ticks_remaining": int(c.ticks_remaining)}
 
 
-def _des_unconscious(_d: dict) -> Unconscious:
-    return Unconscious()
+def _des_unconscious(d: dict) -> Unconscious:
+    # 老存档缺字段 → 回退 DeathPolicy 默认（5），不新增迁移框架。
+    return Unconscious(ticks_remaining=int(d.get("ticks_remaining", 5)))
 
 
 def _ser_dead(_c: Dead) -> dict:

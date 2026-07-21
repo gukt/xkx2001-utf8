@@ -17,6 +17,7 @@ from pathlib import Path
 from mud_engine.ai import attach_ai_system
 from mud_engine.cli import run_repl
 from mud_engine.combat_system import attach_combat_system
+from mud_engine.death_flow import attach_unconscious_recovery
 from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.errors import PackManifestError
 from mud_engine.ferry import attach_ferries
@@ -158,6 +159,7 @@ def _reattach_runtime(world: World) -> None:
     attach_ferries(world)
     attach_combat_system(world)
     attach_entry_guards(world)
+    attach_unconscious_recovery(world)
 
 
 if __name__ == "__main__":

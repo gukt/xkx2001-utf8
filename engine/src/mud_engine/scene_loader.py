@@ -47,7 +47,7 @@ from mud_engine.components import (
     Position,
     ShopInventory,
 )
-from mud_engine.death_flow import parse_death_policy, parse_loot_table
+from mud_engine.death_flow import attach_unconscious_recovery, parse_death_policy, parse_loot_table
 from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
@@ -101,6 +101,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     attach_combat_system(world)
     # 门槏（M2-11）：EntryGuard on_before_enter_room；幂等。
     attach_entry_guards(world)
+    # 昏迷 tick 苏醒（M3-hardening-01）；幂等。
+    attach_unconscious_recovery(world)
     return world, player_id
 
 
