@@ -2,7 +2,8 @@
 
 > **排期窗口**：M3 停机加固 **整体完成之后**、开启 **M4 之前**。  
 > **不要**并入 [.scratch/m3-hardening/](../m3-hardening/)（那是停机门闩 S0 + 选定 B3）。  
-> **不要**写入 [.scratch/mvp-scope/post-mvp-backlog.md](../mvp-scope/post-mvp-backlog.md)（那是 M4 **之后**）。
+> **不要**写入 [.scratch/mvp-scope/post-mvp-backlog.md](../mvp-scope/post-mvp-backlog.md)（那是 M4 **之后**）。  
+> **与频道/spawn/任务**：同属 Pre-M4；**建议** [.scratch/pre-m4-channels-spawn-quest/](../pre-m4-channels-spawn-quest/) **先于本 effort**（机制先于房间表达力）。
 
 ## 一句话
 
@@ -23,7 +24,8 @@
 |---|---|
 | M3 停机加固票 `11` GAP 台账 | **文档**：「声明式 YAML 表达不了什么」。本 effort 是 **补能力**；加固期可先把本清单若干条写入 GAP，实现落地后再改「已支持」。 |
 | 创作者契约 v0（加固票 `06`） | 本波能力若进 YAML schema，需回写契约 / `--validate`。 |
-| M4 | 本 effort **插入在加固与 M4 之间**；关完后再决定是否开 M4。 |
+| [Pre-M4 频道/spawn/任务](../pre-m4-channels-spawn-quest/) | 兄弟 effort（假多人频道 + 物品 respawn + 声明式任务）。**建议该批优先于本房间保真**（机制先于表达力）；最终顺序 grill 时可改判。 |
+| M4 | 本 effort **插入在加固与 M4 之间**（与上表兄弟 effort 同窗口）；关完后再决定是否开 M4。 |
 
 ## 建议目录（grill / to-spec 之后）
 
