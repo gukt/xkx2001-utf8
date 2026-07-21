@@ -190,14 +190,13 @@ def resolve_attack(
     # 步骤 8：exp + riposte —— 二者本 MVP 均为 no-op（spec Out of Scope / 票 02）。
     _invoke_exp_gain(ctx)
     _invoke_riposte(ctx)
-    _invoke_post_action(ctx)
 
     fragments = (
         f"{move.name}命中，造成 {damage} 点伤害",
         *hit_ob_frags,
         *tuple(_ROUND_EXTRA_FRAGMENTS),
     )
-    return CombatRoundResult(
+    result = CombatRoundResult(
         hit=True,
         dodged=False,
         parried=False,
@@ -206,6 +205,9 @@ def resolve_attack(
         move_name=move.name,
         message_fragments=fragments,
     )
+    # post_action 在结果产出之后：不得再改本回合 CombatRoundResult（票 16）。
+    _invoke_post_action(ctx)
+    return result
 
 
 def _roll_opposed(rng: Rng, attack: int, defense: int) -> bool:

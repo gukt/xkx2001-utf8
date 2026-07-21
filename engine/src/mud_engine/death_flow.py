@@ -300,8 +300,11 @@ def _handle_npc_death(
     if death_room is not None and loot is not None:
         _grant_loot(world, loot, death_room=death_room, killer_id=killer_id, rng=rng)
 
-    if killer_id is not None and loot is not None and loot.kill_exp > 0:
-        _grant_kill_exp(world, killer_id, loot.kill_exp)
+    # 击杀经验：有 loot 用其 kill_exp；无 loot 仍给默认经验（票 18 / US26）。
+    if killer_id is not None:
+        exp_amount = loot.kill_exp if loot is not None else LootTable().kill_exp
+        if exp_amount > 0:
+            _grant_kill_exp(world, killer_id, exp_amount)
 
     # 从存活查询语义消失（destroy；respawn 靠下次 spawn_scan）。
     world.destroy_entity(npc_id)

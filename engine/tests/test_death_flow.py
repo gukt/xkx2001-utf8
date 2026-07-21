@@ -118,8 +118,18 @@ def _npc_named(world, name: str):
 class TestPlayerDeathFlow:
     def test_first_deplete_unconscious_second_kills_and_revives(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _BASE))
-        # 背包放一解毒丹（从地面 take 或直接放）：用商店路径太重，改从 items 地面拿
-        # 场景未放地上物品；直接断言惩罚与复活即可。
+        # 把地上解毒丹放进背包，供死亡掉落断言
+        yard = world.room_ids["yard"]
+        herb = next(
+            i
+            for i in world.require_component(yard, Container).items
+            if world.require_component(i, Identity).name == "解毒丹"
+        )
+        from mud_engine.transfer import transfer
+
+        transfer(world, herb, yard, player_id, player_id=player_id)
+        assert herb in world.require_component(player_id, Container).items
+
         vitals = world.require_component(player_id, Vitals)
         vitals.qi_current = 0
         handle_vitals_depleted(world, player_id)
@@ -135,7 +145,29 @@ class TestPlayerDeathFlow:
         assert world.require_component(player_id, Currency).amount == 50  # 100 * 0.5
         exp = world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
         assert exp == 20  # 40 * 0.5
+        # 物品留在死亡房间地面
+        assert herb in world.require_component(yard, Container).items
+        assert herb not in world.require_component(player_id, Container).items
 
+    def test_npc_kill_without_loot_still_grants_default_exp(self, tmp_path: Path) -> None:
+        scene = _BASE.replace(
+            """    loot:
+      currency: [10, 10]
+      items: [herb]
+      kill_exp: 7
+""",
+            "",
+        )
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        bandit = _npc_named(world, "山贼")
+        assert bandit is not None
+        before = world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
+        world.require_component(bandit, Vitals).qi_current = 0
+        handle_vitals_depleted(world, bandit, killer_id=player_id, rng=random.Random(0))
+        assert (
+            world.require_component(player_id, SkillLevels).levels["basic_fist"].exp
+            == before + 10
+        )
     def test_no_death_zone_stays_unconscious(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _BASE))
         execute_line(world, player_id, "go north")
