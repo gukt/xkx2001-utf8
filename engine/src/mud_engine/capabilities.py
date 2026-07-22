@@ -64,6 +64,7 @@ from mud_engine.components import (
     Weight,
 )
 from mud_engine.errors import SceneLoadError
+from mud_engine.semantic_color import validate_markup
 from mud_engine.skills import SKILLS
 
 
@@ -600,6 +601,10 @@ def _parse_room_details(
                 f"场景文件 {scene_path} 的{label}的 details[{key!r}] 应是字符串，"
                 f"实际是 {type(value).__name__}"
             )
+        validate_markup(
+            value,
+            location=f"场景文件 {scene_path} 的{label}.details[{key!r}]",
+        )
         entries[key] = value
     if not entries:
         return None

@@ -59,6 +59,7 @@ from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
 from mud_engine.quest import QuestDef
 from mud_engine.runtime import wire_runtime
+from mud_engine.semantic_color import validate_markup
 from mud_engine.skills import load_skills_from_mapping, replace_skills_registry
 from mud_engine.world import EntityId, World
 
@@ -779,11 +780,15 @@ def _attach_identity_and_description(
         entity,
         Identity(name=str(name), aliases=tuple(str(a) for a in aliases)),
     )
+    short = str(data.get("short", name))
+    long = str(data.get("long", ""))
+    validate_markup(short, location=f"场景文件 {scene_path} 的{label}.short")
+    validate_markup(long, location=f"场景文件 {scene_path} 的{label}.long")
     world.add_component(
         entity,
         Description(
-            short=str(data.get("short", name)),
-            long=str(data.get("long", "")),
+            short=short,
+            long=long,
             outdoors=outdoors,
         ),
     )

@@ -52,7 +52,7 @@ rooms:
     outdoors: true
     details:
       石狮: 一对石狮蹲在旗杆两侧，爪下各按着一只小石球，神态威严。
-      旗杆: 广场中央矗立着旗杆，旗角猎猎作响。
+      旗杆: 广场中央矗立着旗杆，<c:yellow>旗角</c>猎猎作响。
     exits:
       north:
         to: yangzhou_beidajie
