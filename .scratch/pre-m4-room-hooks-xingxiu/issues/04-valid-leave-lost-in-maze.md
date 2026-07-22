@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 04 — 机关 #4 `valid_leave` 步数迷途
@@ -10,12 +10,21 @@ Status: ready-for-agent
 
 **Blocked by:** `01`（房间自由状态组件 + 窄 `ctx`）。
 
-- [ ] 引擎事件总线新增 `ON_BEFORE_LEAVE_ROOM`（可否决），供本机关钩子订阅；不做成钩子协议里的通用方法族，只服务本机关（与 ADR-0007「等未来多个子系统都要用再一并抽象」同一取舍）。
-- [ ] 钩子用 `ctx` 房间级自由状态计步（进房后每次尝试相关动作或每 tick 计一次，具体计数触发点按实现决定）。
-- [ ] 步数不够时尝试离开该房间被否决并有提示；步数达标后可正常离开。
-- [ ] `xingxiu_mechanics.yaml` 追加至少一条覆盖本机关的验收房间。
-- [ ] 测试（S0）：直调钩子计步与离开否决逻辑。测试（S1）：命令序列——步数不足时 `go` 被拒并有提示，达标后 `go` 成功离开。
-- [ ] `just test` 全绿。
+- [x] 引擎事件总线新增 `ON_BEFORE_LEAVE_ROOM`（可否决），供本机关钩子订阅；不做成钩子协议里的通用方法族，只服务本机关（与 ADR-0007「等未来多个子系统都要用再一并抽象」同一取舍）。
+- [x] 钩子用 `ctx` 房间级自由状态计步（进房后每次尝试相关动作或每 tick 计一次，具体计数触发点按实现决定）。
+- [x] 步数不够时尝试离开该房间被否决并有提示；步数达标后可正常离开。
+- [x] `xingxiu_mechanics.yaml` 追加至少一条覆盖本机关的验收房间。
+- [x] 测试（S0）：直调钩子计步与离开否决逻辑。测试（S1）：命令序列——步数不足时 `go` 被拒并有提示，达标后 `go` 成功离开。
+- [x] `just test` 全绿。
 
 ## Comments
 
+### 实现摘要（2026-07-22 Wave 3）
+
+- **事件点**：`ON_BEFORE_LEAVE_ROOM` = `"on_before_leave_room"`（`commands` + `room_hooks` 同名常量）；`go` 在 `ON_BEFORE_ENTER_ROOM` 之前 `run_vetoable`
+- **钩子**：`lost_in_maze`（`LostInMazeHook`）；方法 `on_enter`（重置 steps）+ `veto_leave`（**非** RoomHook 协议通用族；`attach_room_hooks` 见 `hasattr(veto_leave)` 专挂）
+- **计步**：每次被否决的离房尝试 `steps += 1`；`steps >= required_steps` 后放行
+- **params**：`required_steps`
+- **文案**：`你在茫茫沙海中迷失了方向，只好走回原地。`
+- **验收房**：`desert_maze`（`required_steps: 3`）/ `desert_edge`（自 `dig_base` 南入）
+- **测试**：`engine/tests/test_xingxiu_mechanics_04.py`

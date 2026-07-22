@@ -136,6 +136,7 @@ CommandAfterHook = Callable[[World, EntityId, Intent, list[str]], list[str]]
 # 三处都能产生，收敛到一个事件名 ``on_door_state_change``，而非在命令钩子里逐个
 # 判断动词）。spec 块 A user story 3/4/5/12。
 ON_BEFORE_ENTER_ROOM = "on_before_enter_room"
+ON_BEFORE_LEAVE_ROOM = "on_before_leave_room"
 ON_ENTER_ROOM = "on_enter_room"
 ON_LEAVE_ROOM = "on_leave_room"
 ON_TRAVERSE_BLOCKED = "on_traverse_blocked"
@@ -144,8 +145,8 @@ ON_DOOR_STATE_CHANGE = "on_door_state_change"
 
 @dataclass(frozen=True)
 class EnterRoomContext:
-    """移动事件点上下文：``on_before_enter_room`` / ``on_enter_room`` /
-    ``on_leave_room`` 共用同一形状。
+    """移动事件点上下文：``on_before_enter_room`` / ``on_before_leave_room`` /
+    ``on_enter_room`` / ``on_leave_room`` 共用同一形状。
 
     before 在移动前触发（玩家仍在 ``from_room``）、可否决；enter/leave 在移动后
     触发（玩家已在 ``to_room``）、fire-and-forget。``from_room`` 是离开的旧房间、
@@ -457,13 +458,12 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         if mount is not None and cost > mount.ability:
             return ["这地方骑不过去。"]
 
-    # before：可否决（"封城不能进""进房触发 NPC 反应前先校验"等规则挂载点）。
-    # 否决则不移动、不触发 enter/leave。
-    denial = run_vetoable(
-        world,
-        ON_BEFORE_ENTER_ROOM,
-        EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target),
-    )
+    # before：先离房否决（迷途等），再进房否决。任一否决则不移动、不触发 enter/leave。
+    move_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)
+    leave_denial = run_vetoable(world, ON_BEFORE_LEAVE_ROOM, move_ctx)
+    if leave_denial is not None:
+        return [leave_denial]
+    denial = run_vetoable(world, ON_BEFORE_ENTER_ROOM, move_ctx)
     if denial is not None:
         return [denial]
 
@@ -1380,11 +1380,12 @@ def _cmd_flee(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     return lines
 
 
-@register("dig")
-def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """挖洞：仅在挂了实现 ``on_dig`` 的房间钩子的房间生效（Pre-M4-02）。
+def _invoke_room_hook_action(
+    world: World, player_id: EntityId, method_name: str
+) -> list[str]:
+    """房间动作动词公共路径：当前房绑定钩子且实现 ``method_name`` 时调用。
 
-    无关房间返回统一拒绝提示（不是「未知命令」），以便同一动词可在部分房间生效。
+    无关房间 / 未实现方法 → 统一「这里不能这么做。」（不是「未知命令」）。
     """
     from mud_engine.room_hooks import RoomHookContext, get_room_hook
 
@@ -1393,8 +1394,9 @@ def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if binding is None:
         return [_ROOM_ACTION_REFUSED]
     hook = get_room_hook(binding.hook_id)
-    if hook is None or not hasattr(hook, "on_dig"):
+    if hook is None or not hasattr(hook, method_name):
         return [_ROOM_ACTION_REFUSED]
+    method = getattr(hook, method_name)
     ctx = RoomHookContext(
         world,
         room,
@@ -1402,7 +1404,43 @@ def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         params=binding.params,
         tick=world.tick,
     )
-    return list(hook.on_dig(ctx))  # type: ignore[attr-defined]
+    return list(method(ctx))
+
+
+@register("dig")
+def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """挖洞：仅在挂了实现 ``on_dig`` 的房间钩子的房间生效（Pre-M4-02）。"""
+    return _invoke_room_hook_action(world, player_id, "on_dig")
+
+
+@register("scrape", aliases=("刮锈",))
+def _cmd_scrape(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """刮锈：多步机关第一步（Pre-M4-03）。"""
+    return _invoke_room_hook_action(world, player_id, "on_scrape")
+
+
+@register("pull", aliases=("拔斧",))
+def _cmd_pull(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """拔斧：多步机关第二步（Pre-M4-03）。"""
+    return _invoke_room_hook_action(world, player_id, "on_pull")
+
+
+@register("push", aliases=("推门",))
+def _cmd_push(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """推门：多步机关第三步，完成后开出口（Pre-M4-03）。"""
+    return _invoke_room_hook_action(world, player_id, "on_push")
+
+
+@register("jump", aliases=("跳",))
+def _cmd_jump(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """跳跃：技能门槛机关（Pre-M4-05）。"""
+    return _invoke_room_hook_action(world, player_id, "on_jump")
+
+
+@register("climb", aliases=("爬",))
+def _cmd_climb(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """攀爬：技能门槛机关（Pre-M4-05）。"""
+    return _invoke_room_hook_action(world, player_id, "on_climb")
 
 
 def _find_combat_target_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:
@@ -1746,6 +1784,7 @@ __all__ = [
     "DoorStateChangeContext",
     "EnterRoomContext",
     "ON_BEFORE_ENTER_ROOM",
+    "ON_BEFORE_LEAVE_ROOM",
     "ON_COMMAND_AFTER",
     "ON_COMMAND_BEFORE",
     "ON_DOOR_STATE_CHANGE",

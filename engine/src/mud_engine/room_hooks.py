@@ -19,13 +19,15 @@ from mud_engine.components import (
     Position,
     RoomFreeState,
     RoomHookBinding,
+    SkillLevels,
 )
-from mud_engine.events import ON_TICK, TickContext
+from mud_engine.events import ON_TICK, Deny, TickContext
 from mud_engine.world import EntityId, World
 
 # 进房 / 离房事件名与 commands / entity_gate 对齐（字符串常量，避免循环 import）。
 ON_ENTER_ROOM = "on_enter_room"
 ON_LEAVE_ROOM = "on_leave_room"
+ON_BEFORE_LEAVE_ROOM = "on_before_leave_room"
 
 
 class RoomHook(Protocol):
@@ -37,6 +39,9 @@ class RoomHook(Protocol):
         def on_leave(self, ctx: RoomHookContext) -> None: ...
         def on_tick(self, ctx: RoomHookContext) -> None: ...
         def on_dig(self, ctx: RoomHookContext) -> list[str]: ...  # 命令动词 dig
+        def on_scrape(self, ctx: RoomHookContext) -> list[str]: ...
+        def on_pull(self, ctx: RoomHookContext) -> list[str]: ...
+        def on_push(self, ctx: RoomHookContext) -> list[str]: ...
     """
 
 
@@ -97,10 +102,126 @@ class DigCollapseHook:
         ctx.message_room("洞口塌陷了！")
 
 
+class MultiStepGateHook:
+    """机关 #3：多步顺序动作开出口（玉路刮锈→拔斧→推门灵感）。
+
+    YAML ``hooks.params``::
+
+        direction: <完成后新增出口方向>
+        target: <目标房间键>
+    """
+
+    HOOK_ID = "multi_step_gate"
+    # 步骤索引：0 未开始 → scrape → 1 → pull → 2 → push → 3（出口已开）
+    _STEP_SCRAPE = 0
+    _STEP_PULL = 1
+    _STEP_PUSH = 2
+
+    def on_scrape(self, ctx: RoomHookContext) -> list[str]:
+        return self._advance(ctx, expected=self._STEP_SCRAPE, done_msg="你刮去了门环上的铁锈。")
+
+    def on_pull(self, ctx: RoomHookContext) -> list[str]:
+        return self._advance(ctx, expected=self._STEP_PULL, done_msg="你拔出了插在门环里的斧头。")
+
+    def on_push(self, ctx: RoomHookContext) -> list[str]:
+        step = int(ctx.get_state().get("step", 0))
+        if step != self._STEP_PUSH:
+            return [self._out_of_order_message(step)]
+        direction = str(ctx.params["direction"])
+        target = str(ctx.params["target"])
+        ctx.add_exit(direction, target)
+        ctx.set_state({"step": 3})
+        return ["你用力推开了石门。"]
+
+    def _advance(self, ctx: RoomHookContext, *, expected: int, done_msg: str) -> list[str]:
+        step = int(ctx.get_state().get("step", 0))
+        if step != expected:
+            return [self._out_of_order_message(step)]
+        ctx.set_state({"step": expected + 1})
+        return [done_msg]
+
+    @staticmethod
+    def _out_of_order_message(step: int) -> str:
+        if step >= 3:
+            return "石门已经打开了。"
+        hints = ("先刮去铁锈。", "先拔出斧头。", "按顺序：刮锈、拔斧、再推门。")
+        if 0 <= step < len(hints):
+            return hints[step]
+        return "步骤不对，请按顺序操作。"
+
+
+class LostInMazeHook:
+    """机关 #4：离开前须在房内「走够」若干次（沙漠迷途灵感）。
+
+    不进入 ``RoomHook`` 通用 before_leave 方法族；由 ``attach_room_hooks`` 专挂
+    ``ON_BEFORE_LEAVE_ROOM``（可否决）。YAML ``hooks.params``::
+
+        required_steps: <否决次数阈值；达此步数后允许离开>
+    """
+
+    HOOK_ID = "lost_in_maze"
+
+    def on_enter(self, ctx: RoomHookContext) -> None:
+        ctx.set_state({"steps": 0})
+
+    def veto_leave(self, ctx: RoomHookContext) -> Deny | None:
+        """步数未达标则否决并计一步；达标则放行（不递增）。"""
+        required = int(ctx.params.get("required_steps", 1))
+        state = ctx.get_state()
+        steps = int(state.get("steps", 0))
+        if steps < required:
+            ctx.set_state({"steps": steps + 1})
+            return Deny("你在茫茫沙海中迷失了方向，只好走回原地。")
+        return None
+
+
+class SkillGateHook:
+    """机关 #5：jump/climb 技能等级门槛（白玉峰 / 天路灵感）。
+
+    YAML ``hooks.params``::
+
+        verb: jump | climb
+        skill_id: <SkillLevels 键>
+        min_level: <最低等级>
+        direction: <成功后移动方向（播报文案用，可选）>
+        target: <目标房间键>
+    """
+
+    HOOK_ID = "skill_gate"
+
+    def on_jump(self, ctx: RoomHookContext) -> list[str]:
+        return self._try(ctx, verb="jump", success_msg="你纵身一跃，落到了对面。")
+
+    def on_climb(self, ctx: RoomHookContext) -> list[str]:
+        return self._try(ctx, verb="climb", success_msg="你攀爬而上，到了高处。")
+
+    def _try(self, ctx: RoomHookContext, *, verb: str, success_msg: str) -> list[str]:
+        configured = str(ctx.params.get("verb", ""))
+        if configured != verb:
+            return ["这里不能这么做。"]
+        if ctx.actor_id is None:
+            return ["没有可移动的角色。"]
+        skill_id = str(ctx.params["skill_id"])
+        min_level = int(ctx.params["min_level"])
+        level = ctx.actor_skill_level(skill_id)
+        if level < min_level:
+            return [f"你的轻功不够（需 {skill_id} 等级 {min_level}），过不去。"]
+        target = str(ctx.params["target"])
+        ctx.move_entity(ctx.actor_id, target)
+        return [success_msg]
+
+
 def _register_builtin_hooks() -> None:
     """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
-    if DigCollapseHook.HOOK_ID not in _ROOM_HOOKS:
-        _ROOM_HOOKS[DigCollapseHook.HOOK_ID] = DigCollapseHook()
+    builtins: list[tuple[str, RoomHook]] = [
+        (DigCollapseHook.HOOK_ID, DigCollapseHook()),
+        (MultiStepGateHook.HOOK_ID, MultiStepGateHook()),
+        (LostInMazeHook.HOOK_ID, LostInMazeHook()),
+        (SkillGateHook.HOOK_ID, SkillGateHook()),
+    ]
+    for hook_id, hook in builtins:
+        if hook_id not in _ROOM_HOOKS:
+            _ROOM_HOOKS[hook_id] = hook
 
 
 _register_builtin_hooks()
@@ -203,6 +324,17 @@ class RoomHookContext:
     def set_state(self, data: Mapping[str, object]) -> None:
         self._free_state().data = dict(data)
 
+    # ── 只读：角色技能等级（复用 SkillLevels，不新造判定）──
+
+    def actor_skill_level(self, skill_id: str) -> int:
+        if self.actor_id is None:
+            return 0
+        skills = self._world.get_component(self.actor_id, SkillLevels)
+        if skills is None:
+            return 0
+        progress = skills.levels.get(skill_id)
+        return progress.level if progress is not None else 0
+
     # ── 受限实体移动（委托独立方法本体）──────────────────
 
     def move_entity(self, entity_id: EntityId, target: EntityId | str) -> None:
@@ -245,6 +377,7 @@ def attach_room_hooks(world: World) -> None:
     """场景加载 / restore 后：按房间绑定订阅进房/离房/心跳（幂等）。
 
     仅当至少一间房的钩子实现了对应方法时才订阅该事件点，避免无关轮询。
+    ``veto_leave`` 专挂 ``ON_BEFORE_LEAVE_ROOM``（可否决），不进入 RoomHook 通用协议族。
     """
     if getattr(world, "_room_hooks_attached", False):
         return
@@ -252,6 +385,7 @@ def attach_room_hooks(world: World) -> None:
     enter_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
     leave_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
     tick_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
+    leave_veto_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
 
     for room_id in world.entities_with(RoomHookBinding):
         binding = world.require_component(room_id, RoomHookBinding)
@@ -267,6 +401,8 @@ def attach_room_hooks(world: World) -> None:
             leave_bindings[room_id] = (hook, params)
         if hasattr(hook, "on_tick"):
             tick_bindings[room_id] = (hook, params)
+        if hasattr(hook, "veto_leave"):
+            leave_veto_bindings[room_id] = (hook, params)
 
     if enter_bindings:
 
@@ -296,6 +432,20 @@ def attach_room_hooks(world: World) -> None:
 
         world.events.register(ON_LEAVE_ROOM, _on_leave)
 
+    if leave_veto_bindings:
+
+        def _on_before_leave(ctx: Any) -> Deny | None:
+            entry = leave_veto_bindings.get(ctx.from_room)
+            if entry is None:
+                return None
+            hook, params = entry
+            hook_ctx = RoomHookContext(
+                world, ctx.from_room, actor_id=ctx.player_id, params=params
+            )
+            return hook.veto_leave(hook_ctx)  # type: ignore[attr-defined]
+
+        world.events.register(ON_BEFORE_LEAVE_ROOM, _on_before_leave)
+
     if tick_bindings:
 
         def _on_tick(tick_ctx: TickContext) -> None:
@@ -311,11 +461,15 @@ def attach_room_hooks(world: World) -> None:
 
 
 __all__ = [
+    "ON_BEFORE_LEAVE_ROOM",
     "ON_ENTER_ROOM",
     "ON_LEAVE_ROOM",
     "DigCollapseHook",
+    "LostInMazeHook",
+    "MultiStepGateHook",
     "RoomHook",
     "RoomHookContext",
+    "SkillGateHook",
     "attach_room_hooks",
     "clear_room_hooks",
     "get_room_hook",
