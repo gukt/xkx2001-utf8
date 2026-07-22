@@ -556,8 +556,25 @@ def _des_ferry(d: dict) -> Ferry:
 def _parse_entry_guard(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> EntryGuard | None:
-    """``entry_guard: {condition: {...}, deny_message: "..."}``。"""
+    """``entry_guard`` 或 ``day_shop: true``（Pre-M4-05 编译为白天可进的 EntryGuard）。
+
+    同房二者并存 → 加载失败（勿叠加歧义）。
+    """
     raw = data.get("entry_guard")
+    day_shop = data.get("day_shop")
+    if day_shop is not None and day_shop is not False:
+        if raw is not None:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}不能同时声明 day_shop 与 entry_guard"
+            )
+        if day_shop is not True:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 'day_shop' 应为 true，实际是 {day_shop!r}"
+            )
+        return EntryGuard(
+            condition={"predicate": "is_day"},
+            deny_message="晚上不开门。",
+        )
     if raw is None:
         return None
     if not isinstance(raw, Mapping):
@@ -761,7 +778,7 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
     ),
     CapabilitySpec(
         component_type=EntryGuard,
-        known_fields=frozenset({"entry_guard"}),
+        known_fields=frozenset({"entry_guard", "day_shop"}),
         from_yaml=_parse_entry_guard,
         to_dict=_ser_entry_guard,
         from_dict=_des_entry_guard,

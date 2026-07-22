@@ -370,6 +370,7 @@ rooms:
   yangzhou_datiepu:
     name: 打铁铺
     long: 炉火正旺，铁砧上火星四溅。墙上挂着新打的刀剑与农具。
+    day_shop: true
     exits:
       south:
         to: yangzhou_xidajie
