@@ -70,6 +70,7 @@ from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
 from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
+from mud_engine.quest import accept_quest, try_complete_quest_on_give
 from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
@@ -748,7 +749,9 @@ def _cmd_give(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     result = transfer(world, item, player_id, npc, player_id=player_id)
     if not result.success:
         return [result.message or "交不出去。"]
-    return [f"你把 {item_name} 交给了 {npc_name}。"]
+    messages = [f"你把 {item_name} 交给了 {npc_name}。"]
+    messages.extend(try_complete_quest_on_give(world, player_id, item, npc))
+    return messages
 
 
 @register("inventory", aliases=("i",))
@@ -822,6 +825,19 @@ def _cmd_chat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if not text.strip():
         return ["聊什么？用法：chat <内容>"]
     return publish_channel(world, "chat", player_id, text)
+
+
+@register("quest")
+def _cmd_quest(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """任务命令：本波仅 ``quest accept <id>``（pre-m4-06）。"""
+    if not intent.args:
+        return ["用法：quest accept <任务id>"]
+    sub = intent.args[0].lower()
+    if sub != "accept":
+        return ["用法：quest accept <任务id>"]
+    if len(intent.args) < 2:
+        return ["接取哪个任务？用法：quest accept <任务id>"]
+    return accept_quest(world, player_id, intent.args[1])
 
 
 @register("status")

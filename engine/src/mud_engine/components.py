@@ -254,6 +254,18 @@ DEFAULT_CHANNEL_SUBSCRIPTIONS: frozenset[str] = frozenset({"chat", "system"})
 
 
 @dataclass
+class QuestProgress:
+    """玩家任务进度与自由旗标（pre-m4-06）。运行时可变进存档。
+
+    ``quests`` 映射 quest_id → ``active`` / ``completed``（未接取则键不存在）。
+    ``flags`` 供声明式完成条件「旗标满足」使用。
+    """
+
+    quests: dict[str, str] = field(default_factory=dict)
+    flags: dict[str, bool] = field(default_factory=dict)
+
+
+@dataclass
 class PlayerSession:
     """玩家驱动源标记（US33 / 28 号票）+ Channel 订阅集合（pre-m4-05）。
 

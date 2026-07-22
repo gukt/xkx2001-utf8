@@ -387,6 +387,7 @@ rooms:
         - 南大街
     objects:
       escort_chief: 1
+      escort_cargo: 1
   yangzhou_wumiao:
     name: 武庙
     long: 武庙香火未绝，关公塑像威严。庙祝低声诵念，供桌上陈列兵器模型。
@@ -540,6 +541,13 @@ items:
     short: 一只赃银袋
     long: 山贼身上搜出的小银袋。
     valuable: 5
+  escort_cargo:
+    name: 镖货
+    aliases:
+    - 镖箱
+    - 货箱
+    short: 一箱镖货
+    long: 龙门镖局封好的货箱，须妥送至华山村向导处。
 npcs:
   huashan_guide_npc:
     name: 向导
@@ -617,7 +625,8 @@ npcs:
     short: 龙门镖局镖头
     long: 一身劲装的镖头，腰间别着短刀。
     inquiry:
-      default: 保镖运货，童叟无欺。
+      工作: 有一趟镖要送华山村，同房输入 quest accept escort_delivery 便可接活。
+      default: 保镖运货，童叟无欺。问我「工作」可知详情。
   temple_keeper:
     name: 庙祝
     aliases:
@@ -765,6 +774,19 @@ factions:
 death_policy:
   revive_room: huashan_birth
   penalty_ratio: 0.1
+quests:
+  escort_delivery:
+    name: 华山镖运
+    accept:
+      require_npc: escort_chief
+    complete:
+      give_item: escort_cargo
+      to_npc: huashan_guide_npc
+    reward:
+      currency: 50
+    messages:
+      accept: 你接取了任务「华山镖运」。镖头托你将镖货送往华山村，交给向导。
+      complete: 你完成了任务「华山镖运」，向导付你 50 两银子作赏钱。
 player:
   name: 你
   start_room: huashan_birth

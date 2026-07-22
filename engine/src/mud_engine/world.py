@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from mud_engine.ferry import FerryState
     from mud_engine.nature import NatureState
     from mud_engine.pack import PackManifest
+    from mud_engine.quest import QuestDef
 
 EntityId = int
 
@@ -81,6 +82,8 @@ class World:
         self.item_spawners: dict[tuple[str, str], ItemSpawnerBlueprint] = {}
         # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
         self.item_templates: dict[str, dict] = {}
+        # 声明式任务表（pre-m4-06）：纯内存、不进存档；由 scene_loader 填充。
+        self.quests: dict[str, QuestDef] = {}
         # 房间键 → entity id（M2-17 复活点解析）；纯内存、不进存档。
         self.room_ids: dict[str, EntityId] = {}
         # 死亡策略（M2-17）；纯内存、不进存档，由 load_scene 填充。

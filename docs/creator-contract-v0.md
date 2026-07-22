@@ -23,6 +23,7 @@
 | `skills` | 全局技能注册表 |
 | `factions` | 全局门派注册表 |
 | `death_policy` | 死亡/昏迷策略覆盖 |
+| `quests` | 声明式任务表（可空） |
 
 未列入上表的顶层段（例如 `nature:`）走透传，**不是** v0 冻结契约的一部分。
 
@@ -51,6 +52,18 @@
 ### `player`
 
 `name`, `start_room`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+
+### `quests.*`
+
+`name`, `accept`, `complete`, `reward`, `messages`
+
+- `accept.require_npc`：接取时须与该 NPC 模板同房（模板键）。
+- `complete.give_item` + `complete.to_npc`：对目标 NPC `give` 指定物品模板完成（二者须成对）。
+- `complete.flags`：旗标满足完成（与交物完成二选一或可并存于不同任务）。
+- `reward.currency`：完成时发放的银两。
+- `messages.accept` / `messages.complete`：可选提示文案。
+
+接取命令：`quest accept <id>`。`ask` 不触发接取。
 
 ## 内容包 `manifest.yaml` 已知字段
 

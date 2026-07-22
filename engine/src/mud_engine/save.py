@@ -52,6 +52,7 @@ from mud_engine.components import (
     NpcSpawnMeta,
     PlayerSession,
     Position,
+    QuestProgress,
 )
 from mud_engine.world import EntityId, World
 
@@ -160,11 +161,27 @@ def _des_item_spawn_meta(d: dict) -> ItemSpawnMeta:
 
 
 def _ser_player_session(c: PlayerSession) -> dict:
-    return {}
+    return {"subscriptions": sorted(c.subscriptions)}
 
 
 def _des_player_session(d: dict) -> PlayerSession:
+    raw = d.get("subscriptions")
+    if isinstance(raw, (list, tuple)):
+        return PlayerSession(subscriptions=frozenset(str(x) for x in raw))
     return PlayerSession()
+
+
+def _ser_quest_progress(c: QuestProgress) -> dict:
+    return {"quests": dict(c.quests), "flags": dict(c.flags)}
+
+
+def _des_quest_progress(d: dict) -> QuestProgress:
+    quests_raw = d.get("quests") or {}
+    flags_raw = d.get("flags") or {}
+    return QuestProgress(
+        quests={str(k): str(v) for k, v in dict(quests_raw).items()},
+        flags={str(k): bool(v) for k, v in dict(flags_raw).items()},
+    )
 
 
 def _codecs_from_specs(specs: list[CapabilitySpec]) -> dict[type, _Codec]:
@@ -187,6 +204,7 @@ _CODECS.update(
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
         PlayerSession: (_ser_player_session, _des_player_session),
+        QuestProgress: (_ser_quest_progress, _des_quest_progress),
     }
 )
 
