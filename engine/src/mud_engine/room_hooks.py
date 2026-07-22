@@ -20,6 +20,8 @@ from mud_engine.components import (
     RoomFreeState,
     RoomHookBinding,
     SkillLevels,
+    Container,
+    ItemTags,
 )
 from mud_engine.events import ON_TICK, Deny, TickContext
 from mud_engine.world import EntityId, World
@@ -273,6 +275,23 @@ class TimeOfDayPassageHook:
             ctx.set_state({"revealed": False})
 
 
+class MagneticIronHook:
+    """机关 #7：携带命中标签物品进房时播报磁力效果（玉厅灵感）。
+
+    本票只做到可观察播报，不强制卸除物品。YAML ``hooks.params``::
+
+        tag: <ItemTags 中须命中的标签，如 iron>
+    """
+
+    HOOK_ID = "magnetic_iron"
+    MESSAGE = "一股强大的磁力将你身上的铁器牢牢吸住！"
+
+    def on_enter(self, ctx: RoomHookContext) -> None:
+        tag = str(ctx.params.get("tag", "iron"))
+        if ctx.actor_has_item_tag(tag):
+            ctx.message_actor(self.MESSAGE)
+
+
 def _register_builtin_hooks() -> None:
     """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
     builtins: list[tuple[str, RoomHook]] = [
@@ -281,6 +300,7 @@ def _register_builtin_hooks() -> None:
         (LostInMazeHook.HOOK_ID, LostInMazeHook()),
         (SkillGateHook.HOOK_ID, SkillGateHook()),
         (TimeOfDayPassageHook.HOOK_ID, TimeOfDayPassageHook()),
+        (MagneticIronHook.HOOK_ID, MagneticIronHook()),
     ]
     for hook_id, hook in builtins:
         if hook_id not in _ROOM_HOOKS:
@@ -397,6 +417,19 @@ class RoomHookContext:
             return 0
         progress = skills.levels.get(skill_id)
         return progress.level if progress is not None else 0
+
+    def actor_has_item_tag(self, tag: str) -> bool:
+        """触发实体背包内是否有带 ``tag`` 的 ``ItemTags`` 物品（携带，非持刃专用谓词）。"""
+        if self.actor_id is None:
+            return False
+        bag = self._world.get_component(self.actor_id, Container)
+        if bag is None:
+            return False
+        for item in bag.items:
+            tags = self._world.get_component(item, ItemTags)
+            if tags is not None and tag in tags.tags:
+                return True
+        return False
 
     # ── 受限实体移动（委托独立方法本体）──────────────────
 
@@ -533,6 +566,7 @@ __all__ = [
     "ON_LEAVE_ROOM",
     "DigCollapseHook",
     "LostInMazeHook",
+    "MagneticIronHook",
     "MultiStepGateHook",
     "RoomHook",
     "RoomHookContext",

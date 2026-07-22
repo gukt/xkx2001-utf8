@@ -41,6 +41,13 @@ rooms:
         aliases:
           - 西北
           - 日光玉室
+      southwest:
+        to: magnetic_hall
+        aliases:
+          - 西南
+          - 磁力玉厅
+    objects:
+      iron_sword: 1
   dig_peak:
     name: 白玉峰坡
     long: 陡峭的白玉岩壁，似乎可以挖出一条临时通道。南面回到峰脚。
@@ -239,11 +246,34 @@ rooms:
         aliases:
           - 南
           - 玉室
+  magnetic_hall:
+    name: 磁力玉厅
+    long: 厅中隐有异力，铁器入内恐被吸住。
+    exits:
+      northeast:
+        to: dig_base
+        aliases:
+          - 东北
+          - 峰脚
+    hooks:
+      hook_id: magnetic_iron
+      params:
+        tag: iron
 
 skills:
   dodge:
     type: martial
     level_req: 0
+
+items:
+  iron_sword:
+    name: 铁剑
+    aliases:
+      - 剑
+    short: 一把铁剑
+    long: 普通铁剑，入玉厅恐被磁力所吸。
+    tags:
+      - iron
 
 player:
   name: 试炼者
