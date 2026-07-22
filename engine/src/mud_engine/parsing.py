@@ -114,6 +114,10 @@ class DeterministicParser(Parser):
             # say 保留原文空格：取首 token 之后的整段。
             text = stripped.split(None, 1)[1] if len(tokens) > 1 else ""
             return Intent(verb="say", target=None, args=(text,) if text else ())
+        if verb == "chat":
+            # chat 与 say 同：保留原文空格；不做未知 verb → 频道 ID fallthrough。
+            text = stripped.split(None, 1)[1] if len(tokens) > 1 else ""
+            return Intent(verb="chat", target=None, args=(text,) if text else ())
         # help / inventory / quit 无目标参数；多余参数本阶段忽略（M1 不校验）。
         return Intent(verb=verb, target=None, args=tuple(rest))
 

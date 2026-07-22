@@ -249,14 +249,21 @@ class Weight:
 # （spec 块 D user story 33；28 号票落地）。
 
 
+# 创建 ``PlayerSession`` 时的默认 Channel 订阅（pre-m4-05）；本波无 tune。
+DEFAULT_CHANNEL_SUBSCRIPTIONS: frozenset[str] = frozenset({"chat", "system"})
+
+
 @dataclass
 class PlayerSession:
-    """玩家驱动源标记（US33 / 28 号票）。
+    """玩家驱动源标记（US33 / 28 号票）+ Channel 订阅集合（pre-m4-05）。
 
-    空 marker dataclass：有本组件即视为在线玩家会话实体。与 ``AIController``
-    对仗——玩家与 NPC 共用组件池，靠驱动源组件区分。房间广播 / Nature 户外
-    推送等"只发给玩家"的路径一律查本组件，不用 Container 启发式。
+    有本组件即视为在线玩家会话实体。与 ``AIController`` 对仗——玩家与 NPC 共用
+    组件池，靠驱动源组件区分。房间广播 / Nature 户外推送等"只发给玩家"的路径
+    一律查本组件，不用 Container 启发式。``subscriptions`` 默认订 ``chat`` 与
+    ``system``；本波无玩家 ``tune`` 命令，测试可直接改集合验证过滤。
     """
+
+    subscriptions: frozenset[str] = DEFAULT_CHANNEL_SUBSCRIPTIONS
 
 
 @dataclass

@@ -68,7 +68,7 @@ from mud_engine.components import (
 from mud_engine.death_flow import UNCONSCIOUS_BLOCKED_VERBS
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
-from mud_engine.messaging import room_say
+from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
@@ -813,6 +813,15 @@ def _cmd_say(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if not text.strip():
         return ["说什么？用法：say <内容>"]
     return room_say(world, player_id, text)
+
+
+@register("chat")
+def _cmd_chat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向 ``chat`` 频道发言（pre-m4-05）：跨房间投给订阅者。空内容拒绝。"""
+    text = intent.args[0] if intent.args else ""
+    if not text.strip():
+        return ["聊什么？用法：chat <内容>"]
+    return publish_channel(world, "chat", player_id, text)
 
 
 @register("status")
