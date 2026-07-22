@@ -261,6 +261,7 @@ def restore_world(save_root: Path | str) -> tuple[World, EntityId] | None:
     if player_id is None:
         logger.warning("存档 %s 缺少可用的玩家实体，回退到 fresh scene", snapshot_dir)
         return None
+    world.primary_player_id = player_id
     return world, player_id
 
 

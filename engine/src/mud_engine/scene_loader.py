@@ -658,6 +658,7 @@ def _build_player(
     world.add_component(player_id, Position(room=room_ids[str(start_room)]))
     world.add_component(player_id, Container())
     world.add_component(player_id, PlayerSession())
+    world.primary_player_id = player_id
     # 复用 NPC 能力注册表解析 vitals/attributes/skills/currency/faction 等。
     _attach_capability_specs(
         world,

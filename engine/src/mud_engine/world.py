@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
-from mud_engine.components import Position
+from mud_engine.components import Container, Identity, PlayerSession, Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
@@ -90,12 +90,52 @@ class World:
         # restore 后由 ``reattach_pack_manifest`` 从 ``scene_path`` 同级
         # ``manifest.yaml`` 重读。默认场景路径无 manifest 时保持 None。
         self.pack_manifest: PackManifest | None = None
-        # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
-        # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
-        self.pending_messages: list[str] = []
+        # 按实体收件箱（pre-m4-03）：Nature / room_say / 死亡文案等异步推送按
+        # 接收者分发。不进存档。``pending_messages`` 属性仍暴露主会话视图，供
+        # 单玩家 CLI / 既有测试 drain。
+        self._mailboxes: dict[EntityId, list[str]] = {}
+        self.primary_player_id: EntityId | None = None
         # 本 world 由哪份场景 YAML 加载（``load_scene`` 写入）。进存档 meta，供
         # restore 后重读题材包 ``nature:`` 配置（不能写死 DEFAULT_SCENE_PATH）。
         self.scene_path: Path | None = None
+
+    def push_message(self, entity_id: EntityId, text: str) -> None:
+        """向指定实体的收件箱追加一条文案。"""
+        self._mailboxes.setdefault(entity_id, []).append(text)
+
+    def drain_messages(self, entity_id: EntityId) -> list[str]:
+        """取出并清空指定实体收件箱，返回副本。"""
+        box = self._mailboxes.get(entity_id)
+        if not box:
+            return []
+        out = list(box)
+        box.clear()
+        return out
+
+    @property
+    def pending_messages(self) -> list[str]:
+        """主会话收件箱的可变视图（单玩家 CLI / 回归测试兼容）。"""
+        pid = self.primary_player_id
+        if pid is None:
+            players = list(self.entities_with(PlayerSession))
+            if len(players) == 1:
+                pid = players[0]
+            else:
+                # 玩家尚未建立时的占位桶（加载早期）；正常路径不会往这里投递。
+                return self._mailboxes.setdefault(0, [])
+        return self._mailboxes.setdefault(pid, [])
+
+    def spawn_player_session(self, *, name: str, room: EntityId) -> EntityId:
+        """创建额外的 ``PlayerSession`` 实体（测试/脚本假多人 seam）。
+
+        不改变 ``primary_player_id``；单玩家 CLI 仍只驱动主会话。
+        """
+        entity = self.create_entity()
+        self.add_component(entity, Identity(name=name))
+        self.add_component(entity, Position(room=room))
+        self.add_component(entity, Container())
+        self.add_component(entity, PlayerSession())
+        return entity
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""

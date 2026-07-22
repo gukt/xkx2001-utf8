@@ -201,7 +201,7 @@ def _handle_player_depleted(
             )
         if world.has_component(player_id, Engaged):
             clear_engagement(world, player_id, reason="unconscious")
-        world.pending_messages.append("你伤势过重，昏迷了过去。")
+        world.push_message(player_id, "你伤势过重，昏迷了过去。")
         return
     if nxt is DeathState.DEAD:
         _execute_player_death(world, player_id, death_room=pos.room, killer_id=killer_id)
@@ -230,7 +230,7 @@ def _execute_player_death(
                 player_id,
                 Unconscious(ticks_remaining=deny_policy.unconscious_recovery_ticks),
             )
-        world.pending_messages.append(denial)
+        world.push_message(player_id, denial)
         return
 
     policy = _world_death_policy(world)
@@ -265,7 +265,7 @@ def _execute_player_death(
         ON_REVIVE,
         DeathContext(entity_id=player_id, world=world, death_room=death_room, killer_id=killer_id),
     )
-    world.pending_messages.append("你死而复生，回到了安全之地。")
+    world.push_message(player_id, "你死而复生，回到了安全之地。")
 
 
 def _resolve_revive_room(world: World, key: str) -> EntityId | None:
@@ -330,8 +330,8 @@ def _handle_npc_death(
 
     # 从存活查询语义消失（destroy；respawn 靠下次 spawn_scan）。
     world.destroy_entity(npc_id)
-    if killer_id is not None:
-        world.pending_messages.append("你打倒了对手。")
+    if killer_id is not None and world.has_component(killer_id, PlayerSession):
+        world.push_message(killer_id, "你打倒了对手。")
 
 
 def _loot_for_npc(
@@ -424,7 +424,7 @@ def _on_unconscious_tick(context: TickContext) -> None:
         vitals = world.get_component(entity, Vitals)
         if vitals is not None:
             vitals.qi_current = max(1, int(vitals.qi_max * policy.recovery_vitals_ratio))
-        world.pending_messages.append("你悠悠转醒")
+        world.push_message(entity, "你悠悠转醒")
 
 
 __all__ = [

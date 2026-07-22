@@ -33,9 +33,9 @@ class HearSayContext:
 def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:
     """向同房间广播一句话，并触发 ``on_hear_say``（28 号票）。
 
-    说话者若是玩家，返回 ``你说：...``；同房间其他玩家经 ``pending_messages``
-    收到 ``{名}说：...``（M1 单玩家时主要服务 NPC Chatter）。NPC 说话不返回
-    给自己，只推给房间内玩家。Chatter（ai.py）与 ``say`` 命令共用本函数。
+    说话者若是玩家，返回 ``你说：...``；同房间其他玩家经各自收件箱收到
+    ``{名}说：...``。NPC 说话不返回给自己，只推给房间内玩家会话。
+    Chatter（ai.py）与 ``say`` 命令共用本函数。
     """
     room = world.require_component(speaker_id, Position).room
     speaker_name = world.require_component(speaker_id, Identity).name
@@ -47,7 +47,7 @@ def room_say(world: World, speaker_id: EntityId, text: str) -> list[str]:
     # 同房间其他玩家收广播（NPC 说话不返回给自己）。遍历走 entities_in_room（34 号票）。
     for entity in world.entities_in_room(room, exclude=speaker_id):
         if _is_player_entity(world, entity):
-            world.pending_messages.append(f"{speaker_name}说：{text}")
+            world.push_message(entity, f"{speaker_name}说：{text}")
     if speaker_is_player:
         return [f"你说：{text}"]
     return []
