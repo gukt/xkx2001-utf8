@@ -51,11 +51,13 @@ from mud_engine.components import (
     Ferry,
     Identity,
     Inquiry,
+    LibraryRoom,
     Mount,
     PlayerSession,
     Position,
     Riding,
     RoomDetails,
+    RoomFlags,
     ShopInventory,
     SkillLevels,
     SkillProgress,
@@ -1007,6 +1009,10 @@ def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str
     """练习已学会的技能（M2-13）。消耗/经验门槏来自 SkillData。"""
     from mud_engine.skills import SKILLS
 
+    room = _player_room(world, player_id)
+    if world.get_component(room, LibraryRoom) is not None:
+        return ["这里是读书的地方，还是别练功了。"]
+
     skill_token = intent.target or (intent.args[0] if intent.args else None)
     if not skill_token:
         return ["练习什么？用法：practice <技能>"]
@@ -1208,6 +1214,11 @@ def _cmd_join(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 def _cmd_attack(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """对同房间目标建立交战（M2-12）。不直接结算伤害；伤害由 on_tick 系统推进。"""
     from mud_engine.combat_system import try_engage
+
+    room = _player_room(world, player_id)
+    flags = world.get_component(room, RoomFlags)
+    if flags is not None and flags.no_fight:
+        return ["这里不能动手打架。"]
 
     target_name = intent.target or (intent.args[0] if intent.args else None)
     if not target_name and intent.target_id is None:

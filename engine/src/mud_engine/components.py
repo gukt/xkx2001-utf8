@@ -452,6 +452,20 @@ class RoomDetails:
     entries: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass
+class RoomFlags:
+    """房间级布尔约束（Pre-M4-03）：只对已有命令面生效；其余 inert。启动固定。"""
+
+    no_fight: bool = False
+    no_steal: bool = False
+    no_sleep_room: bool = False
+
+
+@dataclass
+class LibraryRoom:
+    """本房启用藏书阅读（同房禁 practice）。票 04 扩展书档配置。启动固定。"""
+
+
 # ── 货币与商店（M2-07 / spec D1）────────────────────────────────────────
 
 

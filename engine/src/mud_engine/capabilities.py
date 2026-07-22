@@ -51,7 +51,9 @@ from mud_engine.components import (
     Mount,
     NoDeathZone,
     Riding,
+    LibraryRoom,
     RoomDetails,
+    RoomFlags,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -620,6 +622,75 @@ def _des_room_details(d: dict) -> RoomDetails:
     return RoomDetails(entries={str(k): str(v) for k, v in dict(raw).items()})
 
 
+def _parse_bool_flag(raw: object, *, field: str, label: str, scene_path: Path) -> bool:
+    if raw is True:
+        return True
+    if raw is False or raw is None:
+        return False
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 '{field}' 应是 true/false，实际是 {raw!r}"
+    )
+
+
+def _parse_room_flags(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> RoomFlags | None:
+    """``no_fight`` / ``no_steal`` / ``no_sleep_room``；全假则不挂。"""
+    no_fight = _parse_bool_flag(
+        data.get("no_fight"), field="no_fight", label=label, scene_path=scene_path
+    )
+    no_steal = _parse_bool_flag(
+        data.get("no_steal"), field="no_steal", label=label, scene_path=scene_path
+    )
+    no_sleep = _parse_bool_flag(
+        data.get("no_sleep_room"),
+        field="no_sleep_room",
+        label=label,
+        scene_path=scene_path,
+    )
+    if not (no_fight or no_steal or no_sleep):
+        return None
+    return RoomFlags(no_fight=no_fight, no_steal=no_steal, no_sleep_room=no_sleep)
+
+
+def _ser_room_flags(c: RoomFlags) -> dict:
+    return {
+        "no_fight": c.no_fight,
+        "no_steal": c.no_steal,
+        "no_sleep_room": c.no_sleep_room,
+    }
+
+
+def _des_room_flags(d: dict) -> RoomFlags:
+    return RoomFlags(
+        no_fight=bool(d.get("no_fight", False)),
+        no_steal=bool(d.get("no_steal", False)),
+        no_sleep_room=bool(d.get("no_sleep_room", False)),
+    )
+
+
+def _parse_library_room(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> LibraryRoom | None:
+    """``library: true`` 或 ``library: {…}``（映射体由票 04 扩展）→ 挂 LibraryRoom。"""
+    raw = data.get("library")
+    if raw is None or raw is False:
+        return None
+    if raw is True or isinstance(raw, Mapping):
+        return LibraryRoom()
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'library' 应是 true 或映射，实际是 {raw!r}"
+    )
+
+
+def _ser_library_room(_c: LibraryRoom) -> dict:
+    return {}
+
+
+def _des_library_room(_d: dict) -> LibraryRoom:
+    return LibraryRoom()
+
+
 ROOM_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Description,
@@ -662,6 +733,20 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_room_details,
         to_dict=_ser_room_details,
         from_dict=_des_room_details,
+    ),
+    CapabilitySpec(
+        component_type=RoomFlags,
+        known_fields=frozenset({"no_fight", "no_steal", "no_sleep_room"}),
+        from_yaml=_parse_room_flags,
+        to_dict=_ser_room_flags,
+        from_dict=_des_room_flags,
+    ),
+    CapabilitySpec(
+        component_type=LibraryRoom,
+        known_fields=frozenset({"library"}),
+        from_yaml=_parse_library_room,
+        to_dict=_ser_library_room,
+        from_dict=_des_library_room,
     ),
 ]
 
