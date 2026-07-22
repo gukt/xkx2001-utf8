@@ -98,6 +98,19 @@ class TestTimeOfDayPassageS0:
         hidden = world.get_component(chamber, HiddenExits)
         assert hidden is None or "north" not in hidden.by_direction
 
+    def test_on_tick_syncs_like_on_enter(self) -> None:
+        world, chamber, _tunnel, player = _minimal_passage_world(when="day")
+        hook = TimeOfDayPassageHook()
+        world.nature.seek_phase("night")
+        hook.on_tick(_ctx(world, chamber, player))
+        assert "north" not in world.require_component(chamber, Exits).by_direction
+        assert "north" in world.require_component(chamber, HiddenExits).by_direction
+
+    def test_invalid_when_raises(self) -> None:
+        world, chamber, _tunnel, player = _minimal_passage_world(when="dusk")
+        with pytest.raises(ValueError, match="when"):
+            TimeOfDayPassageHook().on_enter(_ctx(world, chamber, player))
+
 
 class TestTimeOfDayPassageCommandS1:
     def test_night_look_go_cannot_use_passage(self, tmp_path: Path) -> None:

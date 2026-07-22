@@ -83,6 +83,7 @@ class TestMagneticIronS0:
         MagneticIronHook().on_enter(_ctx(world, hall, player))
         msgs = world.drain_messages(player)
         assert any("磁力" in m or "吸" in m for m in msgs)
+        assert any("iron" in m for m in msgs)
 
     def test_no_iron_no_message(self) -> None:
         world, hall, player, _ = _minimal_magnetic_world(tags=None)

@@ -256,14 +256,20 @@ class TimeOfDayPassageHook:
     def _sync(self, ctx: RoomHookContext) -> None:
         direction = str(ctx.params["direction"])
         when = str(ctx.params.get("when", "day"))
+        if when not in ("day", "night"):
+            raise ValueError(
+                f"time_of_day_passage params.when 须为 'day' 或 'night'，实际是 {when!r}"
+            )
         want_open = ctx.is_day if when == "day" else ctx.is_night
         state = ctx.get_state()
         if "revealed" not in state:
-            # 首次：YAML 出口在 Exits；非对应时段立刻藏起
+            # YAML 出口先落在 Exits；首 sync 立刻经 hide→(可选)reveal 迁入 HiddenExits 路径，
+            # 与「非对应时段保持隐藏 / 对应时段从 HiddenExits 揭示」模型对齐。
+            ctx.hide_exit(direction)
             if want_open:
+                ctx.reveal_exit(direction)
                 ctx.set_state({"revealed": True})
             else:
-                ctx.hide_exit(direction)
                 ctx.set_state({"revealed": False})
             return
         revealed = bool(state["revealed"])
@@ -280,16 +286,15 @@ class MagneticIronHook:
 
     本票只做到可观察播报，不强制卸除物品。YAML ``hooks.params``::
 
-        tag: <ItemTags 中须命中的标签，如 iron>
+        tag: <ItemTags 中须命中的标签，默认 iron>
     """
 
     HOOK_ID = "magnetic_iron"
-    MESSAGE = "一股强大的磁力将你身上的铁器牢牢吸住！"
 
     def on_enter(self, ctx: RoomHookContext) -> None:
         tag = str(ctx.params.get("tag", "iron"))
         if ctx.actor_has_item_tag(tag):
-            ctx.message_actor(self.MESSAGE)
+            ctx.message_actor(f"一股强大的磁力将你身上带「{tag}」标记的器物牢牢吸住！")
 
 
 def _register_builtin_hooks() -> None:
@@ -556,6 +561,13 @@ def attach_room_hooks(world: World) -> None:
                 hook.on_tick(hook_ctx)  # type: ignore[attr-defined]
 
         world.events.register(ON_TICK, _on_tick)
+        # 冷启动：挂载后立刻跑一轮 on_tick（如时段秘道在首 look/go 前就藏/揭出口）。
+        # dig_collapse 等无 due schedule 时 no-op。
+        for room_id, (hook, params) in tick_bindings.items():
+            hook_ctx = RoomHookContext(
+                world, room_id, params=params, tick=world.tick
+            )
+            hook.on_tick(hook_ctx)  # type: ignore[attr-defined]
 
     world._room_hooks_attached = True  # noqa: SLF001
 
