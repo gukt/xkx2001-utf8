@@ -645,7 +645,8 @@ def _collect_room_objects(
                     f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects "
                     f"引用未定义的模板 '{key}'"
                 )
-            count = _parse_positive_int(raw_count, "objects", key, scene_path)
+            # 允许 0：登记蓝图/槽位但不首刷（劫匪刷拦等「进房再生成」机关）。
+            count = _parse_non_negative_int(raw_count, "objects", key, scene_path)
             if key in npc_keys and key in placements:
                 prev_room, _ = placements[key][0]
                 raise SceneLoadError(
@@ -879,8 +880,29 @@ def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> d
     return attached
 
 
+def _parse_non_negative_int(
+    raw: object, field: str, key: object, scene_path: Path
+) -> int:
+    """解析非负整数字段（房间 ``objects`` 数量）：须为 >= 0 的整数。
+
+    ``0`` 表示登记模板/蓝图但不生成初始实例（供钩子运行时 ``ensure_npc``）。
+    """
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是非负整数，"
+            f"实际是 {raw!r}"
+        ) from None
+    if value < 0:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= 0，实际是 {value}"
+        )
+    return value
+
+
 def _parse_positive_int(raw: object, field: str, key: object, scene_path: Path) -> int:
-    """解析正整数字段（objects 数量等）：须为 >= 1 的整数。"""
+    """解析正整数字段：须为 >= 1 的整数。"""
     try:
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):

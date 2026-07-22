@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 08 — 机关 #8 劫匪刷拦
@@ -10,12 +10,33 @@ Status: ready-for-agent
 
 **Blocked by:** `01`（钩子协议/注册表/窄 `ctx`）。
 
-- [ ] 钩子挂在心跳或进房事件点，判定触发条件；满足时经既有 NPC 蓝图/补刷机制在该房间生成拦路 NPC 并经 `ctx` 播报。
-- [ ] 该房间已声明 `block_exits`（引用同一 NPC 模板键），拦路语义直接复用，钩子不新建阻挡逻辑。
-- [ ] NPC 死亡/despawn 后通行自动恢复（依赖 `block_exits` 既有语义，不需钩子清理），不新建平行战斗或补刷系统。
-- [ ] `xingxiu_mechanics.yaml` 追加至少一条覆盖本机关的验收房间。
-- [ ] 测试（S0）：直调钩子触发条件与生成编排逻辑。测试（S1）：命令层——触发条件满足后出现拦路 NPC 且方向被挡、有播报；击杀后方向恢复可走。
-- [ ] `just test` 全绿。
+- [x] 钩子挂在心跳或进房事件点，判定触发条件；满足时经既有 NPC 蓝图/补刷机制在该房间生成拦路 NPC 并经 `ctx` 播报。
+- [x] 该房间已声明 `block_exits`（引用同一 NPC 模板键），拦路语义直接复用，钩子不新建阻挡逻辑。
+- [x] NPC 死亡/despawn 后通行自动恢复（依赖 `block_exits` 既有语义，不需钩子清理），不新建平行战斗或补刷系统。
+- [x] `xingxiu_mechanics.yaml` 追加至少一条覆盖本机关的验收房间。
+- [x] 测试（S0）：直调钩子触发条件与生成编排逻辑。测试（S1）：命令层——触发条件满足后出现拦路 NPC 且方向被挡、有播报；击杀后方向恢复可走。
+- [x] `just test` 全绿。
 
 ## Comments
 
+### 实现摘要（2026-07-22 Wave 5）
+
+- **钩子**：`bandit_ambush`（`BanditAmbushHook`）；仅 `on_enter`
+- **params**：
+  ```yaml
+  hooks:
+    hook_id: bandit_ambush
+    params:
+      npc: road_bandit   # SpawnerBlueprint / NpcSpawnMeta.template_key
+  block_exits:
+    north:
+      npc: road_bandit   # 同模板；钩子不新建阻挡字段
+  objects:
+    road_bandit: 0       # 登记蓝图、不首刷；进房由钩子 ensure_npc
+  ```
+- **ctx 新方法**：`find_npc_in_room` / `ensure_npc`（委托 `spawn_from_blueprint` + 槽位登记）
+- **加载**：`objects` 数量允许 `0`（`_parse_non_negative_int`）；仅登记蓝图
+- **触发**：进房且房内无该模板 NPC → `ensure_npc` + `message_actor`；已在场则幂等静默
+- **解除**：NPC `destroy`/死亡后 `block_exits` 天然失效；钩子不清理
+- **切片**：`ambush_trail` / `ambush_end`（`dig_base` 经 `path`）；`npcs.road_bandit`
+- **测试**：`engine/tests/test_xingxiu_mechanics_08.py`

@@ -3,7 +3,7 @@
 rooms:
   dig_base:
     name: 白玉峰脚
-    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路，西面通向玉石甬道，南面是沙漠，东北可登峭壁。
+    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路，西面通向玉石甬道，南面是沙漠，东北可登峭壁。另有一条荒僻小径。
     outdoors: true
     exits:
       north:
@@ -46,6 +46,11 @@ rooms:
         aliases:
           - 西南
           - 磁力玉厅
+      path:
+        to: ambush_trail
+        aliases:
+          - 小径
+          - 山脚
     objects:
       iron_sword: 1
   dig_peak:
@@ -259,6 +264,40 @@ rooms:
       hook_id: magnetic_iron
       params:
         tag: iron
+  ambush_trail:
+    name: 山脚小径
+    long: 荒僻小径，常有劫匪出没。北面通向深处，南面回到峰脚。
+    outdoors: true
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+      north:
+        to: ambush_end
+        aliases:
+          - 北
+          - 深处
+    block_exits:
+      north:
+        npc: road_bandit
+    objects:
+      road_bandit: 0
+    hooks:
+      hook_id: bandit_ambush
+      params:
+        npc: road_bandit
+  ambush_end:
+    name: 小径尽头
+    long: 劫匪拦路之后才能到达的空地。
+    outdoors: true
+    exits:
+      south:
+        to: ambush_trail
+        aliases:
+          - 南
+          - 小径
 
 skills:
   dodge:
@@ -274,6 +313,22 @@ items:
     long: 普通铁剑，入玉厅恐被磁力所吸。
     tags:
       - iron
+
+npcs:
+  road_bandit:
+    name: 劫匪
+    aliases:
+      - 强盗
+    short: 拦路劫匪
+    long: 一伙凶神恶煞的劫匪，挡住了北去的路。
+    respawn: false
+    vitals:
+      qi_current: 40
+      qi_max: 40
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
 
 player:
   name: 试炼者

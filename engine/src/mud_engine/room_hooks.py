@@ -11,17 +11,19 @@ from collections.abc import Mapping
 from typing import Any, Protocol
 
 from mud_engine.components import (
+    Container,
     Exit,
     Exits,
+    Faction,
     HiddenExit,
     HiddenExits,
+    ItemTags,
+    NpcSpawnMeta,
     PlayerSession,
     Position,
     RoomFreeState,
     RoomHookBinding,
     SkillLevels,
-    Container,
-    ItemTags,
 )
 from mud_engine.events import ON_TICK, Deny, TickContext
 from mud_engine.world import EntityId, World
@@ -297,6 +299,26 @@ class MagneticIronHook:
             ctx.message_actor(f"一股强大的磁力将你身上带「{tag}」标记的器物牢牢吸住！")
 
 
+class BanditAmbushHook:
+    """机关 #8：进房时按蓝图生成拦路 NPC（山脚/星宿路灵感）。
+
+    拦路语义复用房间 YAML 的 ``block_exits``（同模板在场则挡向）；钩子只编排
+    生成与播报。NPC 死亡后 ``block_exits`` 天然失效，无需钩子清理。
+    YAML ``hooks.params``::
+
+        npc: <SpawnerBlueprint / NpcSpawnMeta.template_key>
+    """
+
+    HOOK_ID = "bandit_ambush"
+
+    def on_enter(self, ctx: RoomHookContext) -> None:
+        npc_key = str(ctx.params["npc"])
+        if ctx.find_npc_in_room(npc_key) is not None:
+            return
+        ctx.ensure_npc(npc_key)
+        ctx.message_actor("一伙劫匪忽然从路边窜出，拦住了去路！")
+
+
 def _register_builtin_hooks() -> None:
     """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
     builtins: list[tuple[str, RoomHook]] = [
@@ -306,6 +328,7 @@ def _register_builtin_hooks() -> None:
         (SkillGateHook.HOOK_ID, SkillGateHook()),
         (TimeOfDayPassageHook.HOOK_ID, TimeOfDayPassageHook()),
         (MagneticIronHook.HOOK_ID, MagneticIronHook()),
+        (BanditAmbushHook.HOOK_ID, BanditAmbushHook()),
     ]
     for hook_id, hook in builtins:
         if hook_id not in _ROOM_HOOKS:
@@ -435,6 +458,50 @@ class RoomHookContext:
             if tags is not None and tag in tags.tags:
                 return True
         return False
+
+    def actor_faction_id(self) -> str | None:
+        """触发实体的 ``Faction.faction_id``；无组件或未入派返回 ``None``。"""
+        if self.actor_id is None:
+            return None
+        faction = self._world.get_component(self.actor_id, Faction)
+        if faction is None:
+            return None
+        return faction.faction_id
+
+    # ── NPC 蓝图生成（复用 spawn_from_blueprint，不新建补刷系统）──
+
+    def find_npc_in_room(self, template_key: str) -> EntityId | None:
+        """当前房间内 ``NpcSpawnMeta.template_key`` 匹配的 NPC；没有则 ``None``。"""
+        for entity in self._world.entities_in_room(self.room_id):
+            meta = self._world.get_component(entity, NpcSpawnMeta)
+            if meta is not None and meta.template_key == template_key:
+                return entity
+        return None
+
+    def ensure_npc(self, template_key: str) -> EntityId:
+        """若当前房已有该模板 NPC 则返回；否则按 ``world.spawners`` 蓝图生成一个。"""
+        existing = self.find_npc_in_room(template_key)
+        if existing is not None:
+            return existing
+        from mud_engine.ai import spawn_from_blueprint
+
+        blueprint = self._world.spawners.get(template_key)
+        if blueprint is None:
+            raise KeyError(f"未知 NPC 模板: {template_key}")
+        npc = spawn_from_blueprint(self._world, blueprint, room=self.room_id)
+        for index, slot in enumerate(blueprint.slots):
+            if slot is None or not self._world.has_entity(slot):
+                blueprint.slots[index] = npc
+                break
+        else:
+            blueprint.slots.append(npc)
+        return npc
+
+    def try_engage(self, attacker: EntityId, defender: EntityId) -> str | None:
+        """建立交战；委托 ``combat_system.try_engage``（成功 ``None``，失败返回文案）。"""
+        from mud_engine.combat_system import try_engage
+
+        return try_engage(self._world, attacker, defender)
 
     # ── 受限实体移动（委托独立方法本体）──────────────────
 
@@ -576,6 +643,7 @@ __all__ = [
     "ON_BEFORE_LEAVE_ROOM",
     "ON_ENTER_ROOM",
     "ON_LEAVE_ROOM",
+    "BanditAmbushHook",
     "DigCollapseHook",
     "LostInMazeHook",
     "MagneticIronHook",
