@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 06 — 声明式 Quest 状态机 + 官方镖局→向导闭环
@@ -21,3 +21,5 @@ Status: ready-for-agent
 - [ ] `just test` 全绿。
 
 ## Comments
+
+- 2026-07-22 实现：`QuestDef`/`QuestProgress`/`quest accept`；give 成功路径挂交物完成结算；旗标完成经 `set_quest_flag`；官方 `escort_delivery`（镖局→向导，赏 50 两）；契约增 `quests` 段。测：`test_quest.py`（含 S3 官方闭环 + save/restore）。

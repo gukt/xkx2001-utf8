@@ -47,6 +47,7 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     Mount,
+    NpcSpawnMeta,
     PlayerSession,
     Position,
     QuestProgress,
@@ -975,8 +976,6 @@ def _load_quests(
 
 def _ensure_npc_template_has_container(world: World, template_key: str) -> None:
     """交物目标 NPC 须有 Container，否则 give 无法完成任务。"""
-    from mud_engine.components import NpcSpawnMeta
-
     for entity in world.entities_with(NpcSpawnMeta):
         meta = world.require_component(entity, NpcSpawnMeta)
         if meta.template_key != template_key:

@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 05 — Channel：`chat` + `system` + 默认订阅
@@ -20,3 +20,5 @@ Status: ready-for-agent
 - [ ] `just test` 全绿。
 
 ## Comments
+
+- 2026-07-22 实现：薄 `CHANNELS` registry（chat 可写 / system 不可写）；`PlayerSession.subscriptions` 默认订两者；显式 `chat` 命令 + `broadcast_system` / `publish_channel`；未知 verb 不 fallthrough。ADR-0008 澄清仍成立，未改。测：`test_channel_chat_system.py`。
