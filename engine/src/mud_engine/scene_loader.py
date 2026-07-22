@@ -653,12 +653,15 @@ def _build_npcs(
         loot = parse_loot_table(data.get("loot"))
         if loot is not None:
             extras["loot"] = loot
+        short, long = _validated_description_texts(
+            data, name=str(name), label=label, scene_path=scene_path
+        )
         blueprint = SpawnerBlueprint(
             template_key=key,
             name=str(name),
             aliases=tuple(str(a) for a in aliases_raw),
-            short=str(data.get("short", name)),
-            long=str(data.get("long", "")),
+            short=short,
+            long=long,
             startroom=startroom_id,
             desired_count=count,
             respawn=respawn,
@@ -780,10 +783,9 @@ def _attach_identity_and_description(
         entity,
         Identity(name=str(name), aliases=tuple(str(a) for a in aliases)),
     )
-    short = str(data.get("short", name))
-    long = str(data.get("long", ""))
-    validate_markup(short, location=f"场景文件 {scene_path} 的{label}.short")
-    validate_markup(long, location=f"场景文件 {scene_path} 的{label}.long")
+    short, long = _validated_description_texts(
+        data, name=str(name), label=label, scene_path=scene_path
+    )
     world.add_component(
         entity,
         Description(
@@ -792,6 +794,17 @@ def _attach_identity_and_description(
             outdoors=outdoors,
         ),
     )
+
+
+def _validated_description_texts(
+    data: Mapping, *, name: str, label: str, scene_path: Path
+) -> tuple[str, str]:
+    """取 short/long 并做语义色校验（房间/物品/NPC 蓝图共用，ADR-0011）。"""
+    short = str(data.get("short", name))
+    long = str(data.get("long", ""))
+    validate_markup(short, location=f"场景文件 {scene_path} 的{label}.short")
+    validate_markup(long, location=f"场景文件 {scene_path} 的{label}.long")
+    return short, long
 
 
 def _resolve_ferry_refs(world: World, room_ids: dict[str, EntityId], scene_path: Path) -> None:

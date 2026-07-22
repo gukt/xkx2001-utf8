@@ -79,6 +79,27 @@ class TestLoadRejectsBadMarkup:
         with pytest.raises(SceneLoadError, match="ANSI"):
             load_scene(path)
 
+    def test_bad_color_in_npc_long_fails_load(self, tmp_path: Path) -> None:
+        scene = """rooms:
+  yard:
+    name: 院子
+    long: ok
+    exits: {}
+    objects:
+      guard: 1
+npcs:
+  guard:
+    name: 守卫
+    long: <c:purple>坏色</c>
+    inquiry:
+      default: 哼。
+player:
+  name: 你
+  start_room: yard
+"""
+        with pytest.raises(SceneLoadError, match="未知色名"):
+            load_scene(_write_scene(tmp_path, scene))
+
 
 class TestAuthorityKeepsTokens:
     def test_look_detail_keeps_semantic_tokens(self, tmp_path: Path) -> None:

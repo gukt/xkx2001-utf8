@@ -15,10 +15,10 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | **spec 已发布**（`ready-for-agent`）；grill + S1/S2/S3 接缝已确认 |
-| 入口文档 | [spec.md](spec.md)；[session-notes-2026-07-21.md](session-notes-2026-07-21.md)；[CONTEXT.md](../../CONTEXT.md)；[ADR-0011](../../docs/adr/0011-semantic-color-tokens.md) |
-| 下一步 skill | `/to-tickets` → `/implement` |
-| 不走 | `/wayfinder`；不直接 `/implement`；不重开放置模型；不自动开 M4 |
+| 状态 | **票已拆**（`01`–`07`，`ready-for-agent`）；下一步按 Wave `/implement` |
+| 入口文档 | [spec.md](spec.md)；[issues/](issues/)；[implement-plan.md](implement-plan.md)；[to-tickets-notes.md](to-tickets-notes.md)；[session-notes-2026-07-21.md](session-notes-2026-07-21.md)；[CONTEXT.md](../../CONTEXT.md)；[ADR-0011](../../docs/adr/0011-semantic-color-tokens.md) |
+| 下一步 skill | `/implement`（Wave 1：`01`/`02`/`03`）→ `/code-review` |
+| 不走 | `/wayfinder`；跳过票直接整包实现；不重开放置模型；不自动开 M4 |
 
 ## 与相邻交付物的关系
 
@@ -30,10 +30,9 @@
 | [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) | 放置模型已决；本 effort 议程删除「维持 `placed_in`/`in_room` vs objects」未决项。 |
 | M4 | 本 effort **插入在加固与 M4 之间**（与上表兄弟 effort 同窗口）；关完后再决定是否开 M4。 |
 
-## 建议目录（grill / to-spec 之后）
+## 目录
 
-- `spec.md` — grill 塌缩后产出  
-- `issues/` — `/to-tickets` 产出  
-- `implement-plan.md` — 可选  
-
-已有 [spec.md](spec.md)；`issues/` 待 `/to-tickets`。
+- [spec.md](spec.md) — grill 塌缩后产出  
+- [issues/](issues/) — `/to-tickets` 产出（`01`–`07`）  
+- [to-tickets-notes.md](to-tickets-notes.md) — 拆票决策  
+- [implement-plan.md](implement-plan.md) — Wave 执行手册（多 session）

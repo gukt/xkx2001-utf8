@@ -1417,13 +1417,13 @@ def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId 
 
 
 def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """有目标 look：NPC（target_id）→ 物品 → 房间 details → 失败提示。"""
+    """有目标 look：物品 / NPC（解析层已优先）→ 房间 details → 失败提示。"""
     name = intent.target
     assert name is not None
     if intent.target_id is not None:
         return _look_entity(world, intent.target_id, name)
     item_lines = _look_item(world, player_id, name)
-    if item_lines != [f"这里没有 {name}。"]:
+    if item_lines is not None:
         return item_lines
     room = _player_room(world, player_id)
     details = world.get_component(room, RoomDetails)
@@ -1443,11 +1443,11 @@ def _look_entity(world: World, entity_id: EntityId, name: str) -> list[str]:
     return [identity.name if identity is not None else name]
 
 
-def _look_item(world: World, player_id: EntityId, name: str) -> list[str]:
-    """``look <物品>``：long + 容器内容 + 堆叠/价值/重量（23 号票）。"""
+def _look_item(world: World, player_id: EntityId, name: str) -> list[str] | None:
+    """``look <物品>``：long + 容器内容 + 堆叠/价值/重量；未找到返回 None。"""
     item = _find_lookable_item(world, player_id, name)
     if item is None:
-        return [f"这里没有 {name}。"]
+        return None
     description = world.get_component(item, Description)
     lines: list[str] = []
     if description is not None and description.long:

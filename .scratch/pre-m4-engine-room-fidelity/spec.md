@@ -184,5 +184,5 @@ M3 停机与 Pre-M4 频道/spawn/任务已关，单机可玩内核具备 Channel
 
 - **Shared understanding** 与测试接缝 S1/S2/S3 已于 2026-07-22 由架构师确认。
 - 建议工作分支：将已关闭的 `feat/pre-m4-channels-spawn-quest` 合入 `master` 后开 `feat/pre-m4-engine-room-fidelity`。
-- 下一步：`/to-tickets` → 按票 `/implement`（内含 TDD + code-review）；不要跳过拆票直接整包实现。
+- 下一步：按 [implement-plan.md](implement-plan.md) Wave 推进 `/implement`（内含 TDD + code-review）；票见 [issues/](issues/)。
 - 若实现中发现藏书分页或付费模型必须引入新领域词，用短 grill 补 CONTEXT，不得静默发明与词汇表冲突的说法。
