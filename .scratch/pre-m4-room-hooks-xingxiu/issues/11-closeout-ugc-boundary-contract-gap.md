@@ -32,3 +32,4 @@ Status: resolved
 - **CONTEXT**：回写房间钩子 / 窄 ctx / `RoomFreeState` / `ON_BEFORE_LEAVE_ROOM` / `xingxiu_mechanics`；effort 标已关闭。
 - **止损**：`02`–`10` 无治理止损缩 scope；Blocked 空。
 - **ADR-0012** 结论不变，不新开 ADR；**不自动开 M4**。
+- **code-review fix**：首 commit 勾选 PROGRESS 时文件尚未回写——本 fix 补 `PROGRESS.md`（Done Wave 7 / Next Up=M4 评估）+ Wave 2 移入 `progress-archive`；closeout 测 docstring 标明 e2e 仍靠 `02`–`10`。

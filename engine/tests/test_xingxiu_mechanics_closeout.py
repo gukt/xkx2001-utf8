@@ -2,6 +2,9 @@
 
 接缝：S3 ``load_xingxiu_mechanics`` / ``load_mvp_scene``；S2 内容包禁 hooks
 （复核 ``test_room_hooks.TestUgcRejectsHooksS2``，本文件不重复造测）。
+
+端到端可玩命令序列仍由 ``test_xingxiu_mechanics_02``–``10`` 覆盖；本文件只做
+收口清单核对（绑定 / ``random_of`` 落地 / ``silk_rope`` 注册 + 扬州场景隔离）。
 """
 
 from __future__ import annotations
