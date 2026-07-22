@@ -20,25 +20,23 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE_RESPAWN = """
-rooms:
+_SCENE_RESPAWN = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      gate_master: 1
+      wanderer: 1
 npcs:
   gate_master:
     name: 门派掌门
     short: 一位掌门
     long: 门派唯一掌门。
-    in_room: yard
-    count: 1
     respawn: true
     inquiry:
       default: 少侠有礼。
   wanderer:
     name: 路人
-    in_room: yard
-    count: 1
     respawn: false
 player:
   name: 你
@@ -107,16 +105,15 @@ class TestSpawnerBlueprintTotalWipeout:
         )
 
     def test_spawners_registered_once_per_template_key(self, tmp_path: Path) -> None:
-        scene = """
-rooms:
+        scene = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      patrol: 3
 npcs:
   patrol:
     name: 巡逻兵
-    in_room: yard
-    count: 3
     respawn: true
 player:
   name: 你

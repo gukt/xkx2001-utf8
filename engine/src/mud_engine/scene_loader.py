@@ -61,9 +61,10 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
 
     任何结构性错误（YAML 语法、缺字段、引用不存在的房间键）都收口成
-    ``SceneLoadError``，消息含文件路径与大致出错的条目键。先建全部房间，再摆
-    物品、连出口/门、放 NPC、放玩家--物品先于出口是因为出口的门锁可引用物品
-    作为钥匙（04 号票），建出口时需要物品的 entity id 已就绪。
+    ``SceneLoadError``，消息含文件路径与大致出错的条目键。先建全部房间，再按
+    房间 ``objects`` 摆物品、连出口/门、放 NPC、放玩家--物品先于出口是因为出口
+    的门锁可引用物品作为钥匙（04 号票），建出口时需要物品的 entity id 已就绪。
+    放置权威是房间 ``objects``（ADR-0010）；``placed_in`` / ``in_room`` 一律拒绝。
     """
     data = _read_yaml(scene_path)
     rooms = _expect_mapping(data, scene_path, "rooms")
@@ -80,9 +81,11 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     world.room_ids = dict(room_ids)
     world.death_policy = parse_death_policy(data.get("death_policy"))
     _resolve_ferry_refs(world, room_ids, scene_path)
-    item_ids = _build_items(world, items, room_ids, scene_path)
+    _reject_legacy_placement_fields(items, npcs, scene_path)
+    placements = _collect_room_objects(rooms, items, npcs, scene_path)
+    item_ids = _build_items(world, items, placements, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
-    _build_npcs(world, npcs, room_ids, scene_path)
+    _build_npcs(world, npcs, placements, room_ids, scene_path)
     _validate_shop_inventories(world, scene_path)
     _validate_faction_refs(world, scene_path)
     player_id = _build_player(world, player, room_ids, scene_path)
@@ -125,31 +128,31 @@ def read_nature_config(scene_path: Path | str) -> dict | None:
 _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
     {"rooms", "items", "npcs", "player", "skills", "factions", "death_policy"}
 )
-_ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits"})
+_ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "objects"})
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
 )
 # 物品能力字段（18/21/22/24 号票 + 31 号票注册表）：从 ``CAPABILITIES``
 # 聚合每个能力的 known_fields，避免新增能力时漏改 _ITEM_KNOWN_FIELDS 导致透传误吞字段。
+# 放置由房间 ``objects`` 声明（ADR-0010），模板段不再含 ``placed_in``。
 _ITEM_KNOWN_FIELDS = frozenset(
     {
         "name",
         "aliases",
         "short",
         "long",
-        "placed_in",
     }
     | {field for spec in CAPABILITIES for field in spec.known_fields}
 )
+# NPC 数量由房间 ``objects`` 推导；``in_room``/``count`` 已退役（ADR-0010）。
+# ``startroom`` 仅作补刷出生房（缺省=objects 房间）；``respawn`` 仍在模板段。
 _NPC_INTRINSIC_FIELDS = frozenset(
     {
         "name",
         "aliases",
         "short",
         "long",
-        "in_room",
         "startroom",
-        "count",
         "respawn",
         "loot",
     }
@@ -376,41 +379,113 @@ def _door_key_item_id(
     return item_ids[key]
 
 
+def _reject_legacy_placement_fields(
+    items: Mapping, npcs: Mapping, scene_path: Path
+) -> None:
+    """拒绝已退役的权威放置字段（ADR-0010）：``placed_in`` / ``in_room`` / 模板 ``count``。"""
+    for item_key, raw in items.items():
+        data = _as_mapping(raw, label=f"物品 '{item_key}'", scene_path=scene_path)
+        if "placed_in" in data:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的物品 '{item_key}' 使用了已退役字段 "
+                f"'placed_in'；请改为在目标房间的 objects 中声明 "
+                f"（见 docs/adr/0010-room-centric-objects-placement.md）"
+            )
+    for npc_key, raw in npcs.items():
+        data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
+        if "in_room" in data:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 使用了已退役字段 "
+                f"'in_room'；请改为在目标房间的 objects 中声明 "
+                f"（见 docs/adr/0010-room-centric-objects-placement.md）"
+            )
+        if "count" in data:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 使用了已退役字段 "
+                f"'count'；数量请写在房间 objects 里 "
+                f"（见 docs/adr/0010-room-centric-objects-placement.md）"
+            )
+
+
+def _collect_room_objects(
+    rooms: Mapping,
+    items: Mapping,
+    npcs: Mapping,
+    scene_path: Path,
+) -> dict[str, tuple[str, int]]:
+    """收集房间 ``objects``：返回 template_key -> (room_key, count)。
+
+    同一模板键只能出现在一个房间（NPC 蓝图 / 门锁钥匙都按单出生点建模）。
+    """
+    placements: dict[str, tuple[str, int]] = {}
+    item_keys = {str(k) for k in items}
+    npc_keys = {str(k) for k in npcs}
+    for room_key, raw in rooms.items():
+        data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
+        objects = data.get("objects")
+        if objects is None:
+            continue
+        if not isinstance(objects, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 'objects' 应是映射，"
+                f"实际是 {type(objects).__name__}"
+            )
+        for template_key, raw_count in objects.items():
+            key = str(template_key)
+            if key not in item_keys and key not in npc_keys:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects "
+                    f"引用未定义的模板 '{key}'"
+                )
+            count = _parse_positive_int(raw_count, "objects", key, scene_path)
+            if key in placements:
+                prev_room, _ = placements[key]
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的模板 '{key}' 在房间 '{prev_room}' 与 "
+                    f"'{room_key}' 的 objects 中重复出现；每个模板只能放在一个房间"
+                )
+            placements[key] = (str(room_key), count)
+    return placements
+
+
 def _build_items(
     world: World,
     items: Mapping,
+    placements: Mapping[str, tuple[str, int]],
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> dict[str, EntityId]:
-    """建物品实体（Identity+Description+按需能力组件）并放进 placed_in 房间地面。
+    """登记物品模板，并按房间 ``objects`` 在地面生成实例。
 
-    返回 item key -> entity id 映射，供出口的 ``door.key`` 引用钥匙物品（04 号票）。
-    能力组件（18/21/22/24 号票）按 YAML 字段按需挂载，未声明不挂。
+    返回 item key -> 首个实例 entity id，供出口的 ``door.key`` 引用（04 号票）。
+    仅出现在 ``items``、未写入任何 ``objects`` 的键仍可作为商店模板（不生成实体）。
     """
     item_ids: dict[str, EntityId] = {}
     for item_key, raw in items.items():
         data = _as_mapping(raw, label=f"物品 '{item_key}'", scene_path=scene_path)
-        placed_in = data.get("placed_in")
-        if not placed_in:
-            raise SceneLoadError(f"场景文件 {scene_path} 的物品 '{item_key}' 缺少 'placed_in'")
-        if str(placed_in) not in room_ids:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的物品 '{item_key}' 的 placed_in "
-                f"'{placed_in}' 不是已定义的房间"
-            )
-        item = world.create_entity()
-        _attach_identity_and_description(
-            world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-        )
-        _attach_item_capabilities(
-            world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-        )
-        room_container = world.require_component(room_ids[str(placed_in)], Container)
-        room_container.items.add(item)
-        _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
-        item_ids[str(item_key)] = item
+        key = str(item_key)
         # 商店 buy 按模板键实例化：保留原始 YAML（M2-07）。
-        world.item_templates[str(item_key)] = dict(data)
+        world.item_templates[key] = dict(data)
+        placement = placements.get(key)
+        if placement is None:
+            continue
+        room_key, count = placement
+        room_container = world.require_component(room_ids[room_key], Container)
+        first_item: EntityId | None = None
+        for _ in range(count):
+            item = world.create_entity()
+            _attach_identity_and_description(
+                world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
+            )
+            _attach_item_capabilities(
+                world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
+            )
+            room_container.items.add(item)
+            _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
+            if first_item is None:
+                first_item = item
+        assert first_item is not None
+        item_ids[key] = first_item
     return item_ids
 
 
@@ -451,36 +526,40 @@ def _attach_capability_specs(
 def _build_npcs(
     world: World,
     npcs: Mapping,
+    placements: Mapping[str, tuple[str, int]],
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
     """建 NPC：解析一次能力 → 注册 SpawnerBlueprint → 经 spawn_from_blueprint 实例化。
 
-    ``count`` 控制实例数（默认 1）；``startroom`` 可作 ``in_room`` 别名，也可
-    单独声明出生房（与 in_room 并存时：位置用 in_room，spawn meta 用 startroom）。
-    同一 template 的多个 count 实例只注册一条蓝图（M2-04）。加载与重生共用
-    ``spawn_from_blueprint``，避免双路径装配分叉。
+    初始位置与期望数量来自房间 ``objects``；模板 ``respawn`` 控制补刷；``startroom``
+    若声明则须与 objects 房间一致（补刷落点），缺省即 objects 房间。同一 template
+    的多个实例只注册一条蓝图（M2-04）。加载与重生共用 ``spawn_from_blueprint``。
     """
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
-        room_key = data.get("in_room") or data.get("startroom")
-        if not room_key:
+        key = str(npc_key)
+        placement = placements.get(key)
+        if placement is None:
             raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 缺少 'in_room'（或 startroom）"
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 未出现在任何房间的 "
+                f"objects 中（见 docs/adr/0010-room-centric-objects-placement.md）"
             )
-        if str(room_key) not in room_ids:
-            raise SceneLoadError(
-                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的房间 '{room_key}' 不是已定义的房间"
-            )
+        room_key, count = placement
         start_key = data.get("startroom") or room_key
         if str(start_key) not in room_ids:
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 startroom "
                 f"'{start_key}' 不是已定义的房间"
             )
-        count = _npc_count(data.get("count", 1), npc_key, scene_path)
+        if str(start_key) != room_key:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 startroom "
+                f"'{start_key}' 与 objects 房间 '{room_key}' 不一致；"
+                f"objects 决定初始位置，startroom 仅作补刷出生房且须相同"
+            )
         respawn = bool(data.get("respawn", False))
-        room_id = room_ids[str(room_key)]
+        room_id = room_ids[room_key]
         startroom_id = room_ids[str(start_key)]
         label = f"NPC '{npc_key}'"
         # name 必需：与 _attach_identity_and_description 同校验，提前到蓝图登记前。
@@ -506,7 +585,7 @@ def _build_npcs(
         if loot is not None:
             extras["loot"] = loot
         blueprint = SpawnerBlueprint(
-            template_key=str(npc_key),
+            template_key=key,
             name=str(name),
             aliases=tuple(str(a) for a in aliases_raw),
             short=str(data.get("short", name)),
@@ -523,7 +602,7 @@ def _build_npcs(
             ),
             extras=extras,
         )
-        world.spawners[str(npc_key)] = blueprint
+        world.spawners[key] = blueprint
         for _ in range(count):
             npc = spawn_from_blueprint(world, blueprint, room=room_id)
             # 商店 NPC 需要 Container 才能走 transfer 收货/发货。
@@ -542,24 +621,19 @@ def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> d
     return attached
 
 
-def _parse_positive_int(raw: object, field: str, npc_key: object, scene_path: Path) -> int:
-    """解析正整数字段（count 等）：须为 >= 1 的整数。"""
+def _parse_positive_int(raw: object, field: str, key: object, scene_path: Path) -> int:
+    """解析正整数字段（objects 数量等）：须为 >= 1 的整数。"""
     try:
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应是正整数，实际是 {raw!r}"
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是正整数，实际是 {raw!r}"
         ) from None
     if value < 1:
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 NPC '{npc_key}' 的 '{field}' 应 >= 1，实际是 {value}"
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= 1，实际是 {value}"
         )
     return value
-
-
-def _npc_count(raw: object, npc_key: object, scene_path: Path) -> int:
-    """解析 count：默认 1，须为正整数。"""
-    return _parse_positive_int(raw, "count", npc_key, scene_path)
 
 
 def _build_player(

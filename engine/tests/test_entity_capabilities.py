@@ -18,17 +18,17 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   yard:
     name: 院子
     outdoors: true
     custom_room_flag: room-extra
     exits: {}
+    objects:
+      guard: 1
 npcs:
   guard:
     name: 守卫
-    in_room: yard
     inquiry:
       default: 哼。
     custom_npc_flag: npc-extra

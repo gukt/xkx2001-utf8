@@ -47,8 +47,18 @@ player:
 
 
 def _load(tmp_path: Path, items_yaml: str) -> tuple[World, EntityId]:
-    scene = _BASE + "\nitems:\n" + items_yaml
-    return load_scene(_write_scene(tmp_path, scene))
+    import yaml
+
+    items = yaml.safe_load("items:\n" + items_yaml)["items"]
+    objects = {str(key): 1 for key in items}
+    scene = {
+        "rooms": {"yard": {"name": "院子", "long": "院子", "objects": objects}},
+        "items": items,
+        "player": {"name": "你", "start_room": "yard"},
+    }
+    path = tmp_path / "scene.yaml"
+    path.write_text(yaml.dump(scene, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return load_scene(path)
 
 
 def _item_by_name(world: World, holder: EntityId, name: str) -> EntityId:
@@ -75,7 +85,6 @@ class TestCapabilityComponents:
                 """
   coin:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 5, unit_weight: 0.1}
     value: 1
     equippable: {slot: hand}
@@ -96,7 +105,6 @@ class TestCapabilityComponents:
                 """
   pebble:
     name: 石子
-    placed_in: yard
 """,
             )
             room = _player_room(world, player_id)
@@ -112,7 +120,6 @@ class TestCapabilityComponents:
                 """
   potion:
     name: 药水
-    placed_in: yard
     stackable: {amount: 3, unit_weight: 0.2}
     valuable: {value: 10}
     equippable: {slot: hand, apply_hook: apply_sword}
@@ -153,7 +160,6 @@ class TestCapabilityComponents:
                 """
   coin:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 5, unit_weight: 0.1}
     value: 1
     equippable: {slot: hand, apply_hook: apply_coin}
@@ -276,11 +282,9 @@ class TestStacking:
             """
   a:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 3, unit_weight: 0.1}
   b:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 2, unit_weight: 0.1}
 """,
         )
@@ -297,7 +301,6 @@ class TestStacking:
             """
   pile:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 10, unit_weight: 0.1}
 """,
         )
@@ -315,7 +318,6 @@ class TestStacking:
             """
   pile:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 2}
 """,
         )
@@ -334,7 +336,6 @@ class TestNoTakeNoDrop:
             """
   statue:
     name: 石碑
-    placed_in: yard
     no_get: true
 """,
         )
@@ -352,7 +353,6 @@ class TestNoTakeNoDrop:
             """
   token:
     name: 令牌
-    placed_in: yard
     no_drop: true
     no_drop_message: 这是任务物品，不能丢弃
 """,
@@ -377,11 +377,9 @@ class TestNestedContainers:
   box:
     name: 木箱
     aliases: [箱子]
-    placed_in: yard
     container: true
   gem:
     name: 宝石
-    placed_in: yard
 """,
         )
         execute_line(world, player_id, "get 宝石")
@@ -401,11 +399,9 @@ class TestNestedContainers:
   box:
     name: 木箱
     aliases: [箱子]
-    placed_in: yard
     container: true
   gem:
     name: 宝石
-    placed_in: yard
 """,
         )
         execute_line(world, player_id, "get 宝石")
@@ -428,7 +424,6 @@ class TestLookItem:
   coin:
     name: 铜钱
     long: 圆圆的铜钱。
-    placed_in: yard
     stackable: {amount: 4, unit_weight: 0.5}
     value: 2
 """,
@@ -447,11 +442,9 @@ class TestLookItem:
   box:
     name: 木箱
     long: 一只旧木箱。
-    placed_in: yard
     container: true
   gem:
     name: 宝石
-    placed_in: yard
 """,
         )
         execute_line(world, player_id, "get 宝石")
@@ -477,14 +470,11 @@ class TestWeightCapacity:
             """
   box:
     name: 小盒
-    placed_in: yard
     container: {max_capacity: 1}
   a:
     name: 甲
-    placed_in: yard
   b:
     name: 乙
-    placed_in: yard
 """,
         )
         execute_line(world, player_id, "get 甲")
@@ -499,11 +489,9 @@ class TestWeightCapacity:
             """
   box:
     name: 布袋
-    placed_in: yard
     container: {max_weight: 1.0}
   rock:
     name: 大石
-    placed_in: yard
     weight: 5
 """,
         )
@@ -517,11 +505,9 @@ class TestWeightCapacity:
             """
   box:
     name: 布袋
-    placed_in: yard
     container: {max_weight: 1.0}
   rock:
     name: 大石
-    placed_in: yard
     weight: 5
 """,
         )
@@ -540,7 +526,6 @@ class TestWeightCapacity:
             """
   pile:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 4, unit_weight: 0.25}
 """,
         )
@@ -558,7 +543,6 @@ class TestGetDropAllAndDropQuantity:
             """
   pile:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 10, unit_weight: 0.1}
 """,
         )
@@ -577,10 +561,8 @@ class TestGetDropAllAndDropQuantity:
             """
   a:
     name: 甲
-    placed_in: yard
   b:
     name: 乙
-    placed_in: yard
 """,
         )
         messages = execute_line(world, player_id, "get all")
@@ -597,10 +579,8 @@ class TestGetDropAllAndDropQuantity:
             """
   gem:
     name: 宝石
-    placed_in: yard
   tablet:
     name: 石碑
-    placed_in: yard
     no_get: true
 """,
         )
@@ -624,10 +604,8 @@ class TestGetDropAllAndDropQuantity:
             """
   gem:
     name: 宝石
-    placed_in: yard
   token:
     name: 令牌
-    placed_in: yard
     no_drop: true
     no_drop_message: 这是任务物品，不能丢弃
 """,
@@ -653,7 +631,6 @@ class TestGetDropAllAndDropQuantity:
             """
   pebble:
     name: 石子
-    placed_in: yard
 """,
         )
         messages = execute_line(world, player_id, "take 石子")
@@ -669,11 +646,9 @@ class TestGetDropAllAndDropQuantity:
             """
   a:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 5, unit_weight: 0.1}
   b:
     name: 铜钱
-    placed_in: yard
     stackable: {amount: 3, unit_weight: 0.1}
 """,
         )

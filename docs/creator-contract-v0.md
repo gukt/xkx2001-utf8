@@ -32,15 +32,21 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+
+`objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 
 ### `items.*`
 
-`name`, `aliases`, `short`, `long`, `placed_in`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
+`name`, `aliases`, `short`, `long`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
+
+纯模板定义；摆放位置与份数写在房间 `objects`，不在本段。
 
 ### `npcs.*`
 
-`name`, `aliases`, `short`, `long`, `in_room`, `startroom`, `count`, `respawn`, `loot`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+`name`, `aliases`, `short`, `long`, `startroom`, `respawn`, `loot`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+
+纯模板定义；初始位置与实例数由房间 `objects` 推导。`startroom` 可选，缺省即 `objects` 所在房，若显式写出须与之相同（补刷落点）。
 
 ### `player`
 

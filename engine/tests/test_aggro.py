@@ -15,15 +15,15 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   wild:
     name: 野外
     exits: {}
+    objects:
+      wolf: 1
 npcs:
   wolf:
     name: 野狼
-    in_room: wild
     vitals:
       qi_current: 50
       qi_max: 50
@@ -32,7 +32,7 @@ npcs:
       jingli_current: 10
       jingli_max: 10
     behaviors:
-      - kind: aggro
+    - kind: aggro
 player:
   name: 你
   start_room: wild

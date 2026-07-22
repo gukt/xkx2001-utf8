@@ -16,16 +16,15 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   gate:
     name: 城门
     exits: {}
+    objects:
+      guard: 2
 npcs:
   guard:
     name: 官兵
-    in_room: gate
-    count: 2
     inquiry:
       default: 闲人免进。
       weather: 天晴。
@@ -109,7 +108,7 @@ class TestAskAttackDisambiguation:
         assert any("第 9 个" in line for line in lines)
 
     def test_single_instance_index_optional(self, tmp_path: Path) -> None:
-        scene = _SCENE.replace("count: 2", "count: 1")
+        scene = _SCENE.replace("guard: 2", "guard: 1")
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         lines = execute_line(world, player_id, "ask 官兵 about weather")
         assert any("天晴" in line for line in lines)

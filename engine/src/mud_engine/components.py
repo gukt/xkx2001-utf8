@@ -319,7 +319,8 @@ class NpcSpawnMeta:
 
     场景加载时按模板挂到每个实例上；低频 Spawn/Reset 扫描用 ``template_key``
     聚合并对照 ``desired_count`` / ``respawn``。M1 NPC 不死，扫描多为空转，
-    机制地基先埋。``startroom`` 是出生房间（与加载时 ``in_room`` 通常相同）。
+    机制地基先埋。``startroom`` 是补刷出生房间（与房间 ``objects`` 放置房通常相同，
+    ADR-0010）。
     """
 
     template_key: str  # 启动固定：YAML npcs 段的模板键，如 "stone_guard"

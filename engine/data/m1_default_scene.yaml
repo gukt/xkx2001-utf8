@@ -1,21 +1,3 @@
-# M1 默认空场景--题材无关的最小房间图，仅用于验证引擎骨架。
-#
-# 这是 M1 内部过渡格式（见 M1 spec「场景数据与引擎能力的边界」2026-07-18 修订）：
-# 目标是"非工程师也能改场景数据、跑通闭环优先"，不是 M3 要交给创作者的正式 UGC
-# DSL--M3 可能整体替换这份格式，本文件不追求向后兼容或完整校验。
-#
-# 覆盖范围：房间 / 物品 / 静态展示型 NPC / 门与锁状态（04 号票）。
-
-# ── 房间 ──────────────────────────────────────────────
-# 每个 key 是场景图内部引用键（出口、物品摆放、NPC 所在都用它指代房间）。
-# name  -> Identity.name（玩家指代与展示用，必需）
-# short -> Description.short（可选，缺省取 name）
-# long  -> Description.long（详细描述，可选）
-# outdoors -> Description.outdoors（15 号票：户外房间 look 追加时辰/天气文案）
-# exits -> 方向 -> { to: 目标房间键, aliases: [方向别名...], door: open|closed|locked, key: 钥匙物品键 }
-#          两个方向都显式声明（不做反向自动补全），单向出口（如掉进去的坑）也合法。
-#          door/key（04 号票）：door 指定该出口的门状态，locked 时 key 引用 items
-#          段的物品键作为解锁钥匙；不写 door 表示该出口无门、自由通行。
 rooms:
   start_yard:
     name: 起始庭院
@@ -24,19 +6,29 @@ rooms:
     exits:
       north:
         to: corridor
-        aliases: [北道]
+        aliases:
+        - 北道
       south:
         to: storage_room
         door: closed
+    objects:
+      stone: 1
+      stone_guard: 1
+      yard_gossip: 1
+      night_owl: 1
+      patrol_pair: 2
   corridor:
     name: 长廊
     long: 一条连接南北两侧的长廊，两侧墙壁空无一物。
     exits:
-      south: { to: start_yard }
+      south:
+        to: start_yard
       north:
         to: quiet_room
         door: locked
         key: iron_key
+    objects:
+      iron_key: 1
   quiet_room:
     name: 静室
     long: 一间安静的房间，位于长廊的尽头。
@@ -44,172 +36,162 @@ rooms:
     name: 储藏室
     long: 一间堆放杂物的小储藏室，光线昏暗。
     exits:
-      north: { to: start_yard }
-
-# ── 物品 ──────────────────────────────────────────────
-# name/aliases -> Identity；short/long -> Description。
-# placed_in -> 初始摆放在哪个房间的地面容器里（必需）。
-# iron_key 是 corridor 北门（locked）的钥匙（04 号票 door.key 引用本物品键）。
-#
-# 储藏室另有一组「M1 物品手测夹具」（verify/m1-items）：堆叠 / 容器 / 标志 /
-# 重量容量 / look 数值。庭院只留石头，避免干扰钥匙与门回归路径。
+      north:
+        to: start_yard
+    objects:
+      wooden_box: 1
+      copper_coins_a: 1
+      copper_coins_b: 1
+      gem: 1
+      small_pouch: 1
+      heavy_crate: 1
+      quest_token: 1
+      stone_tablet: 1
 items:
   stone:
     name: 石头
-    aliases: [石]
+    aliases:
+    - 石
     short: 一块灰扑扑的石头
     long: 一块毫不起眼的石头，沉甸甸的，表面粗糙。
-    placed_in: start_yard
   iron_key:
     name: 铁钥匙
-    aliases: [钥匙]
+    aliases:
+    - 钥匙
     short: 一把铁钥匙
     long: 一把锈迹斑斑的铁钥匙，齿纹独特。
-    placed_in: corridor
-
-  # ── M1 物品手测夹具（storage_room）────────────────────
   wooden_box:
     name: 木箱
-    aliases: [箱子]
+    aliases:
+    - 箱子
     short: 一只旧木箱
     long: 一只能开合的旧木箱，里面可以塞杂物。
-    placed_in: storage_room
-    container: {max_capacity: 2}
+    container:
+      max_capacity: 2
   copper_coins_a:
     name: 铜钱
-    aliases: [钱]
+    aliases:
+    - 钱
     short: 一堆铜钱
     long: 圆圆的铜钱，可以堆叠。
-    placed_in: storage_room
-    stackable: {amount: 5, unit_weight: 0.1}
+    stackable:
+      amount: 5
+      unit_weight: 0.1
     value: 1
   copper_coins_b:
     name: 铜钱
-    aliases: [钱]
+    aliases:
+    - 钱
     short: 一堆铜钱
     long: 圆圆的铜钱，可以堆叠。
-    placed_in: storage_room
-    stackable: {amount: 3, unit_weight: 0.1}
+    stackable:
+      amount: 3
+      unit_weight: 0.1
     value: 1
   gem:
     name: 宝石
-    aliases: [玉]
+    aliases:
+    - 玉
     short: 一颗宝石
     long: 一颗透亮的宝石，体积不大。
-    placed_in: storage_room
     weight: 0.5
     value: 50
   small_pouch:
     name: 小布袋
-    aliases: [布袋, 袋子]
+    aliases:
+    - 布袋
+    - 袋子
     short: 一只小布袋
     long: 一只只能装一件轻物的小布袋。
-    placed_in: storage_room
-    container: {max_capacity: 1, max_weight: 1.0}
+    container:
+      max_capacity: 1
+      max_weight: 1.0
   heavy_crate:
     name: 大石块
-    aliases: [大石]
+    aliases:
+    - 大石
     short: 一块沉重的大石
     long: 一块沉甸甸的大石，勉强能搬，但塞不进小布袋。
-    placed_in: storage_room
     weight: 5
   quest_token:
     name: 令牌
-    aliases: [牌]
+    aliases:
+    - 牌
     short: 一枚令牌
     long: 一枚刻着奇怪纹样的令牌，似乎不能随意丢弃。
-    placed_in: storage_room
     no_drop: true
     no_drop_message: 这是任务物品，不能丢弃。
   stone_tablet:
     name: 石碑
-    aliases: [碑]
+    aliases:
+    - 碑
     short: 一块石碑
     long: 一块嵌在地上的石碑，纹丝不动。
-    placed_in: storage_room
     no_get: true
-
-# ── NPC（06 静态 + 27 inquiry；verify/m1-npc 夹具）────────
-# Identity + Description + Position；可选 inquiry / behaviors / count / respawn。
-# in_room -> 所在房间键（或 startroom 别名）。NPC 不进房间 Container，故不能被 take。
 npcs:
   stone_guard:
     name: 石像守卫
-    aliases: [守卫, 石像]
+    aliases:
+    - 守卫
+    - 石像
     short: 一尊石像守卫
     long: 一尊沉默的石像守卫，矗立在庭院一角，纹丝不动。
-    in_room: start_yard
     inquiry:
       天气: 石像沉默不语，庭院上空一片晴朗。
       default: 石像守卫纹丝不动，没有回答。
-
-  # 闲聊夹具（D5）：无 when；手感概率约 5%（对齐 LPC chat_chance 小百分比）。
-  # 一键矩阵注入确定性 rng（random()==0）仍必触发，不依赖本值拉满。
   yard_gossip:
     name: 庭院闲人
-    aliases: [闲人]
+    aliases:
+    - 闲人
     short: 一个爱说话的闲人
     long: 一个在庭院里踱步闲聊的人，嘴里总念叨着什么。
-    in_room: start_yard
     behaviors:
-      - kind: chatter
-        chat_msgs: ["庭院真清静啊。"]
-        chat_chance: 0.05
-
-  # 条件闲聊夹具（D5）：只在夜里开口；矩阵强制 phase=day/night 验证。
+    - kind: chatter
+      chat_msgs:
+      - 庭院真清静啊。
+      chat_chance: 0.05
   night_owl:
     name: 夜猫子
-    aliases: [夜猫]
+    aliases:
+    - 夜猫
     short: 一个昼伏夜出的人
     long: 此人白天打瞌睡，夜里才精神。
-    in_room: start_yard
     behaviors:
-      - kind: chatter
-        chat_msgs: ["夜深了，该歇歇了。"]
-        chat_chance: 1.0
-        when:
-          predicate: is_night
-
-  # 多实例 spawn 夹具（D2）：count=2；respawn 扫描 M1 空转不补齐。
+    - kind: chatter
+      chat_msgs:
+      - 夜深了，该歇歇了。
+      chat_chance: 1.0
+      when:
+        predicate: is_night
   patrol_pair:
     name: 巡逻兵
-    aliases: [兵]
+    aliases:
+    - 兵
     short: 一名巡逻兵
     long: 负责庭院巡逻的士兵。
-    in_room: start_yard
-    count: 2
     respawn: true
-
-
-# ── 玩家初始状态 ──────────────────────────────────────
-# name       -> Identity.name
-# start_room -> 初始所在房间键（必需）
 player:
   name: 你
   start_room: start_yard
-
-# ── Nature（13 号票）：顶层未识别段透传 + attach_nature 消费 ──
-# day_phases：相位名 / length 游戏分钟 / time_msg 切换文案 / desc_msg 晴天文案 /
-# rain_desc_msg 雨天文案（时辰 × 天气二维）。不写则用引擎 DEFAULT_PHASES。
 nature:
   day_phases:
-    - name: dawn
-      length: 240
-      time_msg: 东方的天空中开始出现一丝微曦。
-      desc_msg: 东方的天空已逐渐发白。
-      rain_desc_msg: 东方微曦，细雨蒙蒙。
-    - name: day
-      length: 720
-      time_msg: 天光大亮。
-      desc_msg: 日正当空，天色晴朗。
-      rain_desc_msg: 白天，下着小雨。
-    - name: dusk
-      length: 240
-      time_msg: 天色渐渐暗了下来。
-      desc_msg: 夕阳西下，暮色四合。
-      rain_desc_msg: 黄昏时分，细雨连绵。
-    - name: night
-      length: 240
-      time_msg: 夜幕降临了。
-      desc_msg: 夜深了，四下一片寂静。
-      rain_desc_msg: 夜雨潇潇，四野寂然。
+  - name: dawn
+    length: 240
+    time_msg: 东方的天空中开始出现一丝微曦。
+    desc_msg: 东方的天空已逐渐发白。
+    rain_desc_msg: 东方微曦，细雨蒙蒙。
+  - name: day
+    length: 720
+    time_msg: 天光大亮。
+    desc_msg: 日正当空，天色晴朗。
+    rain_desc_msg: 白天，下着小雨。
+  - name: dusk
+    length: 240
+    time_msg: 天色渐渐暗了下来。
+    desc_msg: 夕阳西下，暮色四合。
+    rain_desc_msg: 黄昏时分，细雨连绵。
+  - name: night
+    length: 240
+    time_msg: 夜幕降临了。
+    desc_msg: 夜深了，四下一片寂静。
+    rain_desc_msg: 夜雨潇潇，四野寂然。

@@ -126,25 +126,25 @@ class TestSkillBehaviorWiring:
         assert b.message_fragments == ("测试招命中，造成 10 点伤害",)
 
 
-_POISON_TICK_SCENE = """
-rooms:
+_POISON_TICK_SCENE = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      bandit: 1
 skills:
   poison_strike:
     type: martial
     level_req: 0
     moves:
-      - name: 淬毒拳
-        force: 30
-        dodge: 0
-        damage_type: blunt
-        damage: 10
+    - name: 淬毒拳
+      force: 30
+      dodge: 0
+      damage_type: blunt
+      damage: 10
 npcs:
   bandit:
     name: 山贼
-    in_room: yard
     vitals:
       qi_current: 80
       qi_max: 80

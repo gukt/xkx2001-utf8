@@ -16,24 +16,24 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      dummy: 1
 skills:
   basic_fist:
     type: martial
     level_req: 0
     moves:
-      - name: 基本拳
-        force: 5
-        dodge: 1
-        damage_type: blunt
+    - name: 基本拳
+      force: 5
+      dodge: 1
+      damage_type: blunt
 npcs:
   dummy:
     name: 木桩
-    in_room: yard
     vitals:
       qi_current: 50
       qi_max: 50
