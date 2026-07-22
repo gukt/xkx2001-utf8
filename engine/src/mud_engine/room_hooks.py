@@ -232,6 +232,47 @@ class SkillGateHook:
         return ["你攀爬而上，到了高处。"]
 
 
+class TimeOfDayPassageHook:
+    """机关 #6：仅在特定时段揭示隐藏出口（玉室日光灵感）。
+
+    YAML 把秘道写成普通 ``exits``；钩子在进房 / 心跳时按 ``when`` 在
+    ``Exits`` ↔ ``HiddenExits`` 间迁移（复用 ``reveal_exit`` / ``hide_exit``）。
+    YAML ``hooks.params``::
+
+        direction: <秘道方向>
+        when: day | night   # 对应 ctx.is_day / ctx.is_night
+    """
+
+    HOOK_ID = "time_of_day_passage"
+
+    def on_enter(self, ctx: RoomHookContext) -> None:
+        self._sync(ctx)
+
+    def on_tick(self, ctx: RoomHookContext) -> None:
+        self._sync(ctx)
+
+    def _sync(self, ctx: RoomHookContext) -> None:
+        direction = str(ctx.params["direction"])
+        when = str(ctx.params.get("when", "day"))
+        want_open = ctx.is_day if when == "day" else ctx.is_night
+        state = ctx.get_state()
+        if "revealed" not in state:
+            # 首次：YAML 出口在 Exits；非对应时段立刻藏起
+            if want_open:
+                ctx.set_state({"revealed": True})
+            else:
+                ctx.hide_exit(direction)
+                ctx.set_state({"revealed": False})
+            return
+        revealed = bool(state["revealed"])
+        if want_open and not revealed:
+            ctx.reveal_exit(direction)
+            ctx.set_state({"revealed": True})
+        elif not want_open and revealed:
+            ctx.hide_exit(direction)
+            ctx.set_state({"revealed": False})
+
+
 def _register_builtin_hooks() -> None:
     """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
     builtins: list[tuple[str, RoomHook]] = [
@@ -239,6 +280,7 @@ def _register_builtin_hooks() -> None:
         (MultiStepGateHook.HOOK_ID, MultiStepGateHook()),
         (LostInMazeHook.HOOK_ID, LostInMazeHook()),
         (SkillGateHook.HOOK_ID, SkillGateHook()),
+        (TimeOfDayPassageHook.HOOK_ID, TimeOfDayPassageHook()),
     ]
     for hook_id, hook in builtins:
         if hook_id not in _ROOM_HOOKS:
@@ -495,6 +537,7 @@ __all__ = [
     "RoomHook",
     "RoomHookContext",
     "SkillGateHook",
+    "TimeOfDayPassageHook",
     "attach_room_hooks",
     "clear_room_hooks",
     "get_room_hook",
