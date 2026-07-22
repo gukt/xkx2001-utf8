@@ -208,3 +208,11 @@ class TestXingxiuMechanics08Slice:
         assert "劫匪" in joined or "拦" in joined
         blocked = execute_line(world, player_id, "go north")
         assert any("挡" in line for line in blocked)
+        npc = _bandit_in_room(world, ambush)
+        assert npc is not None
+        world.destroy_entity(npc)
+        execute_line(world, player_id, "go north")
+        assert (
+            world.require_component(player_id, Position).room
+            == world.room_ids["ambush_end"]
+        )

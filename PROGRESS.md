@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- [ ] **Pre-M4 房间钩子 / 星宿机制 Wave 5**：票 `08`（劫匪刷拦）、`09`（杀令介入简化）；fixed point `pre-m4-room-hooks-xingxiu-wave5-start`。
 
 ## Blocked
 

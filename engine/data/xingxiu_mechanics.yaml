@@ -3,7 +3,7 @@
 rooms:
   dig_base:
     name: 白玉峰脚
-    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路，西面通向玉石甬道，南面是沙漠，东北可登峭壁。另有一条荒僻小径。
+    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路，西面通向玉石甬道，南面是沙漠，东北可登峭壁。另有荒僻小径与日月洞口。
     outdoors: true
     exits:
       north:
@@ -373,6 +373,7 @@ npcs:
 player:
   name: 试炼者
   start_room: dig_base
+  faction: shaolin
   skills:
     dodge: 50
   vitals:

@@ -349,7 +349,9 @@ class KillOrderHook:
         ctx.try_engage(npc, ctx.actor_id)
 
     def on_leave(self, ctx: RoomHookContext) -> None:
-        ctx.set_state({})
+        state = dict(ctx.get_state())
+        state.pop(self.STATE_KEY, None)
+        ctx.set_state(state)
 
 
 def _register_builtin_hooks() -> None:

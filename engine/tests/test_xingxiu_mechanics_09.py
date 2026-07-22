@@ -185,9 +185,13 @@ class TestKillOrderS0:
     def test_leave_resets_trigger_flag(self) -> None:
         world, cave, player, _guard = _minimal_kill_order_world(faction_id="shaolin")
         KillOrderHook().on_enter(_ctx(world, cave, player))
-        assert world.require_component(cave, RoomFreeState).data.get("triggered") is True
+        free = world.require_component(cave, RoomFreeState)
+        free.data["other"] = "keep"
+        assert free.data.get("triggered") is True
         KillOrderHook().on_leave(_ctx(world, cave, player))
-        assert world.require_component(cave, RoomFreeState).data.get("triggered") is not True
+        state = world.require_component(cave, RoomFreeState).data
+        assert state.get("triggered") is not True
+        assert state.get("other") == "keep"
 
 
 class TestKillOrderCommandS1:
@@ -250,10 +254,7 @@ class TestXingxiuMechanics09Slice:
 
     def test_slice_kill_order_path_playable(self) -> None:
         world, player_id = load_xingxiu_mechanics()
-        if not world.has_component(player_id, Faction):
-            world.add_component(player_id, Faction(faction_id="shaolin"))
-        else:
-            world.require_component(player_id, Faction).faction_id = "shaolin"
+        assert world.require_component(player_id, Faction).faction_id == "shaolin"
         cave = world.room_ids["sun_moon_cave"]
         execute_line(world, player_id, "go cave")
         assert world.require_component(player_id, Position).room == cave

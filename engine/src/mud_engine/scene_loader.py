@@ -880,6 +880,30 @@ def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> d
     return attached
 
 
+def _parse_bounded_int(
+    raw: object,
+    field: str,
+    key: object,
+    scene_path: Path,
+    *,
+    min_value: int,
+    label: str,
+) -> int:
+    """解析整数并校验 ``>= min_value``；``label`` 用于错误文案（如「正整数」）。"""
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是{label}，实际是 {raw!r}"
+        ) from None
+    if value < min_value:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= {min_value}，"
+            f"实际是 {value}"
+        )
+    return value
+
+
 def _parse_non_negative_int(
     raw: object, field: str, key: object, scene_path: Path
 ) -> int:
@@ -887,33 +911,16 @@ def _parse_non_negative_int(
 
     ``0`` 表示登记模板/蓝图但不生成初始实例（供钩子运行时 ``ensure_npc``）。
     """
-    try:
-        value = int(raw)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是非负整数，"
-            f"实际是 {raw!r}"
-        ) from None
-    if value < 0:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= 0，实际是 {value}"
-        )
-    return value
+    return _parse_bounded_int(
+        raw, field, key, scene_path, min_value=0, label="非负整数"
+    )
 
 
 def _parse_positive_int(raw: object, field: str, key: object, scene_path: Path) -> int:
     """解析正整数字段：须为 >= 1 的整数。"""
-    try:
-        value = int(raw)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是正整数，实际是 {raw!r}"
-        ) from None
-    if value < 1:
-        raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= 1，实际是 {value}"
-        )
-    return value
+    return _parse_bounded_int(
+        raw, field, key, scene_path, min_value=1, label="正整数"
+    )
 
 
 def _build_player(

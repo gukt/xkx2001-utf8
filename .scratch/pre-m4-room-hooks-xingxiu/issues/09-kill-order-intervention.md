@@ -31,7 +31,6 @@ Status: resolved
       npc: cave_guard       # 可选；在场则 try_engage(npc, actor)
   ```
 - **ctx 方法**（Wave 5 与 08 同批）：`actor_faction_id` / `find_npc_in_room` / `try_engage`
-- **标记位**：房间自由状态 `triggered=True`；**重置时机**：`on_leave` 清 `set_state({})`（离房后下次进房可再介入）
-- **不做**：通缉/声望持久状态
-- **切片**：`sun_moon_cave`（`dig_base` 经 `cave`）；`npcs.cave_guard`；顶层 `factions.shaolin`
+- **标记位**：房间自由状态 `triggered=True`；**重置时机**：`on_leave` 仅 `pop("triggered")`（保留同房其他自由状态键；离房后下次进房可再介入）
+- **切片**：`sun_moon_cave`（`dig_base` 经 `cave`）；`npcs.cave_guard`；顶层 `factions.shaolin`；`player.faction: shaolin`（切片自洽可玩）
 - **测试**：`engine/tests/test_xingxiu_mechanics_09.py`
