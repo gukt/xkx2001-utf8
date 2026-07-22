@@ -22,25 +22,25 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      bandit: 1
 skills:
   basic_fist:
     type: martial
     level_req: 0
     moves:
-      - name: 直拳
-        force: 20
-        dodge: 0
-        damage_type: blunt
-        damage: 10
+    - name: 直拳
+      force: 20
+      dodge: 0
+      damage_type: blunt
+      damage: 10
 npcs:
   bandit:
     name: 山贼
-    in_room: yard
     vitals:
       qi_current: 40
       qi_max: 40
@@ -115,25 +115,26 @@ class TestAttackCommand:
         assert any("已经" in line or "交战" in line for line in lines)
 
     def test_one_vs_one_blocks_third_party(self, tmp_path: Path) -> None:
-        scene = """
-rooms:
+        scene = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      bandit: 1
+      thug: 1
 skills:
   basic_fist:
     type: martial
     level_req: 0
     moves:
-      - name: 直拳
-        force: 20
-        dodge: 0
-        damage_type: blunt
-        damage: 10
+    - name: 直拳
+      force: 20
+      dodge: 0
+      damage_type: blunt
+      damage: 10
 npcs:
   bandit:
     name: 山贼
-    in_room: yard
     vitals:
       qi_current: 40
       qi_max: 40
@@ -148,7 +149,6 @@ npcs:
       int: 5
   thug:
     name: 恶霸
-    in_room: yard
     vitals:
       qi_current: 30
       qi_max: 30

@@ -444,10 +444,10 @@ def _broadcast_nature_change(ctx: NatureChangeContext) -> None:
     outdoor_players = _outdoor_player_ids(ctx.world)
     if not outdoor_players:
         return
-    for _ in outdoor_players:
+    for player_id in outdoor_players:
         for msg in messages:
             if msg:
-                ctx.world.pending_messages.append(msg)
+                ctx.world.push_message(player_id, msg)
 
 
 __all__ = [

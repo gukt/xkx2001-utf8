@@ -13,17 +13,18 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
-from mud_engine.components import Position
+from mud_engine.components import Container, Identity, PlayerSession, Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
-    from mud_engine.ai import AISystem, SpawnerBlueprint
+    from mud_engine.ai import AISystem, ItemSpawnerBlueprint, SpawnerBlueprint
     from mud_engine.combat import PowerModel
     from mud_engine.combat_system import CombatSystem
     from mud_engine.death_flow import DeathPolicy
     from mud_engine.ferry import FerryState
     from mud_engine.nature import NatureState
     from mud_engine.pack import PackManifest
+    from mud_engine.quest import QuestDef
 
 EntityId = int
 
@@ -75,11 +76,14 @@ class World:
         # 交战调度运行时态（M2-12）：纯内存、不进存档；由 ``attach_combat_system`` 挂载。
         self.combat: CombatSystem | None = None
         # NPC Spawner 蓝图注册表（M2-04）：纯内存、不进存档；由 scene_loader 建 NPC
-        # 时注册。``_spawn_scan`` 遍历本表而非从存活实例反向聚合，避免 template
-        # 全灭后丢失期望值。
+        # 时注册。``spawn_scan`` 按蓝图 ``slots`` 指针判定存活（ADR-0010）。
         self.spawners: dict[str, SpawnerBlueprint] = {}
+        # 物品槽位蓝图（pre-m4-04）：键为 ``(room_key, template_key)``；纯内存、不进存档。
+        self.item_spawners: dict[tuple[str, str], ItemSpawnerBlueprint] = {}
         # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
         self.item_templates: dict[str, dict] = {}
+        # 声明式任务表（pre-m4-06）：纯内存、不进存档；由 scene_loader 填充。
+        self.quests: dict[str, QuestDef] = {}
         # 房间键 → entity id（M2-17 复活点解析）；纯内存、不进存档。
         self.room_ids: dict[str, EntityId] = {}
         # 死亡策略（M2-17）；纯内存、不进存档，由 load_scene 填充。
@@ -90,12 +94,53 @@ class World:
         # restore 后由 ``reattach_pack_manifest`` 从 ``scene_path`` 同级
         # ``manifest.yaml`` 重读。默认场景路径无 manifest 时保持 None。
         self.pack_manifest: PackManifest | None = None
-        # 异步广播通道（16/28 号票）：Nature 相位切换、NPC Chatter 等推给玩家的
-        # 文案落在这里；CLI 在 tick 后 drain 打印。M1 单机单玩家用扁平 list。不进存档。
-        self.pending_messages: list[str] = []
+        # 按实体收件箱（pre-m4-03）：Nature / room_say / 死亡文案等异步推送按
+        # 接收者分发。不进存档。``pending_messages`` 属性仍暴露主会话视图，供
+        # 单玩家 CLI / 既有测试 drain。
+        self._mailboxes: dict[EntityId, list[str]] = {}
+        # 主会话尚未挂上时的兼容空列表（加载早期）；不进实体 id 空间。
+        self._pending_before_primary: list[str] = []
+        self.primary_player_id: EntityId | None = None
         # 本 world 由哪份场景 YAML 加载（``load_scene`` 写入）。进存档 meta，供
         # restore 后重读题材包 ``nature:`` 配置（不能写死 DEFAULT_SCENE_PATH）。
         self.scene_path: Path | None = None
+
+    def push_message(self, entity_id: EntityId, text: str) -> None:
+        """向指定实体的收件箱追加一条文案。"""
+        self._mailboxes.setdefault(entity_id, []).append(text)
+
+    def drain_messages(self, entity_id: EntityId) -> list[str]:
+        """取出并清空指定实体收件箱，返回副本。"""
+        box = self._mailboxes.get(entity_id)
+        if not box:
+            return []
+        out = list(box)
+        box.clear()
+        return out
+
+    @property
+    def pending_messages(self) -> list[str]:
+        """主会话收件箱的可变视图（单玩家 CLI / 回归测试兼容）。"""
+        pid = self.primary_player_id
+        if pid is None:
+            players = list(self.entities_with(PlayerSession))
+            if len(players) == 1:
+                pid = players[0]
+            else:
+                return self._pending_before_primary
+        return self._mailboxes.setdefault(pid, [])
+
+    def spawn_player_session(self, *, name: str, room: EntityId) -> EntityId:
+        """创建额外的 ``PlayerSession`` 实体（测试/脚本假多人 seam）。
+
+        不改变 ``primary_player_id``；单玩家 CLI 仍只驱动主会话。
+        """
+        entity = self.create_entity()
+        self.add_component(entity, Identity(name=name))
+        self.add_component(entity, Position(room=room))
+        self.add_component(entity, Container())
+        self.add_component(entity, PlayerSession())
+        return entity
 
     def create_entity(self) -> EntityId:
         """分配一个新的、全局唯一的实体 id（本身不带任何组件）。"""
@@ -191,6 +236,10 @@ class World:
             component = by_entity.get(entity)
             if component is not None:
                 yield (component_type, component)
+
+    def has_entity(self, entity: EntityId) -> bool:
+        """实体 id 是否仍在世界中（槽位补刷存活判定用）。"""
+        return entity in self._entities
 
     def destroy_entity(self, entity: EntityId) -> None:
         """彻底移除一个实体及其全部组件（M2-04 重生 / 后续死亡流程用）。

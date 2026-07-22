@@ -218,7 +218,7 @@ class TestSceneLoadErrors:
         assert "start_yard" in msg
         assert "nonexistent_room" in msg
 
-    def test_dangling_item_placement_mentions_file_and_keys(self, tmp_path: Path) -> None:
+    def test_legacy_placed_in_is_rejected(self, tmp_path: Path) -> None:
         path = _write_scene(
             tmp_path,
             _MINIMAL_SCENE
@@ -227,16 +227,17 @@ items:
   stone:
     name: 石头
     long: 一块石头
-    placed_in: nonexistent_room
+    placed_in: start_yard
 """,
         )
         with pytest.raises(SceneLoadError) as exc_info:
             load_scene(path)
         msg = str(exc_info.value)
         assert "stone" in msg
-        assert "nonexistent_room" in msg
+        assert "placed_in" in msg
+        assert "objects" in msg
 
-    def test_dangling_npc_room_mentions_file_and_keys(self, tmp_path: Path) -> None:
+    def test_legacy_in_room_is_rejected(self, tmp_path: Path) -> None:
         path = _write_scene(
             tmp_path,
             _MINIMAL_SCENE
@@ -245,14 +246,162 @@ npcs:
   guard:
     name: 石像守卫
     long: 一尊石像。
-    in_room: nonexistent_room
+    in_room: start_yard
 """,
         )
         with pytest.raises(SceneLoadError) as exc_info:
             load_scene(path)
         msg = str(exc_info.value)
         assert "guard" in msg
-        assert "nonexistent_room" in msg
+        assert "in_room" in msg
+        assert "objects" in msg
+
+    def test_objects_unknown_template_mentions_file_and_keys(self, tmp_path: Path) -> None:
+        scene = _MINIMAL_SCENE.replace(
+            "  start_yard:\n    name: 起始庭院\n    long: 庭院\n",
+            "  start_yard:\n    name: 起始庭院\n    long: 庭院\n    objects:\n      missing_thing: 1\n",
+        )
+        path = _write_scene(tmp_path, scene)
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "missing_thing" in msg
+        assert "start_yard" in msg
+
+    def test_objects_loads_expected_item_and_npc_counts(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      pebble: 2
+      guard: 3
+items:
+  pebble:
+    name: 石子
+npcs:
+  guard:
+    name: 守卫
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        world, player_id = load_scene(path)
+        room = world.require_component(player_id, Position).room
+        floor = world.require_component(room, Container)
+        pebbles = [
+            i
+            for i in floor.items
+            if world.require_component(i, Identity).name == "石子"
+        ]
+        assert len(pebbles) == 2
+        guards = [
+            e
+            for e in world.entities_with(Position)
+            if e != player_id and world.require_component(e, Identity).name == "守卫"
+        ]
+        assert len(guards) == 3
+        assert world.spawners["guard"].desired_count == 3
+
+    def test_legacy_npc_count_is_rejected(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      guard: 1
+npcs:
+  guard:
+    name: 守卫
+    count: 2
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "guard" in msg
+        assert "count" in msg
+        assert "objects" in msg
+
+    def test_startroom_must_match_objects_room(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      guard: 1
+  hall:
+    name: 大厅
+npcs:
+  guard:
+    name: 守卫
+    startroom: hall
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "guard" in msg
+        assert "startroom" in msg
+        assert "yard" in msg
+
+    def test_item_template_may_appear_in_multiple_rooms(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      pebble: 1
+  hall:
+    name: 大厅
+    objects:
+      pebble: 1
+items:
+  pebble:
+    name: 石子
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        world, player_id = load_scene(path)
+        yard = world.require_component(player_id, Position).room
+        hall = next(
+            e
+            for e in world.entities_with(Identity)
+            if world.require_component(e, Identity).name == "大厅"
+        )
+        assert (
+            sum(
+                1
+                for i in world.require_component(yard, Container).items
+                if world.require_component(i, Identity).name == "石子"
+            )
+            == 1
+        )
+        assert (
+            sum(
+                1
+                for i in world.require_component(hall, Container).items
+                if world.require_component(i, Identity).name == "石子"
+            )
+            == 1
+        )
 
     def test_dangling_player_start_room_mentions_the_key(self, tmp_path: Path) -> None:
         path = _write_scene(
@@ -286,39 +435,41 @@ npcs:
 
 # 含未识别段的场景：顶层 world_rules/nature（world 级）+ 物品 on_use/rules（实体级）。
 # 这些段 M1 引擎不识别，透传留底而非报错（11 号票）。
-_SCENE_WITH_UNKNOWN_SECTIONS = """
-rooms:
+_SCENE_WITH_UNKNOWN_SECTIONS = """rooms:
   start_yard:
     name: 起始庭院
     long: 庭院
     exits:
-      north: { to: corridor }
+      north:
+        to: corridor
+    objects:
+      stone: 1
   corridor:
     name: 长廊
     long: 长廊
     exits:
-      south: { to: start_yard }
+      south:
+        to: start_yard
 items:
   stone:
     name: 石头
     long: 一块石头
-    placed_in: start_yard
     on_use:
       effect:
         heal: 5
     rules:
-      - when: is_night
-        do: glow
+    - when: is_night
+      do: glow
 player:
   name: 你
   start_room: start_yard
 world_rules:
-  - when: phase == night
-    do: close_shops
+- when: phase == night
+  do: close_shops
 nature:
   phases:
-    - name: night
-      length: 30
+  - name: night
+    length: 30
 """
 
 
@@ -371,8 +522,8 @@ class TestUnknownSectionPassthrough:
     def test_invalid_value_in_known_section_still_raises(self, tmp_path: Path) -> None:
         # 未识别段存在不放松已识别段校验：door: ajar 仍抛 SceneLoadError 带定位。
         scene = _SCENE_WITH_UNKNOWN_SECTIONS.replace(
-            "      north: { to: corridor }",
-            "      north:\n        to: corridor\n        door: ajar",
+            "      north:\n        to: corridor\n",
+            "      north:\n        to: corridor\n        door: ajar\n",
         )
         path = _write_scene(tmp_path, scene)
         with pytest.raises(SceneLoadError) as exc_info:

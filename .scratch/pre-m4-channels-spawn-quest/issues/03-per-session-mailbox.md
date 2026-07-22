@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 03 — 假多人 seam：按会话收件箱
@@ -10,11 +10,13 @@ Status: ready-for-agent
 
 **Blocked by:** None — 可立即开始。
 
-- [ ] 引入按会话/按实体的消息投递机制（例如 `World` 增加 `push_message(entity_id, text)` 或等价 API，内部维护 `entity_id -> list[str]` 而不是单一 `pending_messages: list[str]`），保留一个"主会话"概念供单玩家 CLI 沿用现有 drain 行为不变。
-- [ ] 现有全部投递点（`messaging.room_say`、`death_flow.py` 的昏迷/复活/战胜文案、`nature.py` 相位广播、`combat_system.py` 拒绝/结算文案）改为指定接收者实体，而不是无条件 append 进全局列表；单玩家场景下行为与迁移前一致（回归测试锁定既有单玩家命令测试全绿）。
-- [ ] 提供创建额外 `PlayerSession` 实体的测试/脚本辅助（不要求命令面/CLI 改动，纯 `World`/组件层 API 即可）。
-- [ ] 测试（S1）：在同一 `World` 创建两个 `PlayerSession` 实体放进同一房间，A `say` 后断言 B 的收件箱收到"{A}说：..."、A 自己收到"你说：..."、且两者收件箱互不串号；不同房间的会话不会收到彼此房间广播。
-- [ ] 不引入 `tune`/退订；本票不做 Channel（票 `05` 在本票之上继续）。
-- [ ] `just test` 全绿，尤其是既有单玩家 CLI/命令回归测试。
+- [x] 引入按会话/按实体的消息投递机制（例如 `World` 增加 `push_message(entity_id, text)` 或等价 API，内部维护 `entity_id -> list[str]` 而不是单一 `pending_messages: list[str]`），保留一个"主会话"概念供单玩家 CLI 沿用现有 drain 行为不变。
+- [x] 现有全部投递点（`messaging.room_say`、`death_flow.py` 的昏迷/复活/战胜文案、`nature.py` 相位广播、`combat_system.py` 拒绝/结算文案）改为指定接收者实体，而不是无条件 append 进全局列表；单玩家场景下行为与迁移前一致（回归测试锁定既有单玩家命令测试全绿）。
+- [x] 提供创建额外 `PlayerSession` 实体的测试/脚本辅助（不要求命令面/CLI 改动，纯 `World`/组件层 API 即可）。
+- [x] 测试（S1）：在同一 `World` 创建两个 `PlayerSession` 实体放进同一房间，A `say` 后断言 B 的收件箱收到"{A}说：..."、A 自己收到"你说：..."、且两者收件箱互不串号；不同房间的会话不会收到彼此房间广播。
+- [x] 不引入 `tune`/退订；本票不做 Channel（票 `05` 在本票之上继续）。
+- [x] `just test` 全绿，尤其是既有单玩家 CLI/命令回归测试。
 
 ## Comments
+
+- 2026-07-22：`World.push_message` / `drain_messages` + 按实体 `_mailboxes`；`pending_messages` 保留为主会话兼容视图。`room_say` / Nature / death / combat 投递点改按接收者推送；`spawn_player_session` 提供假多人 seam。CLI 仍 drain 主会话。测试见 `test_per_session_mailbox.py`。

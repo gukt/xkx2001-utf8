@@ -13,14 +13,15 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | **已拆票**（`/to-tickets` 已完成）→ 下一步按票 `/implement` |
+| 状态 | **已关闭**（2026-07-22；票 `01`–`07` 全关，Wave 1–3 + code-review fix 完成；分支 `feat/pre-m4-channels-spawn-quest` 待用户决定是否合入） |
 | Spec | [spec.md](spec.md) |
-| 票 | [issues/](issues/)（`01`–`07`，依赖顺序编号；frontier：`01`/`02`/`03` 可并行开始） |
+| 票 | [issues/](issues/)（`01`–`07`，均 `resolved`） |
 | 入口文档 | [session-notes-2026-07-22.md](session-notes-2026-07-22.md) · [grill-paused-2026-07-22.md](grill-paused-2026-07-22.md) |
 | 频道调研 | [research-channels-lpc-2026-07-22.md](research-channels-lpc-2026-07-22.md) |
 | 放置决策 | [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md)（本 effort 落地；房间保真不得重开） |
-| 下一步 skill | 按票 `/implement`（从 frontier `01`/`02`/`03` 任一张开始） |
-| 不走 | `/wayfinder`；不改现有单玩家 REPL 为验收标准 |
+| 执行计划 | [implement-plan.md](implement-plan.md) |
+| 下一步 | 无（effort 已关）；相邻：Pre-M4 引擎房间保真 `/grill-with-docs` |
+| 不走 | `/wayfinder`；不改现有单玩家 REPL 为验收标准；不自动滑入 M4 |
 
 ## 与相邻交付物的关系
 
@@ -46,4 +47,4 @@
   7. `07` 收口：GAP 台账 + CONTEXT/PROGRESS 回写（阻塞于 `04`、`05`、`06`）
 - `implement-plan.md` — 可选
 
-[spec.md](spec.md) 已发布；**已 `/to-tickets`**，下一步按票 `/implement`。
+[spec.md](spec.md) 已发布；票 `01`–`07` 已实现并收口关闭。

@@ -48,9 +48,12 @@ from mud_engine.components import (
     Exit,
     Exits,
     Identity,
+    ItemSpawnMeta,
+    ItemTemplateKey,
     NpcSpawnMeta,
     PlayerSession,
     Position,
+    QuestProgress,
 )
 from mud_engine.world import EntityId, World
 
@@ -140,12 +143,54 @@ def _des_npc_spawn_meta(d: dict) -> NpcSpawnMeta:
     )
 
 
+def _ser_item_spawn_meta(c: ItemSpawnMeta) -> dict:
+    return {
+        "template_key": c.template_key,
+        "startroom": c.startroom,
+        "desired_count": c.desired_count,
+        "respawn": c.respawn,
+    }
+
+
+def _des_item_spawn_meta(d: dict) -> ItemSpawnMeta:
+    return ItemSpawnMeta(
+        template_key=str(d["template_key"]),
+        startroom=d["startroom"],
+        desired_count=int(d.get("desired_count", 1)),
+        respawn=bool(d.get("respawn", False)),
+    )
+
+
+def _ser_item_template_key(c: ItemTemplateKey) -> dict:
+    return {"key": c.key}
+
+
+def _des_item_template_key(d: dict) -> ItemTemplateKey:
+    return ItemTemplateKey(key=str(d["key"]))
+
+
 def _ser_player_session(c: PlayerSession) -> dict:
-    return {}
+    return {"subscriptions": sorted(c.subscriptions)}
 
 
 def _des_player_session(d: dict) -> PlayerSession:
+    raw = d.get("subscriptions")
+    if isinstance(raw, (list, tuple)):
+        return PlayerSession(subscriptions=frozenset(str(x) for x in raw))
     return PlayerSession()
+
+
+def _ser_quest_progress(c: QuestProgress) -> dict:
+    return {"quests": dict(c.quests), "flags": dict(c.flags)}
+
+
+def _des_quest_progress(d: dict) -> QuestProgress:
+    quests_raw = d.get("quests") or {}
+    flags_raw = d.get("flags") or {}
+    return QuestProgress(
+        quests={str(k): str(v) for k, v in dict(quests_raw).items()},
+        flags={str(k): bool(v) for k, v in dict(flags_raw).items()},
+    )
 
 
 def _codecs_from_specs(specs: list[CapabilitySpec]) -> dict[type, _Codec]:
@@ -166,7 +211,10 @@ _CODECS.update(
         Exits: (_ser_exits, _des_exits),
         Doors: (_ser_doors, _des_doors),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
+        ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
+        ItemTemplateKey: (_ser_item_template_key, _des_item_template_key),
         PlayerSession: (_ser_player_session, _des_player_session),
+        QuestProgress: (_ser_quest_progress, _des_quest_progress),
     }
 )
 
@@ -261,6 +309,7 @@ def restore_world(save_root: Path | str) -> tuple[World, EntityId] | None:
     if player_id is None:
         logger.warning("存档 %s 缺少可用的玩家实体，回退到 fresh scene", snapshot_dir)
         return None
+    world.primary_player_id = player_id
     return world, player_id
 
 

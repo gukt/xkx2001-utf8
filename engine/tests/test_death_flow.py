@@ -31,12 +31,14 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_BASE = """
-rooms:
+_BASE = """rooms:
   yard:
     name: 院子
     exits:
       north: village
+    objects:
+      herb: 1
+      bandit: 1
   village:
     name: 华山村
     no_death: true
@@ -51,26 +53,26 @@ items:
   herb:
     name: 解毒丹
     short: 解毒丹
-    placed_in: yard
 skills:
   basic_fist:
     type: martial
     level_req: 0
     moves:
-      - name: 直拳
-        force: 50
-        dodge: 0
-        damage_type: blunt
-        damage: 50
+    - name: 直拳
+      force: 50
+      dodge: 0
+      damage_type: blunt
+      damage: 50
 npcs:
   bandit:
     name: 山贼
-    in_room: yard
     respawn: true
-    count: 1
     loot:
-      currency: [10, 10]
-      items: [herb]
+      currency:
+      - 10
+      - 10
+      items:
+      - herb
       kill_exp: 7
     vitals:
       qi_current: 30
@@ -155,8 +157,11 @@ class TestPlayerDeathFlow:
     def test_npc_kill_without_loot_still_grants_default_exp(self, tmp_path: Path) -> None:
         scene = _BASE.replace(
             """    loot:
-      currency: [10, 10]
-      items: [herb]
+      currency:
+      - 10
+      - 10
+      items:
+      - herb
       kill_exp: 7
 """,
             "",

@@ -173,25 +173,25 @@ class TestSaveRestoreReattach:
 
     def test_engaged_and_pack_manifest_survive_save_restore(self, tmp_path: Path) -> None:
         """B3-4：pack 模式建立 Engaged 后 save→restore，交战与 manifest 均恢复。"""
-        combat_scene = """
-rooms:
+        combat_scene = """rooms:
   yard:
     name: 院子
     exits: {}
+    objects:
+      bandit: 1
 skills:
   basic_fist:
     type: martial
     level_req: 0
     moves:
-      - name: 直拳
-        force: 20
-        dodge: 0
-        damage_type: blunt
-        damage: 10
+    - name: 直拳
+      force: 20
+      dodge: 0
+      damage_type: blunt
+      damage: 10
 npcs:
   bandit:
     name: 山贼
-    in_room: yard
     vitals:
       qi_current: 40
       qi_max: 40

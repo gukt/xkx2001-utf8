@@ -292,35 +292,37 @@ class TestNoSave:
 
 
 # 含未识别段的场景（顶层 world_rules + 物品 on_use/rules），供"不进存档"测试加载。
-_PASSTHROUGH_SCENE = """
-rooms:
+_PASSTHROUGH_SCENE = """rooms:
   start_yard:
     name: 起始庭院
     long: 庭院
     exits:
-      north: { to: corridor }
+      north:
+        to: corridor
+    objects:
+      stone: 1
   corridor:
     name: 长廊
     long: 长廊
     exits:
-      south: { to: start_yard }
+      south:
+        to: start_yard
 items:
   stone:
     name: 石头
     long: 一块石头
-    placed_in: start_yard
     on_use:
       effect:
         heal: 5
     rules:
-      - when: is_night
-        do: glow
+    - when: is_night
+      do: glow
 player:
   name: 你
   start_room: start_yard
 world_rules:
-  - when: phase == night
-    do: close_shops
+- when: phase == night
+  do: close_shops
 """
 
 

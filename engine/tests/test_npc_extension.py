@@ -36,39 +36,56 @@ def _write_scene(tmp_path: Path, text: str) -> Path:
     return path
 
 
-_BASE_ROOMS = """
-rooms:
-  start_yard:
-    name: 起始庭院
-    long: 庭院
-  corridor:
-    name: 长廊
-    long: 长廊
-    exits:
-      south: { to: start_yard }
-player:
-  name: 你
-  start_room: start_yard
-"""
+
+def _scene_yaml(*, npcs: dict | None = None, items: dict | None = None, extra_rooms: dict | None = None) -> str:
+    """组装测试场景：放置一律走房间 objects（ADR-0010）。"""
+    rooms = {
+        "start_yard": {"name": "起始庭院", "long": "庭院", "objects": {}},
+        "corridor": {
+            "name": "长廊",
+            "long": "长廊",
+            "exits": {"south": {"to": "start_yard"}},
+            "objects": {},
+        },
+    }
+    if extra_rooms:
+        rooms.update(extra_rooms)
+    clean_npcs: dict = {}
+    for key, data in (npcs or {}).items():
+        data = dict(data)
+        room_key = data.pop("in_room", None) or data.get("startroom") or "start_yard"
+        count = data.pop("count", 1)
+        rooms.setdefault(room_key, {"name": room_key, "long": room_key, "objects": {}})
+        rooms[room_key].setdefault("objects", {})[str(key)] = int(count)
+        clean_npcs[key] = data
+    clean_items: dict = {}
+    for key, data in (items or {}).items():
+        data = dict(data)
+        room_key = data.pop("placed_in", None) or "start_yard"
+        rooms.setdefault(room_key, {"name": room_key, "long": room_key, "objects": {}})
+        rooms[room_key].setdefault("objects", {})[str(key)] = 1
+        clean_items[key] = data
+    # drop empty objects for readability
+    for room in rooms.values():
+        if not room.get("objects"):
+            room.pop("objects", None)
+    doc = {
+        "rooms": rooms,
+        "player": {"name": "你", "start_room": "start_yard"},
+    }
+    if clean_items:
+        doc["items"] = clean_items
+    if clean_npcs:
+        doc["npcs"] = clean_npcs
+    import yaml
+    return yaml.dump(doc, allow_unicode=True, sort_keys=False)
 
 
 class TestAIControllerTick:
     """25 号票：AIController + Behaviors 挂 on_tick。"""
 
     def test_chatter_behavior_runs_on_advance(self, tmp_path: Path) -> None:
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  chatterbox:
-    name: 闲聊者
-    in_room: start_yard
-    behaviors:
-      - kind: chatter
-        chat_msgs: ["你好啊。"]
-        chat_chance: 1.0
-"""
-        )
+        scene = _scene_yaml(npcs={'chatterbox': {'name': '闲聊者', 'in_room': 'start_yard', 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['你好啊。'], 'chat_chance': 1.0}]}})
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         # load_scene 已 attach；幂等后改 rng（测试确定性）。
         world.ai.rng = _AlwaysSpeakRng()
@@ -78,20 +95,7 @@ npcs:
         assert any("闲聊者说：你好啊。" in m for m in world.pending_messages)
 
     def test_tick_interval_skips_intermediate_ticks(self, tmp_path: Path) -> None:
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  slow:
-    name: 慢嘴
-    in_room: start_yard
-    tick_interval: 3
-    behaviors:
-      - kind: chatter
-        chat_msgs: ["慢一句。"]
-        chat_chance: 1.0
-"""
-        )
+        scene = _scene_yaml(npcs={'slow': {'name': '慢嘴', 'in_room': 'start_yard', 'tick_interval': 3, 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['慢一句。'], 'chat_chance': 1.0}]}})
         world, _ = load_scene(_write_scene(tmp_path, scene))
         world.ai.rng = _AlwaysSpeakRng()
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
@@ -120,16 +124,7 @@ class TestSpawnFoundation:
     """26 号票：count / respawn / startroom。"""
 
     def test_count_spawns_multiple_instances(self, tmp_path: Path) -> None:
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  twin:
-    name: 双胞胎
-    in_room: start_yard
-    count: 3
-"""
-        )
+        scene = _scene_yaml(npcs={'twin': {'name': '双胞胎', 'in_room': 'start_yard', 'count': 3}})
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         room = world.require_component(player_id, Position).room
         twins = [
@@ -143,11 +138,13 @@ npcs:
         assert meta.desired_count == 3
         assert meta.template_key == "twin"
 
-    def test_startroom_alias_for_in_room(self, tmp_path: Path) -> None:
+    def test_objects_place_npc_with_optional_startroom(self, tmp_path: Path) -> None:
         scene = """
 rooms:
   yard:
     name: 院子
+    objects:
+      guard: 1
 player:
   name: 你
   start_room: yard
@@ -202,18 +199,7 @@ class TestAskInquiry:
 
     def _sage_with_handler(self, tmp_path: Path) -> tuple[World, EntityId]:
         """``handler`` 声明式字符串占位（同 Equippable.apply_hook）；M1 不执行。"""
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  sage:
-    name: 智者
-    in_room: start_yard
-    inquiry:
-      天道: 天行有常。
-      handler: sage_on_topic
-"""
-        )
+        scene = _scene_yaml(npcs={'sage': {'name': '智者', 'in_room': 'start_yard', 'inquiry': {'天道': '天行有常。', 'handler': 'sage_on_topic'}}})
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         npc = _find_npc(world, player_id, "智者")
         assert npc is not None
@@ -325,21 +311,7 @@ class TestChatter:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # 白天（is_night=False）：Chatter 条件不满足，不说。
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  nightowl:
-    name: 夜猫
-    in_room: start_yard
-    behaviors:
-      - kind: chatter
-        chat_msgs: ["夜深了。"]
-        chat_chance: 1.0
-        when:
-          predicate: is_night
-"""
-        )
+        scene = _scene_yaml(npcs={'nightowl': {'name': '夜猫', 'in_room': 'start_yard', 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['夜深了。'], 'chat_chance': 1.0, 'when': {'predicate': 'is_night'}}]}})
         world, _ = load_scene(_write_scene(tmp_path, scene))
         world.ai.rng = _AlwaysSpeakRng()
         import mud_engine.ai as ai_mod
@@ -356,21 +328,7 @@ npcs:
 
     def test_chatter_speaks_at_night(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         # 夜里（is_night=True）：条件满足，Chatter 说话。
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  nightowl:
-    name: 夜猫
-    in_room: start_yard
-    behaviors:
-      - kind: chatter
-        chat_msgs: ["夜深了。"]
-        chat_chance: 1.0
-        when:
-          predicate: is_night
-"""
-        )
+        scene = _scene_yaml(npcs={'nightowl': {'name': '夜猫', 'in_room': 'start_yard', 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['夜深了。'], 'chat_chance': 1.0, 'when': {'predicate': 'is_night'}}]}})
         world, _ = load_scene(_write_scene(tmp_path, scene))
         world.ai.rng = _AlwaysSpeakRng()
         import mud_engine.ai as ai_mod
@@ -411,18 +369,7 @@ class TestNpcSaveRestore:
         assert any("晴朗" in m for m in messages)
 
     def test_inquiry_handler_survives_save_restore(self, tmp_path: Path) -> None:
-        scene = (
-            _BASE_ROOMS
-            + """
-npcs:
-  sage:
-    name: 智者
-    in_room: start_yard
-    inquiry:
-      天道: 天行有常。
-      handler: sage_on_topic
-"""
-        )
+        scene = _scene_yaml(npcs={'sage': {'name': '智者', 'in_room': 'start_yard', 'inquiry': {'天道': '天行有常。', 'handler': 'sage_on_topic'}}})
         world, player_id = load_scene(_write_scene(tmp_path, scene))
         save_dir = tmp_path / "save"
         save_world(world, player_id, save_dir)

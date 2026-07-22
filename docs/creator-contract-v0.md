@@ -23,6 +23,7 @@
 | `skills` | 全局技能注册表 |
 | `factions` | 全局门派注册表 |
 | `death_policy` | 死亡/昏迷策略覆盖 |
+| `quests` | 声明式任务表（可空） |
 
 未列入上表的顶层段（例如 `nature:`）走透传，**不是** v0 冻结契约的一部分。
 
@@ -32,19 +33,37 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+
+`objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 
 ### `items.*`
 
-`name`, `aliases`, `short`, `long`, `placed_in`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
+`name`, `aliases`, `short`, `long`, `respawn`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
+
+纯模板定义；摆放位置与份数写在房间 `objects`，不在本段。`respawn` 与 NPC 对齐：objects 槽位实例销毁后是否补刷；仍存在（背包/别房）则占名额。被门锁 `key` 唯一引用的物品不得 `objects` 合计 `>1` 或 `respawn: true`。
 
 ### `npcs.*`
 
-`name`, `aliases`, `short`, `long`, `in_room`, `startroom`, `count`, `respawn`, `loot`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+`name`, `aliases`, `short`, `long`, `startroom`, `respawn`, `loot`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+
+纯模板定义；初始位置与实例数由房间 `objects` 推导。`startroom` 可选，缺省即 `objects` 所在房，若显式写出须与之相同（补刷落点）。
 
 ### `player`
 
 `name`, `start_room`, `inquiry`, `behaviors`, `tick_interval`, `vitals`, `attributes`, `skills`, `currency`, `shop`, `faction`, `mount`, `gender`
+
+### `quests.*`
+
+`name`, `accept`, `complete`, `reward`, `messages`
+
+- `accept.require_npc`：接取时须与该 NPC 模板同房（模板键）。
+- `complete.give_item` + `complete.to_npc`：对目标 NPC `give` 指定物品模板完成（二者须成对）。
+- `complete.flags`：旗标满足完成（与交物完成二选一或可并存于不同任务）。
+- `reward.currency`：完成时发放的银两。
+- `messages.accept` / `messages.complete`：可选提示文案。
+
+接取命令：`quest accept <id>`。`ask` 不触发接取。
 
 ## 内容包 `manifest.yaml` 已知字段
 

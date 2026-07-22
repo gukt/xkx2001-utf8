@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 04 — 物品/NPC 槏位补刷（respawn 收敛到槏位指针语义）
@@ -19,3 +19,5 @@ Status: ready-for-agent
 - [ ] `just test` 全绿。
 
 ## Comments
+
+- 2026-07-22 实现：`ItemSpawnerBlueprint` + `world.item_spawners[(room_key, template)]`；`spawn_scan` 收敛为槽位指针（NPC/物品共用语义）；物品模板 `respawn` 入契约；门锁 `key` 与 `count>1`/`respawn` 冲突加载期拒绝。测：`test_item_slot_respawn.py`。

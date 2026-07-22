@@ -19,28 +19,28 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SHOP_SCENE = """
-rooms:
+_SHOP_SCENE = """rooms:
   shop:
     name: 杂货铺
     exits: {}
+    objects:
+      bun: 1
+      tea: 1
+      keeper: 1
 items:
   bun:
     name: 包子
-    placed_in: shop
     valuable: 10
   tea:
     name: 茶叶
-    placed_in: shop
     valuable: 20
 npcs:
   keeper:
     name: 掌柜
-    in_room: shop
     shop:
-      - item: bun
-        resell_discount: 0.8
-      - tea
+    - item: bun
+      resell_discount: 0.8
+    - tea
 player:
   name: 你
   start_room: shop
@@ -95,21 +95,21 @@ player:
         assert any("没有商店" in line for line in lines)
 
     def test_shop_item_without_valuable_fails_at_load(self, tmp_path: Path) -> None:
-        scene = """
-rooms:
+        scene = """rooms:
   shop:
     name: 店
     exits: {}
+    objects:
+      rock: 1
+      keeper: 1
 items:
   rock:
     name: 石头
-    placed_in: shop
 npcs:
   keeper:
     name: 掌柜
-    in_room: shop
     shop:
-      - rock
+    - rock
 player:
   name: 你
   start_room: shop

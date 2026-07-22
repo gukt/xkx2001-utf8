@@ -16,12 +16,13 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   gate:
     name: 山门外
     exits:
       north: temple
+    objects:
+      sword: 1
   temple:
     name: 山门内
     exits:
@@ -38,8 +39,9 @@ factions:
 items:
   sword:
     name: 钢刀
-    placed_in: gate
-    tags: [weapon, edged]
+    tags:
+    - weapon
+    - edged
 player:
   name: 你
   start_room: gate

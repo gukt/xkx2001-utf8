@@ -52,6 +52,7 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     Mount,
+    PlayerSession,
     Position,
     Riding,
     ShopInventory,
@@ -67,8 +68,9 @@ from mud_engine.components import (
 from mud_engine.death_flow import UNCONSCIOUS_BLOCKED_VERBS
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
-from mud_engine.messaging import room_say
+from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
+from mud_engine.quest import accept_quest, try_complete_quest_on_give
 from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
@@ -720,6 +722,38 @@ def _cmd_put(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     return [f"你把 {name} 放进了 {container_name}。"]
 
 
+@register("give")
+def _cmd_give(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """把背包物品交给同房间 NPC：``give <物品> to <NPC>``。
+
+    玩家互 give 本波不做。目标须带 ``Container``；转移复用 ``transfer``
+    （``no_drop`` / 容量 / 重量等既有拒绝语义原样生效）。
+    """
+    item_name = intent.target
+    if item_name is None or not intent.args:
+        return ["给什么？用法：give <物品> to <人物>"]
+    npc_name = intent.args[0]
+    player_container = world.require_component(player_id, Container)
+    item = _find_item_in_container(world, player_container, item_name)
+    if item is None:
+        return [f"你没有 {item_name}。"]
+    npc = intent.target_id
+    if npc is None or not world.has_component(npc, Identity):
+        npc = _find_npc_in_room(world, player_id, npc_name)
+    if npc is None:
+        return [f"这里没有 {npc_name}。"]
+    if world.has_component(npc, PlayerSession):
+        return ["不能把东西交给其他玩家。"]
+    if not world.has_component(npc, Container):
+        return [f"{npc_name}接不过来。"]
+    result = transfer(world, item, player_id, npc, player_id=player_id)
+    if not result.success:
+        return [result.message or "交不出去。"]
+    messages = [f"你把 {item_name} 交给了 {npc_name}。"]
+    messages.extend(try_complete_quest_on_give(world, player_id, item, npc))
+    return messages
+
+
 @register("inventory", aliases=("i",))
 def _cmd_inventory(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """列出玩家物品栏当前持有的全部物品（03 号票）。"""
@@ -782,6 +816,28 @@ def _cmd_say(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if not text.strip():
         return ["说什么？用法：say <内容>"]
     return room_say(world, player_id, text)
+
+
+@register("chat")
+def _cmd_chat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向 ``chat`` 频道发言（pre-m4-05）：跨房间投给订阅者。空内容拒绝。"""
+    text = intent.args[0] if intent.args else ""
+    if not text.strip():
+        return ["聊什么？用法：chat <内容>"]
+    return publish_channel(world, "chat", player_id, text)
+
+
+@register("quest")
+def _cmd_quest(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """任务命令：本波仅 ``quest accept <id>``（pre-m4-06）。"""
+    if not intent.args:
+        return ["用法：quest accept <任务id>"]
+    sub = intent.args[0].lower()
+    if sub != "accept":
+        return ["用法：quest accept <任务id>"]
+    if len(intent.args) < 2:
+        return ["接取哪个任务？用法：quest accept <任务id>"]
+    return accept_quest(world, player_id, intent.args[1])
 
 
 @register("status")

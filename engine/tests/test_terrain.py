@@ -25,13 +25,14 @@ def _room_by_name(world: World, name: str) -> EntityId:
     raise AssertionError(f"room named {name!r} not found")
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   stable:
     name: 马厩
     exits:
       north: road
       east: cliff
+    objects:
+      horse: 1
   road:
     name: 官道
     cost: 2
@@ -45,7 +46,6 @@ rooms:
 npcs:
   horse:
     name: 黄骠马
-    in_room: stable
     mount:
       ability: 5
       jingli_current: 3

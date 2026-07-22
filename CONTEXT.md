@@ -27,15 +27,15 @@ _Avoid_: 把「背包含 edged 物品」直接对外表述为完整持刃系统
 ### 运行时与创作
 
 **Channel**:
-跨房间、按订阅投递的命名广播管道；与同房间发言（`room_say`）并列，不是其子类。本批预置两条：`chat`（玩家可写的世界闲聊）与 `system`（仅运行时/API 可写的系统公告）；二者同属薄 registry，`system` 不可由玩家命令写入。
+跨房间、按订阅投递的命名广播管道；与同房间发言（`room_say`）并列。预置 `chat`（玩家可写）与 `system`（仅运行时/API 可写）两条。
 _Avoid_: 把房间 say 叫频道, 把系统公告挤进玩家闲聊, rumor/门派/巫师频道表进核心, 未知命令 fallthrough 命中频道 ID, 假多人 seam 等同登录/联网
 
 **房间 objects 放置**:
-房间声明「模板键 → 数量」的物体清单；加载与补刷按登记槽位绑定实例。实例仍存在（背包或其他房间也算）则占名额，仅销毁后才可按 `respawn` 补齐。权威写法见 ADR-0010。
+房间声明「模板键 → 数量」的物体清单；物品与 NPC 共用登记槽位——实例仍在则占名额，仅销毁后才可按 `respawn` 补齐（ADR-0010）。
 _Avoid_: 以 `placed_in`/`in_room` 为权威放置字段, 把「离开地面」当成产生补刷缺口, 在房间保真 effort 重开放置模型
 
 **Quest（声明式旗标任务）**:
-题材包 YAML 声明的可接取任务：接取走 `quest accept <id>`（可要求同房 NPC）；完成条件本批仅交物与旗标；到房只作前置。`ask` 不承担接取副作用。
+题材包 YAML `quests.<id>` 声明的可接取任务；完成条件仅交物与旗标，到房只作前置；`ask` 不接任务。
 _Avoid_: 通用对话树/脚本任务引擎, 用 ask 接任务作本批唯一入口, 把踩房本身列为一等完成类型
 
 **单进程单 World**:
@@ -57,5 +57,5 @@ M3 停机加固**整体完成之后**、开启 M4 **之前**插入的独立 effo
 _Avoid_: 并入 M3 停机加固 S0/B3, 当成 post-MVP backlog, 与 GAP 台账（文档）混为一谈, 未 grill 直接实现, 重开 `placed_in`/`in_room` vs `objects`
 
 **Pre-M4 频道/spawn/任务**:
-M3 停机加固**整体完成之后**、开启 M4 **之前**插入的独立 effort（建议优先于房间保真）：同 World 双 `PlayerSession` 测试 seam + Channel（本批 `chat`/`system`）；房间中心 `objects` 放置 + 物品/NPC 槽位补刷（ADR-0010）；YAML `quests.<id>` 旗标状态机。底稿见 `.scratch/pre-m4-channels-spawn-quest/`。
-_Avoid_: 当成已实现的多人联网, 升格为停机门闩, 通用任务脚本引擎, 未 grill 直接实现, 与房间保真混为一张 spec, 保留 `placed_in`/`in_room` 为权威写法
+已于 2026-07-22 **落地关闭**（仍属 M4 前窗口、非停机门闩）：同 World 双 `PlayerSession` 测试 seam + Channel（`chat`/`system`）；房间中心 `objects` 放置 + 物品/NPC 槽位补刷（ADR-0010）；YAML `quests.<id>` 旗标状态机（官方 `escort_delivery`）。底稿见 `.scratch/pre-m4-channels-spawn-quest/`。
+_Avoid_: 当成已实现的多人联网, 升格为停机门闩, 通用任务脚本引擎, 与房间保真混为一张 spec, 保留 `placed_in`/`in_room` 为权威写法

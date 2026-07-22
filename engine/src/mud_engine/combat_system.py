@@ -23,6 +23,8 @@ from mud_engine.components import (
     BaseAttributes,
     Engaged,
     Identity,
+    PlayerSession,
+    Position,
     SkillLevels,
     Vitals,
 )
@@ -140,7 +142,9 @@ def resolve_one_strike(
     ctx_before = CombatRoundContext(attacker_id=attacker, defender_id=defender, world=world)
     denial = run_vetoable(world, ON_BEFORE_COMBAT_ROUND, ctx_before)
     if denial is not None:
-        world.pending_messages.append(denial)
+        for entity in (attacker, defender):
+            if world.has_component(entity, PlayerSession):
+                world.push_message(entity, denial)
         return None
     combat_ctx = build_combat_context(world, attacker, defender)
     if combat_ctx is None:
@@ -280,7 +284,19 @@ def _broadcast_round(
     qi_hint = ""
     if d_vitals is not None:
         qi_hint = f"（{d_name}气血 {d_vitals.qi_current}/{d_vitals.qi_max}）"
-    world.pending_messages.append(f"{a_name}对{d_name}：{frag}{qi_hint}")
+    msg = f"{a_name}对{d_name}：{frag}{qi_hint}"
+    recipients: set[EntityId] = set()
+    for entity in (attacker, defender):
+        if world.has_component(entity, PlayerSession):
+            recipients.add(entity)
+        pos = world.get_component(entity, Position)
+        if pos is None:
+            continue
+        for other in world.entities_in_room(pos.room):
+            if world.has_component(other, PlayerSession):
+                recipients.add(other)
+    for entity in recipients:
+        world.push_message(entity, msg)
 
 
 def _name(world: World, entity: EntityId) -> str:

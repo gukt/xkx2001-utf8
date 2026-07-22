@@ -16,12 +16,14 @@ def _write_scene(tmp_path: Path, content: str) -> Path:
     return path
 
 
-_SCENE = """
-rooms:
+_SCENE = """rooms:
   stable:
     name: 马厩
     exits:
       north: road
+    objects:
+      horse: 1
+      groom: 1
   road:
     name: 官道
     exits:
@@ -29,17 +31,15 @@ rooms:
 npcs:
   horse:
     name: 黄骠马
-    in_room: stable
     mount:
       ability: 5
       jingli_current: 80
       jingli_max: 80
   groom:
     name: 马夫
-    in_room: stable
     shop:
-      - mount: horse
-        price: 50
+    - mount: horse
+      price: 50
 player:
   name: 你
   start_room: stable
@@ -105,12 +105,13 @@ class TestMountAndRiding:
         assert restored.require_component(mount, Mount).ridden_by == rid
 
 
-_MOUNT_FERRY_SCENE = """
-rooms:
+_MOUNT_FERRY_SCENE = """rooms:
   road:
     name: 官道
     exits:
       east: west_bank
+    objects:
+      horse: 1
   west_bank:
     name: 西岸渡口
     cost: 3
@@ -131,7 +132,6 @@ rooms:
 npcs:
   horse:
     name: 黄骠马
-    in_room: road
     mount:
       ability: 3
       jingli_current: 80
