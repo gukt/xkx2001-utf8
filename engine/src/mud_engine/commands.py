@@ -195,6 +195,8 @@ class DoorStateChangeContext:
 _REGISTRY: dict[str, CommandHandler] = {}
 # 命令别名 -> 规范动词（供解析器查；新增命令"顺带"就有别名支持）
 _ALIASES: dict[str, str] = {}
+# 房间动作动词（dig/jump/climb 等）在无关房间的统一拒绝文案（Pre-M4 钩子命令面）。
+_ROOM_ACTION_REFUSED = "这里不能这么做。"
 
 
 def register(
@@ -1389,10 +1391,10 @@ def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     room = _player_room(world, player_id)
     binding = world.get_component(room, RoomHookBinding)
     if binding is None:
-        return ["这里不能这么做。"]
+        return [_ROOM_ACTION_REFUSED]
     hook = get_room_hook(binding.hook_id)
     if hook is None or not hasattr(hook, "on_dig"):
-        return ["这里不能这么做。"]
+        return [_ROOM_ACTION_REFUSED]
     ctx = RoomHookContext(
         world,
         room,

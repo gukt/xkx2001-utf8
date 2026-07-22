@@ -14,11 +14,11 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | **Wave 1 已落地**（2026-07-22，票 `01`）；票 `02`–`11` 待做；**不自动开 M4** |
+| 状态 | **Wave 1–2 已落地**（2026-07-22，票 `01`/`02`）；票 `03`–`11` 待做；**不自动开 M4** |
 | 决策 | [ADR-0012](../../docs/adr/0012-trusted-room-hooks-narrow-ctx.md)；[session-notes-2026-07-22.md](session-notes-2026-07-22.md) |
-| Spec / 票 | [spec.md](spec.md) 已发布；[issues/](issues/) `01`–`11`（`01` resolved；`02`–`11` ready-for-agent）；执行手册 [implement-plan.md](implement-plan.md)（7 Wave） |
-| 验收资产（计划） | `engine/data/xingxiu_mechanics.yaml`（票 `02` 创建；同构机关，非整区移植） |
-| 下一步 | `/implement` 按 [implement-plan.md](implement-plan.md) Wave 2（票 `02` 动态出口+时限 / `random_of`） |
+| Spec / 票 | [spec.md](spec.md) 已发布；[issues/](issues/) `01`–`11`（`01`/`02` resolved；`03`–`11` ready-for-agent）；执行手册 [implement-plan.md](implement-plan.md)（7 Wave） |
+| 验收资产 | `engine/data/xingxiu_mechanics.yaml`（票 `02` 已创建；后续机关票追加房间） |
+| 下一步 | `/implement` 按 [implement-plan.md](implement-plan.md) Wave 3（票 `03`/`04`/`05`） |
 | 不走 | `/wayfinder`；并入房间保真改其 OOS 实现范围；UGC 脚本层；整区星宿移植；自动开 M4；本批 RestrictedPython 沙箱 |
 
 ## 与相邻交付物的关系

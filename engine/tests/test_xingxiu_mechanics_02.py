@@ -314,3 +314,15 @@ class TestXingxiuMechanicsSceneS2:
         assert any("洞口" in m for m in dig_msgs)
         execute_line(world, player_id, "go north")
         assert world.require_component(player_id, Position).room == world.room_ids["dig_cave"]
+
+    def test_slice_fork_path_playable(self) -> None:
+        world, player_id = load_xingxiu_mechanics()
+        execute_line(world, player_id, "go east")
+        assert world.require_component(player_id, Position).room == world.room_ids["fork_hub"]
+        go_msgs = execute_line(world, player_id, "go north")
+        assert not any("没有出口" in m for m in go_msgs), go_msgs
+        dest = world.require_component(player_id, Position).room
+        assert dest in (world.room_ids["fork_left"], world.room_ids["fork_right"])
+        execute_line(world, player_id, "go south")
+        execute_line(world, player_id, "go north")
+        assert world.require_component(player_id, Position).room == dest
