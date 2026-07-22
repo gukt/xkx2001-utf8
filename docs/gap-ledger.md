@@ -3,7 +3,8 @@
 > 声明式场景 YAML / 内容包**当前表达不了什么**、撞墙时怎么降级。  
 > 对应 CONTEXT.md「GAP 台账」词条；创作者契约见 [creator-contract-v0.md](creator-contract-v0.md)；  
 > 官方轨 / 内容包轨怎么选见 [scene-authoring-guide.md](scene-authoring-guide.md)。  
-> 产出自 M3 停机加固票 [`11`](../.scratch/m3-hardening/issues/11-gap-ledger.md)。
+> 产出自 M3 停机加固票 [`11`](../.scratch/m3-hardening/issues/11-gap-ledger.md)；  
+> Pre-M4 房间钩子收口增补见票 [`11`](../.scratch/pre-m4-room-hooks-xingxiu/issues/11-closeout-ugc-boundary-contract-gap.md)。
 
 本文档**不是**能力橱窗包：不新建专门展示引擎全部能力的示例内容包，也不预留空脚本沙箱接缝。只列缺口与推荐绕过。
 
@@ -20,6 +21,7 @@
 | **语义色 markup** | **已支持（严格切片）**：权威文本 `<c:name>…</c>`；七色；加载/`--validate` 拒 ANSI 与 LPC 色宏；CLI TTY/`--color` 映 ANSI，管道剥纯文本。见 [ADR-0011](adr/0011-semantic-color-tokens.md)。无嵌套/背景/闪烁/粗体 token。 | 勿在 YAML 写 ANSI 或 `HIG`/`NOR`；勿假定服务端已染成唯一真源。 |
 | **藏书（library / books）** | **已支持（严格切片）**：顶层 `books.*` + 房间 `library`；TOC / 缩写选书 / 按章付费 / `more` 分页；同房禁 `practice`；旗标 `no_fight` 等可声明。官方扬州藏书阁。**不是**完整 `jybooks` 移植或通用阅读器。 | 书档放题材包内；勿用外部 URL；勿仅靠 `details` 书架文案冒充可读闭环。 |
 | **日间店铺（day_shop）** | **已支持**：`day_shop: true` 加载期编成白天放行的 `entry_guard`（谓词 `is_day`）；与手写 `entry_guard` 并存则加载失败。官方打铁铺。 | 勿平行第二套进房时间系统；勿同房叠写冲突守卫。 |
-| **剧情门（声明式三件套）** | **已支持（严格切片）**：出口 `consume_key` / `hidden_until_unlocked`；房间 `block_exits`（NPC 在场挡向）。官方翰林三件套。**不是**创作者契约级通用 `add_exit`/`remove_exit` 脚本 API。 | 标准门默认不耗钥；动态出口感用声明式字段，勿在 YAML 嵌运行时改图脚本。 |
+| **剧情门（声明式三件套）** | **已支持（严格切片）**：出口 `consume_key` / `hidden_until_unlocked`；房间 `block_exits`（NPC 在场挡向）。官方翰林三件套。创作者契约路径止于此——**不是**通用 `add_exit`/`remove_exit` 脚本 API；运行时改出口见下行「运行时改世界机关」（官方钩子轨）。 | 标准门默认不耗钥；UGC / 契约场景用声明式三件套表达门感；勿在内容包 YAML 嵌钩子或运行时改图脚本。 |
+| **运行时改世界机关**（动态出口/时限崩塌、多步状态机、迷途、jump·climb、时段秘道、磁力、劫匪刷拦、杀令介入、柔丝索捕获等） | **已支持（官方轨严格切片）**：可信房间钩子（`hooks` + 窄 `ctx`）与加载期小原语 `random_of`；验收挂 `xingxiu_mechanics.yaml`。UGC 内容包仍**禁止** `hooks`（`--validate`/`--strict`/加载同失败）。**不做**整区星宿移植、**不等价** LPC 行为（ADR-0001）。见 [ADR-0012](adr/0012-trusted-room-hooks-narrow-ctx.md) 与 [pre-m4-room-hooks-xingxiu](../.scratch/pre-m4-room-hooks-xingxiu/)。 | 纯声明式 YAML **独立表达不到**这类机关；UGC 用剧情门三件套 / 静态拓扑降级，或等未来沙箱产品化——勿在内容包写 `hooks`。 |
 | **液体灌装 / 饮用** | **未支持**：无灌装、`drink`、醉酒等液体闭环。 | 后置；勿在场景里假设可灌水袋/饮酒致醉。 |
 | **防拐带（NPC 进玩家容器）** | **未支持**：无 `valid_leave` 式防拐带规则。 | 后置；勿设计「把 NPC 塞进背包带走」玩法。 |

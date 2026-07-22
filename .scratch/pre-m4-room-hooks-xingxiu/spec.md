@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Pre-M4：官方房间钩子 + 星宿机制切片（`xingxiu_mechanics`）
 
