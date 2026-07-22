@@ -134,3 +134,14 @@ class TestOfficialYangzhouDetails:
         ]
         lines = execute_line(world, player_id, "look 石狮")
         assert any("石狮" in line and "旗杆" in line for line in lines)
+
+    def test_guangchang_look_qigan_keeps_semantic_color(self) -> None:
+        """S3：户外广场 details 带语义色（旗杆）。"""
+        world, player_id = load_mvp_scene()
+        assert world.room_ids is not None
+        world.require_component(player_id, Position).room = world.room_ids[
+            "yangzhou_guangchang"
+        ]
+        lines = execute_line(world, player_id, "look 旗杆")
+        assert any("<c:yellow>旗角</c>" in line for line in lines)
+        assert not any("\x1b[" in line for line in lines)
