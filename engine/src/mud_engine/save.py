@@ -48,6 +48,7 @@ from mud_engine.components import (
     Exit,
     Exits,
     Identity,
+    ItemSpawnMeta,
     NpcSpawnMeta,
     PlayerSession,
     Position,
@@ -140,6 +141,24 @@ def _des_npc_spawn_meta(d: dict) -> NpcSpawnMeta:
     )
 
 
+def _ser_item_spawn_meta(c: ItemSpawnMeta) -> dict:
+    return {
+        "template_key": c.template_key,
+        "startroom": c.startroom,
+        "desired_count": c.desired_count,
+        "respawn": c.respawn,
+    }
+
+
+def _des_item_spawn_meta(d: dict) -> ItemSpawnMeta:
+    return ItemSpawnMeta(
+        template_key=str(d["template_key"]),
+        startroom=d["startroom"],
+        desired_count=int(d.get("desired_count", 1)),
+        respawn=bool(d.get("respawn", False)),
+    )
+
+
 def _ser_player_session(c: PlayerSession) -> dict:
     return {}
 
@@ -166,6 +185,7 @@ _CODECS.update(
         Exits: (_ser_exits, _des_exits),
         Doors: (_ser_doors, _des_doors),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
+        ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
         PlayerSession: (_ser_player_session, _des_player_session),
     }
 )

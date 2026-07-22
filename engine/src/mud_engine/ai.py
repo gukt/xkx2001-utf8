@@ -24,9 +24,11 @@ from mud_engine.components import (
     AIController,
     Behaviors,
     BehaviorSpec,
+    Container,
     Description,
     Identity,
     Inquiry,
+    ItemSpawnMeta,
     NpcSpawnMeta,
     Position,
 )
@@ -56,12 +58,13 @@ DEFAULT_SPAWN_SCAN_INTERVAL = 10
 Rng = random.Random
 
 
-@dataclass(frozen=True)
+@dataclass
 class SpawnerBlueprint:
     """重建一个 NPC 实例所需的全部数据快照（M2-04）。
 
     由 ``scene_loader._build_npcs`` 按 template_key 注册到 ``world.spawners``。
-    纯内存、不进存档。``extras`` 约定键：
+    纯内存、不进存档。``slots`` 登记具体实例 id（ADR-0010 槽位指针）；``extras``
+    约定键：
     - ``capabilities``: ``tuple`` of 额外能力组件模板（Vitals/Currency/Faction 等），
       生成时 deepcopy 挂到新实例，避免多实例共享可变态。
     """
@@ -78,6 +81,23 @@ class SpawnerBlueprint:
     behaviors: Behaviors | None = None
     tick_interval: int = 1
     extras: Mapping[str, object] = field(default_factory=dict)
+    slots: list[EntityId | None] = field(default_factory=list)
+
+
+@dataclass
+class ItemSpawnerBlueprint:
+    """房间 ``objects`` 物品槽位蓝图（pre-m4-04）。
+
+    键为 ``(room_key, template_key)``，登记在 ``world.item_spawners``。``slots``
+    记住具体实例；实例仍在世界任意处则占名额，仅销毁后且 ``respawn`` 才补。
+    """
+
+    template_key: str
+    room_key: str
+    startroom: EntityId
+    desired_count: int
+    respawn: bool
+    slots: list[EntityId | None] = field(default_factory=list)
 
 
 @dataclass
@@ -209,24 +229,42 @@ def _tick_aggro(
 
 
 def spawn_scan(world: World) -> None:
-    """低频 Spawn/Reset 扫描：按 ``world.spawners`` 核对存活数（M2-04）。
+    """低频 Spawn/Reset 扫描：按蓝图槽位指针补齐缺口（ADR-0010 / pre-m4-04）。
 
-    遍历蓝图注册表（不再从存活 ``NpcSpawnMeta`` 反向聚合），因此即使某
-    template 实例全灭，仍能发现缺口。``respawn=True`` 且存活数不足时按蓝图
-    补齐；``respawn=False`` 不补（保持 M1 语义）。
+    登记实例仍存在于世界任意处则占名额（``get``/``drop``/换房不产生缺口）；
+    仅 ``destroy_entity`` 后且 ``respawn=True`` 时在出生房补齐空槽。
     """
-    by_template: dict[str, list[EntityId]] = {}
-    for entity in world.entities_with(NpcSpawnMeta):
-        meta = world.require_component(entity, NpcSpawnMeta)
-        by_template.setdefault(meta.template_key, []).append(entity)
-
-    for template_key, blueprint in world.spawners.items():
+    for blueprint in world.spawners.values():
         if not blueprint.respawn:
             continue
-        alive = len(by_template.get(template_key, ()))
-        missing = blueprint.desired_count - alive
-        for _ in range(max(0, missing)):
-            spawn_from_blueprint(world, blueprint)
+        _refill_npc_slots(world, blueprint)
+    for blueprint in world.item_spawners.values():
+        if not blueprint.respawn:
+            continue
+        _refill_item_slots(world, blueprint)
+
+
+def _ensure_slot_capacity(slots: list[EntityId | None], desired: int) -> None:
+    while len(slots) < desired:
+        slots.append(None)
+
+
+def _refill_npc_slots(world: World, blueprint: SpawnerBlueprint) -> None:
+    _ensure_slot_capacity(blueprint.slots, blueprint.desired_count)
+    for index in range(blueprint.desired_count):
+        eid = blueprint.slots[index]
+        if eid is not None and world.has_entity(eid):
+            continue
+        blueprint.slots[index] = spawn_from_blueprint(world, blueprint)
+
+
+def _refill_item_slots(world: World, blueprint: ItemSpawnerBlueprint) -> None:
+    _ensure_slot_capacity(blueprint.slots, blueprint.desired_count)
+    for index in range(blueprint.desired_count):
+        eid = blueprint.slots[index]
+        if eid is not None and world.has_entity(eid):
+            continue
+        blueprint.slots[index] = spawn_item_from_blueprint(world, blueprint)
 
 
 def spawn_from_blueprint(
@@ -237,7 +275,7 @@ def spawn_from_blueprint(
 ) -> EntityId:
     """按蓝图重建一个全新 NPC 实例（不带上一实例任何累积可变状态）。
 
-    ``room`` 覆盖初始位置（场景加载时用 ``in_room``；缺省用 ``blueprint.startroom``
+    ``room`` 覆盖初始位置（场景加载时用 objects 房；缺省用 ``blueprint.startroom``
     供重生路径）。load 与 respawn 共用本函数，避免双路径装配分叉。
     """
     npc = world.create_entity()
@@ -271,6 +309,25 @@ def spawn_from_blueprint(
         for component in extra_caps:
             world.add_component(npc, copy.deepcopy(component))
     return npc
+
+
+def spawn_item_from_blueprint(world: World, blueprint: ItemSpawnerBlueprint) -> EntityId:
+    """按物品槽位蓝图在出生房地面生成一件新实例（挂 ``ItemSpawnMeta``）。"""
+    from mud_engine.scene_loader import instantiate_item
+
+    item = instantiate_item(world, blueprint.template_key)
+    world.add_component(
+        item,
+        ItemSpawnMeta(
+            template_key=blueprint.template_key,
+            startroom=blueprint.startroom,
+            desired_count=blueprint.desired_count,
+            respawn=blueprint.respawn,
+        ),
+    )
+    room_container = world.require_component(blueprint.startroom, Container)
+    room_container.items.add(item)
+    return item
 
 
 # 兼容旧私有名（tick handler / 历史测试引用）。
@@ -348,10 +405,12 @@ def condition_from_data(data: Mapping | None) -> Condition | None:
 __all__ = [
     "AISystem",
     "DEFAULT_SPAWN_SCAN_INTERVAL",
+    "ItemSpawnerBlueprint",
     "Rng",
     "SpawnerBlueprint",
     "attach_ai_system",
     "condition_from_data",
     "spawn_from_blueprint",
+    "spawn_item_from_blueprint",
     "spawn_scan",
 ]

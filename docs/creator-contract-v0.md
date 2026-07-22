@@ -38,9 +38,9 @@
 
 ### `items.*`
 
-`name`, `aliases`, `short`, `long`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
+`name`, `aliases`, `short`, `long`, `respawn`, `amount`, `stackable`, `unit_weight`, `valuable`, `value`, `equippable`, `consumable`, `no_drop`, `no_drop_message`, `no_get`, `container`, `max_capacity`, `max_weight`, `weight`, `item_tags`, `tags`
 
-纯模板定义；摆放位置与份数写在房间 `objects`，不在本段。
+纯模板定义；摆放位置与份数写在房间 `objects`，不在本段。`respawn` 与 NPC 对齐：objects 槽位实例销毁后是否补刷；仍存在（背包/别房）则占名额。被门锁 `key` 唯一引用的物品不得 `objects` 合计 `>1` 或 `respawn: true`。
 
 ### `npcs.*`
 

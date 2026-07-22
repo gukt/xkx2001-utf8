@@ -20,7 +20,12 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.ai import SpawnerBlueprint, spawn_from_blueprint
+from mud_engine.ai import (
+    ItemSpawnerBlueprint,
+    SpawnerBlueprint,
+    spawn_from_blueprint,
+    spawn_item_from_blueprint,
+)
 from mud_engine.capabilities import (
     CAPABILITIES,
     NPC_CAPABILITIES,
@@ -83,6 +88,7 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     _resolve_ferry_refs(world, room_ids, scene_path)
     _reject_legacy_placement_fields(items, npcs, scene_path)
     placements = _collect_room_objects(rooms, items, npcs, scene_path)
+    _reject_door_key_slot_conflicts(rooms, items, placements, scene_path)
     item_ids = _build_items(world, items, placements, room_ids, scene_path)
     _build_exits(world, rooms, room_ids, item_ids, scene_path)
     _build_npcs(world, npcs, placements, room_ids, scene_path)
@@ -135,12 +141,14 @@ _ROOM_KNOWN_FIELDS = frozenset(
 # 物品能力字段（18/21/22/24 号票 + 31 号票注册表）：从 ``CAPABILITIES``
 # 聚合每个能力的 known_fields，避免新增能力时漏改 _ITEM_KNOWN_FIELDS 导致透传误吞字段。
 # 放置由房间 ``objects`` 声明（ADR-0010），模板段不再含 ``placed_in``。
+# ``respawn`` 与 NPC 对齐：控制 objects 槽位销毁后是否补刷（pre-m4-04）。
 _ITEM_KNOWN_FIELDS = frozenset(
     {
         "name",
         "aliases",
         "short",
         "long",
+        "respawn",
     }
     | {field for spec in CAPABILITIES for field in spec.known_fields}
 )
@@ -448,6 +456,50 @@ def _collect_room_objects(
     return placements
 
 
+def _collect_door_key_templates(rooms: Mapping, scene_path: Path) -> set[str]:
+    """收集出口 ``key`` 引用的物品模板键（门锁唯一实体引用）。"""
+    keys: set[str] = set()
+    for room_key, raw in rooms.items():
+        data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
+        exits_data = data.get("exits")
+        if not isinstance(exits_data, Mapping):
+            continue
+        for direction, exit_data in exits_data.items():
+            if not isinstance(exit_data, Mapping):
+                continue
+            raw_key = exit_data.get("key")
+            if raw_key is not None:
+                keys.add(str(raw_key))
+    return keys
+
+
+def _reject_door_key_slot_conflicts(
+    rooms: Mapping,
+    items: Mapping,
+    placements: Mapping[str, list[tuple[str, int]]],
+    scene_path: Path,
+) -> None:
+    """门锁 ``key`` 绑定的物品不得 ``count>1`` 或 ``respawn: true``（唯一实体引用）。"""
+    key_templates = _collect_door_key_templates(rooms, scene_path)
+    for key in key_templates:
+        if key not in items:
+            # 未定义键由 _door_key_item_id 在建出口时报错。
+            continue
+        data = _as_mapping(items[key], label=f"物品 '{key}'", scene_path=scene_path)
+        total = sum(count for _, count in placements.get(key, ()))
+        respawn = bool(data.get("respawn", False))
+        if total > 1:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的物品 '{key}' 被门锁 key 唯一引用，"
+                f"但房间 objects 合计数量为 {total}（>1）；唯一引用物品不得多份"
+            )
+        if respawn:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的物品 '{key}' 被门锁 key 唯一引用，"
+                f"但声明了 respawn: true；唯一引用物品不可补刷"
+            )
+
+
 def _build_items(
     world: World,
     items: Mapping,
@@ -455,7 +507,7 @@ def _build_items(
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> dict[str, EntityId]:
-    """登记物品模板，并按房间 ``objects`` 在地面生成实例。
+    """登记物品模板，并按房间 ``objects`` 在地面生成槽位实例。
 
     返回 item key -> 首个实例 entity id，供出口的 ``door.key`` 引用（04 号票）。
     仅出现在 ``items``、未写入任何 ``objects`` 的键仍可作为商店模板（不生成实体）。
@@ -469,18 +521,20 @@ def _build_items(
         room_placements = placements.get(key)
         if not room_placements:
             continue
+        respawn = bool(data.get("respawn", False))
         first_item: EntityId | None = None
         for room_key, count in room_placements:
-            room_container = world.require_component(room_ids[room_key], Container)
+            blueprint = ItemSpawnerBlueprint(
+                template_key=key,
+                room_key=room_key,
+                startroom=room_ids[room_key],
+                desired_count=count,
+                respawn=respawn,
+            )
+            world.item_spawners[(room_key, key)] = blueprint
             for _ in range(count):
-                item = world.create_entity()
-                _attach_identity_and_description(
-                    world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-                )
-                _attach_item_capabilities(
-                    world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-                )
-                room_container.items.add(item)
+                item = spawn_item_from_blueprint(world, blueprint)
+                blueprint.slots.append(item)
                 _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
                 if first_item is None:
                     first_item = item
@@ -605,6 +659,7 @@ def _build_npcs(
         world.spawners[key] = blueprint
         for _ in range(count):
             npc = spawn_from_blueprint(world, blueprint, room=room_id)
+            blueprint.slots.append(npc)
             # 商店 NPC 需要 Container 才能走 transfer 收货/发货。
             if world.has_component(npc, ShopInventory) and not world.has_component(npc, Container):
                 world.add_component(npc, Container())

@@ -317,16 +317,29 @@ class Inquiry:
 class NpcSpawnMeta:
     """NPC 生成/重生元数据（26 号票，D2）。
 
-    场景加载时按模板挂到每个实例上；低频 Spawn/Reset 扫描用 ``template_key``
-    聚合并对照 ``desired_count`` / ``respawn``。M1 NPC 不死，扫描多为空转，
-    机制地基先埋。``startroom`` 是补刷出生房间（与房间 ``objects`` 放置房通常相同，
-    ADR-0010）。
+    场景加载时按模板挂到每个实例上。补刷按蓝图槽位指针判定存活（ADR-0010 /
+    pre-m4-04），不再用「全图同模板存活数」。``startroom`` 是补刷出生房间（与
+    房间 ``objects`` 放置房通常相同）。
     """
 
     template_key: str  # 启动固定：YAML npcs 段的模板键，如 "stone_guard"
     startroom: EntityId  # 启动固定：出生房间 entity id
-    desired_count: int = 1  # 启动固定：该模板期望存活实例数
-    respawn: bool = False  # 启动固定：不足 desired_count 时是否补齐
+    desired_count: int = 1  # 启动固定：该模板期望槽位数
+    respawn: bool = False  # 启动固定：槽位实例销毁后是否补齐
+
+
+@dataclass
+class ItemSpawnMeta:
+    """房间 ``objects`` 槽位物品的生成元数据（pre-m4-04）。
+
+    仅挂在 objects 登记实例上；商店 ``instantiate_item`` 等另造物不挂本组件，
+    也不占槽位名额。补刷扫描按蓝图 ``slots`` 指针判定存活（任意位置皆算）。
+    """
+
+    template_key: str  # 启动固定：YAML items 段的模板键
+    startroom: EntityId  # 启动固定：出生房间 entity id
+    desired_count: int = 1  # 启动固定：该放置条目期望槽位数
+    respawn: bool = False  # 启动固定：槽位实例销毁后是否补齐
 
 
 # ── 角色成长（M2-05 / spec B2）──────────────────────────────────────────

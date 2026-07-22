@@ -17,7 +17,7 @@ from mud_engine.components import Container, Identity, PlayerSession, Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
-    from mud_engine.ai import AISystem, SpawnerBlueprint
+    from mud_engine.ai import AISystem, ItemSpawnerBlueprint, SpawnerBlueprint
     from mud_engine.combat import PowerModel
     from mud_engine.combat_system import CombatSystem
     from mud_engine.death_flow import DeathPolicy
@@ -75,9 +75,10 @@ class World:
         # 交战调度运行时态（M2-12）：纯内存、不进存档；由 ``attach_combat_system`` 挂载。
         self.combat: CombatSystem | None = None
         # NPC Spawner 蓝图注册表（M2-04）：纯内存、不进存档；由 scene_loader 建 NPC
-        # 时注册。``_spawn_scan`` 遍历本表而非从存活实例反向聚合，避免 template
-        # 全灭后丢失期望值。
+        # 时注册。``spawn_scan`` 按蓝图 ``slots`` 指针判定存活（ADR-0010）。
         self.spawners: dict[str, SpawnerBlueprint] = {}
+        # 物品槽位蓝图（pre-m4-04）：键为 ``(room_key, template_key)``；纯内存、不进存档。
+        self.item_spawners: dict[tuple[str, str], ItemSpawnerBlueprint] = {}
         # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
         self.item_templates: dict[str, dict] = {}
         # 房间键 → entity id（M2-17 复活点解析）；纯内存、不进存档。
@@ -232,6 +233,10 @@ class World:
             component = by_entity.get(entity)
             if component is not None:
                 yield (component_type, component)
+
+    def has_entity(self, entity: EntityId) -> bool:
+        """实体 id 是否仍在世界中（槽位补刷存活判定用）。"""
+        return entity in self._entities
 
     def destroy_entity(self, entity: EntityId) -> None:
         """彻底移除一个实体及其全部组件（M2-04 重生 / 后续死亡流程用）。
