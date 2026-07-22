@@ -51,6 +51,11 @@ rooms:
         aliases:
           - 小径
           - 山脚
+      cave:
+        to: sun_moon_cave
+        aliases:
+          - 洞穴
+          - 日月洞
     objects:
       iron_sword: 1
   dig_peak:
@@ -298,6 +303,27 @@ rooms:
         aliases:
           - 南
           - 小径
+  sun_moon_cave:
+    name: 日月洞
+    long: 洞口阴冷，似有杀令张挂。南面回到峰脚。
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+    objects:
+      cave_guard: 1
+    hooks:
+      hook_id: kill_order
+      params:
+        faction: shaolin
+        npc: cave_guard
+
+factions:
+  shaolin:
+    display_name: 少林
+    skill_pool: []
 
 skills:
   dodge:
@@ -329,9 +355,30 @@ npcs:
       neili_max: 0
       jingli_current: 10
       jingli_max: 10
+  cave_guard:
+    name: 洞卫
+    aliases:
+      - 守卫
+    short: 日月洞守卫
+    long: 洞口守卫，对特定门派杀气腾腾。
+    respawn: false
+    vitals:
+      qi_current: 50
+      qi_max: 50
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
 
 player:
   name: 试炼者
   start_room: dig_base
   skills:
     dodge: 50
+  vitals:
+    qi: 100
+    qi_max: 100
+    neili: 50
+    neili_max: 50
+    jingli: 50
+    jingli_max: 50

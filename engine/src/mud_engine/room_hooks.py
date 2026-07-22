@@ -319,6 +319,39 @@ class BanditAmbushHook:
         ctx.message_actor("一伙劫匪忽然从路边窜出，拦住了去路！")
 
 
+class KillOrderHook:
+    """机关 #9：特定阵营进房触发一次简化敌意介入（日月洞灵感）。
+
+    不建通缉/声望；用房间自由状态 ``triggered`` 防同次在场重复触发，
+    ``on_leave`` 清标记以便下次进房可再介入。YAML ``hooks.params``::
+
+        faction: <触发 Faction.faction_id>
+        npc: <可选；在场则 try_engage(npc, actor)>
+    """
+
+    HOOK_ID = "kill_order"
+    STATE_KEY = "triggered"
+
+    def on_enter(self, ctx: RoomHookContext) -> None:
+        if ctx.get_state().get(self.STATE_KEY):
+            return
+        want = str(ctx.params["faction"])
+        if ctx.actor_faction_id() != want:
+            return
+        ctx.set_state({self.STATE_KEY: True})
+        ctx.message_actor("一阵杀气袭来——洞中杀令已指向你这种门派之人！")
+        npc_key = ctx.params.get("npc")
+        if npc_key is None or ctx.actor_id is None:
+            return
+        npc = ctx.find_npc_in_room(str(npc_key))
+        if npc is None:
+            return
+        ctx.try_engage(npc, ctx.actor_id)
+
+    def on_leave(self, ctx: RoomHookContext) -> None:
+        ctx.set_state({})
+
+
 def _register_builtin_hooks() -> None:
     """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
     builtins: list[tuple[str, RoomHook]] = [
@@ -329,6 +362,7 @@ def _register_builtin_hooks() -> None:
         (TimeOfDayPassageHook.HOOK_ID, TimeOfDayPassageHook()),
         (MagneticIronHook.HOOK_ID, MagneticIronHook()),
         (BanditAmbushHook.HOOK_ID, BanditAmbushHook()),
+        (KillOrderHook.HOOK_ID, KillOrderHook()),
     ]
     for hook_id, hook in builtins:
         if hook_id not in _ROOM_HOOKS:
@@ -645,6 +679,7 @@ __all__ = [
     "ON_LEAVE_ROOM",
     "BanditAmbushHook",
     "DigCollapseHook",
+    "KillOrderHook",
     "LostInMazeHook",
     "MagneticIronHook",
     "MultiStepGateHook",
