@@ -275,8 +275,10 @@ class TestUgcRejectsHooksS2:
         with pytest.raises(SceneLoadError, match="hooks|内容包|UGC|官方"):
             load_pack(pack)
 
-    def test_validate_path_also_fails(self, tmp_path: Path) -> None:
-        """``load_pack`` 即 validate/非严格共用路径：声明 hooks 即失败。"""
+    def test_cli_validate_rejects_pack_hooks(self, tmp_path: Path) -> None:
+        """``--pack --validate`` 与非严格 ``load_pack`` 对 hooks 同为失败判定。"""
+        from mud_engine.__main__ import _main
+
         pack = tmp_path / "pack"
         pack.mkdir()
         (pack / "manifest.yaml").write_text(
@@ -285,8 +287,30 @@ class TestUgcRejectsHooksS2:
         )
         (pack / "scene.yaml").write_text(_OFFICIAL_SCENE, encoding="utf-8")
         register_room_hook("test_dummy", RecordingHook())
-        with pytest.raises(SceneLoadError):
-            load_pack(pack)
+        assert _main(["--pack", str(pack), "--validate"]) == 1
+        assert _main(["--pack", str(pack), "--validate", "--strict"]) == 1
+
+    def test_mounted_hook_exception_propagates(self, tmp_path: Path) -> None:
+        register_room_hook("test_dummy", ExplodingHook())
+        world, player_id = load_scene(_write(tmp_path, "scene.yaml", _OFFICIAL_SCENE))
+        with pytest.raises(RuntimeError, match="钩子爆炸"):
+            execute_line(world, player_id, "go north")
+
+    def test_restore_remounts_hooks(self, tmp_path: Path) -> None:
+        from mud_engine.runtime import wire_runtime
+        from mud_engine.save import restore_world, save_world
+
+        hook = RecordingHook()
+        register_room_hook("test_dummy", hook)
+        world, player_id = load_scene(_write(tmp_path, "scene.yaml", _OFFICIAL_SCENE))
+        save_world(world, player_id, tmp_path / "save")
+        restored = restore_world(tmp_path / "save")
+        assert restored is not None
+        world2, player2 = restored
+        assert world2.scene_path is not None
+        wire_runtime(world2, world2.scene_path)
+        execute_line(world2, player2, "go north")
+        assert player2 in hook.enters
 
 
 class TestRoomFreeStateSave:

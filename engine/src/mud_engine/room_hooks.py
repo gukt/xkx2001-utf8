@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
 from mud_engine.components import (
     Exit,
@@ -27,10 +27,7 @@ from mud_engine.world import EntityId, World
 ON_ENTER_ROOM = "on_enter_room"
 ON_LEAVE_ROOM = "on_leave_room"
 
-_ROOM_HOOKS: dict[str, object] = {}
 
-
-@runtime_checkable
 class RoomHook(Protocol):
     """房间生命周期钩子。方法全部可选；未实现的方法视为不参与对应事件点。
 
@@ -42,12 +39,15 @@ class RoomHook(Protocol):
     """
 
 
-def register_room_hook(hook_id: str, hook: object) -> None:
+_ROOM_HOOKS: dict[str, RoomHook] = {}
+
+
+def register_room_hook(hook_id: str, hook: RoomHook) -> None:
     """按 ``hook_id`` 注册可信钩子实现（与 ``register_skill_behavior`` 同构）。"""
     _ROOM_HOOKS[hook_id] = hook
 
 
-def get_room_hook(hook_id: str) -> object | None:
+def get_room_hook(hook_id: str) -> RoomHook | None:
     """查询已注册钩子；未注册返回 ``None``（加载期视为 fail-closed）。"""
     return _ROOM_HOOKS.get(hook_id)
 
@@ -200,16 +200,17 @@ def attach_room_hooks(world: World) -> None:
     if getattr(world, "_room_hooks_attached", False):
         return
 
-    enter_bindings: dict[EntityId, tuple[object, Mapping[str, object]]] = {}
-    leave_bindings: dict[EntityId, tuple[object, Mapping[str, object]]] = {}
-    tick_bindings: dict[EntityId, tuple[object, Mapping[str, object]]] = {}
+    enter_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
+    leave_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
+    tick_bindings: dict[EntityId, tuple[RoomHook, Mapping[str, object]]] = {}
 
     for room_id in world.entities_with(RoomHookBinding):
         binding = world.require_component(room_id, RoomHookBinding)
         hook = get_room_hook(binding.hook_id)
         if hook is None:
-            # 加载期应已校验；restore 后注册表仍应持有同 id。
-            continue
+            raise RuntimeError(
+                f"房间 {room_id} 绑定 hook_id '{binding.hook_id}' 但注册表中无此钩子"
+            )
         params = binding.params
         if hasattr(hook, "on_enter"):
             enter_bindings[room_id] = (hook, params)

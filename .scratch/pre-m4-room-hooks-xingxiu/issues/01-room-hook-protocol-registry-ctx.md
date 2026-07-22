@@ -42,3 +42,4 @@ Status: resolved
 - **UGC 拒绝**：`load_pack(..., pack_track=True)` 与旁路同级 `manifest.yaml` 检测；声明 `hooks` → `SceneLoadError`（与 validate 同路径）
 - **挂载**：`wire_runtime` → `attach_room_hooks`；按实现方法按需订阅 `on_enter_room` / `on_leave_room` / `on_tick`
 - **测试**：`engine/tests/test_room_hooks.py`（S0 + S2；测试内 `RecordingHook`，不进 `xingxiu_mechanics.yaml`）
+- **code-review fix**（Wave 1）：注册表类型改为 `RoomHook`；`attach_room_hooks` 注册表缺钩子改 raise；补 CLI `--validate`/`--strict`、挂载路径异常传播、restore+`wire_runtime` 重挂测。

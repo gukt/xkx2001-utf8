@@ -3,6 +3,10 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 引擎房间保真 Wave 1 落地：details / 语义色 / 房间旗标**（2026-07-22）：票 `01`–`03`；fixed point `pre-m4-engine-room-fidelity-wave1-start`；code-review fix：NPC `short`/`long` 走语义色校验、`_look_item` 未命中返回 `None`。745 绿。
+
+- [x] **Pre-M4 引擎房间保真：`/to-tickets`**（2026-07-22）：[issues/](pre-m4-engine-room-fidelity/issues/) `01`–`07`；[to-tickets-notes.md](pre-m4-engine-room-fidelity/to-tickets-notes.md)；[implement-plan.md](pre-m4-engine-room-fidelity/implement-plan.md)（Wave 1–3）。
+
 - [x] **Pre-M4 引擎房间保真：`/to-spec`**（2026-07-22）：[spec.md](pre-m4-engine-room-fidelity/spec.md)（`ready-for-agent`；S1/S2/S3）；硬门闩三 + 日间店/剧情门非门闩 + 契约回写 + 扬州 MVP 验收。
 
 - [x] **Pre-M4 引擎房间保真：grill + shared understanding**（2026-07-22）：硬门闩 = `details` + 语义色（ADR-0011）+ 完整藏书；本波必做非门闩 = `day_shop` + 剧情门 + 契约；液体/防拐带后置；不重开放置。
