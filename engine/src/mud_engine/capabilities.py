@@ -51,6 +51,7 @@ from mud_engine.components import (
     Mount,
     NoDeathZone,
     Riding,
+    RoomDetails,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -577,6 +578,43 @@ def _des_entry_guard(d: dict) -> EntryGuard:
     )
 
 
+def _parse_room_details(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> RoomDetails | None:
+    """``details: {键: 描述文本}``；缺省不挂。"""
+    raw = data.get("details")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'details' 应是映射，实际是 {type(raw).__name__}"
+        )
+    entries: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not key:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 details 键应是非空字符串，实际是 {key!r}"
+            )
+        if not isinstance(value, str):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 details[{key!r}] 应是字符串，"
+                f"实际是 {type(value).__name__}"
+            )
+        entries[key] = value
+    if not entries:
+        return None
+    return RoomDetails(entries=entries)
+
+
+def _ser_room_details(c: RoomDetails) -> dict:
+    return {"entries": dict(c.entries)}
+
+
+def _des_room_details(d: dict) -> RoomDetails:
+    raw = d.get("entries", d)
+    return RoomDetails(entries={str(k): str(v) for k, v in dict(raw).items()})
+
+
 ROOM_CAPABILITIES: list[CapabilitySpec] = [
     CapabilitySpec(
         component_type=Description,
@@ -612,6 +650,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_terrain,
         to_dict=_ser_terrain,
         from_dict=_des_terrain,
+    ),
+    CapabilitySpec(
+        component_type=RoomDetails,
+        known_fields=frozenset({"details"}),
+        from_yaml=_parse_room_details,
+        to_dict=_ser_room_details,
+        from_dict=_des_room_details,
     ),
 ]
 

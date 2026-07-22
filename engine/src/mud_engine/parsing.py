@@ -330,15 +330,29 @@ class DeterministicParser(Parser):
     def _parse_look(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """无参 look 看房间；有参则匹配房间地面 / 物品栏 / 嵌套容器内物品（23 号票）。"""
+        """无参 look 看房间；有参则：物品 → 同房 NPC → 交执行层查 details（Pre-M4-01）。"""
         if not args:
             return Intent(verb="look", target=None)
         token = args[0]
-        candidates = self._look_item_candidates(world, player_id)
-        matched = self._match_item_token(token, candidates, verb="look")
-        if isinstance(matched, ParseFailure):
-            return matched
-        return Intent(verb="look", target=matched)
+        item_matched = self._match_item_token(
+            token, self._look_item_candidates(world, player_id), verb="look"
+        )
+        if not isinstance(item_matched, ParseFailure):
+            return Intent(verb="look", target=item_matched)
+        if item_matched.reason is not Reason.NO_TARGET_MATCH:
+            return item_matched
+
+        npc_matched = self._match_entity_token(
+            token, self._look_entity_candidates(world, player_id), verb="look"
+        )
+        if not isinstance(npc_matched, ParseFailure):
+            canonical, entity_id = npc_matched
+            return Intent(verb="look", target=canonical, target_id=entity_id)
+        if npc_matched.reason is not Reason.NO_TARGET_MATCH:
+            return npc_matched
+
+        # 无实体命中：把原 token 交给执行层查房间 details；仍无则执行层给失败提示。
+        return Intent(verb="look", target=token)
 
     def _parse_ask(
         self, args: list[str], world: World, player_id: EntityId
@@ -514,6 +528,11 @@ class DeterministicParser(Parser):
 
     @staticmethod
     def _combat_entity_candidates(world: World, player_id: EntityId) -> list[EntityCandidate]:
+        return DeterministicParser._look_entity_candidates(world, player_id)
+
+    @staticmethod
+    def _look_entity_candidates(world: World, player_id: EntityId) -> list[EntityCandidate]:
+        """同房可被 look 优先于 details 的实体（有 Identity；含 NPC，不含地面物品）。"""
         room = world.require_component(player_id, Position).room
         candidates: list[EntityCandidate] = []
         for entity in sorted(world.entities_in_room(room, exclude=player_id)):

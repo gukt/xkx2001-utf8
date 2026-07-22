@@ -33,7 +33,7 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `objects`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`, `details`
 
 `objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 

@@ -55,6 +55,7 @@ from mud_engine.components import (
     PlayerSession,
     Position,
     Riding,
+    RoomDetails,
     ShopInventory,
     SkillLevels,
     SkillProgress,
@@ -339,13 +340,13 @@ def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId)
 
 @register("look", aliases=("l",))
 def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """无目标：展示当前房间；有目标：展示物品详情（23 号票）。
+    """无目标：展示当前房间；有目标：实体（物品/NPC）或房间风景 details（Pre-M4-01）。
 
     房间 look：简述、详细描述、户外时辰/天气（15/17）、地面物品、在场 NPC、出口。
-    物品 look：long + 容器内容 + 堆叠/价值/重量数值。
+    有目标：解析层已按物品 → NPC 优先；此处再查 details，最后失败提示。
     """
     if intent.target is not None:
-        return _look_item(world, player_id, intent.target)
+        return _look_target(world, player_id, intent)
 
     room = _player_room(world, player_id)
     description = world.require_component(room, Description)
@@ -1402,6 +1403,33 @@ def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId 
         if identity is not None and identity.name == name:
             return entity
     return None
+
+
+def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """有目标 look：NPC（target_id）→ 物品 → 房间 details → 失败提示。"""
+    name = intent.target
+    assert name is not None
+    if intent.target_id is not None:
+        return _look_entity(world, intent.target_id, name)
+    item_lines = _look_item(world, player_id, name)
+    if item_lines != [f"这里没有 {name}。"]:
+        return item_lines
+    room = _player_room(world, player_id)
+    details = world.get_component(room, RoomDetails)
+    if details is not None and name in details.entries:
+        return [details.entries[name]]
+    return [f"这里没有 {name}。"]
+
+
+def _look_entity(world: World, entity_id: EntityId, name: str) -> list[str]:
+    """``look <NPC/实体>``：展示 Description（short/long）。"""
+    description = world.get_component(entity_id, Description)
+    if description is not None and description.long:
+        return [description.long]
+    if description is not None and description.short:
+        return [description.short]
+    identity = world.get_component(entity_id, Identity)
+    return [identity.name if identity is not None else name]
 
 
 def _look_item(world: World, player_id: EntityId, name: str) -> list[str]:

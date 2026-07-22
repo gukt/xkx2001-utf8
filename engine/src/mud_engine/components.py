@@ -445,6 +445,13 @@ class NoDeathZone:
     """房间级免死区标记：气血耗尽只昏迷、不转 Dead。启动固定。"""
 
 
+@dataclass
+class RoomDetails:
+    """房间风景：键 → 描述文本，供 ``look <键>``；不占 objects、非实体。启动固定。"""
+
+    entries: dict[str, str] = field(default_factory=dict)
+
+
 # ── 货币与商店（M2-07 / spec D1）────────────────────────────────────────
 
 
