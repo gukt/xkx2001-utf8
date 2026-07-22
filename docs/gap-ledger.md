@@ -16,3 +16,10 @@
 | **装备槏位与真实 wield / unwield** | 物品可有 `equippable` / `item_tags`（如 `edged`）；门禁求值器仍保留 `is_wielding_edged_weapon`，但**没有** `wield` / `unwield` / `stash` 命令，玩家无法主动改变「持刃」态。官方少林山门已去掉持刃条件（加固票 [`02`](../.scratch/m3-hardening/issues/02-shaolin-gate-drop-edged-condition.md)）。 | 门禁只用玩家可操作的条件（性别、门派、`has_item` 等）；武器差异用背包标签或属性字段表达，勿要求玩家「收刀」。 |
 | **坐骑驯服 / 被抢** | 支持场景内展示马、`buy` 坐骑、`ride` / `unride`、骑乘同步移动与 `Terrain.cost` 校验。无驯服流程、无骑乘争夺 / 抢马。 | 把坐骑当商店货或房间固定 NPC；用购买门槛代替驯服；不要设计「野马驯服」或「打落对方坐骑」。 |
 | **多文件 / 大世界树场景** | 单包单 `scene.yaml`（或默认 CLI 单文件官方场景）；无多文件 include / 世界树拼接加载。 | 按区域拆成多个内容包，或把 MVP 规模地图收进一份 YAML；超大世界留待后续加载器能力，勿在 v0 契约外发明私有多文件约定。 |
+| **房间风景（details）** | **已支持**：房间 YAML `details`（键 → 文本）；`look` 同房实体优先后再查风景键；不占 `objects`。官方锚点：扬州中央广场等。见 [pre-m4-engine-room-fidelity](../.scratch/pre-m4-engine-room-fidelity/) 与 [创作者契约 v0](creator-contract-v0.md)。 | 勿把牌子/对联做成 `objects` 假物品；勿用 `features`/`scenery`/`item_desc` 当权威字段名。 |
+| **语义色 markup** | **已支持（严格切片）**：权威文本 `<c:name>…</c>`；七色；加载/`--validate` 拒 ANSI 与 LPC 色宏；CLI TTY/`--color` 映 ANSI，管道剥纯文本。见 [ADR-0011](adr/0011-semantic-color-tokens.md)。无嵌套/背景/闪烁/粗体 token。 | 勿在 YAML 写 ANSI 或 `HIG`/`NOR`；勿假定服务端已染成唯一真源。 |
+| **藏书（library / books）** | **已支持（严格切片）**：顶层 `books.*` + 房间 `library`；TOC / 缩写选书 / 按章付费 / `more` 分页；同房禁 `practice`；旗标 `no_fight` 等可声明。官方扬州藏书阁。**不是**完整 `jybooks` 移植或通用阅读器。 | 书档放题材包内；勿用外部 URL；勿仅靠 `details` 书架文案冒充可读闭环。 |
+| **日间店铺（day_shop）** | **已支持**：`day_shop: true` 加载期编成白天放行的 `entry_guard`（谓词 `is_day`）；与手写 `entry_guard` 并存则加载失败。官方打铁铺。 | 勿平行第二套进房时间系统；勿同房叠写冲突守卫。 |
+| **剧情门（声明式三件套）** | **已支持（严格切片）**：出口 `consume_key` / `hidden_until_unlocked`；房间 `block_exits`（NPC 在场挡向）。官方翰林三件套。**不是**创作者契约级通用 `add_exit`/`remove_exit` 脚本 API。 | 标准门默认不耗钥；动态出口感用声明式字段，勿在 YAML 嵌运行时改图脚本。 |
+| **液体灌装 / 饮用** | **未支持**：无灌装、`drink`、醉酒等液体闭环。 | 后置；勿在场景里假设可灌水袋/饮酒致醉。 |
+| **防拐带（NPC 进玩家容器）** | **未支持**：无 `valid_leave` 式防拐带规则。 | 后置；勿设计「把 NPC 塞进背包带走」玩法。 |
