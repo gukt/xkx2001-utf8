@@ -288,7 +288,7 @@ class DeterministicParser(Parser):
                 matched = self._match_item_token(
                     args[0],
                     self._item_candidates(world, player_id, "player"),
-                    verb="give",
+                    verb="drop",
                 )
                 if isinstance(matched, ParseFailure):
                     return matched
@@ -297,10 +297,11 @@ class DeterministicParser(Parser):
 
         item_token = args[0]
         npc_token = " ".join(args[to_idx + 1 :])
+        # 背包物品未命中：与 drop 同措辞「你没有」（勿用 give→「这里没有」误导地上物）。
         item_matched = self._match_item_token(
             item_token,
             self._item_candidates(world, player_id, "player"),
-            verb="give",
+            verb="drop",
         )
         if isinstance(item_matched, ParseFailure):
             return item_matched

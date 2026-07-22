@@ -306,6 +306,103 @@ player:
         assert len(guards) == 3
         assert world.spawners["guard"].desired_count == 3
 
+    def test_legacy_npc_count_is_rejected(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      guard: 1
+npcs:
+  guard:
+    name: 守卫
+    count: 2
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "guard" in msg
+        assert "count" in msg
+        assert "objects" in msg
+
+    def test_startroom_must_match_objects_room(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      guard: 1
+  hall:
+    name: 大厅
+npcs:
+  guard:
+    name: 守卫
+    startroom: hall
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_scene(path)
+        msg = str(exc_info.value)
+        assert "guard" in msg
+        assert "startroom" in msg
+        assert "yard" in msg
+
+    def test_item_template_may_appear_in_multiple_rooms(self, tmp_path: Path) -> None:
+        path = _write_scene(
+            tmp_path,
+            """
+rooms:
+  yard:
+    name: 院子
+    objects:
+      pebble: 1
+  hall:
+    name: 大厅
+    objects:
+      pebble: 1
+items:
+  pebble:
+    name: 石子
+player:
+  name: 你
+  start_room: yard
+""",
+        )
+        world, player_id = load_scene(path)
+        yard = world.require_component(player_id, Position).room
+        hall = next(
+            e
+            for e in world.entities_with(Identity)
+            if world.require_component(e, Identity).name == "大厅"
+        )
+        assert (
+            sum(
+                1
+                for i in world.require_component(yard, Container).items
+                if world.require_component(i, Identity).name == "石子"
+            )
+            == 1
+        )
+        assert (
+            sum(
+                1
+                for i in world.require_component(hall, Container).items
+                if world.require_component(i, Identity).name == "石子"
+            )
+            == 1
+        )
+
     def test_dangling_player_start_room_mentions_the_key(self, tmp_path: Path) -> None:
         path = _write_scene(
             tmp_path,

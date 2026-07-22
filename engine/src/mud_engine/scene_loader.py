@@ -412,12 +412,12 @@ def _collect_room_objects(
     items: Mapping,
     npcs: Mapping,
     scene_path: Path,
-) -> dict[str, tuple[str, int]]:
-    """收集房间 ``objects``：返回 template_key -> (room_key, count)。
+) -> dict[str, list[tuple[str, int]]]:
+    """收集房间 ``objects``：返回 template_key -> [(room_key, count), ...]。
 
-    同一模板键只能出现在一个房间（NPC 蓝图 / 门锁钥匙都按单出生点建模）。
+    物品模板可出现在多个房间；NPC 模板受单蓝图约束，只能出现在一个房间。
     """
-    placements: dict[str, tuple[str, int]] = {}
+    placements: dict[str, list[tuple[str, int]]] = {}
     item_keys = {str(k) for k in items}
     npc_keys = {str(k) for k in npcs}
     for room_key, raw in rooms.items():
@@ -438,20 +438,20 @@ def _collect_room_objects(
                     f"引用未定义的模板 '{key}'"
                 )
             count = _parse_positive_int(raw_count, "objects", key, scene_path)
-            if key in placements:
-                prev_room, _ = placements[key]
+            if key in npc_keys and key in placements:
+                prev_room, _ = placements[key][0]
                 raise SceneLoadError(
-                    f"场景文件 {scene_path} 的模板 '{key}' 在房间 '{prev_room}' 与 "
-                    f"'{room_key}' 的 objects 中重复出现；每个模板只能放在一个房间"
+                    f"场景文件 {scene_path} 的 NPC '{key}' 在房间 '{prev_room}' 与 "
+                    f"'{room_key}' 的 objects 中重复出现；每个 NPC 模板只能放在一个房间"
                 )
-            placements[key] = (str(room_key), count)
+            placements.setdefault(key, []).append((str(room_key), count))
     return placements
 
 
 def _build_items(
     world: World,
     items: Mapping,
-    placements: Mapping[str, tuple[str, int]],
+    placements: Mapping[str, list[tuple[str, int]]],
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> dict[str, EntityId]:
@@ -466,24 +466,24 @@ def _build_items(
         key = str(item_key)
         # 商店 buy 按模板键实例化：保留原始 YAML（M2-07）。
         world.item_templates[key] = dict(data)
-        placement = placements.get(key)
-        if placement is None:
+        room_placements = placements.get(key)
+        if not room_placements:
             continue
-        room_key, count = placement
-        room_container = world.require_component(room_ids[room_key], Container)
         first_item: EntityId | None = None
-        for _ in range(count):
-            item = world.create_entity()
-            _attach_identity_and_description(
-                world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-            )
-            _attach_item_capabilities(
-                world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
-            )
-            room_container.items.add(item)
-            _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
-            if first_item is None:
-                first_item = item
+        for room_key, count in room_placements:
+            room_container = world.require_component(room_ids[room_key], Container)
+            for _ in range(count):
+                item = world.create_entity()
+                _attach_identity_and_description(
+                    world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
+                )
+                _attach_item_capabilities(
+                    world, item, data, label=f"物品 '{item_key}'", scene_path=scene_path
+                )
+                room_container.items.add(item)
+                _capture_entity_unknown_fields(world, item, data, _ITEM_KNOWN_FIELDS)
+                if first_item is None:
+                    first_item = item
         assert first_item is not None
         item_ids[key] = first_item
     return item_ids
@@ -526,7 +526,7 @@ def _attach_capability_specs(
 def _build_npcs(
     world: World,
     npcs: Mapping,
-    placements: Mapping[str, tuple[str, int]],
+    placements: Mapping[str, list[tuple[str, int]]],
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
@@ -539,13 +539,13 @@ def _build_npcs(
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
         key = str(npc_key)
-        placement = placements.get(key)
-        if placement is None:
+        room_placements = placements.get(key)
+        if not room_placements:
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的 NPC '{npc_key}' 未出现在任何房间的 "
                 f"objects 中（见 docs/adr/0010-room-centric-objects-placement.md）"
             )
-        room_key, count = placement
+        room_key, count = room_placements[0]
         start_key = data.get("startroom") or room_key
         if str(start_key) not in room_ids:
             raise SceneLoadError(

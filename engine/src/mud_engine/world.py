@@ -94,6 +94,8 @@ class World:
         # 接收者分发。不进存档。``pending_messages`` 属性仍暴露主会话视图，供
         # 单玩家 CLI / 既有测试 drain。
         self._mailboxes: dict[EntityId, list[str]] = {}
+        # 主会话尚未挂上时的兼容空列表（加载早期）；不进实体 id 空间。
+        self._pending_before_primary: list[str] = []
         self.primary_player_id: EntityId | None = None
         # 本 world 由哪份场景 YAML 加载（``load_scene`` 写入）。进存档 meta，供
         # restore 后重读题材包 ``nature:`` 配置（不能写死 DEFAULT_SCENE_PATH）。
@@ -121,8 +123,7 @@ class World:
             if len(players) == 1:
                 pid = players[0]
             else:
-                # 玩家尚未建立时的占位桶（加载早期）；正常路径不会往这里投递。
-                return self._mailboxes.setdefault(0, [])
+                return self._pending_before_primary
         return self._mailboxes.setdefault(pid, [])
 
     def spawn_player_session(self, *, name: str, room: EntityId) -> EntityId:
