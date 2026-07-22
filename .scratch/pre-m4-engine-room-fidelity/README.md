@@ -7,18 +7,18 @@
 
 ## 一句话
 
-对照 LPC《侠客行》房间写法与当前 YAML/引擎能力，补一轮「房间风景、色 markup、日夜店铺、门机关、液体灌装」等引擎侧能力；书院读书可作为本波候选或明确后置，grill 时拍板。
+对照 LPC 房间写法补引擎能力：硬门闩为房间风景（`details`）、语义色（ADR-0011）、完整藏书；本波另含日间店铺与剧情门（非硬门闩）。液体灌装后置。
 
-> **放置模型已不在本 effort**：`placed_in`/`in_room` → 房间中心 `objects` 由兄弟批 [pre-m4-channels-spawn-quest](../pre-m4-channels-spawn-quest/) + [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) 落地；本批 grill **不得重开**「是否改 objects」。
+> **放置模型已不在本 effort**：由兄弟批 + [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) 落地；**不得重开**。
 
 ## 状态
 
 | 项 | 值 |
 |---|---|
-| 状态 | **排队**：加固已完成；等频道/spawn/任务（含 ADR-0010 放置迁移）关完或明确并行策略后再 grill |
-| 入口文档 | [session-notes-2026-07-21.md](session-notes-2026-07-21.md)（本 session 详细对照与缺口清单；§1.3/§2/议程「放置」已由 ADR-0010 改判） |
-| 下一步 skill | 兄弟批放置迁移落地后（或 grill 明确可并行）：`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` |
-| 不走 | `/wayfinder`（清单已清，只需范围裁剪）；不直接 `/implement`；不重开放置模型 |
+| 状态 | **spec 已发布**（`ready-for-agent`）；grill + S1/S2/S3 接缝已确认 |
+| 入口文档 | [spec.md](spec.md)；[session-notes-2026-07-21.md](session-notes-2026-07-21.md)；[CONTEXT.md](../../CONTEXT.md)；[ADR-0011](../../docs/adr/0011-semantic-color-tokens.md) |
+| 下一步 skill | `/to-tickets` → `/implement` |
+| 不走 | `/wayfinder`；不直接 `/implement`；不重开放置模型；不自动开 M4 |
 
 ## 与相邻交付物的关系
 
@@ -36,4 +36,4 @@
 - `issues/` — `/to-tickets` 产出  
 - `implement-plan.md` — 可选  
 
-当前仅有 session 笔记，**尚未**开 `/to-spec`。
+已有 [spec.md](spec.md)；`issues/` 待 `/to-tickets`。

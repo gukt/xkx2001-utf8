@@ -3,6 +3,10 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 频道/spawn/任务：`/to-tickets` 拆票**（2026-07-22）：[issues/](pre-m4-channels-spawn-quest/issues/) `01`–`07`，依赖顺序编号。
+
+- [x] **Pre-M4 频道/spawn/任务：grill + spec**（2026-07-22）：shared understanding 确认；[spec.md](pre-m4-channels-spawn-quest/spec.md)（S1/S2/S3）；[ADR-0010](../docs/adr/0010-room-centric-objects-placement.md)；ADR-0008 澄清；CONTEXT 增 Channel / 房间 objects / Quest。
+
 - [x] **Pre-M4 频道旁路：research + 窄域 grill**（2026-07-22）：[research-channels-lpc](pre-m4-channels-spawn-quest/research-channels-lpc-2026-07-22.md)；频道支线已决 `chat`+`system`；并入主 grill/spec。
 
 - [x] **M3 停机加固 Wave 3 落地：B3 收口（双轨范本文档）**（2026-07-22）：票 `09` [场景创作双轨说明](../docs/scene-authoring-guide.md)（官方轨 `m2_mvp_scene.yaml` ↔ 内容包轨 `example-pack/`，共用契约 v0；诚实记录不做官方场景包化）+ 契约/GAP 反向链接；fixed point `m3-hardening-wave3-start`。**Wave B3（`08`–`11`）全关**；加固整体（P0+B3）完成。673 绿。
