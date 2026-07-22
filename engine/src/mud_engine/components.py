@@ -145,11 +145,13 @@ class Door:
     （箱子、密室入口等）复用的能力，所以单独建模，不塞进 ``Exit``（04 号票
     acceptance 第 7 条）。``state`` 运行时可变（``open``/``close``/``unlock``
     直接改）；``key_item_id`` 是 LOCKED 状态解锁所需钥匙物品的 entity id，
-    ``None`` 表示该锁不绑定特定钥匙（或当前不是锁）。
+    ``None`` 表示该锁不绑定特定钥匙（或当前不是锁）。``consume_key`` 为真时
+    解锁成功消耗钥匙（剧情门）；默认 False 保持标准门不消耗。
     """
 
     state: DoorState
     key_item_id: EntityId | None = None  # LOCKED 时解锁需要的钥匙物品 entity id；None=不绑定钥匙
+    consume_key: bool = False  # 剧情门：解锁成功后销毁钥匙
 
 
 @dataclass
@@ -159,12 +161,35 @@ class Doors:
     独立成组件、不并入 ``Exits``：``Exits`` 表达"通向哪里"（出口目标+别名），
     ``Doors`` 表达"能不能过"（开/关/锁）--两条能力正交，分开存储让"可开合/上锁"
     未来能被非出口实体复用（04 号票）。某个方向没有门时，该方向不在
-    ``by_direction`` 里即可，不强制每个出口都配门。
+    ``by_direction`` 里即可，不强制每个出口都配门。隐藏剧情出口的门也可先挂在此，
+    出口本体在 ``HiddenExits`` 直至解锁揭示。
     """
 
     by_direction: dict[str, Door] = field(
         default_factory=dict
-    )  # 方向名 -> 门状态；只含有门的方向，方向键与 Exits.by_direction 一致
+    )  # 方向名 -> 门状态；只含有门的方向，方向键与 Exits/HiddenExits 一致
+
+
+@dataclass(frozen=True)
+class HiddenExit:
+    """未解锁前不出现在 ``Exits`` 的剧情出口载荷（目标 + 别名）。"""
+
+    target: EntityId
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass
+class HiddenExits:
+    """隐藏出口：未解锁时 look/go 不可见；unlock 成功后迁入 ``Exits``。"""
+
+    by_direction: dict[str, HiddenExit] = field(default_factory=dict)
+
+
+@dataclass
+class BlockExits:
+    """NPC 在场则挡向：方向 → NPC 模板键（``NpcSpawnMeta.template_key``）。启动固定。"""
+
+    by_direction: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

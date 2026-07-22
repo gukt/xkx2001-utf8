@@ -42,11 +42,14 @@ from mud_engine.capabilities import (
 )
 from mud_engine.components import (
     TRANSIENT,
+    BlockExits,
     Door,
     Doors,
     DoorState,
     Exit,
     Exits,
+    HiddenExit,
+    HiddenExits,
     Identity,
     ItemSpawnMeta,
     ItemTemplateKey,
@@ -111,7 +114,11 @@ def _des_exits(d: dict) -> Exits:
 def _ser_doors(c: Doors) -> dict:
     return {
         "by_direction": {
-            direction: {"state": door.state.value, "key_item_id": door.key_item_id}
+            direction: {
+                "state": door.state.value,
+                "key_item_id": door.key_item_id,
+                "consume_key": door.consume_key,
+            }
             for direction, door in c.by_direction.items()
         }
     }
@@ -123,8 +130,37 @@ def _des_doors(d: dict) -> Doors:
         doors.by_direction[str(direction)] = Door(
             state=DoorState(payload["state"]),
             key_item_id=payload.get("key_item_id"),
+            consume_key=bool(payload.get("consume_key", False)),
         )
     return doors
+
+
+def _ser_hidden_exits(c: HiddenExits) -> dict:
+    return {
+        "by_direction": {
+            direction: {"target": exit_.target, "aliases": list(exit_.aliases)}
+            for direction, exit_ in c.by_direction.items()
+        }
+    }
+
+
+def _des_hidden_exits(d: dict) -> HiddenExits:
+    hidden = HiddenExits()
+    for direction, payload in d.get("by_direction", {}).items():
+        hidden.by_direction[str(direction)] = HiddenExit(
+            target=payload["target"],
+            aliases=tuple(payload.get("aliases", [])),
+        )
+    return hidden
+
+
+def _ser_block_exits(c: BlockExits) -> dict:
+    return {"by_direction": dict(c.by_direction)}
+
+
+def _des_block_exits(d: dict) -> BlockExits:
+    raw = d.get("by_direction") or {}
+    return BlockExits(by_direction={str(k): str(v) for k, v in dict(raw).items()})
 
 
 def _ser_npc_spawn_meta(c: NpcSpawnMeta) -> dict:
@@ -228,6 +264,8 @@ _CODECS.update(
         Position: (_ser_position, _des_position),
         Exits: (_ser_exits, _des_exits),
         Doors: (_ser_doors, _des_doors),
+        HiddenExits: (_ser_hidden_exits, _des_hidden_exits),
+        BlockExits: (_ser_block_exits, _des_block_exits),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
         ItemTemplateKey: (_ser_item_template_key, _des_item_template_key),

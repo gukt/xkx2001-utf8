@@ -95,7 +95,9 @@ class DeterministicParser(Parser):
         if verb == "go":
             return self._parse_direction(rest, world, player_id, verb="go")
         if verb in DOOR_VERBS:
-            return self._parse_direction(rest, world, player_id, verb=verb)
+            return self._parse_direction(
+                rest, world, player_id, verb=verb, include_hidden=True
+            )
         if verb == "get":
             return self._parse_get(rest, world, player_id)
         if verb == "drop":
@@ -125,18 +127,27 @@ class DeterministicParser(Parser):
         return Intent(verb=verb, target=None, args=tuple(rest))
 
     def _parse_direction(
-        self, args: list[str], world: World, player_id: EntityId, *, verb: str
+        self,
+        args: list[str],
+        world: World,
+        player_id: EntityId,
+        *,
+        verb: str,
+        include_hidden: bool = False,
     ) -> Intent | ParseFailure:
         """go 与门命令共用的方向目标解析：方向候选 + match_target（04 号票复用）。
 
         缺方向参数：算可执行意图但 target 缺失，由执行层给用法提示（保持 01 号票
         "go"无参的提示行为，不归为解析失败）。
+        ``include_hidden``：门命令可解析 ``HiddenExits`` 方向（剧情门解锁前）。
         """
         if not args:
             return Intent(verb=verb, target=None)
 
         token = args[0]
-        candidates = self._direction_candidates(world, player_id)
+        candidates = self._direction_candidates(
+            world, player_id, include_hidden=include_hidden
+        )
         result = match_target(token, candidates)
         if isinstance(result, Resolved):
             return Intent(verb=verb, target=result.canonical)
@@ -428,7 +439,11 @@ class DeterministicParser(Parser):
         return ParseFailure(Reason.NO_TARGET_MATCH, original=token, verb=verb)
 
     @staticmethod
-    def _direction_candidates(world: World, player_id: EntityId) -> list[Candidate]:
+    def _direction_candidates(
+        world: World, player_id: EntityId, *, include_hidden: bool = False
+    ) -> list[Candidate]:
+        from mud_engine.components import HiddenExits
+
         room = world.require_component(player_id, Position).room
         exits = world.require_component(room, Exits)
         candidates: list[Candidate] = [
@@ -439,6 +454,12 @@ class DeterministicParser(Parser):
         ferry = world.get_component(room, Ferry)
         if ferry is not None and ferry.direction not in exits.by_direction:
             candidates.append((ferry.direction, ()))
+        if include_hidden:
+            hidden = world.get_component(room, HiddenExits)
+            if hidden is not None:
+                for direction, pending in hidden.by_direction.items():
+                    if direction not in exits.by_direction:
+                        candidates.append((direction, pending.aliases))
         return candidates
 
     @staticmethod

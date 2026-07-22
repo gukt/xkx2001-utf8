@@ -39,6 +39,7 @@ from mud_engine import lookup
 from mud_engine.components import (
     MOUNT_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
+    BlockExits,
     Container,
     Currency,
     Description,
@@ -46,14 +47,17 @@ from mud_engine.components import (
     Doors,
     DoorState,
     Engaged,
+    Exit,
     Exits,
     Faction,
     Ferry,
+    HiddenExits,
     Identity,
     Inquiry,
     LibraryRoom,
     MoreBuffer,
     Mount,
+    NpcSpawnMeta,
     PlayerSession,
     Position,
     ReadingSession,
@@ -404,6 +408,16 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     room = _player_room(world, player_id)
     exits = world.require_component(room, Exits)
 
+    # NPC 挡向（剧情门）：在查出口之前也可挡已有出口。
+    block = world.get_component(room, BlockExits)
+    if block is not None:
+        npc_key = block.by_direction.get(direction) if direction else None
+        if npc_key:
+            blocker = _find_npc_template_in_room(world, room, npc_key)
+            if blocker is not None:
+                name = world.require_component(blocker, Identity).name
+                return [f"{name}挡住了{direction}方向的去路。"]
+
     passage = exits.by_direction.get(direction)
     if passage is None:
         # 渡口：船不在此岸时对应方向出口被撤掉；给专用提示（M2-09/25），
@@ -558,11 +572,12 @@ def _cmd_knock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 @register("unlock")
 def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """解锁当前房间某方向出口上的门（04 号票）。
+    """解锁当前房间某方向出口上的门（04 号票 + Pre-M4-06 剧情门）。
 
     锁定门绑定钥匙（``key_item_id``）时，玩家物品栏需持有该钥匙物品才能解锁；
-    解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行（行为在实现中明确锁定）。
-    门状态实际变化时（LOCKED->CLOSED）分发 ``on_door_state_change``（09 号票）。
+    标准门解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行。
+    ``consume_key`` 为真时解锁成功销毁钥匙。``hidden_until_unlocked`` 出口解锁后
+    迁入 ``Exits`` 且门直接打开，便于「解锁后可走」。
     """
     direction = intent.target
     if direction is None:
@@ -573,11 +588,27 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         return [f"那个方向（{direction}）没有门。"]
     if door.state is not DoorState.LOCKED:
         return ["那扇门没上锁。"]
-    if door.key_item_id is not None:
+    key_id = door.key_item_id
+    if key_id is not None:
         player_container = world.get_component(player_id, Container)
-        if player_container is None or door.key_item_id not in player_container.items:
+        if player_container is None or key_id not in player_container.items:
             return ["你需要一把匹配的钥匙才能 unlock 那扇门。"]
-    _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
+
+    hidden = world.get_component(room, HiddenExits)
+    is_hidden = hidden is not None and direction in hidden.by_direction
+    if is_hidden:
+        pending = hidden.by_direction.pop(direction)
+        exits = world.require_component(room, Exits)
+        exits.by_direction[direction] = Exit(target=pending.target, aliases=pending.aliases)
+        _set_door_state(world, player_id, room, direction, door, DoorState.OPEN)
+    else:
+        _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
+
+    if door.consume_key and key_id is not None:
+        bag = world.require_component(player_id, Container)
+        bag.items.discard(key_id)
+        world.destroy_entity(key_id)
+
     return [f"你解锁了{direction}方向的门。"]
 
 
@@ -1484,6 +1515,17 @@ def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId 
             continue
         identity = world.get_component(entity, Identity)
         if identity is not None and identity.name == name:
+            return entity
+    return None
+
+
+def _find_npc_template_in_room(
+    world: World, room: EntityId, template_key: str
+) -> EntityId | None:
+    """在房间内找 ``NpcSpawnMeta.template_key`` 匹配的 NPC。"""
+    for entity in world.entities_in_room(room):
+        meta = world.get_component(entity, NpcSpawnMeta)
+        if meta is not None and meta.template_key == template_key:
             return entity
     return None
 

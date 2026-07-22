@@ -44,6 +44,9 @@ from mud_engine.components import (
     Exits,
     Faction,
     Ferry,
+    HiddenExit,
+    HiddenExits,
+    BlockExits,
     Identity,
     Inquiry,
     ItemTemplateKey,
@@ -153,7 +156,9 @@ _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
         "books",
     }
 )
-_ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "objects"})
+_ROOM_INTRINSIC_FIELDS = frozenset(
+    {"name", "aliases", "short", "long", "exits", "objects", "block_exits"}
+)
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
 )
@@ -292,14 +297,15 @@ def _build_exits(
 ) -> None:
     """把每个房间的 exits 段连成 Exit 组件条目，校验目标房间键都已定义。
 
-    出口可选挂门状态（``door``/``key`` 字段）：带门的出口同时往该房间的 ``Doors``
-    组件里记一条 ``Door``（04 号票）。``Doors`` 组件按需创建--只有至少一个出口
-    带门时才挂到房间上，纯通行出口的房间不挂空 ``Doors``。
+    出口可选挂门状态（``door``/``key``/``consume_key`` 字段）：带门的出口同时往
+    该房间的 ``Doors`` 组件里记一条 ``Door``。``hidden_until_unlocked: true`` 的
+    出口进入 ``HiddenExits``（不进 ``Exits``），解锁后由命令层揭示。
     """
     for room_key, raw in rooms.items():
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
         exits_data = data.get("exits")
         if exits_data is None:
+            _attach_block_exits(world, room_ids[room_key], data, room_key, scene_path)
             continue
         if not isinstance(exits_data, Mapping):
             raise SceneLoadError(
@@ -309,6 +315,7 @@ def _build_exits(
         room = room_ids[room_key]
         exits = world.require_component(room, Exits)
         doors: Doors | None = None
+        hidden: HiddenExits | None = None
         for direction, exit_data in exits_data.items():
             target_key = _exit_target(exit_data, room_key, direction, scene_path)
             if target_key not in room_ids:
@@ -317,13 +324,63 @@ def _build_exits(
                     f"'{direction}' 指向未定义的房间 '{target_key}'"
                 )
             aliases = _exit_aliases(exit_data, room_key, direction, scene_path)
-            exits.by_direction[str(direction)] = Exit(target=room_ids[target_key], aliases=aliases)
+            direction_s = str(direction)
+            target_id = room_ids[target_key]
             door = _exit_door(exit_data, room_key, direction, item_ids, scene_path)
+            hidden_flag = (
+                isinstance(exit_data, Mapping) and bool(exit_data.get("hidden_until_unlocked"))
+            )
+            if hidden_flag:
+                if door is None or door.state is not DoorState.LOCKED:
+                    raise SceneLoadError(
+                        f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 "
+                        f"'{direction}' 声明 hidden_until_unlocked 时必须 door: locked"
+                    )
+                if hidden is None:
+                    hidden = HiddenExits()
+                    world.add_component(room, hidden)
+                hidden.by_direction[direction_s] = HiddenExit(target=target_id, aliases=aliases)
+            else:
+                exits.by_direction[direction_s] = Exit(target=target_id, aliases=aliases)
             if door is not None:
                 if doors is None:
                     doors = Doors()
                     world.add_component(room, doors)
-                doors.by_direction[str(direction)] = door
+                doors.by_direction[direction_s] = door
+        _attach_block_exits(world, room, data, room_key, scene_path)
+
+
+def _attach_block_exits(
+    world: World,
+    room: EntityId,
+    data: Mapping,
+    room_key: str,
+    scene_path: Path,
+) -> None:
+    """解析 ``block_exits: {dir: {npc: template_key}}``。"""
+    raw = data.get("block_exits")
+    if raw is None:
+        return
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 'block_exits' 应是映射"
+        )
+    by_dir: dict[str, str] = {}
+    for direction, spec in raw.items():
+        if not isinstance(spec, Mapping):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 block_exits['{direction}'] "
+                f"应是映射（含 npc）"
+            )
+        npc = spec.get("npc")
+        if not npc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 block_exits['{direction}'] "
+                f"缺少 'npc'（NPC 模板键）"
+            )
+        by_dir[str(direction)] = str(npc)
+    if by_dir:
+        world.add_component(room, BlockExits(by_direction=by_dir))
 
 
 def _exit_target(exit_data: object, room_key: str, direction: object, scene_path: Path) -> str:
@@ -373,7 +430,8 @@ def _exit_door(
         return None
     state = _door_state(raw_state, room_key, direction, scene_path)
     key_item_id = _door_key_item_id(exit_data.get("key"), room_key, direction, item_ids, scene_path)
-    return Door(state=state, key_item_id=key_item_id)
+    consume_key = bool(exit_data.get("consume_key", False))
+    return Door(state=state, key_item_id=key_item_id, consume_key=consume_key)
 
 
 def _door_state(raw_state: object, room_key: str, direction: object, scene_path: Path) -> DoorState:

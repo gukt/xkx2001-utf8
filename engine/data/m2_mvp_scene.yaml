@@ -140,6 +140,58 @@ rooms:
         aliases:
         - 南
         - 茶馆
+      northeast:
+        to: yangzhou_hanlin
+        aliases:
+        - 东北
+        - 翰林院
+  yangzhou_hanlin:
+    name: 翰林府前院
+    long: 翰林府前院清幽，东侧闺房门紧闭。凌翰林立于西廊，似在守着通往小园的路。
+    exits:
+      southwest:
+        to: yangzhou_dongdajie
+        aliases:
+        - 西南
+        - 东大街
+      west:
+        to: yangzhou_hanlin_garden
+        aliases:
+        - 西
+        - 小园
+      east:
+        to: yangzhou_hanlin_neiyuan
+        door: locked
+        key: hanlin_key
+        consume_key: true
+        hidden_until_unlocked: true
+        aliases:
+        - 东
+        - 闺房
+    block_exits:
+      west:
+        npc: ling_hanlin
+    objects:
+      hanlin_key: 1
+      ling_hanlin: 1
+  yangzhou_hanlin_garden:
+    name: 翰林小园
+    long: 小园里几丛修竹，石凳上落着薄尘。
+    exits:
+      east:
+        to: yangzhou_hanlin
+        aliases:
+        - 东
+        - 前院
+  yangzhou_hanlin_neiyuan:
+    name: 翰林闺房
+    long: 闺房窗棂透进一缕光，案上摊着未写完的诗稿。
+    exits:
+      west:
+        to: yangzhou_hanlin
+        aliases:
+        - 西
+        - 前院
   yangzhou_xidajie:
     name: 西大街
     long: 西大街连通西门，铁匠铺的锤声隐约可闻，南侧有马厩，马蹄印留在土路上。
@@ -562,6 +614,12 @@ items:
     tags:
     - weapon
     - edged
+  hanlin_key:
+    name: 闺房钥匙
+    aliases:
+    - 钥匙
+    short: 一把闺房钥匙
+    long: 翰林府闺房的钥匙，铜锈斑驳，似是一次性机关钥。
   bandit_purse:
     name: 赃银袋
     aliases:
@@ -577,6 +635,12 @@ items:
     short: 一箱镖货
     long: 龙门镖局封好的货箱，须妥送至华山村向导处。
 npcs:
+  ling_hanlin:
+    name: 凌翰林
+    aliases:
+    - 翰林
+    short: 凌翰林
+    long: 凌翰林衣冠整肃，立于廊下，目光炯炯，不让人轻易往西去。
   huashan_guide_npc:
     name: 向导
     aliases:
