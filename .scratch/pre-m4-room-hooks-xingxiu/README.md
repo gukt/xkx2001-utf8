@@ -14,11 +14,11 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | **骨架已落**（2026-07-22）；shared understanding 已确认；**实现未开工** |
+| 状态 | **Wave 1 已落地**（2026-07-22，票 `01`）；票 `02`–`11` 待做；**不自动开 M4** |
 | 决策 | [ADR-0012](../../docs/adr/0012-trusted-room-hooks-narrow-ctx.md)；[session-notes-2026-07-22.md](session-notes-2026-07-22.md) |
-| Spec / 票 | **尚未** `/to-spec` / `/to-tickets`（等房间保真关闭后） |
-| 验收资产（计划） | `engine/data/xingxiu_mechanics.yaml`（实现期创建；同构机关，非整区移植） |
-| 下一步 | 房间保真关完 → 本 effort `/to-spec` → `/to-tickets` → `/implement` |
+| Spec / 票 | [spec.md](spec.md) 已发布；[issues/](issues/) `01`–`11`（`01` resolved；`02`–`11` ready-for-agent）；执行手册 [implement-plan.md](implement-plan.md)（7 Wave） |
+| 验收资产（计划） | `engine/data/xingxiu_mechanics.yaml`（票 `02` 创建；同构机关，非整区移植） |
+| 下一步 | `/implement` 按 [implement-plan.md](implement-plan.md) Wave 2（票 `02` 动态出口+时限 / `random_of`） |
 | 不走 | `/wayfinder`；并入房间保真改其 OOS 实现范围；UGC 脚本层；整区星宿移植；自动开 M4；本批 RestrictedPython 沙箱 |
 
 ## 与相邻交付物的关系
@@ -35,6 +35,7 @@
 ## 目录
 
 - [session-notes-2026-07-22.md](session-notes-2026-07-22.md) — grill 决策底稿（shared understanding）
-- `spec.md` — 待 `/to-spec`
-- `issues/` — 待 `/to-tickets`
-- `implement-plan.md` — 待拆票后
+- [spec.md](spec.md) — `/to-spec` 产出（已发布）
+- [to-tickets-notes.md](to-tickets-notes.md) — `/to-tickets` 拆票分析笔记
+- [issues/](issues/) — 11 张票（`01`–`11`，编号即依赖顺序）
+- [implement-plan.md](implement-plan.md) — 7 Wave 执行手册（`/implement` → `/code-review` → fix 循环）
