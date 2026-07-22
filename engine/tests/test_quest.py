@@ -14,7 +14,7 @@ import yaml
 from mud_engine.components import Container, Currency, Identity, Position, QuestProgress
 from mud_engine.parsing import execute_line
 from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import SceneLoadError, load_scene
+from mud_engine.scene_loader import SceneLoadError, instantiate_item, load_scene
 from mud_engine.scenes import load_mvp_scene
 from mud_engine.world import EntityId, World
 
@@ -133,6 +133,22 @@ class TestQuestCompleteViaGive:
             assert any("交给了" in m for m in messages)
             assert not any("完成" in m for m in messages)
             assert "escort_run" not in world.require_component(player_id, QuestProgress).quests
+
+        def test_non_slot_instantiate_item_still_completes(self, tmp_path: Path) -> None:
+            """商店等 ``instantiate_item`` 产物无 ItemSpawnMeta，仍按模板键完成。"""
+            world, player_id = load_scene(_write_scene(tmp_path, _MINI))
+            execute_line(world, player_id, "quest accept escort_run")
+            # 销毁地上槽位镖货，改用模板另造一件（模拟非 objects 来源）
+            room_bag = world.require_component(world.room_ids["biaoju"], Container)
+            for item in list(room_bag.items):
+                room_bag.items.discard(item)
+                world.destroy_entity(item)
+            cargo = instantiate_item(world, "cargo")
+            world.require_component(player_id, Container).items.add(cargo)
+            world.require_component(player_id, Position).room = world.room_ids["guide"]
+            messages = execute_line(world, player_id, "give 镖货 to 向导")
+            assert world.require_component(player_id, QuestProgress).quests["escort_run"] == "completed"
+            assert any("完成" in m or "银两" in m for m in messages)
 
 
 class TestQuestFlagsComplete:

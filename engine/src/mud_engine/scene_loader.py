@@ -46,6 +46,7 @@ from mud_engine.components import (
     Ferry,
     Identity,
     Inquiry,
+    ItemTemplateKey,
     Mount,
     NpcSpawnMeta,
     PlayerSession,
@@ -985,7 +986,7 @@ def _ensure_npc_template_has_container(world: World, template_key: str) -> None:
 
 
 def instantiate_item(world: World, template_key: str) -> EntityId:
-    """按 ``world.item_templates`` 实例化一件新物品（商店 buy 用）。"""
+    """按 ``world.item_templates`` 实例化一件新物品（商店 buy / 槽位补刷共用）。"""
     data = world.item_templates.get(template_key)
     if data is None:
         raise KeyError(f"未知物品模板：{template_key}")
@@ -998,6 +999,7 @@ def instantiate_item(world: World, template_key: str) -> EntityId:
     _attach_item_capabilities(
         world, item, data, label=f"物品模板 '{template_key}'", scene_path=scene_path
     )
+    world.add_component(item, ItemTemplateKey(key=template_key))
     return item
 
 

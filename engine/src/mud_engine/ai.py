@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import copy
 import random
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -249,22 +249,36 @@ def _ensure_slot_capacity(slots: list[EntityId | None], desired: int) -> None:
         slots.append(None)
 
 
-def _refill_npc_slots(world: World, blueprint: SpawnerBlueprint) -> None:
-    _ensure_slot_capacity(blueprint.slots, blueprint.desired_count)
-    for index in range(blueprint.desired_count):
-        eid = blueprint.slots[index]
+def _refill_slots(
+    world: World,
+    slots: list[EntityId | None],
+    desired: int,
+    spawn: Callable[[], EntityId],
+) -> None:
+    _ensure_slot_capacity(slots, desired)
+    for index in range(desired):
+        eid = slots[index]
         if eid is not None and world.has_entity(eid):
             continue
-        blueprint.slots[index] = spawn_from_blueprint(world, blueprint)
+        slots[index] = spawn()
+
+
+def _refill_npc_slots(world: World, blueprint: SpawnerBlueprint) -> None:
+    _refill_slots(
+        world,
+        blueprint.slots,
+        blueprint.desired_count,
+        lambda: spawn_from_blueprint(world, blueprint),
+    )
 
 
 def _refill_item_slots(world: World, blueprint: ItemSpawnerBlueprint) -> None:
-    _ensure_slot_capacity(blueprint.slots, blueprint.desired_count)
-    for index in range(blueprint.desired_count):
-        eid = blueprint.slots[index]
-        if eid is not None and world.has_entity(eid):
-            continue
-        blueprint.slots[index] = spawn_item_from_blueprint(world, blueprint)
+    _refill_slots(
+        world,
+        blueprint.slots,
+        blueprint.desired_count,
+        lambda: spawn_item_from_blueprint(world, blueprint),
+    )
 
 
 def spawn_from_blueprint(

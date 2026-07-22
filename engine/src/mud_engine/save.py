@@ -49,6 +49,7 @@ from mud_engine.components import (
     Exits,
     Identity,
     ItemSpawnMeta,
+    ItemTemplateKey,
     NpcSpawnMeta,
     PlayerSession,
     Position,
@@ -160,6 +161,14 @@ def _des_item_spawn_meta(d: dict) -> ItemSpawnMeta:
     )
 
 
+def _ser_item_template_key(c: ItemTemplateKey) -> dict:
+    return {"key": c.key}
+
+
+def _des_item_template_key(d: dict) -> ItemTemplateKey:
+    return ItemTemplateKey(key=str(d["key"]))
+
+
 def _ser_player_session(c: PlayerSession) -> dict:
     return {"subscriptions": sorted(c.subscriptions)}
 
@@ -203,6 +212,7 @@ _CODECS.update(
         Doors: (_ser_doors, _des_doors),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
+        ItemTemplateKey: (_ser_item_template_key, _des_item_template_key),
         PlayerSession: (_ser_player_session, _des_player_session),
         QuestProgress: (_ser_quest_progress, _des_quest_progress),
     }

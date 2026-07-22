@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **M3 停机加固 Wave 3 落地：B3 收口（双轨范本文档）**（2026-07-22）：票 `09` [场景创作双轨说明](../docs/scene-authoring-guide.md)（官方轨 `m2_mvp_scene.yaml` ↔ 内容包轨 `example-pack/`，共用契约 v0；诚实记录不做官方场景包化）+ 契约/GAP 反向链接；fixed point `m3-hardening-wave3-start`。**Wave B3（`08`–`11`）全关**；加固整体（P0+B3）完成。673 绿。
+
 - [x] **M3 停机加固 Wave 2 落地：B3 三张（messaging / 交叉测 / GAP）**（2026-07-21）：票 `08` 抽出 `messaging.py` 解开 `ai↔commands` 循环 / `10` 三条交叉测（pack×交战 restore、SkillBehavior×tick、骑乘×渡船）/ `11` [GAP 台账](../docs/gap-ledger.md) + 创作者契约反向链接；fixed point `m3-hardening-wave2-start`。Review fix：骑乘×渡船断言锁 `Terrain.cost` 与渡船在场。673 绿。
 
 - [x] **Pre-M4 频道/spawn/任务：session 笔记落盘并排队**（2026-07-22）：范围拍板写入 [.scratch/pre-m4-channels-spawn-quest/](pre-m4-channels-spawn-quest/)；建议优先于房间保真。已被同日 grill+spec 条目承接。

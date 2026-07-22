@@ -13,6 +13,7 @@ from mud_engine.components import (
     Container,
     Currency,
     ItemSpawnMeta,
+    ItemTemplateKey,
     NpcSpawnMeta,
     Position,
     QuestProgress,
@@ -78,9 +79,9 @@ def try_complete_quest_on_give(
     npc_id: EntityId,
 ) -> list[str]:
     """give 成功后的结算钩子：命中交物完成条件则完成任务、发奖、销毁物品。"""
-    item_meta = world.get_component(item_id, ItemSpawnMeta)
+    item_key = _item_template_key(world, item_id)
     npc_meta = world.get_component(npc_id, NpcSpawnMeta)
-    if item_meta is None or npc_meta is None:
+    if item_key is None or npc_meta is None:
         return []
     progress = world.get_component(player_id, QuestProgress)
     if progress is None:
@@ -91,12 +92,21 @@ def try_complete_quest_on_give(
         quest = world.quests.get(quest_id)
         if quest is None or quest.give_item is None or quest.to_npc is None:
             continue
-        if item_meta.template_key != quest.give_item:
+        if item_key != quest.give_item:
             continue
         if npc_meta.template_key != quest.to_npc:
             continue
         return _complete_quest(world, player_id, quest, consume_item=(item_id, npc_id))
     return []
+
+
+def _item_template_key(world: World, item_id: EntityId) -> str | None:
+    """按模板键识别物品：优先 ``ItemTemplateKey``，回退 ``ItemSpawnMeta``。"""
+    ref = world.get_component(item_id, ItemTemplateKey)
+    if ref is not None:
+        return ref.key
+    meta = world.get_component(item_id, ItemSpawnMeta)
+    return meta.template_key if meta is not None else None
 
 
 def set_quest_flag(

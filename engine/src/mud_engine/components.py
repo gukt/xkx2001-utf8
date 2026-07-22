@@ -348,6 +348,17 @@ class NpcSpawnMeta:
 
 
 @dataclass
+class ItemTemplateKey:
+    """物品实例对应的 YAML 模板键（pre-m4-06）。
+
+    ``instantiate_item`` / objects 槽位生成均挂本组件，供 Quest 交物按模板匹配。
+    与 ``ItemSpawnMeta`` 不同：后者仅槽位实例才有，并参与补刷登记。
+    """
+
+    key: str  # 启动固定：YAML items 段的模板键
+
+
+@dataclass
 class ItemSpawnMeta:
     """房间 ``objects`` 槽位物品的生成元数据（pre-m4-04）。
 
