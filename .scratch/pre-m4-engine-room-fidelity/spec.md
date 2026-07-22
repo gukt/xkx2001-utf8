@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: closed
 
 # Pre-M4：引擎房间保真（风景 / 语义色 / 藏书 / 日间店 / 剧情门）
 

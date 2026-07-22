@@ -55,6 +55,17 @@ def _npc_named(world: World, name: str, *, exclude: EntityId) -> EntityId:
     raise RuntimeError(f"{name!r} not found")
 
 
+def _force_day(world: World) -> None:
+    """day_shop 打铁铺：墙钟对齐可能落在 night，进店前强制白天。"""
+    assert world.nature is not None
+    for i, phase in enumerate(world.nature.phases):
+        if phase.name == "day":
+            world.nature.phase_index = i
+            world.nature.elapsed = 0
+            return
+    raise AssertionError("DEFAULT_PHASES 缺少 day")
+
+
 def _step(
     world: World,
     player_id: EntityId,
@@ -132,6 +143,7 @@ def _scenario_full_journey() -> ScenarioResult:
     steps.append(_step(world, player_id, "go south", None))
     steps.append(_step(world, player_id, "go west", None))
     steps.append(_step(world, player_id, "go west", None))
+    _force_day(world)  # day_shop：避免墙钟落在夜间拒入
     steps.append(_step(world, player_id, "go north", Expect(contains=("铁匠",))))
     steps.append(_step(world, player_id, "buy 钢刀", Expect(contains=("钢刀",))))
     steps.append(_step(world, player_id, "buy 钢刀", Expect(contains=("钢刀",))))
