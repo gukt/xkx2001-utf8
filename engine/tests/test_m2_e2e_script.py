@@ -39,12 +39,7 @@ def _room(world: World, key: str) -> EntityId:
 def _force_day(world: World) -> None:
     """日间店验收依赖 is_day；墙钟对齐可能落在 night，剧本进打铁铺前强制白天。"""
     assert world.nature is not None
-    for i, phase in enumerate(world.nature.phases):
-        if phase.name == "day":
-            world.nature.phase_index = i
-            world.nature.elapsed = 0
-            return
-    raise AssertionError("DEFAULT_PHASES 缺少 day")
+    world.nature.seek_phase("day")
 
 
 def _room_key(world: World, room: EntityId) -> str:

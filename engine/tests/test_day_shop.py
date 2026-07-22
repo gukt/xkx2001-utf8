@@ -126,18 +126,12 @@ class TestOfficialDatiepu:
         assert "西大街" in " ".join(execute_line(world, player_id, "look"))
 
         assert world.nature is not None
-        for i, phase in enumerate(world.nature.phases):
-            if phase.name == "day":
-                world.nature.phase_index = i
-                break
+        world.nature.seek_phase("day")
         execute_line(world, player_id, "go north")
         assert world.require_component(player_id, Position).room == shop
         execute_line(world, player_id, "go south")
 
-        for i, phase in enumerate(world.nature.phases):
-            if phase.name == "night":
-                world.nature.phase_index = i
-                break
+        world.nature.seek_phase("night")
         street = world.require_component(player_id, Position).room
         lines = execute_line(world, player_id, "go north")
         assert world.require_component(player_id, Position).room == street
