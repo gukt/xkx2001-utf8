@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 引擎房间保真 Wave 2 落地：藏书 / day_shop / 剧情门翰林**（2026-07-22）：票 `04`–`06`；fixed point `pre-m4-engine-room-fidelity-wave2-start`；code-review fix：官方 `details.书架`、TOC 分页测、拆复合断言、删未用 `clear_reading`。766 绿。
+
 - [x] **Pre-M4 房间钩子 / 星宿机制：grill + 骨架 + ADR-0012**（2026-07-22）：档 B + 硬门闩 γ；兄弟 effort；验收 `xingxiu_mechanics`；T1+R1 可信模块窄 `ctx`；S3 骨架 / S1 实现门闩。底稿 [.scratch/pre-m4-room-hooks-xingxiu/](.scratch/pre-m4-room-hooks-xingxiu/)。
 
 - [x] **Pre-M4 引擎房间保真 Wave 1 落地：details / 语义色 / 房间旗标**（2026-07-22）：票 `01`–`03`；fixed point `pre-m4-engine-room-fidelity-wave1-start`；code-review fix：NPC `short`/`long` 走语义色校验、`_look_item` 未命中返回 `None`。745 绿。
