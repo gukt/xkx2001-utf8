@@ -15,6 +15,7 @@ from mud_engine.death_flow import attach_unconscious_recovery
 from mud_engine.entity_gate import attach_entry_guards
 from mud_engine.ferry import attach_ferries
 from mud_engine.nature import attach_nature
+from mud_engine.room_hooks import attach_room_hooks
 from mud_engine.world import World
 
 
@@ -34,6 +35,7 @@ def wire_runtime(world: World, scene_path: Path) -> None:
     attach_combat_system(world)  # 内部已 attach_power_model
     attach_entry_guards(world)
     attach_unconscious_recovery(world)
+    attach_room_hooks(world)
 
 
 __all__ = ["wire_runtime"]

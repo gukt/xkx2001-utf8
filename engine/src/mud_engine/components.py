@@ -193,6 +193,30 @@ class BlockExits:
 
 
 @dataclass
+class RoomHookBinding:
+    """房间对可信钩子的声明式引用（Pre-M4 / ADR-0012）。启动固定，进存档。
+
+    YAML ``hooks: {hook_id, params}`` 解析而来；``hook_id`` 必须在全局注册表中。
+    UGC 内容包禁止本字段（加载期 fail-closed）。
+    """
+
+    hook_id: str
+    params: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass
+class RoomFreeState:
+    """房间级自由状态：钩子自定义存什么，引擎不假设 ``data`` 结构。
+
+    运行时可变进存档。``schedules`` 供窄 ``ctx.schedule`` 登记一次性到期戳，
+    由钩子自己的 ``on_tick`` 自查执行（不新建引擎级通用调度服务）。
+    """
+
+    data: dict[str, object] = field(default_factory=dict)
+    schedules: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class Container:
     """一个实体持有的一堆物品（entity id 集合）。
 

@@ -35,6 +35,7 @@ from mud_engine.capabilities import (
 from mud_engine.components import (
     AIController,
     Behaviors,
+    BlockExits,
     Container,
     Description,
     Door,
@@ -46,7 +47,6 @@ from mud_engine.components import (
     Ferry,
     HiddenExit,
     HiddenExits,
-    BlockExits,
     Identity,
     Inquiry,
     ItemTemplateKey,
@@ -55,6 +55,7 @@ from mud_engine.components import (
     PlayerSession,
     Position,
     QuestProgress,
+    RoomHookBinding,
     ShopInventory,
 )
 from mud_engine.death_flow import parse_death_policy, parse_loot_table
@@ -71,7 +72,11 @@ from mud_engine.world import EntityId, World
 # ``from mud_engine.scene_loader import SceneLoadError`` 向后兼容。
 
 
-def load_scene(scene_path: Path) -> tuple[World, EntityId]:
+def load_scene(
+    scene_path: Path,
+    *,
+    pack_track: bool = False,
+) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
 
     任何结构性错误（YAML 语法、缺字段、引用不存在的房间键）都收口成
@@ -79,7 +84,11 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     房间 ``objects`` 摆物品、连出口/门、放 NPC、放玩家--物品先于出口是因为出口
     的门锁可引用物品作为钥匙（04 号票），建出口时需要物品的 entity id 已就绪。
     放置权威是房间 ``objects``（ADR-0010）；``placed_in`` / ``in_room`` 一律拒绝。
+
+    ``pack_track=True``（内容包轨道，由 ``load_pack`` 传入）时禁止房间 ``hooks``
+    字段——与旁路检测到同级 ``manifest.yaml`` 一样 fail-closed（ADR-0012）。
     """
+    scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
     rooms = _expect_mapping(data, scene_path, "rooms")
     items = _expect_mapping(data, scene_path, "items", default={})
@@ -91,7 +100,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     # skills:/factions: 是全局注册表（非实体）；每次加载清空重建，避免两次加载互相污染。
     replace_skills_registry(load_skills_from_mapping(data.get("skills"), scene_path))
     replace_factions_registry(load_factions_from_mapping(data.get("factions"), scene_path))
-    room_ids = _build_rooms(world, rooms, scene_path)
+    reject_hooks = pack_track or (scene_path.parent / "manifest.yaml").is_file()
+    room_ids = _build_rooms(world, rooms, scene_path, reject_hooks=reject_hooks)
     world.room_ids = dict(room_ids)
     catalog = parse_book_catalog(data.get("books"), scene_path)
     resolve_library_books(world, catalog, scene_path)
@@ -157,7 +167,16 @@ _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
     }
 )
 _ROOM_INTRINSIC_FIELDS = frozenset(
-    {"name", "aliases", "short", "long", "exits", "objects", "block_exits"}
+    {
+        "name",
+        "aliases",
+        "short",
+        "long",
+        "exits",
+        "objects",
+        "block_exits",
+        "hooks",  # 官方轨专属；内容包轨见 _attach_room_hook_binding 拒绝
+    }
 )
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
@@ -263,7 +282,13 @@ def _as_mapping(data: object, *, label: str, scene_path: Path) -> dict:
     return dict(data)
 
 
-def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, EntityId]:
+def _build_rooms(
+    world: World,
+    rooms: Mapping,
+    scene_path: Path,
+    *,
+    reject_hooks: bool = False,
+) -> dict[str, EntityId]:
     """建全部房间实体（Identity+Description+Exits+Container），返回 key->entity id。"""
     room_ids: dict[str, EntityId] = {}
     for room_key, raw in rooms.items():
@@ -283,9 +308,62 @@ def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, En
         _attach_capability_specs(
             world, room, data, ROOM_CAPABILITIES, label=label, scene_path=scene_path
         )
+        _attach_room_hook_binding(
+            world, room, data, room_key, scene_path, reject_hooks=reject_hooks
+        )
         _capture_entity_unknown_fields(world, room, data, _ROOM_KNOWN_FIELDS)
         room_ids[room_key] = room
     return room_ids
+
+
+def _attach_room_hook_binding(
+    world: World,
+    room: EntityId,
+    data: Mapping,
+    room_key: str,
+    scene_path: Path,
+    *,
+    reject_hooks: bool,
+) -> None:
+    """解析 ``hooks: {hook_id, params?}``；内容包轨或未注册 id 一律 ``SceneLoadError``。"""
+    raw = data.get("hooks")
+    if raw is None:
+        return
+    if reject_hooks:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 声明了 hooks，"
+            f"但内容包轨道禁止房间钩子（hooks 为官方轨专属，见 ADR-0012）"
+        )
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 'hooks' 应是映射，"
+            f"实际是 {type(raw).__name__}"
+        )
+    hook_id = raw.get("hook_id")
+    if hook_id is None or hook_id == "":
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 hooks 缺少必需字段 'hook_id'"
+        )
+    hook_id_s = str(hook_id)
+    from mud_engine.room_hooks import get_room_hook
+
+    if get_room_hook(hook_id_s) is None:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 引用了未注册的 hook_id "
+            f"'{hook_id_s}'"
+        )
+    params_raw = raw.get("params", {})
+    if params_raw is None:
+        params_raw = {}
+    if not isinstance(params_raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 hooks.params 应是映射，"
+            f"实际是 {type(params_raw).__name__}"
+        )
+    world.add_component(
+        room,
+        RoomHookBinding(hook_id=hook_id_s, params=dict(params_raw)),
+    )
 
 
 def _build_exits(
