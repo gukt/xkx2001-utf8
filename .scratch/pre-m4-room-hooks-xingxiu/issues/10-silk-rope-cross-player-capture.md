@@ -23,9 +23,9 @@ Status: resolved
 ### 实现摘要（2026-07-22 Wave 6）
 
 - **SkillBehavior**：`silk_rope`（`SilkRopeCaptureBehavior`）；`hit_ob` 直调 `relocate_entity(world, defender_id, to_room)`，不经 `RoomHook` 注册表
-- **活引用**：`CombatContext` 增可选 `world` / `attacker_id` / `defender_id`（默认 `None`）；`build_combat_context` 填入。纯函数测试不填；缺引用或未知房间键时只播报不改世界
+- **活引用**：`CombatContext` 增可选 `world` / `defender_id`（默认 `None`）；`build_combat_context` 填入。纯数值测试不填；缺引用或未知房间键时 `hit_ob` 返回 `None`（不播报捕获成功）
 - **params / 构造**：`SilkRopeCaptureBehavior(capture_room="silk_prison")`；内置默认键 `silk_prison`
 - **切片**：`silk_yard`（施法房）+ `silk_prison`（捕获房）；`dig_base` 出口 `silk`；顶层 `skills.silk_rope`（招式「柔丝索」force=40）；`player.skills.silk_rope: 1`
-- **播报**：`柔丝索缠住对方，将其拽入密室！`
-- **测试**：`engine/tests/test_xingxiu_mechanics_10.py`（S0 直调 / S1 双会话 `resolve_one_strike` + `attack`/`TickLoop` / 切片可玩）
-- **不做**：通用远程传送命令面；不把本机关做成 `RoomHook`
+- **播报**（仅 relocate 成功后）：`柔丝索缠住对方，将其拽入密室！`
+- **测试**：`engine/tests/test_xingxiu_mechanics_10.py`（S0 直调 / S1 双 `PlayerSession` + `resolve_one_strike`/`attack`+tick / 切片可玩）
+- **不做**：通用远程传送命令面；不把本机关做成 `RoomHook`（US46「窄 ctx」字面由票面「直调方法本体」覆盖）

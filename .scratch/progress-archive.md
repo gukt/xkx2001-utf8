@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 房间钩子 / 星宿机制 Wave 1 落地：钩子协议 + 注册表 + 窄 ctx**（2026-07-22）：票 `01`；`RoomHook`/`RoomHookContext`/`RoomFreeState`/`relocate_entity`；UGC `hooks` fail-closed；fixed point `pre-m4-room-hooks-xingxiu-wave1-start`；code-review fix：注册表类型、CLI `--validate`、挂载路径异常传播、restore 重挂。789 绿。
+
 - [x] **Pre-M4 房间钩子 / 星宿机制：`/to-tickets`**（2026-07-22）：[issues/](.scratch/pre-m4-room-hooks-xingxiu/issues/) `01`–`11`（编号即依赖顺序，与 spec US1–51 分组一一对应）；[to-tickets-notes.md](.scratch/pre-m4-room-hooks-xingxiu/to-tickets-notes.md)；[implement-plan.md](.scratch/pre-m4-room-hooks-xingxiu/implement-plan.md)（7 Wave）。`01`（钩子协议/注册表/窄 `ctx`）为唯一地基票，`02`–`10`（十类机关）只阻塞于 `01`、彼此不互阻塞；`11` 收口阻塞于全部机关票。
 
 - [x] **Pre-M4 引擎房间保真 Wave 3 收口（effort 关闭）**（2026-07-22）：票 `07`；契约加法 + GAP 改判 + CONTEXT/PROGRESS；S3 户外旗杆语义色测；M2 旅程进打铁铺前强制白天（消 `day_shop` 墙钟 flaky）；fixed point `pre-m4-engine-room-fidelity-wave3-start`。767 绿。**不自动开 M4**。

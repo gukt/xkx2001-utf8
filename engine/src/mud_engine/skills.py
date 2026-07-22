@@ -106,7 +106,8 @@ class SilkRopeCaptureBehavior:
     """柔丝索（Pre-M4-10）：命中后直调 ``relocate_entity`` 把防御方拽入捕获房。
 
     不是 ``RoomHook``；不经房间钩子注册表。``capture_room`` 为 ``world.room_ids``
-    键。缺活引用 / 未知房间键时只返回播报、不改世界（纯函数测试可安全调用）。
+    键。缺活引用或未知房间键时返回 ``None``（不播报「捕获成功」），避免仅文案
+    假装生效；纯数值 ``CombatContext`` 测试可安全调用。
     """
 
     DEFAULT_CAPTURE_ROOM = "silk_prison"
@@ -118,13 +119,15 @@ class SilkRopeCaptureBehavior:
         _ = damage  # 捕获不改伤害数值
         world = ctx.world
         defender_id = ctx.defender_id
-        if world is not None and defender_id is not None:
-            room_ids = world.room_ids or {}
-            to_room = room_ids.get(self.capture_room)
-            if to_room is not None:
-                from mud_engine.room_hooks import relocate_entity
+        if world is None or defender_id is None:
+            return None
+        room_ids = world.room_ids or {}
+        to_room = room_ids.get(self.capture_room)
+        if to_room is None:
+            return None
+        from mud_engine.room_hooks import relocate_entity
 
-                relocate_entity(world, defender_id, to_room)
+        relocate_entity(world, defender_id, to_room)
         return "柔丝索缠住对方，将其拽入密室！"
 
     def hit_by(self, ctx: CombatContext) -> str | None:
