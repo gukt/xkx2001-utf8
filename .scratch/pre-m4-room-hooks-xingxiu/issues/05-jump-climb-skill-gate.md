@@ -24,6 +24,6 @@ Status: resolved
 - **钩子**：`skill_gate`（`SkillGateHook`）；`on_jump` / `on_climb`；`params.verb` 必须匹配命令否则「这里不能这么做。」
 - **命令**：`jump`/`climb`（别名 `跳`/`爬`）
 - **ctx 新只读方法**：`actor_skill_level(skill_id)` → 读 `SkillLevels.levels[id].level`，缺省 0
-- **params**：`verb` + `skill_id` + `min_level` + `direction`（文案预留）+ `target`；成功经 `ctx.move_entity`
+- **params**：`verb` + `skill_id` + `min_level` + `direction`（成功播报「向{direction}…」）+ `target`；成功经 `ctx.move_entity`（命令面是 jump/climb，不是拦截 `go`）
 - **验收房**：`cliff_edge`（jump / dodge≥50）/ `cliff_far`；`cliff_base`（climb / dodge≥30）/ `cliff_top`；切片玩家 `dodge: 50`
 - **测试**：`engine/tests/test_xingxiu_mechanics_05.py`

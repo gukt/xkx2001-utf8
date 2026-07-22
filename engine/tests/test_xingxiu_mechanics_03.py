@@ -74,6 +74,11 @@ class TestMultiStepGateS0:
         assert any("锈" in m or "刮" in m for m in hook.on_scrape(ctx))
         assert world.require_component(gate, RoomFreeState).data["step"] == 1
 
+        # 中间跳步：刮锈后直接推门
+        mid_skip = hook.on_push(ctx)
+        assert any("斧" in m or "先" in m for m in mid_skip)
+        assert world.require_component(gate, RoomFreeState).data["step"] == 1
+
         assert any("斧" in m or "拔" in m for m in hook.on_pull(ctx))
         assert world.require_component(gate, RoomFreeState).data["step"] == 2
 

@@ -94,7 +94,7 @@ class TestSkillGateS0:
             level=50
         )
         ok = hook.on_jump(ctx)
-        assert any("跳" in m or "跃" in m for m in ok)
+        assert any("跃" in m or "跳" in m or "过去" in m for m in ok)
         assert world.require_component(player, Position).room == far
 
 
@@ -160,7 +160,7 @@ player:
         assert world.require_component(player_id, Position).room == world.room_ids[
             "cliff_far"
         ]
-        assert any("跳" in m or "跃" in m for m in high)
+        assert any("跃" in m or "跳" in m or "过去" in m for m in high)
 
     def test_climb_level_gate(self, tmp_path: Path) -> None:
         scene = """rooms:
@@ -196,7 +196,7 @@ player:
         assert world.require_component(player_id, Position).room == world.room_ids[
             "cliff_top"
         ]
-        assert any("爬" in m or "攀" in m for m in msgs)
+        assert any("爬" in m or "攀" in m or "过去" in m for m in msgs)
 
 
 class TestXingxiuMechanics05Slice:
@@ -216,4 +216,4 @@ class TestXingxiuMechanics05Slice:
         assert world.require_component(player_id, Position).room == world.room_ids[
             "cliff_far"
         ]
-        assert any("跳" in m or "跃" in m for m in msgs)
+        assert any("跃" in m or "跳" in m or "过去" in m for m in msgs)

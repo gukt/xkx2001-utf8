@@ -139,6 +139,7 @@ rooms:
       hook_id: lost_in_maze
       params:
         required_steps: 3
+        escape_target: desert_edge
   desert_edge:
     name: 沙漠边缘
     long: 沙海尽头，足迹终于清晰起来。

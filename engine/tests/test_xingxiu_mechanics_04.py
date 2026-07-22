@@ -69,7 +69,7 @@ class TestLostInMazeS0:
         assert isinstance(hook, LostInMazeHook)
 
     def test_veto_until_steps_then_allow(self) -> None:
-        world, maze, _exit_room, player = _minimal_maze_world(required_steps=3)
+        world, maze, exit_room, player = _minimal_maze_world(required_steps=3)
         hook = LostInMazeHook()
         ctx = RoomHookContext(
             world,
@@ -81,12 +81,29 @@ class TestLostInMazeS0:
         assert world.require_component(maze, RoomFreeState).data.get("steps") == 0
 
         for _ in range(3):
-            denial = hook.veto_leave(ctx)
+            denial = hook.veto_leave(ctx, to_room=exit_room)
             assert isinstance(denial, Deny)
             assert "迷" in denial.message or "方向" in denial.message or "走" in denial.message
 
         assert world.require_component(maze, RoomFreeState).data["steps"] == 3
-        assert hook.veto_leave(ctx) is None
+        assert hook.veto_leave(ctx, to_room=exit_room) is None
+
+    def test_non_escape_leave_not_gated(self) -> None:
+        world, maze, exit_room, player = _minimal_maze_world(required_steps=3)
+        hub = world.create_entity()
+        world.add_component(hub, Exits())
+        world.room_ids["desert_hub"] = hub
+        binding = world.require_component(maze, RoomHookBinding)
+        binding.params = {
+            "required_steps": 3,
+            "escape_target": "desert_edge",
+        }
+        hook = LostInMazeHook()
+        ctx = RoomHookContext(world, maze, actor_id=player, params=binding.params)
+        hook.on_enter(ctx)
+        assert hook.veto_leave(ctx, to_room=hub) is None
+        assert world.require_component(maze, RoomFreeState).data["steps"] == 0
+        assert isinstance(hook.veto_leave(ctx, to_room=exit_room), Deny)
 
 
 class TestBeforeLeaveRoomEvent:
@@ -143,6 +160,12 @@ class TestXingxiuMechanics04Slice:
         assert world.require_component(player_id, Position).room == world.room_ids[
             "desert_maze"
         ]
+        # 非 escape 方向可自由离开（回峰脚）
+        execute_line(world, player_id, "go north")
+        assert world.require_component(player_id, Position).room == world.room_ids[
+            "dig_base"
+        ]
+        execute_line(world, player_id, "go south")
         for _ in range(required):
             msgs = execute_line(world, player_id, "go south")
             assert world.require_component(player_id, Position).room == world.room_ids[

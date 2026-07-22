@@ -42,6 +42,8 @@ class RoomHook(Protocol):
         def on_scrape(self, ctx: RoomHookContext) -> list[str]: ...
         def on_pull(self, ctx: RoomHookContext) -> list[str]: ...
         def on_push(self, ctx: RoomHookContext) -> list[str]: ...
+        def on_jump(self, ctx: RoomHookContext) -> list[str]: ...
+        def on_climb(self, ctx: RoomHookContext) -> list[str]: ...
     """
 
 
@@ -116,6 +118,7 @@ class MultiStepGateHook:
     _STEP_SCRAPE = 0
     _STEP_PULL = 1
     _STEP_PUSH = 2
+    _STEP_DONE = 3
 
     def on_scrape(self, ctx: RoomHookContext) -> list[str]:
         return self._advance(ctx, expected=self._STEP_SCRAPE, done_msg="你刮去了门环上的铁锈。")
@@ -124,14 +127,10 @@ class MultiStepGateHook:
         return self._advance(ctx, expected=self._STEP_PULL, done_msg="你拔出了插在门环里的斧头。")
 
     def on_push(self, ctx: RoomHookContext) -> list[str]:
-        step = int(ctx.get_state().get("step", 0))
-        if step != self._STEP_PUSH:
-            return [self._out_of_order_message(step)]
-        direction = str(ctx.params["direction"])
-        target = str(ctx.params["target"])
-        ctx.add_exit(direction, target)
-        ctx.set_state({"step": 3})
-        return ["你用力推开了石门。"]
+        msgs = self._advance(ctx, expected=self._STEP_PUSH, done_msg="你用力推开了石门。")
+        if int(ctx.get_state().get("step", 0)) == self._STEP_DONE:
+            ctx.add_exit(str(ctx.params["direction"]), str(ctx.params["target"]))
+        return msgs
 
     def _advance(self, ctx: RoomHookContext, *, expected: int, done_msg: str) -> list[str]:
         step = int(ctx.get_state().get("step", 0))
@@ -142,7 +141,7 @@ class MultiStepGateHook:
 
     @staticmethod
     def _out_of_order_message(step: int) -> str:
-        if step >= 3:
+        if step >= MultiStepGateHook._STEP_DONE:
             return "石门已经打开了。"
         hints = ("先刮去铁锈。", "先拔出斧头。", "按顺序：刮锈、拔斧、再推门。")
         if 0 <= step < len(hints):
@@ -156,7 +155,8 @@ class LostInMazeHook:
     不进入 ``RoomHook`` 通用 before_leave 方法族；由 ``attach_room_hooks`` 专挂
     ``ON_BEFORE_LEAVE_ROOM``（可否决）。YAML ``hooks.params``::
 
-        required_steps: <否决次数阈值；达此步数后允许离开>
+        required_steps: <针对 escape_target 的否决次数阈值；达此步数后允许离开>
+        escape_target: <可选；仅离开前往该房间键时否决/计步；缺省则任何离房都闸>
     """
 
     HOOK_ID = "lost_in_maze"
@@ -164,8 +164,21 @@ class LostInMazeHook:
     def on_enter(self, ctx: RoomHookContext) -> None:
         ctx.set_state({"steps": 0})
 
-    def veto_leave(self, ctx: RoomHookContext) -> Deny | None:
-        """步数未达标则否决并计一步；达标则放行（不递增）。"""
+    def veto_leave(
+        self, ctx: RoomHookContext, *, to_room: EntityId | None = None
+    ) -> Deny | None:
+        """步数未达标则否决并计一步；达标则放行（不递增）。
+
+        ``to_room`` 供 ``escape_target`` 过滤：非逃出方向的离房放行且不计步。
+        """
+        escape_key = ctx.params.get("escape_target")
+        if escape_key is not None and to_room is not None:
+            try:
+                escape_id = ctx.resolve_room_id(str(escape_key))
+            except KeyError:
+                escape_id = None
+            if escape_id is not None and to_room != escape_id:
+                return None
         required = int(ctx.params.get("required_steps", 1))
         state = ctx.get_state()
         steps = int(state.get("steps", 0))
@@ -178,24 +191,25 @@ class LostInMazeHook:
 class SkillGateHook:
     """机关 #5：jump/climb 技能等级门槛（白玉峰 / 天路灵感）。
 
-    YAML ``hooks.params``::
+    命令面是 ``jump``/``climb``（非 ``go``）；``direction`` 标明该命令对应的通行方向
+    （文案与作者意图），``target`` 为成功后落点。YAML ``hooks.params``::
 
         verb: jump | climb
         skill_id: <SkillLevels 键>
         min_level: <最低等级>
-        direction: <成功后移动方向（播报文案用，可选）>
+        direction: <对应通行方向，写入成功播报>
         target: <目标房间键>
     """
 
     HOOK_ID = "skill_gate"
 
     def on_jump(self, ctx: RoomHookContext) -> list[str]:
-        return self._try(ctx, verb="jump", success_msg="你纵身一跃，落到了对面。")
+        return self._try_skill_passage(ctx, verb="jump")
 
     def on_climb(self, ctx: RoomHookContext) -> list[str]:
-        return self._try(ctx, verb="climb", success_msg="你攀爬而上，到了高处。")
+        return self._try_skill_passage(ctx, verb="climb")
 
-    def _try(self, ctx: RoomHookContext, *, verb: str, success_msg: str) -> list[str]:
+    def _try_skill_passage(self, ctx: RoomHookContext, *, verb: str) -> list[str]:
         configured = str(ctx.params.get("verb", ""))
         if configured != verb:
             return ["这里不能这么做。"]
@@ -207,8 +221,15 @@ class SkillGateHook:
         if level < min_level:
             return [f"你的轻功不够（需 {skill_id} 等级 {min_level}），过不去。"]
         target = str(ctx.params["target"])
+        direction = str(ctx.params.get("direction", "")).strip()
         ctx.move_entity(ctx.actor_id, target)
-        return [success_msg]
+        if verb == "jump":
+            if direction:
+                return [f"你向{direction}纵身一跃，过去了。"]
+            return ["你纵身一跃，落到了对面。"]
+        if direction:
+            return [f"你向{direction}攀爬而上，过去了。"]
+        return ["你攀爬而上，到了高处。"]
 
 
 def _register_builtin_hooks() -> None:
@@ -340,6 +361,10 @@ class RoomHookContext:
     def move_entity(self, entity_id: EntityId, target: EntityId | str) -> None:
         relocate_entity(self._world, entity_id, self._resolve_room(target))
 
+    def resolve_room_id(self, target: EntityId | str) -> EntityId:
+        """把房间键或实体 id 解析为 ``EntityId``（供钩子比对 escape_target 等）。"""
+        return self._resolve_room(target)
+
     def _free_state(self) -> RoomFreeState:
         free = self._world.get_component(self.room_id, RoomFreeState)
         if free is None:
@@ -442,7 +467,7 @@ def attach_room_hooks(world: World) -> None:
             hook_ctx = RoomHookContext(
                 world, ctx.from_room, actor_id=ctx.player_id, params=params
             )
-            return hook.veto_leave(hook_ctx)  # type: ignore[attr-defined]
+            return hook.veto_leave(hook_ctx, to_room=ctx.to_room)  # type: ignore[attr-defined]
 
         world.events.register(ON_BEFORE_LEAVE_ROOM, _on_before_leave)
 

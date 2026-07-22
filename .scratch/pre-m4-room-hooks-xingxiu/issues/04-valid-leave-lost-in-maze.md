@@ -22,9 +22,9 @@ Status: resolved
 ### 实现摘要（2026-07-22 Wave 3）
 
 - **事件点**：`ON_BEFORE_LEAVE_ROOM` = `"on_before_leave_room"`（`commands` + `room_hooks` 同名常量）；`go` 在 `ON_BEFORE_ENTER_ROOM` 之前 `run_vetoable`
-- **钩子**：`lost_in_maze`（`LostInMazeHook`）；方法 `on_enter`（重置 steps）+ `veto_leave`（**非** RoomHook 协议通用族；`attach_room_hooks` 见 `hasattr(veto_leave)` 专挂）
+- **钩子**：`lost_in_maze`（`LostInMazeHook`）；方法 `on_enter`（重置 steps）+ `veto_leave(ctx, to_room=)`（**非** RoomHook 协议通用族；`attach_room_hooks` 见 `hasattr(veto_leave)` 专挂）
 - **计步**：每次被否决的离房尝试 `steps += 1`；`steps >= required_steps` 后放行
-- **params**：`required_steps`
+- **params**：`required_steps`；可选 `escape_target`（仅离开前往该房间键时否决/计步；其他方向自由离房）
 - **文案**：`你在茫茫沙海中迷失了方向，只好走回原地。`
-- **验收房**：`desert_maze`（`required_steps: 3`）/ `desert_edge`（自 `dig_base` 南入）
+- **验收房**：`desert_maze`（`required_steps: 3`，`escape_target: desert_edge`）/ `desert_edge`（自 `dig_base` 南入）
 - **测试**：`engine/tests/test_xingxiu_mechanics_04.py`
