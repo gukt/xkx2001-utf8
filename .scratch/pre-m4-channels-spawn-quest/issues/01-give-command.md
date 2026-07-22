@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 01 — give 命令（物品交给 NPC）
@@ -10,12 +10,14 @@ Status: ready-for-agent
 
 **Blocked by:** None — 可立即开始。
 
-- [ ] `commands.py` 新增 `give` 命令：解析"物品名 + 目标名"（同房间 NPC，玩家当前不支持互相 give，OOS）；物品须在给予者 `Container`（背包）中；目标须是同房间、带 `Container` 的实体。
-- [ ] 复用 `transfer.py` 的 `transfer()` 完成物品从玩家 Container 移到 NPC Container，容量/重量超限、`no_drop` 等既有拒绝语义原样生效并给对应文案。
-- [ ] 目标不存在/不同房、物品不存在/不在背包、目标无法接收（如无 `Container`）等失败态均有清晰文案，且不改变任何组件状态（失败即原子回滚，不产生半转移）。
-- [ ] 成功文案（如"你把 X 交给了 Y。"）与其它转移类命令（`get`/`drop`）文风一致。
-- [ ] 命令注册遵循现有 `@register(...)` 模式（见 `get`/`drop`/`ask` 附近实现），含别名（如 `give ... to ...` 的介词解析，参考现有命令的参数解析方式）。
-- [ ] 测试：give 成功转移物品到 NPC 容器；NPC 容器可用 `look <npc>` 或既有断言方式验证物品已在其中；覆盖上述失败态；不破坏现有 `test_transfer.py`/物品相关测试基线。
-- [ ] `just test` 全绿。
+- [x] `commands.py` 新增 `give` 命令：解析"物品名 + 目标名"（同房间 NPC，玩家当前不支持互相 give，OOS）；物品须在给予者 `Container`（背包）中；目标须是同房间、带 `Container` 的实体。
+- [x] 复用 `transfer.py` 的 `transfer()` 完成物品从玩家 Container 移到 NPC Container，容量/重量超限、`no_drop` 等既有拒绝语义原样生效并给对应文案。
+- [x] 目标不存在/不同房、物品不存在/不在背包、目标无法接收（如无 `Container`）等失败态均有清晰文案，且不改变任何组件状态（失败即原子回滚，不产生半转移）。
+- [x] 成功文案（如"你把 X 交给了 Y。"）与其它转移类命令（`get`/`drop`）文风一致。
+- [x] 命令注册遵循现有 `@register(...)` 模式（见 `get`/`drop`/`ask` 附近实现），含别名（如 `give ... to ...` 的介词解析，参考现有命令的参数解析方式）。
+- [x] 测试：give 成功转移物品到 NPC 容器；NPC 容器可用 `look <npc>` 或既有断言方式验证物品已在其中；覆盖上述失败态；不破坏现有 `test_transfer.py`/物品相关测试基线。
+- [x] `just test` 全绿。
 
 ## Comments
+
+- 2026-07-22：落地 `give <物> to <NPC>`（parsing 介词 `to` + commands 复用 `transfer`）。无 Container / 无物 / 无 NPC / `no_drop` 均有清晰失败文案且不半转移；玩家互 give 明确拒绝。测试见 `test_give_command.py`。
