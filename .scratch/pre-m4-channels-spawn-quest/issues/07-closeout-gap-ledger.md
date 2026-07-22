@@ -18,4 +18,6 @@ Status: resolved
 
 ## Comments
 
-2026-07-22 收口落地：GAP 台账改判「多人频道」「物品/NPC 槽位补刷」（新增行）与「脚本化任务」行内声明式 Quest 已支持；CONTEXT Channel / objects / Quest 与实现对齐（`chat <text>` / `give … to …` / `quest accept` / 默认订阅 / `escort_delivery`），effort 词条标为已关闭；PROGRESS Next Up 推进到房间保真 grill，明确不自动开 M4。US30 核对：房间保真 [README](../../pre-m4-engine-room-fidelity/README.md) 与 [session-notes](../../pre-m4-engine-room-fidelity/session-notes-2026-07-21.md) 均写明放置已迁出且不得重开——**未**当未决项。提醒（不改对方文件）：对方 README「状态」仍写「等频道/spawn/任务关完后再 grill」，兄弟批现已关，对方 grill 开工时可顺手改成「可开 grill」。
+2026-07-22 收口落地：GAP 台账改判「多人频道」「物品/NPC 槽位补刷」（新增行）与「脚本化任务」行内声明式 Quest 已支持；CONTEXT Channel / objects / Quest 与实现对齐（命令与字段细节留在 GAP/契约，词条保持「是什么」），effort 词条标为已关闭；PROGRESS Next Up 推进到房间保真 grill，明确不自动开 M4。US30 核对：房间保真 [README](../../pre-m4-engine-room-fidelity/README.md) 与 [session-notes](../../pre-m4-engine-room-fidelity/session-notes-2026-07-21.md) 均写明放置已迁出且不得重开——**未**当未决项。提醒（不改对方文件）：对方 README「状态」仍写「等频道/spawn/任务关完后再 grill」，兄弟批现已关，对方 grill 开工时可顺手改成「可开 grill」。
+
+Review fix：按 CONTEXT-FORMAT 收紧 Channel / Quest / objects 词条（去掉命令面堆砌）。
