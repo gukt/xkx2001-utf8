@@ -15,6 +15,7 @@ components + world + PyYAML，不 import commands，也不把加载逻辑写进 
 
 from __future__ import annotations
 
+import random
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -76,6 +77,7 @@ def load_scene(
     scene_path: Path,
     *,
     pack_track: bool = False,
+    rng: random.Random | None = None,
 ) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
 
@@ -87,6 +89,8 @@ def load_scene(
 
     ``pack_track=True``（内容包轨道，由 ``load_pack`` 传入）时禁止房间 ``hooks``
     字段——与旁路检测到同级 ``manifest.yaml`` 一样 fail-closed（ADR-0012）。
+
+    ``rng`` 供加载期 ``random_of`` 出口原语选定目标；缺省用系统 ``Random()``。
     """
     scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
@@ -111,7 +115,8 @@ def load_scene(
     placements = _collect_room_objects(rooms, items, npcs, scene_path)
     _reject_door_key_slot_conflicts(rooms, items, placements, scene_path)
     item_ids = _build_items(world, items, placements, room_ids, scene_path)
-    _build_exits(world, rooms, room_ids, item_ids, scene_path)
+    exit_rng = rng if rng is not None else random.Random()
+    _build_exits(world, rooms, room_ids, item_ids, scene_path, rng=exit_rng)
     _build_npcs(world, npcs, placements, room_ids, scene_path)
     _validate_shop_inventories(world, scene_path)
     _validate_faction_refs(world, scene_path)
@@ -372,12 +377,17 @@ def _build_exits(
     room_ids: dict[str, EntityId],
     item_ids: dict[str, EntityId],
     scene_path: Path,
+    *,
+    rng: random.Random,
 ) -> None:
     """把每个房间的 exits 段连成 Exit 组件条目，校验目标房间键都已定义。
 
     出口可选挂门状态（``door``/``key``/``consume_key`` 字段）：带门的出口同时往
     该房间的 ``Doors`` 组件里记一条 ``Door``。``hidden_until_unlocked: true`` 的
     出口进入 ``HiddenExits``（不进 ``Exits``），解锁后由命令层揭示。
+
+    ``random_of``：加载期从候选目标中随机选定一个，落地为普通 ``to`` 出口（无运行时
+    副作用；不进钩子注册表）。
     """
     for room_key, raw in rooms.items():
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
@@ -395,7 +405,7 @@ def _build_exits(
         doors: Doors | None = None
         hidden: HiddenExits | None = None
         for direction, exit_data in exits_data.items():
-            target_key = _exit_target(exit_data, room_key, direction, scene_path)
+            target_key = _exit_target(exit_data, room_key, direction, scene_path, rng=rng)
             if target_key not in room_ids:
                 raise SceneLoadError(
                     f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 "
@@ -461,9 +471,27 @@ def _attach_block_exits(
         world.add_component(room, BlockExits(by_direction=by_dir))
 
 
-def _exit_target(exit_data: object, room_key: str, direction: object, scene_path: Path) -> str:
-    """取出口目标房间键：``{ to: <key> }`` 映射或裸字符串键都接受。"""
+def _exit_target(
+    exit_data: object,
+    room_key: str,
+    direction: object,
+    scene_path: Path,
+    *,
+    rng: random.Random,
+) -> str:
+    """取出口目标房间键：``{ to: <key> }`` / ``{ random_of: [...] }`` 映射或裸字符串键。"""
     if isinstance(exit_data, Mapping):
+        has_to = "to" in exit_data and exit_data.get("to") not in (None, "")
+        has_random = "random_of" in exit_data
+        if has_to and has_random:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+                f"不能同时声明 'to' 与 'random_of'"
+            )
+        if has_random:
+            return _exit_random_of_target(
+                exit_data["random_of"], room_key, direction, scene_path, rng
+            )
         target = exit_data.get("to")
         if not target:
             raise SceneLoadError(
@@ -476,6 +504,23 @@ def _exit_target(exit_data: object, room_key: str, direction: object, scene_path
         f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
         f"应是映射或目标房间键字符串，实际是 {type(exit_data).__name__}"
     )
+
+
+def _exit_random_of_target(
+    raw: object,
+    room_key: str,
+    direction: object,
+    scene_path: Path,
+    rng: random.Random,
+) -> str:
+    """加载期从 ``random_of`` 候选列表选定一个目标房间键。"""
+    if not isinstance(raw, (list, tuple)) or not raw:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+            f"的 'random_of' 应是非空列表"
+        )
+    candidates = [str(c) for c in raw]
+    return rng.choice(candidates)
 
 
 def _exit_aliases(
@@ -619,7 +664,7 @@ def _collect_door_key_templates(rooms: Mapping, scene_path: Path) -> set[str]:
         exits_data = data.get("exits")
         if not isinstance(exits_data, Mapping):
             continue
-        for direction, exit_data in exits_data.items():
+        for _direction, exit_data in exits_data.items():
             if not isinstance(exit_data, Mapping):
                 continue
             raw_key = exit_data.get("key")

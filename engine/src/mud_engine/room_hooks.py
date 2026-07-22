@@ -53,8 +53,56 @@ def get_room_hook(hook_id: str) -> RoomHook | None:
 
 
 def clear_room_hooks() -> None:
-    """测试辅助：清空注册表（无内置钩子；机关钩子由后续票注册）。"""
+    """测试辅助：清空注册表后重新挂上引擎内置机关钩子。"""
     _ROOM_HOOKS.clear()
+    _register_builtin_hooks()
+
+
+class DigCollapseHook:
+    """机关 #1：挖洞开出口、超时崩塌（白玉峰灵感）。
+
+    YAML ``hooks.params``::
+
+        direction: <出口方向>
+        target: <目标房间键>
+        ttl_ticks: <挖开后存活 tick 数>
+    """
+
+    SCHEDULE_KEY = "dig_collapse"
+    HOOK_ID = "dig_collapse"
+
+    def on_dig(self, ctx: RoomHookContext) -> list[str]:
+        direction = str(ctx.params["direction"])
+        target = str(ctx.params["target"])
+        ttl = int(ctx.params["ttl_ticks"])
+        state = ctx.get_state()
+        if state.get("open"):
+            return ["洞口已经挖开了。"]
+        ctx.add_exit(direction, target)
+        base = ctx.tick if ctx.tick is not None else 0
+        ctx.schedule(self.SCHEDULE_KEY, due_tick=base + ttl)
+        ctx.set_state({"open": True, "direction": direction})
+        return ["你挖开了一个洞口。"]
+
+    def on_tick(self, ctx: RoomHookContext) -> None:
+        if not ctx.schedule_due(self.SCHEDULE_KEY):
+            return
+        state = ctx.get_state()
+        direction = str(state.get("direction") or ctx.params.get("direction", ""))
+        if direction:
+            ctx.remove_exit(direction)
+        ctx.clear_schedule(self.SCHEDULE_KEY)
+        ctx.set_state({})
+        ctx.message_room("洞口塌陷了！")
+
+
+def _register_builtin_hooks() -> None:
+    """引擎内置机关钩子；``clear_room_hooks`` 后会重新挂上。"""
+    if DigCollapseHook.HOOK_ID not in _ROOM_HOOKS:
+        _ROOM_HOOKS[DigCollapseHook.HOOK_ID] = DigCollapseHook()
+
+
+_register_builtin_hooks()
 
 
 class RoomHookContext:
@@ -264,6 +312,7 @@ def attach_room_hooks(world: World) -> None:
 __all__ = [
     "ON_ENTER_ROOM",
     "ON_LEAVE_ROOM",
+    "DigCollapseHook",
     "RoomHook",
     "RoomHookContext",
     "attach_room_hooks",

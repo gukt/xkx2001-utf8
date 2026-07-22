@@ -64,6 +64,7 @@ from mud_engine.components import (
     Riding,
     RoomDetails,
     RoomFlags,
+    RoomHookBinding,
     ShopInventory,
     SkillLevels,
     SkillProgress,
@@ -1375,6 +1376,31 @@ def _cmd_flee(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         lines.extend(world.pending_messages)
         world.pending_messages.clear()
     return lines
+
+
+@register("dig")
+def _cmd_dig(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """挖洞：仅在挂了实现 ``on_dig`` 的房间钩子的房间生效（Pre-M4-02）。
+
+    无关房间返回统一拒绝提示（不是「未知命令」），以便同一动词可在部分房间生效。
+    """
+    from mud_engine.room_hooks import RoomHookContext, get_room_hook
+
+    room = _player_room(world, player_id)
+    binding = world.get_component(room, RoomHookBinding)
+    if binding is None:
+        return ["这里不能这么做。"]
+    hook = get_room_hook(binding.hook_id)
+    if hook is None or not hasattr(hook, "on_dig"):
+        return ["这里不能这么做。"]
+    ctx = RoomHookContext(
+        world,
+        room,
+        actor_id=player_id,
+        params=binding.params,
+        tick=world.tick,
+    )
+    return list(hook.on_dig(ctx))  # type: ignore[attr-defined]
 
 
 def _find_combat_target_in_room(world: World, player_id: EntityId, name: str) -> EntityId | None:

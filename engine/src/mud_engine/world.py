@@ -46,8 +46,10 @@ class World:
         self._entities: set[EntityId] = set()
         self._components: dict[type, dict[EntityId, object]] = {}
         # 全局引擎态（不属于任何单个 entity，因此不建成组件）：命令处理函数
-        # 通过它请求 CLI 循环结束；05 号票的 tick 计数会用同样的方式挂在这里。
+        # 通过它请求 CLI 循环结束；``TickLoop.advance`` 同步写入当前 tick，供
+        # 房间钩子 ``schedule`` 在命令路径（非 on_tick）登记绝对到期戳。
         self.should_quit = False
+        self.tick: int = 0
         # 事件总线 / 钩子注册表（07 号票，块 A 地基）：按事件 key 路由到 handler
         # 列表，``TickLoop.advance`` 用它分发 on_tick。挂 world 上做实例隔离；不进
         # 存档（存档只序列化 entities/components，见 save.py），restore 后为空，

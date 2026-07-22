@@ -21,6 +21,8 @@ _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DEFAULT_SCENE_PATH = _DATA_DIR / "m1_default_scene.yaml"
 # M2 官方轻量武侠题材包（Wave 4+；六分区累加于同一文件，见 room-keys.md）。
 MVP_SCENE_PATH = _DATA_DIR / "m2_mvp_scene.yaml"
+# Pre-M4 官方机制切片（房间钩子 / 星宿同构机关；官方单文件轨道，无 manifest）。
+XINGXIU_MECHANICS_PATH = _DATA_DIR / "xingxiu_mechanics.yaml"
 
 
 def build_world(scene_path: Path | None = None) -> tuple[World, EntityId]:
@@ -35,3 +37,8 @@ def build_world(scene_path: Path | None = None) -> tuple[World, EntityId]:
 def load_mvp_scene() -> tuple[World, EntityId]:
     """加载 M2 MVP 武侠题材包场景（``m2_mvp_scene.yaml``）。"""
     return load_scene(MVP_SCENE_PATH)
+
+
+def load_xingxiu_mechanics() -> tuple[World, EntityId]:
+    """加载 Pre-M4 官方机制切片（``xingxiu_mechanics.yaml``）。"""
+    return load_scene(XINGXIU_MECHANICS_PATH)

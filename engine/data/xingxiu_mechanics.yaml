@@ -1,0 +1,83 @@
+# Pre-M4 官方机制切片：星宿同构机关验收（非整区移植；官方单文件轨道，无 manifest）。
+# 本文件由票 02 创建；后续机关票逐票追加房间。
+rooms:
+  dig_base:
+    name: 白玉峰脚
+    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路。
+    outdoors: true
+    exits:
+      north:
+        to: dig_peak
+        aliases:
+          - 北
+          - 峰顶
+      east:
+        to: fork_hub
+        aliases:
+          - 东
+          - 岔路
+  dig_peak:
+    name: 白玉峰坡
+    long: 陡峭的白玉岩壁，似乎可以挖出一条临时通道。南面回到峰脚。
+    outdoors: true
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+    hooks:
+      hook_id: dig_collapse
+      params:
+        direction: north
+        target: dig_cave
+        ttl_ticks: 3
+  dig_cave:
+    name: 临时洞府
+    long: 刚刚挖出的狭小石洞，岩壁不稳，随时可能塌陷。
+    exits:
+      south:
+        to: dig_peak
+        aliases:
+          - 南
+          - 出口
+  fork_hub:
+    name: 岔路口
+    long: 小路在此分岔，北面通向未知，西面回到峰脚。
+    outdoors: true
+    exits:
+      west:
+        to: dig_base
+        aliases:
+          - 西
+          - 峰脚
+      north:
+        random_of:
+          - fork_left
+          - fork_right
+        aliases:
+          - 北
+  fork_left:
+    name: 左岔小路
+    long: 岔路左侧一条安静的小径，尽头是空地。
+    outdoors: true
+    exits:
+      south:
+        to: fork_hub
+        aliases:
+          - 南
+          - 岔路
+  fork_right:
+    name: 右岔小路
+    long: 岔路右侧一条绕石的小径，尽头是空地。
+    outdoors: true
+    exits:
+      south:
+        to: fork_hub
+        aliases:
+          - 南
+          - 岔路
+
+player:
+  name: 试炼者
+  start_room: dig_base

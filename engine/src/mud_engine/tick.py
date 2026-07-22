@@ -79,6 +79,7 @@ class TickLoop:
         """
         self._tick += 1
         if self._world is not None:
+            self._world.tick = self._tick
             self._world.events.dispatch(ON_TICK, TickContext(tick=self._tick, world=self._world))
         if self._tick % self._interval == 0:
             self._save()
