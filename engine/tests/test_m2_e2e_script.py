@@ -36,6 +36,12 @@ def _room(world: World, key: str) -> EntityId:
     return world.room_ids[key]
 
 
+def _force_day(world: World) -> None:
+    """日间店验收依赖 is_day；墙钟对齐可能落在 night，剧本进打铁铺前强制白天。"""
+    assert world.nature is not None
+    world.nature.seek_phase("day")
+
+
 def _room_key(world: World, room: EntityId) -> str:
     assert world.room_ids is not None
     for key, entity in world.room_ids.items():
@@ -275,6 +281,7 @@ class TestM2EndToEndScript:
         execute_line(world, player_id, "go south")  # 东大街
         execute_line(world, player_id, "go west")  # 广场
         execute_line(world, player_id, "go west")  # 西大街
+        _force_day(world)  # day_shop：避免墙钟落在夜间拒入
         execute_line(world, player_id, "go north")  # 打铁铺
         buy_blade = execute_line(world, player_id, "buy 钢刀")
         assert any("钢刀" in line for line in buy_blade)

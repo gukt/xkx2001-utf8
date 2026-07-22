@@ -220,6 +220,15 @@ class NatureState:
         """当前相位配置。"""
         return self.phases[self.phase_index]
 
+    def seek_phase(self, name: str) -> None:
+        """跳到名为 ``name`` 的相位并清零相位内进度；测试 / 剧本常用。"""
+        for index, phase in enumerate(self.phases):
+            if phase.name == name:
+                self.phase_index = index
+                self.elapsed = 0
+                return
+        raise ValueError(f"NatureState 无相位 {name!r}")
+
     @property
     def day_length_minutes(self) -> int:
         """一游戏日总长（全部相位 length 之和）。"""

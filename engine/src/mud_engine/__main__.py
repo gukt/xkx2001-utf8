@@ -43,6 +43,8 @@ def _main(argv: list[str]) -> int:
         print("错误：--strict 须搭配 --validate", file=sys.stderr)
         return 2
 
+    color = True if args.color else (False if args.no_color else None)
+
     if args.pack is not None:
         pack_dir = Path(args.pack)
         if not pack_dir.is_dir():
@@ -50,9 +52,9 @@ def _main(argv: list[str]) -> int:
             return 1
         if args.validate:
             return _validate_pack(pack_dir, strict=args.strict)
-        return _run_pack(pack_dir)
+        return _run_pack(pack_dir, color=color)
 
-    return _run_default()
+    return _run_default(color=color)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -74,10 +76,21 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="未消费字段视为校验失败（须搭配 --validate）",
     )
+    color_group = parser.add_mutually_exclusive_group()
+    color_group.add_argument(
+        "--color",
+        action="store_true",
+        help="强制将语义色 token 渲染为亮色 ANSI（ADR-0011）",
+    )
+    color_group.add_argument(
+        "--no-color",
+        action="store_true",
+        help="强制剥除语义色 token（管道/测试默认行为）",
+    )
     return parser.parse_args(argv)
 
 
-def _run_default() -> int:
+def _run_default(*, color: bool | None = None) -> int:
     save_dir = DEFAULT_SAVE_DIR
     try:
         world, player_id = _load_or_restore_default(save_dir)
@@ -85,18 +98,18 @@ def _run_default() -> int:
         # 默认路径文案保持开工前不变（M3-03 验收：无 --pack 零改动）。
         print(f"场景数据加载失败：{exc}", file=sys.stderr)
         return 1
-    _enter_repl(world, player_id, save_dir)
+    _enter_repl(world, player_id, save_dir, color=color)
     return 0
 
 
-def _run_pack(pack_dir: Path) -> int:
+def _run_pack(pack_dir: Path, *, color: bool | None = None) -> int:
     save_dir = pack_dir / "save"
     try:
         world, player_id = _load_or_restore_pack(pack_dir, save_dir)
     except (PackManifestError, SceneLoadError) as exc:
         print(_format_pack_or_scene_error(exc), file=sys.stderr)
         return 1
-    _enter_repl(world, player_id, save_dir)
+    _enter_repl(world, player_id, save_dir, color=color)
     return 0
 
 
@@ -165,9 +178,11 @@ def _format_unconsumed_summary(entries: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _enter_repl(world: World, player_id: EntityId, save_dir: Path) -> None:
+def _enter_repl(
+    world: World, player_id: EntityId, save_dir: Path, *, color: bool | None = None
+) -> None:
     tick_loop = TickLoop(lambda: save_world(world, player_id, save_dir), world=world)
-    run_repl(world, player_id, tick_loop=tick_loop)
+    run_repl(world, player_id, tick_loop=tick_loop, color=color)
 
 
 def _format_pack_or_scene_error(exc: BaseException) -> str:

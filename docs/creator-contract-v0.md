@@ -2,7 +2,8 @@
 
 > 现行场景 YAML / 内容包 manifest 的冻结字段集合。  
 > 对应实现：`engine/src/mud_engine/scene_loader.py`、`engine/src/mud_engine/pack.py`。  
-> 机器可检查侧：`mud_engine --pack <dir> --validate`（默认 warn）与 `--strict`（未消费字段失败）——见 M3 停机加固票 [`05`](../.scratch/m3-hardening/issues/05-validate-strict-unconsumed-fields.md)。
+> 机器可检查侧：`mud_engine --pack <dir> --validate`（默认 warn）与 `--strict`（未消费字段失败）——见 M3 停机加固票 [`05`](../.scratch/m3-hardening/issues/05-validate-strict-unconsumed-fields.md)。  
+> Pre-M4 房间保真加法：票 [`07`](../.scratch/pre-m4-engine-room-fidelity/issues/07-closeout-contract-gap.md)（字段形状见同 effort 票 `01`–`06` Comments）。
 
 本文档承诺：**这些字段现在可以用、语义已冻结、只会新增不会改义。** 创作者不必去读引擎源码里的 `_ROOM_KNOWN_FIELDS` 等常量。
 
@@ -24,6 +25,7 @@
 | `factions` | 全局门派注册表 |
 | `death_policy` | 死亡/昏迷策略覆盖 |
 | `quests` | 声明式任务表（可空） |
+| `books` | 藏书书档目录（可空；供房间 `library.books` 引用） |
 
 未列入上表的顶层段（例如 `nature:`）走透传，**不是** v0 冻结契约的一部分。
 
@@ -33,9 +35,32 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `objects`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `cost`, `terrain`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`
 
 `objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
+
+房间风景：`details` 为键 → 描述字符串；可含语义色 markup；不占 `objects`、不可 `get`。`look <键>` 在同房实体未命中后查本映射。
+
+房间旗标：`no_fight` / `no_steal` / `no_sleep_room`（布尔）。`no_fight` 拦 `attack`/`kill`；后二者可声明并校验，无对应命令面时行为 inert。
+
+日间店：`day_shop: true` 加载期编成白天放行的 `entry_guard`（谓词 `is_day`，拒入文案「晚上不开门。」）。同房不得再手写 `entry_guard`（冲突则加载失败）。
+
+藏书房：`library: true`（仅同房禁 `practice`）或 `library: {shelf, books: [id…]}`（`shelf` 默认 `书架`；`books` 引用顶层 `books.*`）。`look <shelf>` 出 TOC（可 `more`）；`read <缩写|书名|id>` 选书；`read <章号>` 按 `chapter_cost` 扣银两读章。
+
+剧情挡向：`block_exits: { <dir>: {npc: <模板键>} }`——该向在对应 NPC 模板实例同房在场时拒走。
+
+#### `rooms.*.exits.*`
+
+出口可为字符串目标房键，或映射：
+
+| 字段 | 含义 |
+|---|---|
+| `to` | 目标房间键（映射写法必填） |
+| `aliases` | 方向别名列表 |
+| `door` | `open` / `closed` / `locked`（有门时） |
+| `key` | 解锁所需物品模板键 |
+| `consume_key` | 布尔；`true` 时 `unlock` 成功销毁钥匙（默认 `false`，标准门不耗钥） |
+| `hidden_until_unlocked` | 布尔；`true` 时未解锁不进可见出口（须 `door: locked`）；解锁后迁入可见出口并开启 |
 
 ### `items.*`
 
@@ -65,6 +90,21 @@
 
 接取命令：`quest accept <id>`。`ask` 不触发接取。
 
+### `books.*`
+
+| 字段 | 含义 |
+|---|---|
+| `title` | 中文书名（展示 / 选书） |
+| `abbrevs` | 缩写字符串或列表（选书别名） |
+| `chapter_cost` | 每章银两（非负整数） |
+| `chapters` | 非空字符串列表（章正文） |
+
+## 语义色 markup
+
+权威文本（房间/物品/NPC 的 `short`/`long`、`details` 值等）允许 `<c:name>…</c>`；色名仅 `red` / `green` / `yellow` / `blue` / `magenta` / `cyan` / `white`。禁止嵌套、原始 ANSI、LPC 色宏（如 `HIG`/`NOR`）。加载与 `--validate` 同路径校验；失败则加载失败。见 [ADR-0011](adr/0011-semantic-color-tokens.md)。
+
+命令回文等权威消息保留 token；官方 CLI 仅在 TTY / `--color` 映亮色 ANSI，管道与测试默认剥为纯文本。
+
 ## 内容包 `manifest.yaml` 已知字段
 
 | 字段 | 必填 | 含义 |
@@ -86,7 +126,7 @@ python -m mud_engine --pack <包目录> --validate
 python -m mud_engine --pack <包目录> --validate --strict
 ```
 
-`--strict` 必须搭配 `--validate`；`--validate` 必须搭配 `--pack`。检查复用上述已知字段集与透传容器，不另建平行登记表。
+`--strict` 必须搭配 `--validate`；`--validate` 必须搭配 `--pack`。检查复用上述已知字段集与透传容器，不另建平行登记表。语义色与本波新字段的消费/拒坏与 `load_scene` 同源——内容包轨经 `load_pack` → `load_scene` 覆盖。
 
 ## 官方轨与内容包轨
 

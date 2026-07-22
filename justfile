@@ -119,6 +119,10 @@ verify-m2: verify-m2-combat verify-m2-economy verify-m2-faction verify-m2-travel
 verify-m3:
     cd engine && uv run python scripts/verify_m3_pack_loop.py
 
+# Pre-M4 引擎房间保真（扬州 S3：风景色 / 藏书阁 / 日间店 / 翰林；正式门禁见对应 tests）
+verify-room-fidelity:
+    cd engine && uv run python scripts/verify_pre_m4_room_fidelity.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

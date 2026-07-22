@@ -34,6 +34,7 @@ from mud_engine.components import (
     BaseAttributes,
     Behaviors,
     BehaviorSpec,
+    BookDef,
     Consumable,
     Container,
     Currency,
@@ -51,6 +52,9 @@ from mud_engine.components import (
     Mount,
     NoDeathZone,
     Riding,
+    LibraryRoom,
+    RoomDetails,
+    RoomFlags,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -63,6 +67,7 @@ from mud_engine.components import (
     Weight,
 )
 from mud_engine.errors import SceneLoadError
+from mud_engine.semantic_color import validate_markup
 from mud_engine.skills import SKILLS
 
 
@@ -551,8 +556,25 @@ def _des_ferry(d: dict) -> Ferry:
 def _parse_entry_guard(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> EntryGuard | None:
-    """``entry_guard: {condition: {...}, deny_message: "..."}``。"""
+    """``entry_guard`` 或 ``day_shop: true``（Pre-M4-05 编译为白天可进的 EntryGuard）。
+
+    同房二者并存 → 加载失败（勿叠加歧义）。
+    """
     raw = data.get("entry_guard")
+    day_shop = data.get("day_shop")
+    if day_shop is not None and day_shop is not False:
+        if raw is not None:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}不能同时声明 day_shop 与 entry_guard"
+            )
+        if day_shop is not True:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 'day_shop' 应为 true，实际是 {day_shop!r}"
+            )
+        return EntryGuard(
+            condition={"predicate": "is_day"},
+            deny_message="晚上不开门。",
+        )
     if raw is None:
         return None
     if not isinstance(raw, Mapping):
@@ -574,6 +596,161 @@ def _des_entry_guard(d: dict) -> EntryGuard:
     return EntryGuard(
         condition=dict(d.get("condition", {})),
         deny_message=str(d.get("deny_message", "你不能进入此地。")),
+    )
+
+
+def _parse_room_details(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> RoomDetails | None:
+    """``details: {键: 描述文本}``；缺省不挂。"""
+    raw = data.get("details")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'details' 应是映射，实际是 {type(raw).__name__}"
+        )
+    entries: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not key:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 details 键应是非空字符串，实际是 {key!r}"
+            )
+        if not isinstance(value, str):
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 details[{key!r}] 应是字符串，"
+                f"实际是 {type(value).__name__}"
+            )
+        validate_markup(
+            value,
+            location=f"场景文件 {scene_path} 的{label}.details[{key!r}]",
+        )
+        entries[key] = value
+    if not entries:
+        return None
+    return RoomDetails(entries=entries)
+
+
+def _ser_room_details(c: RoomDetails) -> dict:
+    return {"entries": dict(c.entries)}
+
+
+def _des_room_details(d: dict) -> RoomDetails:
+    raw = d.get("entries", d)
+    return RoomDetails(entries={str(k): str(v) for k, v in dict(raw).items()})
+
+
+def _parse_bool_flag(raw: object, *, field: str, label: str, scene_path: Path) -> bool:
+    if raw is True:
+        return True
+    if raw is False or raw is None:
+        return False
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 '{field}' 应是 true/false，实际是 {raw!r}"
+    )
+
+
+def _parse_room_flags(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> RoomFlags | None:
+    """``no_fight`` / ``no_steal`` / ``no_sleep_room``；全假则不挂。"""
+    no_fight = _parse_bool_flag(
+        data.get("no_fight"), field="no_fight", label=label, scene_path=scene_path
+    )
+    no_steal = _parse_bool_flag(
+        data.get("no_steal"), field="no_steal", label=label, scene_path=scene_path
+    )
+    no_sleep = _parse_bool_flag(
+        data.get("no_sleep_room"),
+        field="no_sleep_room",
+        label=label,
+        scene_path=scene_path,
+    )
+    if not (no_fight or no_steal or no_sleep):
+        return None
+    return RoomFlags(no_fight=no_fight, no_steal=no_steal, no_sleep_room=no_sleep)
+
+
+def _ser_room_flags(c: RoomFlags) -> dict:
+    return {
+        "no_fight": c.no_fight,
+        "no_steal": c.no_steal,
+        "no_sleep_room": c.no_sleep_room,
+    }
+
+
+def _des_room_flags(d: dict) -> RoomFlags:
+    return RoomFlags(
+        no_fight=bool(d.get("no_fight", False)),
+        no_steal=bool(d.get("no_steal", False)),
+        no_sleep_room=bool(d.get("no_sleep_room", False)),
+    )
+
+
+def _parse_library_room(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> LibraryRoom | None:
+    """``library: true`` 或 ``library: {shelf, books: [id…]}`` → 挂 LibraryRoom。
+
+    ``books`` 引用顶层 ``books:`` 目录；解析见 ``library.resolve_library_books``。
+    """
+    raw = data.get("library")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return LibraryRoom()
+    if isinstance(raw, Mapping):
+        shelf = str(raw.get("shelf") or "书架")
+        books_raw = raw.get("books") or ()
+        if isinstance(books_raw, str):
+            pending = (books_raw,)
+        elif isinstance(books_raw, (list, tuple)):
+            pending = tuple(str(b) for b in books_raw)
+        else:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 library.books 应是书档 id 列表，"
+                f"实际是 {type(books_raw).__name__}"
+            )
+        return LibraryRoom(shelf_key=shelf, pending_book_ids=pending)
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'library' 应是 true 或映射，实际是 {raw!r}"
+    )
+
+
+def _ser_library_room(c: LibraryRoom) -> dict:
+    return {
+        "shelf_key": c.shelf_key,
+        "books": [
+            {
+                "book_id": b.book_id,
+                "title": b.title,
+                "abbrevs": list(b.abbrevs),
+                "chapter_cost": b.chapter_cost,
+                "chapters": list(b.chapters),
+            }
+            for b in c.books
+        ],
+    }
+
+
+def _des_library_room(d: dict) -> LibraryRoom:
+    books_raw = d.get("books") or ()
+    books: list[BookDef] = []
+    for entry in books_raw:
+        if not isinstance(entry, Mapping):
+            continue
+        books.append(
+            BookDef(
+                book_id=str(entry["book_id"]),
+                title=str(entry["title"]),
+                abbrevs=tuple(str(a) for a in (entry.get("abbrevs") or ())),
+                chapter_cost=int(entry.get("chapter_cost", 0)),
+                chapters=tuple(str(c) for c in (entry.get("chapters") or ())),
+            )
+        )
+    return LibraryRoom(
+        shelf_key=str(d.get("shelf_key") or "书架"),
+        books=tuple(books),
     )
 
 
@@ -601,7 +778,7 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
     ),
     CapabilitySpec(
         component_type=EntryGuard,
-        known_fields=frozenset({"entry_guard"}),
+        known_fields=frozenset({"entry_guard", "day_shop"}),
         from_yaml=_parse_entry_guard,
         to_dict=_ser_entry_guard,
         from_dict=_des_entry_guard,
@@ -612,6 +789,27 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_terrain,
         to_dict=_ser_terrain,
         from_dict=_des_terrain,
+    ),
+    CapabilitySpec(
+        component_type=RoomDetails,
+        known_fields=frozenset({"details"}),
+        from_yaml=_parse_room_details,
+        to_dict=_ser_room_details,
+        from_dict=_des_room_details,
+    ),
+    CapabilitySpec(
+        component_type=RoomFlags,
+        known_fields=frozenset({"no_fight", "no_steal", "no_sleep_room"}),
+        from_yaml=_parse_room_flags,
+        to_dict=_ser_room_flags,
+        from_dict=_des_room_flags,
+    ),
+    CapabilitySpec(
+        component_type=LibraryRoom,
+        known_fields=frozenset({"library"}),
+        from_yaml=_parse_library_room,
+        to_dict=_ser_library_room,
+        from_dict=_des_library_room,
     ),
 ]
 

@@ -39,6 +39,7 @@ from mud_engine import lookup
 from mud_engine.components import (
     MOUNT_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
+    BlockExits,
     Container,
     Currency,
     Description,
@@ -46,15 +47,23 @@ from mud_engine.components import (
     Doors,
     DoorState,
     Engaged,
+    Exit,
     Exits,
     Faction,
     Ferry,
+    HiddenExits,
     Identity,
     Inquiry,
+    LibraryRoom,
+    MoreBuffer,
     Mount,
+    NpcSpawnMeta,
     PlayerSession,
     Position,
+    ReadingSession,
     Riding,
+    RoomDetails,
+    RoomFlags,
     ShopInventory,
     SkillLevels,
     SkillProgress,
@@ -68,6 +77,13 @@ from mud_engine.components import (
 from mud_engine.death_flow import UNCONSCIOUS_BLOCKED_VERBS
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
+from mud_engine.library import (
+    continue_more,
+    find_book,
+    format_toc,
+    set_reading,
+    start_more,
+)
 from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.quest import accept_quest, try_complete_quest_on_give
@@ -339,13 +355,13 @@ def _sorted_npc_names_in_room(world: World, room: EntityId, player_id: EntityId)
 
 @register("look", aliases=("l",))
 def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """无目标：展示当前房间；有目标：展示物品详情（23 号票）。
+    """无目标：展示当前房间；有目标：实体（物品/NPC）或房间风景 details（Pre-M4-01）。
 
     房间 look：简述、详细描述、户外时辰/天气（15/17）、地面物品、在场 NPC、出口。
-    物品 look：long + 容器内容 + 堆叠/价值/重量数值。
+    有目标：解析层已按物品 → NPC 优先；此处再查 details，最后失败提示。
     """
     if intent.target is not None:
-        return _look_item(world, player_id, intent.target)
+        return _look_target(world, player_id, intent)
 
     room = _player_room(world, player_id)
     description = world.require_component(room, Description)
@@ -391,6 +407,16 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
     room = _player_room(world, player_id)
     exits = world.require_component(room, Exits)
+
+    # NPC 挡向（剧情门）：在查出口之前也可挡已有出口。
+    block = world.get_component(room, BlockExits)
+    if block is not None:
+        npc_key = block.by_direction.get(direction) if direction else None
+        if npc_key:
+            blocker = _find_npc_template_in_room(world, room, npc_key)
+            if blocker is not None:
+                name = world.require_component(blocker, Identity).name
+                return [f"{name}挡住了{direction}方向的去路。"]
 
     passage = exits.by_direction.get(direction)
     if passage is None:
@@ -546,11 +572,12 @@ def _cmd_knock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 
 @register("unlock")
 def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """解锁当前房间某方向出口上的门（04 号票）。
+    """解锁当前房间某方向出口上的门（04 号票 + Pre-M4-06 剧情门）。
 
     锁定门绑定钥匙（``key_item_id``）时，玩家物品栏需持有该钥匙物品才能解锁；
-    解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行（行为在实现中明确锁定）。
-    门状态实际变化时（LOCKED->CLOSED）分发 ``on_door_state_change``（09 号票）。
+    标准门解锁后门变为关（``CLOSED``），需再 ``open`` 才能通行。
+    ``consume_key`` 为真时解锁成功销毁钥匙。``hidden_until_unlocked`` 出口解锁后
+    迁入 ``Exits`` 且门直接打开，便于「解锁后可走」。
     """
     direction = intent.target
     if direction is None:
@@ -561,11 +588,27 @@ def _cmd_unlock(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         return [f"那个方向（{direction}）没有门。"]
     if door.state is not DoorState.LOCKED:
         return ["那扇门没上锁。"]
-    if door.key_item_id is not None:
+    key_id = door.key_item_id
+    if key_id is not None:
         player_container = world.get_component(player_id, Container)
-        if player_container is None or door.key_item_id not in player_container.items:
+        if player_container is None or key_id not in player_container.items:
             return ["你需要一把匹配的钥匙才能 unlock 那扇门。"]
-    _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
+
+    hidden = world.get_component(room, HiddenExits)
+    is_hidden = hidden is not None and direction in hidden.by_direction
+    if is_hidden:
+        pending = hidden.by_direction.pop(direction)
+        exits = world.require_component(room, Exits)
+        exits.by_direction[direction] = Exit(target=pending.target, aliases=pending.aliases)
+        _set_door_state(world, player_id, room, direction, door, DoorState.OPEN)
+    else:
+        _set_door_state(world, player_id, room, direction, door, DoorState.CLOSED)
+
+    if door.consume_key and key_id is not None:
+        bag = world.require_component(player_id, Container)
+        bag.items.discard(key_id)
+        world.destroy_entity(key_id)
+
     return [f"你解锁了{direction}方向的门。"]
 
 
@@ -1006,6 +1049,10 @@ def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str
     """练习已学会的技能（M2-13）。消耗/经验门槏来自 SkillData。"""
     from mud_engine.skills import SKILLS
 
+    room = _player_room(world, player_id)
+    if world.get_component(room, LibraryRoom) is not None:
+        return ["这里是读书的地方，还是别练功了。"]
+
     skill_token = intent.target or (intent.args[0] if intent.args else None)
     if not skill_token:
         return ["练习什么？用法：practice <技能>"]
@@ -1043,6 +1090,69 @@ def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str
     if leveled:
         lines.append(f"你的{skill_token}升到了 {new_level} 级！")
     return lines
+
+
+@register("read")
+def _cmd_read(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """藏书：``read <缩写|书名|id>`` 选书；``read <章号>`` 付费读章（Pre-M4-04）。"""
+    token = intent.target or (intent.args[0] if intent.args else None)
+    if not token:
+        return ["读什么？用法：read <缩写或书名> 选书；read <章号> 阅读。"]
+
+    room = _player_room(world, player_id)
+    lib = world.get_component(room, LibraryRoom)
+    if lib is None or not lib.books:
+        return ["这里没有可借阅的藏书。"]
+
+    if token.isdigit():
+        return _read_chapter(world, player_id, lib, room, int(token))
+
+    book = find_book(lib, token)
+    if book is None:
+        return [f"书架上没有「{token}」这本书。"]
+    set_reading(world, player_id, book_id=book.book_id, room=room)
+    n = len(book.chapters)
+    return [
+        f"你选了《{book.title}》，共 {n} 章，每章 {book.chapter_cost} 两银子。"
+        f"输入 read <章号> 阅读。"
+    ]
+
+
+def _read_chapter(
+    world: World,
+    player_id: EntityId,
+    lib: LibraryRoom,
+    room: EntityId,
+    chapter_no: int,
+) -> list[str]:
+    session = world.get_component(player_id, ReadingSession)
+    if session is None or session.room != room:
+        return ["请先用 read <缩写或书名> 选一本书。"]
+    book = next((b for b in lib.books if b.book_id == session.book_id), None)
+    if book is None:
+        return ["你选的书已不在此架上。"]
+    if chapter_no < 1 or chapter_no > len(book.chapters):
+        return [f"《{book.title}》没有第 {chapter_no} 章（共 {len(book.chapters)} 章）。"]
+
+    currency = world.get_component(player_id, Currency)
+    if currency is None:
+        return ["你身上没有钱袋。"]
+    cost = book.chapter_cost
+    if currency.amount < cost:
+        return [f"银两不足（需要 {cost}，你有 {currency.amount}）。"]
+    currency.amount -= cost
+
+    body = book.chapters[chapter_no - 1]
+    body_lines = body.splitlines() or [body]
+    header = [f"《{book.title}》第 {chapter_no} 章（付 {cost} 两）："]
+    return header + start_more(world, player_id, body_lines)
+
+
+@register("more")
+def _cmd_more(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """继续分页展示（TOC / 章节正文）。"""
+    _ = intent
+    return continue_more(world, player_id)
 
 
 @register("learn")
@@ -1207,6 +1317,11 @@ def _cmd_join(world: World, player_id: EntityId, intent: Intent) -> list[str]:
 def _cmd_attack(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """对同房间目标建立交战（M2-12）。不直接结算伤害；伤害由 on_tick 系统推进。"""
     from mud_engine.combat_system import try_engage
+
+    room = _player_room(world, player_id)
+    flags = world.get_component(room, RoomFlags)
+    if flags is not None and flags.no_fight:
+        return ["这里不能动手打架。"]
 
     target_name = intent.target or (intent.args[0] if intent.args else None)
     if not target_name and intent.target_id is None:
@@ -1404,11 +1519,52 @@ def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId 
     return None
 
 
-def _look_item(world: World, player_id: EntityId, name: str) -> list[str]:
-    """``look <物品>``：long + 容器内容 + 堆叠/价值/重量（23 号票）。"""
+def _find_npc_template_in_room(
+    world: World, room: EntityId, template_key: str
+) -> EntityId | None:
+    """在房间内找 ``NpcSpawnMeta.template_key`` 匹配的 NPC。"""
+    for entity in world.entities_in_room(room):
+        meta = world.get_component(entity, NpcSpawnMeta)
+        if meta is not None and meta.template_key == template_key:
+            return entity
+    return None
+
+
+def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """有目标 look：物品 / NPC（解析层已优先）→ 藏书架 TOC → 房间 details → 失败提示。"""
+    name = intent.target
+    assert name is not None
+    if intent.target_id is not None:
+        return _look_entity(world, intent.target_id, name)
+    item_lines = _look_item(world, player_id, name)
+    if item_lines is not None:
+        return item_lines
+    room = _player_room(world, player_id)
+    lib = world.get_component(room, LibraryRoom)
+    if lib is not None and name == lib.shelf_key and lib.books:
+        return start_more(world, player_id, format_toc(lib))
+    details = world.get_component(room, RoomDetails)
+    if details is not None and name in details.entries:
+        return [details.entries[name]]
+    return [f"这里没有 {name}。"]
+
+
+def _look_entity(world: World, entity_id: EntityId, name: str) -> list[str]:
+    """``look <NPC/实体>``：展示 Description（short/long）。"""
+    description = world.get_component(entity_id, Description)
+    if description is not None and description.long:
+        return [description.long]
+    if description is not None and description.short:
+        return [description.short]
+    identity = world.get_component(entity_id, Identity)
+    return [identity.name if identity is not None else name]
+
+
+def _look_item(world: World, player_id: EntityId, name: str) -> list[str] | None:
+    """``look <物品>``：long + 容器内容 + 堆叠/价值/重量；未找到返回 None。"""
     item = _find_lookable_item(world, player_id, name)
     if item is None:
-        return [f"这里没有 {name}。"]
+        return None
     description = world.get_component(item, Description)
     lines: list[str] = []
     if description is not None and description.long:
