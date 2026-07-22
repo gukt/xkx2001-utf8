@@ -28,7 +28,8 @@
 | 创作者契约 v0（加固票 `06`） | 本波能力若进 YAML schema，需回写契约 / `--validate`。放置字段变更由兄弟批 + ADR-0010 先改契约。 |
 | [Pre-M4 频道/spawn/任务](../pre-m4-channels-spawn-quest/) | 兄弟 effort（假多人频道 + **房间 `objects` 放置/槽位补刷** + 声明式任务）。**建议该批优先于本房间保真**；放置与物品 count/respawn **归该批**，见 [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md)。 |
 | [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) | 放置模型已决；本 effort 议程删除「维持 `placed_in`/`in_room` vs objects」未决项。 |
-| M4 | 本 effort **插入在加固与 M4 之间**（与上表兄弟 effort 同窗口）；关完后再决定是否开 M4。 |
+| [Pre-M4 房间钩子 / 星宿机制](../pre-m4-room-hooks-xingxiu/) | 后继兄弟批（官方可信房间钩子 + `xingxiu_mechanics`）。**本 effort 整包关闭后**才开工实现；[ADR-0012](../../docs/adr/0012-trusted-room-hooks-narrow-ctx.md) 收窄本批 OOS「不做通用改出口」的含义（UGC/契约仍禁；官方钩子 `ctx` 允许）。本批实现范围**不**因此扩大。 |
+| M4 | 本 effort **插入在加固与 M4 之间**；关完后先排队房间钩子批，再决定是否开 M4。**不**自动开 M4。 |
 
 ## 目录
 

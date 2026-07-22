@@ -171,7 +171,7 @@ M3 停机与 Pre-M4 频道/spawn/任务已关，单机可玩内核具备 Channel
 - 液体灌装 / `drink` / 醉酒闭环；防拐带（NPC 进玩家容器）`valid_leave`。
 - 重开 `placed_in`/`in_room` vs `objects`（ADR-0010）。
 - 新建房间保真能力橱窗包作为唯一验收。
-- 通用脚本随时改出口的契约级 API；第二套平行门系统。
+- 通用脚本随时改出口的契约级 API；第二套平行门系统。（含义收窄见 [ADR-0012](../../docs/adr/0012-trusted-room-hooks-narrow-ctx.md)：UGC/创作者契约仍禁；官方可信房间钩子经 `ctx` 改出口归后继 [pre-m4-room-hooks-xingxiu](../pre-m4-room-hooks-xingxiu/)，**不**扩大本 effort 实现范围。）
 - 为 `no_steal`/`no_sleep_room`「成真」而本波实装偷/睡眠命令子系统。
 - 语义色嵌套、背景色、dim/bright 双轨、YAML 内 ANSI/LPC 宏。
 - `features` / `scenery` / `item_desc` 作为本引擎权威字段名。
@@ -186,3 +186,4 @@ M3 停机与 Pre-M4 频道/spawn/任务已关，单机可玩内核具备 Channel
 - 建议工作分支：将已关闭的 `feat/pre-m4-channels-spawn-quest` 合入 `master` 后开 `feat/pre-m4-engine-room-fidelity`。
 - 下一步：按 [implement-plan.md](implement-plan.md) Wave 推进 `/implement`（内含 TDD + code-review）；票见 [issues/](issues/)。
 - 若实现中发现藏书分页或付费模型必须引入新领域词，用短 grill 补 CONTEXT，不得静默发明与词汇表冲突的说法。
+- 后继 Pre-M4：[pre-m4-room-hooks-xingxiu](../pre-m4-room-hooks-xingxiu/)（骨架已落；实现门闩 = 本 effort 整包关闭）。
