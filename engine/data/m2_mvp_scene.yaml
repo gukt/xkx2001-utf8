@@ -400,8 +400,32 @@ rooms:
         aliases:
         - 西南
         - 广场
+      north:
+        to: yangzhou_cangshuge
+        aliases:
+        - 北
+        - 藏书阁
     objects:
       temple_keeper: 1
+  yangzhou_cangshuge:
+    name: 藏书阁
+    long: 扬州藏书阁内书架林立，纸墨清香。墙上有告示：此处只供读书，不许练功比武。
+    no_fight: true
+    no_steal: true
+    no_sleep_room: true
+    library:
+      shelf: 书架
+      books:
+      - xkx_intro
+      - yangzhou_notes
+    details:
+      告示: 告示写着：藏书阁内禁止练功比武；读书须按章付银。
+    exits:
+      south:
+        to: yangzhou_wumiao
+        aliases:
+        - 南
+        - 武庙
   yangzhou_chaguan:
     name: 富春茶馆
     long: 茶馆里氤氲着龙井香气，茶博士提着铜壶穿梭，说书人的惊堂木偶一响。
@@ -777,6 +801,36 @@ factions:
 death_policy:
   revive_room: huashan_birth
   penalty_ratio: 0.1
+books:
+  xkx_intro:
+    title: 侠客行入门
+    abbrevs:
+    - xkxr
+    - intro
+    chapter_cost: 1
+    chapters:
+    - |
+      第一回·初入江湖
+
+      天下风云出我辈，一入江湖岁月催。
+      华山村口石板路，通往扬州与少林。
+      新人当先识方位，再谈刀枪与拳脚。
+    - |
+      第二回·扬州见闻
+
+      扬州城中四街通衢，武庙侧有藏书阁。
+      阁中书卷可按章付银阅读，切记此处只宜读书，不宜练功。
+  yangzhou_notes:
+    title: 扬州风物志
+    abbrevs:
+    - yzfw
+    chapter_cost: 1
+    chapters:
+    - |
+      卷一·城池
+
+      扬州中央广场石狮守旗，东有茶馆钱庄，西有打铁铺马厩。
+      北门出城入野，南门官道可达华山。
 quests:
   escort_delivery:
     name: 华山镖运

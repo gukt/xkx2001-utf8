@@ -52,9 +52,11 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     LibraryRoom,
+    MoreBuffer,
     Mount,
     PlayerSession,
     Position,
+    ReadingSession,
     Riding,
     RoomDetails,
     RoomFlags,
@@ -71,6 +73,13 @@ from mud_engine.components import (
 from mud_engine.death_flow import UNCONSCIOUS_BLOCKED_VERBS
 from mud_engine.events import Deny, run_vetoable
 from mud_engine.intent import Intent
+from mud_engine.library import (
+    continue_more,
+    find_book,
+    format_toc,
+    set_reading,
+    start_more,
+)
 from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.quest import accept_quest, try_complete_quest_on_give
@@ -1052,6 +1061,69 @@ def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str
     return lines
 
 
+@register("read")
+def _cmd_read(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """藏书：``read <缩写|书名|id>`` 选书；``read <章号>`` 付费读章（Pre-M4-04）。"""
+    token = intent.target or (intent.args[0] if intent.args else None)
+    if not token:
+        return ["读什么？用法：read <缩写或书名> 选书；read <章号> 阅读。"]
+
+    room = _player_room(world, player_id)
+    lib = world.get_component(room, LibraryRoom)
+    if lib is None or not lib.books:
+        return ["这里没有可借阅的藏书。"]
+
+    if token.isdigit():
+        return _read_chapter(world, player_id, lib, room, int(token))
+
+    book = find_book(lib, token)
+    if book is None:
+        return [f"书架上没有「{token}」这本书。"]
+    set_reading(world, player_id, book_id=book.book_id, room=room)
+    n = len(book.chapters)
+    return [
+        f"你选了《{book.title}》，共 {n} 章，每章 {book.chapter_cost} 两银子。"
+        f"输入 read <章号> 阅读。"
+    ]
+
+
+def _read_chapter(
+    world: World,
+    player_id: EntityId,
+    lib: LibraryRoom,
+    room: EntityId,
+    chapter_no: int,
+) -> list[str]:
+    session = world.get_component(player_id, ReadingSession)
+    if session is None or session.room != room:
+        return ["请先用 read <缩写或书名> 选一本书。"]
+    book = next((b for b in lib.books if b.book_id == session.book_id), None)
+    if book is None:
+        return ["你选的书已不在此架上。"]
+    if chapter_no < 1 or chapter_no > len(book.chapters):
+        return [f"《{book.title}》没有第 {chapter_no} 章（共 {len(book.chapters)} 章）。"]
+
+    currency = world.get_component(player_id, Currency)
+    if currency is None:
+        return ["你身上没有钱袋。"]
+    cost = book.chapter_cost
+    if currency.amount < cost:
+        return [f"银两不足（需要 {cost}，你有 {currency.amount}）。"]
+    currency.amount -= cost
+
+    body = book.chapters[chapter_no - 1]
+    body_lines = body.splitlines() or [body]
+    header = [f"《{book.title}》第 {chapter_no} 章（付 {cost} 两）："]
+    return header + start_more(world, player_id, body_lines)
+
+
+@register("more")
+def _cmd_more(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """继续分页展示（TOC / 章节正文）。"""
+    _ = intent
+    return continue_more(world, player_id)
+
+
 @register("learn")
 def _cmd_learn(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """向门派技能池学习技能类型（M2-14）：map_skill → skill_pool → learn_condition。"""
@@ -1417,7 +1489,7 @@ def _find_npc_in_room(world: World, player_id: EntityId, name: str) -> EntityId 
 
 
 def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]:
-    """有目标 look：物品 / NPC（解析层已优先）→ 房间 details → 失败提示。"""
+    """有目标 look：物品 / NPC（解析层已优先）→ 藏书架 TOC → 房间 details → 失败提示。"""
     name = intent.target
     assert name is not None
     if intent.target_id is not None:
@@ -1426,6 +1498,9 @@ def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]
     if item_lines is not None:
         return item_lines
     room = _player_room(world, player_id)
+    lib = world.get_component(room, LibraryRoom)
+    if lib is not None and name == lib.shelf_key and lib.books:
+        return start_more(world, player_id, format_toc(lib))
     details = world.get_component(room, RoomDetails)
     if details is not None and name in details.entries:
         return [details.entries[name]]

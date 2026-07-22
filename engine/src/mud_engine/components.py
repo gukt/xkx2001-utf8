@@ -461,9 +461,43 @@ class RoomFlags:
     no_sleep_room: bool = False
 
 
+@dataclass(frozen=True)
+class BookDef:
+    """题材包书档：id / 书名 / 缩写 / 每章费用（银两）/ 章节正文。启动固定。"""
+
+    book_id: str
+    title: str
+    abbrevs: tuple[str, ...] = ()
+    chapter_cost: int = 0
+    chapters: tuple[str, ...] = ()
+
+
 @dataclass
 class LibraryRoom:
-    """本房启用藏书阅读（同房禁 practice）。票 04 扩展书档配置。启动固定。"""
+    """本房启用藏书阅读（同房禁 practice）+ 可选书档列表。启动固定。
+
+    ``pending_book_ids`` 仅加载中间态（引用顶层 ``books:``），``resolve_library_books``
+    完成后清空；``books`` 为解析后的权威书档。
+    """
+
+    shelf_key: str = "书架"
+    books: tuple[BookDef, ...] = ()
+    pending_book_ids: tuple[str, ...] = ()
+
+
+@dataclass
+class ReadingSession:
+    """玩家当前选中的书（藏书 ``read``）。运行时可变进存档。"""
+
+    book_id: str
+    room: EntityId
+
+
+@dataclass
+class MoreBuffer:
+    """分页剩余行（``more``）。瞬时：不进存档。"""
+
+    lines: list[str] = field(default_factory=list, metadata={TRANSIENT: True})
 
 
 # ── 货币与商店（M2-07 / spec D1）────────────────────────────────────────

@@ -50,10 +50,12 @@ from mud_engine.components import (
     Identity,
     ItemSpawnMeta,
     ItemTemplateKey,
+    MoreBuffer,
     NpcSpawnMeta,
     PlayerSession,
     Position,
     QuestProgress,
+    ReadingSession,
 )
 from mud_engine.world import EntityId, World
 
@@ -193,6 +195,22 @@ def _des_quest_progress(d: dict) -> QuestProgress:
     )
 
 
+def _ser_reading_session(c: ReadingSession) -> dict:
+    return {"book_id": c.book_id, "room": c.room}
+
+
+def _des_reading_session(d: dict) -> ReadingSession:
+    return ReadingSession(book_id=str(d["book_id"]), room=int(d["room"]))
+
+
+def _ser_more_buffer(_c: MoreBuffer) -> dict:
+    return {}
+
+
+def _des_more_buffer(_d: dict) -> MoreBuffer:
+    return MoreBuffer()
+
+
 def _codecs_from_specs(specs: list[CapabilitySpec]) -> dict[type, _Codec]:
     return {spec.component_type: (spec.to_dict, spec.from_dict) for spec in specs}
 
@@ -215,6 +233,8 @@ _CODECS.update(
         ItemTemplateKey: (_ser_item_template_key, _des_item_template_key),
         PlayerSession: (_ser_player_session, _des_player_session),
         QuestProgress: (_ser_quest_progress, _des_quest_progress),
+        ReadingSession: (_ser_reading_session, _des_reading_session),
+        MoreBuffer: (_ser_more_buffer, _des_more_buffer),
     }
 )
 

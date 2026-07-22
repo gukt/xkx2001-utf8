@@ -34,6 +34,7 @@ from mud_engine.components import (
     BaseAttributes,
     Behaviors,
     BehaviorSpec,
+    BookDef,
     Consumable,
     Container,
     Currency,
@@ -672,23 +673,68 @@ def _des_room_flags(d: dict) -> RoomFlags:
 def _parse_library_room(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> LibraryRoom | None:
-    """``library: true`` 或 ``library: {…}``（映射体由票 04 扩展）→ 挂 LibraryRoom。"""
+    """``library: true`` 或 ``library: {shelf, books: [id…]}`` → 挂 LibraryRoom。
+
+    ``books`` 引用顶层 ``books:`` 目录；解析见 ``library.resolve_library_books``。
+    """
     raw = data.get("library")
     if raw is None or raw is False:
         return None
-    if raw is True or isinstance(raw, Mapping):
+    if raw is True:
         return LibraryRoom()
+    if isinstance(raw, Mapping):
+        shelf = str(raw.get("shelf") or "书架")
+        books_raw = raw.get("books") or ()
+        if isinstance(books_raw, str):
+            pending = (books_raw,)
+        elif isinstance(books_raw, (list, tuple)):
+            pending = tuple(str(b) for b in books_raw)
+        else:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 library.books 应是书档 id 列表，"
+                f"实际是 {type(books_raw).__name__}"
+            )
+        return LibraryRoom(shelf_key=shelf, pending_book_ids=pending)
     raise SceneLoadError(
         f"场景文件 {scene_path} 的{label}的 'library' 应是 true 或映射，实际是 {raw!r}"
     )
 
 
-def _ser_library_room(_c: LibraryRoom) -> dict:
-    return {}
+def _ser_library_room(c: LibraryRoom) -> dict:
+    return {
+        "shelf_key": c.shelf_key,
+        "books": [
+            {
+                "book_id": b.book_id,
+                "title": b.title,
+                "abbrevs": list(b.abbrevs),
+                "chapter_cost": b.chapter_cost,
+                "chapters": list(b.chapters),
+            }
+            for b in c.books
+        ],
+    }
 
 
-def _des_library_room(_d: dict) -> LibraryRoom:
-    return LibraryRoom()
+def _des_library_room(d: dict) -> LibraryRoom:
+    books_raw = d.get("books") or ()
+    books: list[BookDef] = []
+    for entry in books_raw:
+        if not isinstance(entry, Mapping):
+            continue
+        books.append(
+            BookDef(
+                book_id=str(entry["book_id"]),
+                title=str(entry["title"]),
+                abbrevs=tuple(str(a) for a in (entry.get("abbrevs") or ())),
+                chapter_cost=int(entry.get("chapter_cost", 0)),
+                chapters=tuple(str(c) for c in (entry.get("chapters") or ())),
+            )
+        )
+    return LibraryRoom(
+        shelf_key=str(d.get("shelf_key") or "书架"),
+        books=tuple(books),
+    )
 
 
 ROOM_CAPABILITIES: list[CapabilitySpec] = [

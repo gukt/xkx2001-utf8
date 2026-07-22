@@ -57,6 +57,7 @@ from mud_engine.components import (
 from mud_engine.death_flow import parse_death_policy, parse_loot_table
 from mud_engine.errors import SceneLoadError
 from mud_engine.factions import FACTIONS, load_factions_from_mapping, replace_factions_registry
+from mud_engine.library import parse_book_catalog, resolve_library_books
 from mud_engine.quest import QuestDef
 from mud_engine.runtime import wire_runtime
 from mud_engine.semantic_color import validate_markup
@@ -89,6 +90,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     replace_factions_registry(load_factions_from_mapping(data.get("factions"), scene_path))
     room_ids = _build_rooms(world, rooms, scene_path)
     world.room_ids = dict(room_ids)
+    catalog = parse_book_catalog(data.get("books"), scene_path)
+    resolve_library_books(world, catalog, scene_path)
     world.death_policy = parse_death_policy(data.get("death_policy"))
     _resolve_ferry_refs(world, room_ids, scene_path)
     _reject_legacy_placement_fields(items, npcs, scene_path)
@@ -147,6 +150,7 @@ _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
         "factions",
         "death_policy",
         "quests",
+        "books",
     }
 )
 _ROOM_INTRINSIC_FIELDS = frozenset({"name", "aliases", "short", "long", "exits", "objects"})
