@@ -566,7 +566,7 @@ class RoomHookContext:
 def relocate_entity(world: World, entity_id: EntityId, to_room: EntityId) -> None:
     """受限实体移动方法本体：改 ``Position`` + 分发离房/进房事件。
 
-    供 ``RoomHookContext.move_entity`` 与未来 ``SkillBehavior``（柔丝索）双方直调。
+    供 ``RoomHookContext.move_entity`` 与 ``SkillBehavior``（柔丝索）双方直调。
     不跑 before 否决、不自动 look、不处理骑乘——不是通用远程传送命令面。
     """
     from mud_engine.commands import EnterRoomContext

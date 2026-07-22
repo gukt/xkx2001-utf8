@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- Pre-M4 房间钩子 / 星宿机制 **Wave 6**：票 `10`（柔丝索跨玩家捕获）；fixed point `pre-m4-room-hooks-xingxiu-wave6-start`。
 
 ## Blocked
 

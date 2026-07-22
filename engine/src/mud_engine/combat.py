@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from mud_engine.world import World
+from mud_engine.world import EntityId, World
 
 Rng = random.Random
 
@@ -30,7 +30,12 @@ class CombatMoveSnapshot:
 
 @dataclass(frozen=True)
 class CombatContext:
-    """参战双方只读快照：气血/内力/属性/当前招式。不含任何活组件引用。"""
+    """参战双方只读快照：气血/内力/属性/当前招式。
+
+    数值字段供 ``resolve_attack`` 纯结算。可选 ``world`` / ``attacker_id`` /
+    ``defender_id`` 供 ``SkillBehavior`` 在命中回调里做受限改世界副作用
+    （如柔丝索 ``relocate_entity``）；纯函数测试不填，默认为 ``None``。
+    """
 
     attacker_qi_current: int
     attacker_neili_current: int
@@ -45,6 +50,9 @@ class CombatContext:
     defender_dex: int
     defender_int: int
     move: CombatMoveSnapshot
+    world: World | None = None
+    attacker_id: EntityId | None = None
+    defender_id: EntityId | None = None
 
 
 @dataclass(frozen=True)

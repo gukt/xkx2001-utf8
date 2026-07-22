@@ -56,6 +56,11 @@ rooms:
         aliases:
           - 洞穴
           - 日月洞
+      silk:
+        to: silk_yard
+        aliases:
+          - 柔丝
+          - 庭院
     objects:
       iron_sword: 1
   dig_peak:
@@ -319,6 +324,29 @@ rooms:
       params:
         faction: shaolin
         npc: cave_guard
+  silk_yard:
+    name: 柔丝庭院
+    long: 庭院中央悬着蛛网般的柔丝，北面是幽暗的柔丝室。西面回到峰脚。
+    exits:
+      west:
+        to: dig_base
+        aliases:
+          - 西
+          - 峰脚
+      north:
+        to: silk_prison
+        aliases:
+          - 北
+          - 密室
+  silk_prison:
+    name: 柔丝室
+    long: 密闭石室，四壁缠满柔丝，被擒者往往困于此处。
+    exits:
+      south:
+        to: silk_yard
+        aliases:
+          - 南
+          - 庭院
 
 factions:
   shaolin:
@@ -329,6 +357,15 @@ skills:
   dodge:
     type: martial
     level_req: 0
+  silk_rope:
+    type: martial
+    level_req: 0
+    moves:
+    - name: 柔丝索
+      force: 40
+      dodge: 0
+      damage_type: blunt
+      damage: 1
 
 items:
   iron_sword:
@@ -376,6 +413,7 @@ player:
   faction: shaolin
   skills:
     dodge: 50
+    silk_rope: 1
   vitals:
     qi: 100
     qi_max: 100
