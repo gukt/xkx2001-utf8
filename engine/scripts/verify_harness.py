@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from mud_engine.components import Exits, Position
 from mud_engine.parsing import execute_line
+from mud_engine.semantic_color import render_ansi, strip_tokens
 from mud_engine.tick import TickLoop
 from mud_engine.world import EntityId, World
 
@@ -137,15 +138,20 @@ def scenario_mark(ok: bool) -> str:
     return step_mark(ok)
 
 
+def _format_message(text: str) -> str:
+    """TTY 时语义色映 ANSI；管道/非 TTY 剥 token（与 CLI 一致）。断言仍看原始回文。"""
+    return render_ansi(text) if use_color() else strip_tokens(text)
+
+
 def print_report(scenarios: list[ScenarioResult]) -> int:
     for sc in scenarios:
         print(f"\n=== {sc.name} ===")
         for step in sc.steps:
             print(f"> {step.line}  {step_mark(step.ok)}")
             for m in step.messages:
-                print(f"  {m}")
+                print(f"  {_format_message(m)}")
             if step.detail:
-                print(f"  !! {step.detail}")
+                print(f"  !! {_format_message(step.detail)}")
 
     print("\n── 摘要 ──")
     for sc in scenarios:
