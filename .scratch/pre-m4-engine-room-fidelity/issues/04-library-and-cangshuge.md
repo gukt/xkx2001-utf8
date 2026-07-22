@@ -24,7 +24,7 @@ Status: resolved
 
 - 顶层 `books.<id>`：`title`、`abbrevs`（列表）、`chapter_cost`（非负整数银两）、`chapters`（字符串列表）。
 - 房间 `library: true`（仅禁练）或 `library: {shelf: 书架, books: [id…]}`（引用顶层书档）；组件 `LibraryRoom`。
-- `look <shelf>`（默认键 `书架`）→ TOC（可 `more` 分页）；优先于同名 `details`。
+- `look <shelf>`（默认键 `书架`）→ TOC（可 `more` 分页）；优先于同名 `details` 静态文案。官方房同时声明 `details.书架` 作风景键（US17）。
 - `read <缩写|书名|id>` 选书；`read <章号>` 扣 `Currency.amount` 后展示正文（可 `more`）；余额不足不扣费。
-- 分页：`MoreBuffer` + 命令 `more`；页长 `MORE_PAGE_SIZE=8`。
+- 分页：`MoreBuffer` + 命令 `more`；页长 `MORE_PAGE_SIZE=8`（TOC 与章节均适用）。
 - 官方锚点：`yangzhou_cangshuge`（武庙 `north`）；挂 `no_fight`/`no_steal`/`no_sleep_room` + `library`。

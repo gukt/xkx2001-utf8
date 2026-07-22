@@ -72,14 +72,13 @@ class TestDayShopLoad:
 
 
 class TestDayShopRuntime:
-    def test_day_allows_night_denies(self, tmp_path: Path) -> None:
+    def test_day_allows_entry(self, tmp_path: Path) -> None:
         data = {
             "rooms": _BASE_ROOMS,
             "player": {"name": "你", "start_room": "street"},
         }
         world, player_id = load_scene(_write_scene(tmp_path, data))
         assert world.nature is not None
-        # 切到白天
         for i, phase in enumerate(world.nature.phases):
             if phase.name in ("day", "dusk"):
                 world.nature.phase_index = i
@@ -87,8 +86,14 @@ class TestDayShopRuntime:
         assert world.nature.is_day
         execute_line(world, player_id, "go north")
         assert world.require_component(player_id, Position).room == world.room_ids["shop"]
-        execute_line(world, player_id, "go south")
 
+    def test_night_denies_entry(self, tmp_path: Path) -> None:
+        data = {
+            "rooms": _BASE_ROOMS,
+            "player": {"name": "你", "start_room": "street"},
+        }
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        assert world.nature is not None
         for i, phase in enumerate(world.nature.phases):
             if phase.name in ("night", "midnight", "dawn"):
                 world.nature.phase_index = i
@@ -101,18 +106,23 @@ class TestDayShopRuntime:
 
 
 class TestOfficialDatiepu:
-    def test_mvp_blacksmith_day_night(self) -> None:
-        world, player_id = load_mvp_scene()
-        shop = world.room_ids["yangzhou_datiepu"]
-        guard = world.require_component(shop, EntryGuard)
-        assert guard.condition.get("predicate") == "is_day"
-
-        # 走到西大街
+    def _to_xidajie(self, world, player_id) -> None:
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go north")
         execute_line(world, player_id, "go north")
         execute_line(world, player_id, "go west")
+
+    def test_mvp_blacksmith_has_day_shop_guard(self) -> None:
+        world, _ = load_mvp_scene()
+        shop = world.room_ids["yangzhou_datiepu"]
+        guard = world.require_component(shop, EntryGuard)
+        assert guard.condition.get("predicate") == "is_day"
+
+    def test_mvp_blacksmith_day_allows_night_denies(self) -> None:
+        world, player_id = load_mvp_scene()
+        shop = world.room_ids["yangzhou_datiepu"]
+        self._to_xidajie(world, player_id)
         assert "西大街" in " ".join(execute_line(world, player_id, "look"))
 
         assert world.nature is not None

@@ -76,6 +76,31 @@ class TestLibraryCommands:
         assert "侠客行入门" in text
         assert "xkxr" in text or "intro" in text
 
+    def test_long_toc_paginates_via_more(self, tmp_path: Path) -> None:
+        data = _lib_scene()
+        books = {}
+        ids = []
+        for i in range(MORE_PAGE_SIZE + 3):
+            bid = f"book_{i}"
+            ids.append(bid)
+            books[bid] = {
+                "title": f"书目{i}",
+                "abbrevs": [f"b{i}"],
+                "chapter_cost": 1,
+                "chapters": [f"正文{i}"],
+            }
+        data["books"] = books
+        data["rooms"]["library"]["library"] = {"shelf": "书架", "books": ids}
+        data["rooms"]["library"]["details"] = {"书架": "一排书架。"}
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        execute_line(world, player_id, "go north")
+        page1 = execute_line(world, player_id, "look 书架")
+        assert any("还有" in line or "more" in line.lower() for line in page1)
+        assert any("书目0" in line for line in page1)
+        assert not any(f"书目{MORE_PAGE_SIZE + 2}" in line for line in page1)
+        page2 = execute_line(world, player_id, "more")
+        assert any(f"书目{MORE_PAGE_SIZE}" in line or "书目" in "\n".join(page2) for line in page2)
+
     def test_select_book_by_abbrev(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _lib_scene()))
         execute_line(world, player_id, "go north")
@@ -114,14 +139,13 @@ class TestLibraryCommands:
 
 
 class TestOfficialCangshuge:
-    def test_mvp_cangshuge_main_path(self) -> None:
+    def test_mvp_room_reachable_with_library(self) -> None:
         world, player_id = load_mvp_scene()
         assert "yangzhou_cangshuge" in world.room_ids
         lib = world.room_ids["yangzhou_cangshuge"]
         assert world.has_component(lib, LibraryRoom)
         books = world.require_component(lib, LibraryRoom).books
         assert books
-
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go north")
@@ -130,6 +154,12 @@ class TestOfficialCangshuge:
         lines = execute_line(world, player_id, "go north")
         assert world.require_component(player_id, Position).room == lib
         assert not any("没有出口" in line for line in lines)
+
+    def test_mvp_cangshuge_read_path(self) -> None:
+        world, player_id = load_mvp_scene()
+        lib = world.room_ids["yangzhou_cangshuge"]
+        books = world.require_component(lib, LibraryRoom).books
+        world.require_component(player_id, Position).room = lib
 
         toc = execute_line(world, player_id, "look 书架")
         assert any(books[0].title in line for line in toc)

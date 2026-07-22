@@ -163,14 +163,8 @@ def set_reading(
         session.room = room
 
 
-def clear_reading(world: World, player_id: EntityId) -> None:
-    if world.has_component(player_id, ReadingSession):
-        world.remove_component(player_id, ReadingSession)
-
-
 __all__ = [
     "MORE_PAGE_SIZE",
-    "clear_reading",
     "continue_more",
     "find_book",
     "format_toc",

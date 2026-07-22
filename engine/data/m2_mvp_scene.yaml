@@ -472,6 +472,7 @@ rooms:
       - xkx_intro
       - yangzhou_notes
     details:
+      书架: 一排古旧的书架，书脊上贴着标签。
       告示: 告示写着：藏书阁内禁止练功比武；读书须按章付银。
     exits:
       south:

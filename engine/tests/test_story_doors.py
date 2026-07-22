@@ -151,26 +151,25 @@ class TestBlockExits:
 
 
 class TestOfficialHanlin:
-    def test_mvp_hanlin_three_piece(self) -> None:
-        world, player_id = load_mvp_scene()
-        assert "yangzhou_hanlin" in world.room_ids
-        assert "yangzhou_hanlin_neiyuan" in world.room_ids
-        hanlin = world.room_ids["yangzhou_hanlin"]
-
-        # 走到东大街再进翰林
+    def _arrive_hanlin(self, world, player_id):
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go south")
         execute_line(world, player_id, "go north")
         execute_line(world, player_id, "go north")
         execute_line(world, player_id, "go east")
         execute_line(world, player_id, "go northeast")
-        assert world.require_component(player_id, Position).room == hanlin
+        return world.room_ids["yangzhou_hanlin"]
 
-        # NPC 挡西
+    def test_mvp_hanlin_npc_blocks_west(self) -> None:
+        world, player_id = load_mvp_scene()
+        hanlin = self._arrive_hanlin(world, player_id)
+        assert world.require_component(player_id, Position).room == hanlin
         blocked = execute_line(world, player_id, "go west")
         assert any("挡" in line for line in blocked)
 
-        # 无向：east 未解锁
+    def test_mvp_hanlin_hidden_east_until_unlock_consumes_key(self) -> None:
+        world, player_id = load_mvp_scene()
+        hanlin = self._arrive_hanlin(world, player_id)
         assert "east" not in world.require_component(hanlin, Exits).by_direction
         missing = execute_line(world, player_id, "go east")
         assert any("没有出口" in line for line in missing)
@@ -181,7 +180,7 @@ class TestOfficialHanlin:
             world.require_component(i, Identity).name
             for i in world.require_component(player_id, Container).items
         ]
-        assert "闺房钥匙" not in bag_names  # 耗钥
+        assert "闺房钥匙" not in bag_names
         execute_line(world, player_id, "go east")
         assert (
             world.require_component(player_id, Position).room
