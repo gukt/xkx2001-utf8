@@ -28,7 +28,7 @@
 - [.scratch/mvp-scope/](.scratch/mvp-scope/)：**新目标定稿的完整决策记录**（`/wayfinder` 地图，10/10 票已解决）+ [post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)（M4 之后待排期能力）。本文件"架构不变量"是摘要；细节见 `map.md` 与 `issues/NN-*.md`。
 - [.scratch/m1-core-engine-skeleton/](.scratch/m1-core-engine-skeleton/)：**M1 里程碑** spec + issues（第 0 步工作区重置已完成，见 [00](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md)）。
 - [docs/archive/](docs/archive/)：**旧目标的完整历史归档**（架构基线、64 条 ADR、进度归档、战略复审、旧 `CLAUDE.md`/`PROGRESS.md`）。只读参考，不是当前基线，见 [docs/archive/README.md](docs/archive/README.md)。同目录下的《侠客行》架构拆解说明书（`docs/archive/xkx-arch/`）虽在"旧目标"归档里，但其设计灵感/术语参考价值在新目标下依然有效，见"架构不变量"第 4 条。旧引擎**源码**不在此目录，而在 git tag `archive/engine-pre-m1-rewrite`。
-- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)～[0009](docs/adr/0009-single-process-single-world.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
+- [docs/adr/](docs/adr/)：**重设后的新决策日志**，从头编号（目前 [0001](docs/adr/0001-no-lpc-behavior-equivalence-verification.md)～[0010](docs/adr/0010-room-centric-objects-placement.md)）。格式见 [domain-modeling ADR-FORMAT](.claude/skills/domain-modeling/ADR-FORMAT.md)：`NNNN-slug.md`，不带 `ADR-` 前缀，短段落即可。
 - [CONTEXT.md](CONTEXT.md)：领域词汇表（惰性维护；Effect / SkillBehavior / Unconscious / 持刃 / 单进程单 World / GAP 台账 / M3 停机加固等）。
 - [docs/agents/](docs/agents/)：engineering skills 的仓库级配置（issue tracker / triage 标签 / domain docs 消费规则），与目标本身无关，重设不影响。
 - `todo.md` / `README`：遗留的 LPC UTF-8 转码记录，与新项目无关，忽略。

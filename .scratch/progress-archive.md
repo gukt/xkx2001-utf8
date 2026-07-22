@@ -3,6 +3,12 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 频道/spawn/任务：session 笔记落盘并排队**（2026-07-22）：范围拍板写入 [.scratch/pre-m4-channels-spawn-quest/](pre-m4-channels-spawn-quest/)；建议优先于房间保真。已被同日 grill+spec 条目承接。
+
+- [x] **M3 停机加固 Wave 1 落地：P0 收尾 → 可诚实停机**（2026-07-21）：票 `06` 创作者契约 v0（[docs/creator-contract-v0.md](../docs/creator-contract-v0.md)）+ `07` M2 16–20 Status→resolved + 战斗事件契约测；fixed point `m3-hardening-wave1-start`。Review fix：伤害=气血差、死亡经 tick 清交战、恢复 scene_loader「不 import commands」。**Wave P0（`01`–`07`）全关**。670 绿。
+
+- [x] **M3 停机加固 Wave 0 落地：P0 五张独立实现票**（2026-07-21）：票 `01` 昏迷 tick 苏醒 / `02` 少林山门去持刃 / `03` combat 消灭全局态 / `04` `wire_runtime` / `05` `--validate`/`--strict`；fixed point `m3-hardening-wave0-start`。Review fix：CLI 严格校验测试按 `When*` 拆分复合断言；`DEFAULT_UNCONSCIOUS_RECOVERY_TICKS` + `_world_death_policy`。664 绿。
+
 - [x] **Pre-M4 引擎房间保真：session 笔记落盘并排队**（2026-07-21）：LPC vs 引擎缺口对照写入 [.scratch/pre-m4-engine-room-fidelity/](pre-m4-engine-room-fidelity/)（[README](pre-m4-engine-room-fidelity/README.md) + [session-notes](pre-m4-engine-room-fidelity/session-notes-2026-07-21.md)）；`PROGRESS` Next Up 与 `CONTEXT` 词条标明 **加固整体完成后、M4 前** 开 `/grill-with-docs`。未开 to-spec / 未实现。
 
 - [x] **M3 停机加固 `/to-tickets` 完成**（2026-07-21）：spec.md 拆成 11 张票（[m3-hardening/issues/](m3-hardening/issues/)）——**Wave P0** 七张实现票（`01`–`07`）+ **Wave B3** 四张（`08`–`11`）；配套 [to-tickets-notes.md](m3-hardening/to-tickets-notes.md) + [implement-plan.md](m3-hardening/implement-plan.md)。

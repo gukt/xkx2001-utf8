@@ -9,22 +9,25 @@
 
 对照 LPC《侠客行》房间写法与当前 YAML/引擎能力，补一轮「房间风景、色 markup、日夜店铺、门机关、液体灌装」等引擎侧能力；书院读书可作为本波候选或明确后置，grill 时拍板。
 
+> **放置模型已不在本 effort**：`placed_in`/`in_room` → 房间中心 `objects` 由兄弟批 [pre-m4-channels-spawn-quest](../pre-m4-channels-spawn-quest/) + [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) 落地；本批 grill **不得重开**「是否改 objects」。
+
 ## 状态
 
 | 项 | 值 |
 |---|---|
-| 状态 | **排队**：等 M3 停机加固 Wave P0+B3 关完 |
-| 入口文档 | [session-notes-2026-07-21.md](session-notes-2026-07-21.md)（本 session 详细对照与缺口清单） |
-| 下一步 skill | 加固完成后新 session：`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` |
-| 不走 | `/wayfinder`（清单已清，只需范围裁剪）；不直接 `/implement` |
+| 状态 | **排队**：加固已完成；等频道/spawn/任务（含 ADR-0010 放置迁移）关完或明确并行策略后再 grill |
+| 入口文档 | [session-notes-2026-07-21.md](session-notes-2026-07-21.md)（本 session 详细对照与缺口清单；§1.3/§2/议程「放置」已由 ADR-0010 改判） |
+| 下一步 skill | 兄弟批放置迁移落地后（或 grill 明确可并行）：`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` |
+| 不走 | `/wayfinder`（清单已清，只需范围裁剪）；不直接 `/implement`；不重开放置模型 |
 
 ## 与相邻交付物的关系
 
 | 交付物 | 关系 |
 |---|---|
 | M3 停机加固票 `11` GAP 台账 | **文档**：「声明式 YAML 表达不了什么」。本 effort 是 **补能力**；加固期可先把本清单若干条写入 GAP，实现落地后再改「已支持」。 |
-| 创作者契约 v0（加固票 `06`） | 本波能力若进 YAML schema，需回写契约 / `--validate`。 |
-| [Pre-M4 频道/spawn/任务](../pre-m4-channels-spawn-quest/) | 兄弟 effort（假多人频道 + 物品 respawn + 声明式任务）。**建议该批优先于本房间保真**（机制先于表达力）；最终顺序 grill 时可改判。 |
+| 创作者契约 v0（加固票 `06`） | 本波能力若进 YAML schema，需回写契约 / `--validate`。放置字段变更由兄弟批 + ADR-0010 先改契约。 |
+| [Pre-M4 频道/spawn/任务](../pre-m4-channels-spawn-quest/) | 兄弟 effort（假多人频道 + **房间 `objects` 放置/槽位补刷** + 声明式任务）。**建议该批优先于本房间保真**；放置与物品 count/respawn **归该批**，见 [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md)。 |
+| [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md) | 放置模型已决；本 effort 议程删除「维持 `placed_in`/`in_room` vs objects」未决项。 |
 | M4 | 本 effort **插入在加固与 M4 之间**（与上表兄弟 effort 同窗口）；关完后再决定是否开 M4。 |
 
 ## 建议目录（grill / to-spec 之后）

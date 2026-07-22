@@ -8,7 +8,7 @@
 
 1. **排期**：这批补充逻辑要在 **M3 停机加固整体完成之后、M4 之前** 规划并实现（独立 effort，不并入 hardening）。
 2. **流程（ask-matt）**：`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`；**不用** `/wayfinder`；**不要**直接 `/implement`。
-3. **放置模型**：当前 `in_room` / `placed_in`（实体指向房间）是刻意设计，不是漏写；不必为了「对齐 LPC」强改成房间 `objects`，但 grill 可讨论是否加「模板库 + 房间引用清单」双写法。
+3. **放置模型（2026-07-22 改判）**：原结论「保留 `in_room`/`placed_in`、不必改 `objects`」**已撤销**。Pre-M4 频道/spawn/任务 grill 选 **C**：房间中心 `objects` + 侠客行式槽位计数，弃用 `placed_in`/`in_room`；见 [ADR-0010](../../docs/adr/0010-room-centric-objects-placement.md)。**落地归兄弟 effort** [.scratch/pre-m4-channels-spawn-quest/](../pre-m4-channels-spawn-quest/)；本 effort grill **不得重开放置**。下文 §2 / 缺口 L / 议程第 4 条仅作历史对照。
 4. **颜色**：服务端不宜继续塞 ANSI/`HIG`…`NOR`；倾向 **语义色 token + 客户端渲染**——须在 grill 中落 ADR。
 5. **书院读书**：个人直觉为未来书院题材重点；是否进本波还是明确后置，grill 必问。
 
@@ -76,7 +76,7 @@ set("objects", ([
 | I | 标准门锁 | `jail` `create_door` | **已有** open/close/unlock/knock；钥匙不消耗 | 保持；补文档对照即可 |
 | J | 剧情门（耗钥、动态出口、NPC 挡向） | `houyuan` | **无**（动态出口 API 测试有，内容规则未接） | 中：声明式「消耗钥匙 / 增删出口 / 在场挡向」 |
 | K | 灌酒 / 液体 | `jiuguan` `fill_shaojiu` | **无**（Consumable 占位，无 eat/drink） | 中高：液体能力 + 房间/NPC 灌装动作 |
-| L | 放置所有权 / 物品 count | 见 §2 | 见 §2 | grill：是否双写法 + 物品 count |
+| L | 放置所有权 / 物品 count | 见 §2 | 见 §2 | **已迁出**：ADR-0010 + channels-spawn-quest；本波勿 grill |
 
 ## 4. 分项细节（对照原文）
 
@@ -137,8 +137,8 @@ set("objects", ([
 1. **本波必做 vs 后置**：E 书院读书、K 液体、J 剧情门、C 房间旗标各自进不进。
 2. **颜色 ADR**：token 集合、YAML 语法、CLI 是否可选渲染 ANSI。
 3. **风景模型**：独立 `features`/`item_desc` 映射 vs `no_get` 风景实体；与 `look` 解析优先级。
-4. **放置**：维持现状 / 加房间 `objects` 糖衣 / 物品 `count`。
-5. **与创作者契约**：是否在本波回写 `docs/creator-contract-v0.md` 与 `--validate`。
+4. ~~**放置**：维持现状 / 加房间 `objects` 糖衣 / 物品 `count`。~~ → **已决并迁出**（ADR-0010 / channels-spawn-quest）。
+5. **与创作者契约**：是否在本波回写 `docs/creator-contract-v0.md` 与 `--validate`（放置字段变更由兄弟批先改）。
 6. **验收场景**：是否用扬州子集（酒馆、藏书阁、打铁铺、翰林后院、北门外草地）做端到端，而非新建橱窗包。
 
 ## 6. 建议 skill 路径（下一 session）
