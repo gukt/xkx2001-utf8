@@ -52,6 +52,7 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     Mount,
+    PlayerSession,
     Position,
     Riding,
     ShopInventory,
@@ -718,6 +719,36 @@ def _cmd_put(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     if not result.success:
         return [result.message or "放不进去。"]
     return [f"你把 {name} 放进了 {container_name}。"]
+
+
+@register("give")
+def _cmd_give(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """把背包物品交给同房间 NPC：``give <物品> to <NPC>``。
+
+    玩家互 give 本波不做。目标须带 ``Container``；转移复用 ``transfer``
+    （``no_drop`` / 容量 / 重量等既有拒绝语义原样生效）。
+    """
+    item_name = intent.target
+    if item_name is None or not intent.args:
+        return ["给什么？用法：give <物品> to <人物>"]
+    npc_name = intent.args[0]
+    player_container = world.require_component(player_id, Container)
+    item = _find_item_in_container(world, player_container, item_name)
+    if item is None:
+        return [f"你没有 {item_name}。"]
+    npc = intent.target_id
+    if npc is None or not world.has_component(npc, Identity):
+        npc = _find_npc_in_room(world, player_id, npc_name)
+    if npc is None:
+        return [f"这里没有 {npc_name}。"]
+    if world.has_component(npc, PlayerSession):
+        return ["不能把东西交给其他玩家。"]
+    if not world.has_component(npc, Container):
+        return [f"{npc_name}接不过来。"]
+    result = transfer(world, item, player_id, npc, player_id=player_id)
+    if not result.success:
+        return [result.message or "交不出去。"]
+    return [f"你把 {item_name} 交给了 {npc_name}。"]
 
 
 @register("inventory", aliases=("i",))

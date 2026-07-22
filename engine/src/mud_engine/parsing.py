@@ -102,6 +102,8 @@ class DeterministicParser(Parser):
             return self._parse_drop(rest, world, player_id)
         if verb == "put":
             return self._parse_put(rest, world, player_id)
+        if verb == "give":
+            return self._parse_give(rest, world, player_id)
         if verb == "look":
             return self._parse_look(rest, world, player_id)
         if verb == "ask":
@@ -273,6 +275,49 @@ class DeterministicParser(Parser):
         if isinstance(container_matched, ParseFailure):
             return container_matched
         return Intent(verb="put", target=item_matched, args=(container_matched,))
+
+    def _parse_give(
+        self, args: list[str], world: World, player_id: EntityId
+    ) -> Intent | ParseFailure:
+        """``give <物品> to <NPC>``：物品来自玩家栏，目标为同房可识别 NPC。"""
+        if not args:
+            return Intent(verb="give", target=None)
+        to_idx = _index_of(args, "to")
+        if to_idx is None or to_idx == 0 or to_idx >= len(args) - 1:
+            if args:
+                matched = self._match_item_token(
+                    args[0],
+                    self._item_candidates(world, player_id, "player"),
+                    verb="give",
+                )
+                if isinstance(matched, ParseFailure):
+                    return matched
+                return Intent(verb="give", target=matched, args=())
+            return Intent(verb="give", target=None)
+
+        item_token = args[0]
+        npc_token = " ".join(args[to_idx + 1 :])
+        item_matched = self._match_item_token(
+            item_token,
+            self._item_candidates(world, player_id, "player"),
+            verb="give",
+        )
+        if isinstance(item_matched, ParseFailure):
+            return item_matched
+        npc_matched = self._match_entity_token(
+            npc_token,
+            self._npc_entity_candidates(world, player_id),
+            verb="give",
+        )
+        if isinstance(npc_matched, ParseFailure):
+            return npc_matched
+        canonical, entity_id = npc_matched
+        return Intent(
+            verb="give",
+            target=item_matched,
+            args=(canonical,),
+            target_id=entity_id,
+        )
 
     def _parse_look(
         self, args: list[str], world: World, player_id: EntityId
@@ -534,6 +579,8 @@ def _failure_message(failure: ParseFailure) -> list[str]:
         return [f"你没有 {failure.original}。"]
     if failure.verb == "put":
         return [f"找不到 {failure.original}。"]
+    if failure.verb == "give":
+        return [f"这里没有 {failure.original}。"]
     if failure.verb == "look":
         return [f"这里没有 {failure.original}。"]
     if failure.verb in ("ask", "attack"):
