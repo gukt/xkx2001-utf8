@@ -18,7 +18,7 @@
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **Pre-M4 频道/spawn/任务 Wave 3 收口（effort 关闭）**（2026-07-22）：票 `07` GAP 台账改判（多人频道 / 物品·NPC 槽位补刷 / 声明式 Quest 为严格切片已支持）+ CONTEXT 词条与实现对齐 + 房间保真文档核对未重开放置；fixed point `pre-m4-channels-spawn-quest-wave3-start`。票 `01`–`07` 全关。
+- [x] **Pre-M4 频道/spawn/任务 Wave 3 收口（effort 关闭）**（2026-07-22）：票 `07` GAP 台账改判（多人频道 / 物品·NPC 槽位补刷 / 声明式 Quest 为严格切片已支持）+ CONTEXT 词条与实现对齐 + 房间保真文档核对未重开放置；fixed point `pre-m4-channels-spawn-quest-wave3-start`。Review fix：按 CONTEXT-FORMAT 收紧 Channel / Quest / objects 词条。票 `01`–`07` 全关。
 - [x] **Pre-M4 频道/spawn/任务 Wave 2 落地**（2026-07-22）：票 `04` 物品/NPC 槽位补刷 / `05` Channel `chat`+`system` / `06` Quest + 官方 `escort_delivery`；fixed point `pre-m4-channels-spawn-quest-wave2-start`。Review fix：`ItemTemplateKey` 使非槽位物品也能按模板完成任务；补刷 `_refill_slots` 去重。718 绿。
 - [x] **Pre-M4 频道/spawn/任务 Wave 1 落地**（2026-07-22）：票 `01` give / `02` 房间 `objects`（ADR-0010）/ `03` 按会话收件箱；fixed point `pre-m4-channels-spawn-quest-wave1-start`。Review fix：BDD `When*` 重组 give/mailbox 测；give 背包未持有→「你没有」；物品可跨房 `objects`、NPC 仍单房；补 `count`/`startroom` 错配测；mailbox 占位改 `_pending_before_primary`。690 绿。
 - [x] **Pre-M4 频道/spawn/任务：`/to-tickets` 拆票**（2026-07-22）：[issues/](.scratch/pre-m4-channels-spawn-quest/issues/) `01`–`07`，依赖顺序编号。Frontier 已由 Wave 1 吃掉；后续：`04` 槽位补刷（阻塞于 `02`）→ `05` Channel（阻塞于 `03`）→ `06` Quest（阻塞于 `01`、`02`）→ `07` 收口（阻塞于 `04`、`05`、`06`）。
