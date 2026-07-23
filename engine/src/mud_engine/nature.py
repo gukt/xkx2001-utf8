@@ -356,7 +356,7 @@ def resolve_effective_nature(
     )
     phase = local.phase if local is not None and local.phase is not None else nature.phase
     if local is not None and local.weather is not None:
-        weather = Weather.RAIN if local.weather == Weather.RAIN.value else Weather.CLEAR
+        weather = Weather(local.weather)
     else:
         weather = nature.weather
     return EffectiveNature(
@@ -365,6 +365,22 @@ def resolve_effective_nature(
         is_night=phase in NIGHT_PHASES,
         is_day=phase in DAY_PHASES,
         is_raining=weather is Weather.RAIN,
+    )
+
+
+def nature_snapshot_for_room(
+    world: World, room_id: EntityId | None
+) -> EffectiveNature:
+    """门禁 / hooks / join / AI 共用：有 Nature 则合成，否则与今日 Stub 缺省一致。"""
+    eff = resolve_effective_nature(world, room_id)
+    if eff is not None:
+        return eff
+    return EffectiveNature(
+        phase="day",
+        weather=Weather.CLEAR,
+        is_night=False,
+        is_day=True,
+        is_raining=False,
     )
 
 
@@ -532,6 +548,7 @@ __all__ = [
     "NatureState",
     "Weather",
     "attach_nature",
+    "nature_snapshot_for_room",
     "outdoor_desc_for_room",
     "resolve_effective_nature",
 ]

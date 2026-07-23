@@ -441,17 +441,15 @@ def _condition_context(
     world: World, *, room_id: EntityId | None = None
 ) -> ConditionContext:
     """取条件求值 context：按房间合成 Nature（ADR-0013），否则 StubContext。"""
-    from mud_engine.nature import resolve_effective_nature
+    from mud_engine.nature import nature_snapshot_for_room
 
-    eff = resolve_effective_nature(world, room_id)
-    if eff is not None:
-        return StubContext(
-            phase=eff.phase,
-            is_night=eff.is_night,
-            is_day=eff.is_day,
-            is_raining=eff.is_raining,
-        )
-    return StubContext()
+    eff = nature_snapshot_for_room(world, room_id)
+    return StubContext(
+        phase=eff.phase,
+        is_night=eff.is_night,
+        is_day=eff.is_day,
+        is_raining=eff.is_raining,
+    )
 
 
 def _convert_condition_parts(parts: object) -> tuple[Condition, ...] | None:

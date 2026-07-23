@@ -12,11 +12,11 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | `/to-spec` 已完成；`/to-tickets` 已拆 13 票（`01`–`13`），待 `/implement` |
+| 状态 | **已关闭**（Wave 1–9；票 `01`–`13` 全部 `resolved`；分支 `feat/polishing`） |
 | 决策 | grill 拍板 [session-notes-2026-07-23.md](../polishing-candidate-review/session-notes-2026-07-23.md) + [session-qa-provenance-2026-07-23.md](../polishing-candidate-review/session-qa-provenance-2026-07-23.md) |
 | Spec / 票 | [spec.md](spec.md)；[issues/](issues/) `01`–`13`；拆票分析见 [to-tickets-notes.md](to-tickets-notes.md)；执行手册（9 Wave）见 [implement-plan.md](implement-plan.md) |
-| 下一步 | 按 [implement-plan.md](implement-plan.md) Wave 1（`01`+`02`）起 `/implement`；`12`（C14 ADR）无阻塞可提前插队 |
-| 不走 | `/wayfinder`；`--strict`/`--validate`/加载器代码本 session 已改；把打磨项并入 M4 商业化叙事；关完自动滑入 M4 |
+| 收口 | 契约 / GAP / CONTEXT / ADR-0013 Accepted 已回写；可选 S5 `verify_polishing` 见 [PROGRESS.md](../../PROGRESS.md) Next Up |
+| 不走 | `/wayfinder`；把打磨项并入 M4 商业化叙事；**关完自动滑入 M4** |
 
 ## 与相邻交付物的关系
 

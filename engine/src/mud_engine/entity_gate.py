@@ -52,22 +52,16 @@ class EntityGateContext:
         room_id: EntityId | None = None,
     ) -> None:
         from mud_engine.components import Position
-        from mud_engine.nature import resolve_effective_nature
+        from mud_engine.nature import nature_snapshot_for_room
 
         if room_id is None:
             pos = world.get_component(entity_id, Position)
             room_id = pos.room if pos is not None else None
-        eff = resolve_effective_nature(world, room_id)
-        if eff is None:
-            self.phase = "day"
-            self.is_night = False
-            self.is_day = True
-            self.is_raining = False
-        else:
-            self.phase = eff.phase
-            self.is_night = eff.is_night
-            self.is_day = eff.is_day
-            self.is_raining = eff.is_raining
+        eff = nature_snapshot_for_room(world, room_id)
+        self.phase = eff.phase
+        self.is_night = eff.is_night
+        self.is_day = eff.is_day
+        self.is_raining = eff.is_raining
 
         faction = world.get_component(entity_id, Faction)
         self.faction_id = faction.faction_id if faction else None

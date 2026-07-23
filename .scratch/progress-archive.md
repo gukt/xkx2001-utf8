@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Polishing Wave 4 落地：客店三件套（sleep + hotel + pay）**（2026-07-23）：票 `06`；`HotelRoom`/`RentPaid`；`HOTEL_RENT_COST=10`；睡觉拉满气血/精力；`on_leave_room` 清租；睡房拦 `practice`；`yangzhou_kedian`；fixed point `polishing-wave4-start`；code-review fix：`_parse_pay` 文档、PROGRESS 收口、契约 `details` 形状补记。926 绿。
+
 - [x] **Polishing Wave 3 落地：block_exits deny_message + 步行 cost 精力**（2026-07-23）：票 `04`/`05`；`BlockEntry`；步行 `WALK_JINGLI_PER_TERRAIN_COST=2`；MVP 玩家 jingli 100；fixed point `polishing-wave3-start`；code-review fix：空 `deny_message` 回退默认、CONTEXT 补词条。916 绿。
 
 - [x] **Polishing Wave 2 落地：房间风景 details 升级（K2+U+S1+N1）**（2026-07-23）：票 `03`；`DetailEntry`/`room_details.py`；旧写法自动转换；N1 六变体 look；S1 `scan_detail_mentions`；fixed point `polishing-wave2-start`；code-review fix：`_match_detail_key` 去重、裸 `(…)` 跳过。907 绿。

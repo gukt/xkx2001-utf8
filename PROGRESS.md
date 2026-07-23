@@ -5,24 +5,24 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与架构不变量。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-23：Polishing Wave 8 落地（票 `12`）；fixed point `polishing-wave8-start`；ADR-0013 Proposed。Next Up → Wave 9。**不自动开 M4**。
+**最后更新**：2026-07-23：Polishing Wave 9 落地（票 `13`）；ADR-0013 Accepted；effort 关闭。Next Up → M4 评估。**不自动开 M4**。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 里程碑可宣布完成**；**M3 停机加固整体完成**。**暂缓 M4**。Pre-M4 三批已关。**Polishing Wave 1–8 已落地**（`01`–`12` resolved）；其余 `13` 待做。
-- **工作分支**：`feat/polishing`。
-- **engine/**：测试绿（961；本 wave 无代码变更）。
-- **拍板依据**：[CONTEXT.md](CONTEXT.md)；[ADR-0007](docs/adr/0007-effect-lifecycle-deferred-from-m2-m3-stop.md)～[0013](docs/adr/0013-local-nature-room-sticker.md)；Polishing 规格见 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)；执行手册 [.scratch/polishing/implement-plan.md](.scratch/polishing/implement-plan.md)。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 里程碑可宣布完成**；**M3 停机加固整体完成**。**暂缓 M4**。Pre-M4 三批已关。**Polishing 已关闭**（Wave 1–9；票 `01`–`13` resolved）。
+- **工作分支**：`feat/polishing`（可合入 master；勿在 master 上直接续作 polishing）。
+- **engine/**：测试绿（974）。
+- **拍板依据**：[CONTEXT.md](CONTEXT.md)；[ADR-0007](docs/adr/0007-effect-lifecycle-deferred-from-m2-m3-stop.md)～[0013](docs/adr/0013-local-nature-room-sticker.md)（Accepted）；Polishing 规格见 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)。
 
 ## Done
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **Polishing Wave 8 落地：局部天气继承 ADR**（2026-07-23）：票 `12`；[ADR-0013](docs/adr/0013-local-nature-room-sticker.md)（`proposed`）：房间级静态贴纸 `LocalNature`/`local_nature`，可选覆 `weather`/`phase`；回退 `房间 → World.nature`；不增殖 NatureState、不收窄 ADR-0009；无 region 树/无第二循环/无天气→数值；fixed point `polishing-wave8-start`；code-review fix：US44 广播边界写清（邻房互不可见 vs 全局广播不同步取舍）。无代码变更。
-- [x] **Polishing Wave 7 落地：多文件路径引用 `includes`**（2026-07-23）：票 `11`；顶层单层 `includes` 合并 `items`/`npcs`；路径相对场景目录、内容包轨 `pack_root`；禁嵌套/禁 include 内 rooms；重复 id 拒载；契约/GAP/authoring-guide/CONTEXT；`test_scene_includes.py` + `TestLoadPackIncludes`；fixed point `polishing-wave7-start`；code-review fix：`load_pack` 显式传 `pack_root`、拆复合断言、Comments 钉死 strict 与主场景同限。961 绿。
-- [x] **Polishing Wave 6 落地：随机 objects 表 + 刷怪条件 hooks params**（2026-07-23）：票 `09`/`10`；`RandomObjectSlotBlueprint` / `draw_random_object_template`；`spawn_scan(rng=)`；`bandit_ambush.min_item_value` + `actor_meets_min_item_value`；`xingxiu` 铁剑 `value: 100`；与出口 `random_of` 求值路径分离；UGC hooks S3 仍拒；fixed point `polishing-wave6-start`；code-review fix：物品池对称测、混种候选拒载、item 生成复用 `spawn_item_from_blueprint`。948 绿。
-- [x] **Polishing Wave 5 落地：条件 DSL 文档 + 液体/eat/drink**（2026-07-23）：票 `07`/`08`；`docs/condition-dsl.md`；`RoomResources`/`LiquidContainer`；`fill`/`drink`/`eat`；`DRINK_RESTORE_JINGLI=20` / `EAT_RESTORE_QI=15` / `EAT_RESTORE_JINGLI=10`；未知 `resource.*` 子键加载失败；grass 喂食 GAP 留白；fixed point `polishing-wave5-start`；code-review fix：CONTEXT 词条、S2 liquid 消费测、drink 仅 water。935 绿。
-- [x] **Polishing Wave 4 落地：客店三件套（sleep + hotel + pay）**（2026-07-23）：票 `06`；`HotelRoom`/`RentPaid`；`HOTEL_RENT_COST=10`；睡觉拉满气血/精力；`on_leave_room` 清租；睡房拦 `practice`；`yangzhou_kedian`；fixed point `polishing-wave4-start`；code-review fix：`_parse_pay` 文档、PROGRESS 收口、契约 `details` 形状补记。926 绿。
+- [x] **Polishing Wave 9 落地：局部天气继承实现 + effort 关闭**（2026-07-23）：票 `13`；`LocalNature`/`local_nature`；`resolve_effective_nature`/`nature_snapshot_for_room`/`outdoor_desc_for_room`；户外 look + 条件 DSL（entry_guard/join/AI when/hooks ctx）按房合成；回退 `房间 → World.nature`；[ADR-0013](docs/adr/0013-local-nature-room-sticker.md) `accepted`；契约/GAP/CONTEXT/condition-dsl 回写；`test_local_nature.py`；fixed point `polishing-wave9-start`；code-review fix：合成快照 helper、entry_guard/AI when 集成测。974 绿。**不自动开 M4**。
+- [x] **Polishing Wave 8 落地：局部天气继承 ADR**（2026-07-23）：票 `12`；[ADR-0013](docs/adr/0013-local-nature-room-sticker.md)（当时 `proposed`）：房间级静态贴纸；回退 `房间 → World.nature`；fixed point `polishing-wave8-start`；code-review fix：US44 广播边界。无代码变更。
+- [x] **Polishing Wave 7 落地：多文件路径引用 `includes`**（2026-07-23）：票 `11`；顶层单层 `includes`；fixed point `polishing-wave7-start`；961 绿。
+- [x] **Polishing Wave 6 落地：随机 objects 表 + 刷怪条件 hooks params**（2026-07-23）：票 `09`/`10`；fixed point `polishing-wave6-start`；948 绿。
+- [x] **Polishing Wave 5 落地：条件 DSL 文档 + 液体/eat/drink**（2026-07-23）：票 `07`/`08`；fixed point `polishing-wave5-start`；935 绿。
 
 ## In Progress
 
@@ -34,15 +34,13 @@
 
 ## Next Up
 
-### 1. Polishing Wave 9（新 session）
+### 1. M4 评估（独立拍板）
 
-**目标**：按 [.scratch/polishing/implement-plan.md](.scratch/polishing/implement-plan.md) Wave 9 提示词实现票 [`13`](.scratch/polishing/issues/13-local-weather-implementation.md)（局部天气继承实现）。分支 `feat/polishing`；打 tag `polishing-wave9-start`。**开工前建议单独过一遍 [ADR-0013](docs/adr/0013-local-nature-room-sticker.md)**（架构决策）；落地后把 ADR 状态从 `proposed` 回写 `accepted`。
+独立决定是否开 M4（商业化数据模型）。**不因 Polishing 关闭而自动滑入 M4**。
 
-**约束**：纳入即做；**不自动开 M4**。实现以 ADR-0013 为准（房间贴纸、查询合成、`房间 → World` 回退）。
+### 2.（可选）Polishing S5 端到端矩阵
 
-### 2. M4 评估（可并行拍板，勿与 polishing 混 scope）
-
-独立决定是否开 M4（商业化数据模型）。**不自动滑入 M4**。
+若需要给人看的一页转录：补 `scripts/verify_polishing.py` + `test_verify_polishing_matrix.py`（每项至少一条场景步骤）；正式门禁仍以各票单测为准。
 
 ## 交接约定
 
@@ -51,4 +49,4 @@
 - 旧引擎源码：`git show archive/engine-pre-m1-rewrite:engine/...`，禁止当重写起点。
 - Post-MVP（不进 M0–M4）：[.scratch/mvp-scope/post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)。
 - Pre-M4（加固后、M4 前）：[.scratch/pre-m4-channels-spawn-quest/](.scratch/pre-m4-channels-spawn-quest/)（**已关**）→ [.scratch/pre-m4-engine-room-fidelity/](.scratch/pre-m4-engine-room-fidelity/)（**已关**）→ [.scratch/pre-m4-room-hooks-xingxiu/](.scratch/pre-m4-room-hooks-xingxiu/)（**已关**）。
-- Polishing：[.scratch/polishing/](.scratch/polishing/)（Wave 1–8 已落地；工作分支 `feat/polishing`）。
+- Polishing：[.scratch/polishing/](.scratch/polishing/)（**已关**；工作分支 `feat/polishing`）。

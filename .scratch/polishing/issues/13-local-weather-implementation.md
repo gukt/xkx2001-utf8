@@ -22,8 +22,8 @@ Status: resolved
 
 ## Comments
 
-- **组件 / YAML**：`LocalNature`；`local_nature: { weather?: clear|rain, phase?: <DEFAULT_PHASES ∪ 场景 nature.day_phases 名> }`；两面皆缺不挂组件。
-- **合成 API**：`nature.resolve_effective_nature(world, room_id)` / `outdoor_desc_for_room`；回退两级 `房间贴纸已声明面 → World.nature`（无 region 中间层）。
-- **接入点**：户外 `look`；`EntityGateContext`（默认演员当前房；`entry_guard` 显式 `room_id=to_room`）；`RoomHookContext`；`_JoinContext`；AI `behaviors[].when` 按 NPC 所在房。
+- **组件 / YAML**：`LocalNature`；`local_nature: { weather?: clear|rain, phase?: <DEFAULT_PHASES ∪ 场景 nature.day_phases 名> }`；两面皆缺不挂组件。解析经 `ROOM_CAPABILITIES`（`capabilities.py`），由 `load_scene` 消费——票面写 `scene_loader.py` 指加载路径，非新建平行解析器。
+- **合成 API**：`nature.resolve_effective_nature` / `nature_snapshot_for_room` / `outdoor_desc_for_room`；回退两级 `房间贴纸已声明面 → World.nature`（无 region 中间层）。
+- **接入点**：户外 `look`；`EntityGateContext`（默认演员当前房；`entry_guard` 显式 `room_id=to_room`）；`RoomHookContext`；`_JoinContext`（条件 DSL 接入点之一）；AI `behaviors[].when` 按 NPC 所在房。集成测覆盖 look / gate / entry_guard / chatter when。
 - **ADR-0013**：`proposed` → `accepted`。
-- **不做**：天气→移动/战斗/坐骑数值；第二 `NatureState`；按房分裂 `on_nature_change` 广播。
+- **不做**：天气→移动/战斗/坐骑数值；第二 `NatureState`；按房分裂 `on_nature_change` 广播（US44 邻房互不可见已测；全局广播 vs 贴纸不同步按 ADR 取舍保留）。

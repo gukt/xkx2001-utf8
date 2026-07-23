@@ -1637,23 +1637,17 @@ class _JoinContext:
     """join 命令专用最小 ConditionContext（M2-08；通用 EntityGateContext 见 11 号票）。"""
 
     def __init__(self, world: World, player_id: EntityId) -> None:
-        from mud_engine.nature import resolve_effective_nature
+        from mud_engine.nature import nature_snapshot_for_room
 
         self._world = world
         self._player_id = player_id
         room = world.get_component(player_id, Position)
         room_id = room.room if room is not None else None
-        eff = resolve_effective_nature(world, room_id)
-        if eff is None:
-            self.phase = "day"
-            self.is_night = False
-            self.is_day = True
-            self.is_raining = False
-        else:
-            self.phase = eff.phase
-            self.is_night = eff.is_night
-            self.is_day = eff.is_day
-            self.is_raining = eff.is_raining
+        eff = nature_snapshot_for_room(world, room_id)
+        self.phase = eff.phase
+        self.is_night = eff.is_night
+        self.is_day = eff.is_day
+        self.is_raining = eff.is_raining
         faction = world.get_component(player_id, Faction)
         self.faction_id = faction.faction_id if faction else None
         self.has_faction = self.faction_id is not None

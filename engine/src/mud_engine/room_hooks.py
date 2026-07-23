@@ -394,7 +394,7 @@ class RoomHookContext:
         params: Mapping[str, object] | None = None,
         tick: int | None = None,
     ) -> None:
-        from mud_engine.nature import resolve_effective_nature
+        from mud_engine.nature import nature_snapshot_for_room
 
         self._world = world
         self.room_id = room_id
@@ -402,17 +402,11 @@ class RoomHookContext:
         self.params: Mapping[str, object] = dict(params) if params is not None else {}
         self.tick = tick
         # 绑定本房贴纸合成读数（ADR-0013）；无 Nature 时与今日缺省一致。
-        eff = resolve_effective_nature(world, room_id)
-        if eff is None:
-            self.phase = "day"
-            self.is_night = False
-            self.is_day = True
-            self.is_raining = False
-        else:
-            self.phase = eff.phase
-            self.is_night = eff.is_night
-            self.is_day = eff.is_day
-            self.is_raining = eff.is_raining
+        eff = nature_snapshot_for_room(world, room_id)
+        self.phase = eff.phase
+        self.is_night = eff.is_night
+        self.is_day = eff.is_day
+        self.is_raining = eff.is_raining
 
     # ── 出口 ──────────────────────────────────────────────
 

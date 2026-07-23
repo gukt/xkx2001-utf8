@@ -17,6 +17,7 @@ from mud_engine.errors import SceneLoadError
 from mud_engine.nature import Weather, attach_nature, resolve_effective_nature
 from mud_engine.parsing import execute_line
 from mud_engine.scene_loader import load_scene
+from mud_engine.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -159,3 +160,88 @@ class TestConditionPredicatesLocalNature:
         assert gate.is_night is False
         assert gate.phase == "day"
         assert evaluate(Predicate("is_day"), gate) is True
+
+    def test_entry_guard_uses_destination_room_sticker(self, tmp_path: Path) -> None:
+        """World 白天时，目标房贴纸 is_night 仍拒入 day_shop 式门禁。"""
+        scene = """rooms:
+  plain:
+    name: 平原
+    outdoors: true
+    exits:
+      north: shrine
+  shrine:
+    name: 夜祠
+    outdoors: true
+    local_nature:
+      phase: night
+    entry_guard:
+      condition:
+        predicate: is_day
+      deny_message: 夜祠白日不开。
+    exits:
+      south: plain
+player:
+  name: 你
+  start_room: plain
+"""
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        attach_nature(world, weather=Weather.CLEAR).seek_phase("day")
+        lines = execute_line(world, player_id, "go north")
+        assert any("夜祠白日不开" in line for line in lines)
+        look = execute_line(world, player_id, "look")
+        assert any("平原" in line for line in look)
+
+
+class TestAiWhenLocalNature:
+    def test_chatter_when_uses_npc_room_sticker(self, tmp_path: Path) -> None:
+        """World 白天时，贴纸夜房里的 is_night chatter 仍应说话。"""
+        scene = """rooms:
+  plain:
+    name: 平原
+    outdoors: true
+    exits:
+      north: peak
+  peak:
+    name: 山顶
+    outdoors: true
+    local_nature:
+      phase: night
+    exits:
+      south: plain
+    objects:
+      owl: 1
+npcs:
+  owl:
+    name: 夜枭
+    short: 夜枭
+    long: 一只夜枭。
+    behaviors:
+      - kind: chatter
+        chat_msgs:
+          - 夜深了。
+        chat_chance: 1.0
+        when:
+          predicate: is_night
+player:
+  name: 你
+  start_room: peak
+"""
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        attach_nature(world, weather=Weather.CLEAR).seek_phase("day")
+        assert world.ai is not None
+        world.ai.rng = _AlwaysSpeakRng()
+        # 玩家须在同房才能从 pending 收到 room_say；已 start_room: peak。
+        loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
+        world.pending_messages.clear()
+        loop.advance()
+        assert any("夜枭说：夜深了。" in m for m in world.pending_messages)
+
+
+class _AlwaysSpeakRng:
+    """chat_chance / choice 恒命中。"""
+
+    def random(self) -> float:
+        return 0.0
+
+    def choice(self, seq):  # noqa: ANN001
+        return seq[0]
