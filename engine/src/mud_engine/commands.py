@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from mud_engine import lookup
 from mud_engine.components import (
     MOUNT_JINGLI_PER_TERRAIN_COST,
+    WALK_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
     BlockExits,
     Container,
@@ -453,13 +454,21 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         return ["那个方向的门关着，过不去。"]
 
     # 骑乘地形校验（M2-15）：在移动前；不通过则不消耗坐骑精力。
+    # 步行精力校验（Polishing-05）：仅非骑乘且挂 Vitals 时；不足则拒走，不引入昏迷。
     riding = world.get_component(player_id, Riding)
+    terrain = world.get_component(passage.target, Terrain)
+    cost = 1 if terrain is None else terrain.cost
+    walk_drain = 0
     if riding is not None:
         mount = world.get_component(riding.mount_id, Mount)
-        terrain = world.get_component(passage.target, Terrain)
-        cost = 1 if terrain is None else terrain.cost
         if mount is not None and cost > mount.ability:
             return ["这地方骑不过去。"]
+    else:
+        vitals = world.get_component(player_id, Vitals)
+        if vitals is not None:
+            walk_drain = cost * WALK_JINGLI_PER_TERRAIN_COST
+            if vitals.jingli_current < walk_drain:
+                return ["你精力不足，走不动了。"]
 
     # before：先离房否决（迷途等），再进房否决。任一否决则不移动、不触发 enter/leave。
     move_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)
@@ -502,6 +511,9 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
                 riding_line = f"你骑着{mount_name}前行。"
         else:
             riding_line = f"你骑着{mount_name}前行。"
+    elif walk_drain > 0:
+        vitals = world.require_component(player_id, Vitals)
+        vitals.jingli_current -= walk_drain
     # after：先离开旧房间、再进入新房间（对应 LPC move 先 leave 旧环境再 enter 新）。
     # 两者共用 EnterRoomContext 形状，事件名区分语义。fire-and-forget 不短路。
     enter_ctx = EnterRoomContext(player_id=player_id, from_room=room, to_room=passage.target)

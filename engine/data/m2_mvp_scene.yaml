@@ -801,8 +801,8 @@ player:
     qi_max: 100
     neili: 50
     neili_max: 50
-    jingli: 50
-    jingli_max: 50
+    jingli: 100
+    jingli_max: 100
   attributes:
     str: 15
     con: 12

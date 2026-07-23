@@ -666,6 +666,10 @@ class Terrain:
 # 系数放命名常量，避免散落魔法数字；题材包若需调速可日后改此常量或升为场景参数。
 MOUNT_JINGLI_PER_TERRAIN_COST: int = 1
 
+# 步行移动扣玩家精力：``jingli_cost = Terrain.cost * WALK_JINGLI_PER_TERRAIN_COST``。
+# 仅非骑乘分支生效；缺省地形 cost=1，与骑乘分支缺省对齐。
+WALK_JINGLI_PER_TERRAIN_COST: int = 2
+
 
 # ── 门槏与身份快照辅助（M2-11 / spec E2）────────────────────────────────
 

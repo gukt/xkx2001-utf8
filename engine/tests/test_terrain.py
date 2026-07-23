@@ -1,10 +1,22 @@
-"""M2-15：Terrain + 骑乘通行校验 / 精力扣减 / 精力耗尽摔落。"""
+"""M2-15：Terrain + 骑乘通行校验 / 精力扣减 / 精力耗尽摔落。
+
+Polishing-05：步行亦按 ``Terrain.cost * WALK_JINGLI_PER_TERRAIN_COST`` 扣玩家精力。
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Exits, Identity, Mount, Position, Riding, Terrain, Unconscious
+from mud_engine.components import (
+    Exits,
+    Identity,
+    Mount,
+    Position,
+    Riding,
+    Terrain,
+    Unconscious,
+    Vitals,
+)
 from mud_engine.parsing import execute_line
 from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
@@ -55,6 +67,33 @@ player:
   start_room: stable
 """
 
+_WALK_SCENE = """rooms:
+  a:
+    name: 平地
+    exits:
+      north: b
+      east: hard
+  b:
+    name: 缓坡
+    cost: 2
+    exits:
+      south: a
+  hard:
+    name: 陡坡
+    cost: 5
+    exits:
+      west: a
+npcs: {}
+player:
+  name: 你
+  start_room: a
+  vitals:
+    qi: 100
+    neili: 50
+    jingli: 10
+    jingli_max: 10
+"""
+
 
 class TestTerrainMountLimits:
     def test_ride_rejected_when_terrain_cost_exceeds_ability(self, tmp_path: Path) -> None:
@@ -68,10 +107,12 @@ class TestTerrainMountLimits:
         assert world.require_component(mount, Mount).jingli_current == jingli_before
         assert world.has_component(player_id, Riding)
 
-    def test_walk_ignores_terrain_cost(self, tmp_path: Path) -> None:
+    def test_walk_ignores_mount_ability_gate(self, tmp_path: Path) -> None:
+        """步行不走坐骑 ability 门禁（无 Vitals 时亦不扣玩家精力）。"""
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
         lines = execute_line(world, player_id, "go east")
         assert not any("骑不过去" in line for line in lines)
+        assert not any("精力不足" in line for line in lines)
         assert world.require_component(player_id, Position).room == _room_by_name(world, "悬崖")
 
     def test_riding_deducts_mount_jingli_by_terrain_cost(self, tmp_path: Path) -> None:
@@ -119,3 +160,72 @@ class TestTerrainMountLimits:
         assert not restored.has_component(rid, Riding)
         assert restored.has_component(mount, Unconscious)
         assert restored.require_component(mount, Mount).jingli_current == 0
+
+
+class TestWalkingTerrainJingli:
+    def test_walk_deducts_jingli_when_enough(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _WALK_SCENE))
+        # cost=2 → drain=4；jingli=10 → 剩 6
+        lines = execute_line(world, player_id, "go north")
+        assert not any("精力不足" in line for line in lines)
+        assert world.require_component(player_id, Position).room == _room_by_name(world, "缓坡")
+        assert world.require_component(player_id, Vitals).jingli_current == 6
+
+    def test_walk_rejected_when_jingli_insufficient(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _WALK_SCENE))
+        vitals = world.require_component(player_id, Vitals)
+        vitals.jingli_current = 3  # cost=5 → drain=10，不足
+        before = world.require_component(player_id, Position).room
+        lines = execute_line(world, player_id, "go east")
+        assert any("精力不足" in line for line in lines)
+        assert world.require_component(player_id, Position).room == before
+        assert vitals.jingli_current == 3
+
+    def test_walk_exact_jingli_allows_and_drains_to_zero(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _WALK_SCENE))
+        vitals = world.require_component(player_id, Vitals)
+        vitals.jingli_current = 4  # cost=2 → drain=4，恰好
+        lines = execute_line(world, player_id, "go north")
+        assert not any("精力不足" in line for line in lines)
+        assert world.require_component(player_id, Position).room == _room_by_name(world, "缓坡")
+        assert vitals.jingli_current == 0
+
+    def test_riding_skips_player_walk_jingli_drain(self, tmp_path: Path) -> None:
+        """Riding 存在时只扣坐骑精力，不叠加步行玩家精力消耗。"""
+        scene = """rooms:
+  stable:
+    name: 马厩
+    exits:
+      north: road
+    objects:
+      horse: 1
+  road:
+    name: 官道
+    cost: 2
+    exits:
+      south: stable
+npcs:
+  horse:
+    name: 黄骠马
+    mount:
+      ability: 5
+      jingli_current: 10
+      jingli_max: 80
+player:
+  name: 你
+  start_room: stable
+  vitals:
+    qi: 100
+    neili: 50
+    jingli: 10
+    jingli_max: 10
+"""
+        world, player_id = load_scene(_write_scene(tmp_path, scene))
+        execute_line(world, player_id, "ride 黄骠马")
+        mount = world.require_component(player_id, Riding).mount_id
+        player_before = world.require_component(player_id, Vitals).jingli_current
+        mount_before = world.require_component(mount, Mount).jingli_current
+        execute_line(world, player_id, "go north")
+        assert world.require_component(player_id, Position).room == _room_by_name(world, "官道")
+        assert world.require_component(player_id, Vitals).jingli_current == player_before
+        assert world.require_component(mount, Mount).jingli_current == mount_before - 2
