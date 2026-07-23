@@ -18,7 +18,7 @@
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **Polishing `/to-tickets`**（2026-07-23）：把 [.scratch/polishing/spec.md](.scratch/polishing/spec.md) 13 项按候选 ID 顺序拆成 [.scratch/polishing/issues/](.scratch/polishing/issues/) `01`–`13`（A1+A2→`01`，A3→`02`(blocked by `01`)，A4→`03`，A5→`04`，B6→`05`，B8→`06`，B9→`07`，C10→`08`，C11→`09`，C12→`10`，C13→`11`，C14 ADR→`12`，C14 实现→`13`(blocked by `12`)）；B8 三项开放子决策已由架构师拍板钉死（`sleep_room` 沿用现有 `no_sleep_room`；付费用新 `pay` 命令；睡房拦练功独立实现不共用 `LibraryRoom`），写入票 `06` 与 [to-tickets-notes.md](.scratch/polishing/to-tickets-notes.md)。**未**开实现。同 session 先把 `feat/pre-m4-room-hooks-xingxiu` 合并进 master 并推送，新开 `feat/polishing` 分支承载本 effort 实现。
+- [x] **Polishing `/to-tickets` + implement-plan**（2026-07-23）：把 [.scratch/polishing/spec.md](.scratch/polishing/spec.md) 13 项按候选 ID 顺序拆成 [.scratch/polishing/issues/](.scratch/polishing/issues/) `01`–`13`（A1+A2→`01`，A3→`02`(blocked by `01`)，A4→`03`，A5→`04`，B6→`05`，B8→`06`，B9→`07`，C10→`08`，C11→`09`，C12→`10`，C13→`11`，C14 ADR→`12`，C14 实现→`13`(blocked by `12`)）；B8 三项开放子决策已由架构师拍板钉死（`sleep_room` 沿用现有 `no_sleep_room`；付费用新 `pay` 命令；睡房拦练功独立实现不共用 `LibraryRoom`），写入票 `06` 与 [to-tickets-notes.md](.scratch/polishing/to-tickets-notes.md)；补 [implement-plan.md](.scratch/polishing/implement-plan.md)（9 Wave + 提示词模板，仿 pre-m4-room-hooks-xingxiu 格式）。**未**开实现。同 session 先把 `feat/pre-m4-room-hooks-xingxiu` 合并进 master 并推送，新开 `feat/polishing` 分支承载本 effort 实现。
 - [x] **Polishing `/to-spec`**（2026-07-23）：按序读 PROGRESS/CLAUDE+CONTEXT/session-notes/provenance/gap-ledger 后，把 grill 拍板的 13 项（A1+A2、A3、A4、A5、B6、B8、B9、C10、C11、C12、C13、C14）转成 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)：逐项 Problem/User Stories/Implementation Decisions（含开放子决策标注）/Testing Decisions（复用既有 `execute_line`/`load_scene`/`--pack --validate`/`spawn_scan` seam，不新增 seam）；C14 标「先出 ADR 再实现」两票拆分要求；C12 标「只走官方 hooks params，不扩条件 DSL」。**未**开实现、**未**改契约/加载器、**未**把已纳入项踢出 scope。效力目录定名 `.scratch/polishing/`。
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 7 收口（effort 关闭）**（2026-07-22）：票 `11`；UGC `hooks` 边界复核；契约「官方轨专属 hooks」+ GAP「运行时改世界机关」+ CONTEXT 回写；`test_xingxiu_mechanics_closeout` S3 清单；fixed point `pre-m4-room-hooks-xingxiu-wave7-start`；code-review fix：补 PROGRESS/archive 与票/README 对齐。861 绿。**不自动开 M4**。
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 6 落地：柔丝索跨玩家捕获**（2026-07-22）：票 `10`；`SilkRopeCaptureBehavior`/`silk_rope`；`CombatContext` 可选 `world`/`defender_id`；`hit_ob` 直调 `relocate_entity`；切片 `silk_yard`/`silk_prison`；fixed point `pre-m4-room-hooks-xingxiu-wave6-start`；code-review fix：纯函数契约文档对齐、未 relocate 不播报捕获、双会话测挂 `PlayerSession`、去掉未用 `attacker_id`。859 绿。
@@ -36,23 +36,23 @@
 
 ### 1. Polishing `/implement`（新 session 主线）
 
-**目标**：按依赖顺序认领 [.scratch/polishing/issues/](.scratch/polishing/issues/) `01`–`13`，逐票落地。工作分支 `feat/polishing`。
+**目标**：按 [.scratch/polishing/implement-plan.md](.scratch/polishing/implement-plan.md) 9 Wave 执行手册，逐 wave 认领 [.scratch/polishing/issues/](.scratch/polishing/issues/) `01`–`13`。工作分支 `feat/polishing`。
 
-**可立即开工（无阻塞，可并行）**：`01`（出口导航别名）、`03`（房间风景 details 升级）、`04`（block_exits 拒走文案）、`05`（步行 cost 精力）、`06`（客店三件套）、`07`（条件 DSL 文档化）、`08`（液体/eat/drink）、`09`（随机 objects 表）、`10`（刷怪条件扩展）、`11`（多文件 includes）、`12`（局部天气 ADR）。
-**有阻塞**：`02`（A3，blocked by `01`）；`13`（C14 实现，blocked by `12`）。
+**Wave 顺序**：`01`+`02` → `03` → `04`+`05` → `06` → `07`+`08` → `09`+`10` → `11` → `12`（C14 ADR，无阻塞可提前插队）→ `13`（blocked by `12`）。
 
 **开工读**（按序）：
 1. [PROGRESS.md](PROGRESS.md)（本文件）
 2. [CLAUDE.md](CLAUDE.md) + [CONTEXT.md](CONTEXT.md)
 3. [.scratch/polishing/spec.md](.scratch/polishing/spec.md)（**权威规格**）+ [.scratch/polishing/to-tickets-notes.md](.scratch/polishing/to-tickets-notes.md)（拆票依据 + 已钉死的开放子决策）
-4. 认领的具体票 [.scratch/polishing/issues/NN-*.md](.scratch/polishing/issues/)
+4. [.scratch/polishing/implement-plan.md](.scratch/polishing/implement-plan.md)（**执行手册**：Wave 提示词模板，直接复制进新 session）
 5. 需要出处背景时再翻 [.scratch/polishing-candidate-review/](.scratch/polishing-candidate-review/)（session-notes 拍板 + provenance LPC 出处）
 
 **新 session 建议第一句**：
-`@PROGRESS.md /implement .scratch/polishing/issues/01-exit-navigation-aliases.md`（或其它无阻塞票号）
+复制 [implement-plan.md](.scratch/polishing/implement-plan.md)「Wave 1」提示词模板
 
 **约束**：
 - **纳入即做**（13 票全部本阶段必须落地，不得以「太大」为由后置）
+- **每个 Wave 结束跑 `/code-review`**（fixed point：`polishing-wave{N}-start` tag），修完 fix 才进下一 wave
 - **每票关闭回写**：`docs/gap-ledger.md` / `docs/creator-contract-v0.md` / `CONTEXT.md`（清单见 spec.md「Further Notes」收尾回写清单）；effort 整体关闭时建议产出 `scripts/verify_polishing.py` + `test_verify_polishing_matrix.py`（S5，参考兄弟批手法）
 - **不自动开 M4**
 

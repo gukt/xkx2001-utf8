@@ -14,8 +14,8 @@
 |---|---|
 | 状态 | `/to-spec` 已完成；`/to-tickets` 已拆 13 票（`01`–`13`），待 `/implement` |
 | 决策 | grill 拍板 [session-notes-2026-07-23.md](../polishing-candidate-review/session-notes-2026-07-23.md) + [session-qa-provenance-2026-07-23.md](../polishing-candidate-review/session-qa-provenance-2026-07-23.md) |
-| Spec / 票 | [spec.md](spec.md)；[issues/](issues/) `01`–`13`；拆票分析见 [to-tickets-notes.md](to-tickets-notes.md) |
-| 下一步 | 工作票 `01`（无阻塞）起 `/implement`；`14`（C14 ADR）也可与其它票并行开工 |
+| Spec / 票 | [spec.md](spec.md)；[issues/](issues/) `01`–`13`；拆票分析见 [to-tickets-notes.md](to-tickets-notes.md)；执行手册（9 Wave）见 [implement-plan.md](implement-plan.md) |
+| 下一步 | 按 [implement-plan.md](implement-plan.md) Wave 1（`01`+`02`）起 `/implement`；`12`（C14 ADR）无阻塞可提前插队 |
 | 不走 | `/wayfinder`；`--strict`/`--validate`/加载器代码本 session 已改；把打磨项并入 M4 商业化叙事；关完自动滑入 M4 |
 
 ## 与相邻交付物的关系
