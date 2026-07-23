@@ -24,6 +24,7 @@ from mud_engine.components import (
     RoomFreeState,
     RoomHookBinding,
     SkillLevels,
+    Valuable,
 )
 from mud_engine.events import ON_TICK, Deny, TickContext
 from mud_engine.world import EntityId, World
@@ -307,11 +308,18 @@ class BanditAmbushHook:
     YAML ``hooks.params``::
 
         npc: <SpawnerBlueprint / NpcSpawnMeta.template_key>
+        min_item_value: <可选 int；缺省不启用贵重物门槛>
+
+    ``min_item_value`` 只经 ``RoomHookContext.actor_meets_min_item_value`` 判定，
+    **不**扩展 ``conditions.py`` / 条件 DSL（ADR-0012 / Polishing C12）。
     """
 
     HOOK_ID = "bandit_ambush"
 
     def on_enter(self, ctx: RoomHookContext) -> None:
+        raw_min = ctx.params.get("min_item_value")
+        if raw_min is not None and not ctx.actor_meets_min_item_value(int(raw_min)):
+            return
         npc_key = str(ctx.params["npc"])
         if ctx.find_npc_in_room(npc_key) is not None:
             return
@@ -494,6 +502,29 @@ class RoomHookContext:
             if tags is not None and tag in tags.tags:
                 return True
         return False
+
+    def actor_meets_min_item_value(self, min_value: int) -> bool:
+        """背包非货币物品价值是否达阈值（官方刷怪钩子用；不进条件 DSL）。
+
+        扫描带 ``Valuable`` 的背包物品：任一单件 ``value >= min_value``，或总和
+        ``>= min_value`` 即通过。角色 ``Currency`` 银两不计。
+        """
+        if min_value <= 0:
+            return True
+        if self.actor_id is None:
+            return False
+        bag = self._world.get_component(self.actor_id, Container)
+        if bag is None:
+            return False
+        total = 0
+        for item in bag.items:
+            valuable = self._world.get_component(item, Valuable)
+            if valuable is None:
+                continue
+            if valuable.value >= min_value:
+                return True
+            total += valuable.value
+        return total >= min_value
 
     def actor_faction_id(self) -> str | None:
         """触发实体的 ``Faction.faction_id``；无组件或未入派返回 ``None``。"""

@@ -262,6 +262,31 @@ class TestSceneHookMountS2:
         assert hook.enters == []
 
 
+_UGC_BANDIT_MIN_VALUE_SCENE = """rooms:
+  start:
+    name: 起点
+    exits:
+      north: trail
+  trail:
+    name: 劫径
+    exits:
+      south: start
+    objects:
+      road_bandit: 0
+    hooks:
+      hook_id: bandit_ambush
+      params:
+        npc: road_bandit
+        min_item_value: 100
+npcs:
+  road_bandit:
+    name: 劫匪
+player:
+  name: 你
+  start_room: start
+"""
+
+
 class TestUgcRejectsHooksS2:
     def test_pack_track_rejects_hooks_field(self, tmp_path: Path) -> None:
         pack = tmp_path / "pack"
@@ -272,6 +297,18 @@ class TestUgcRejectsHooksS2:
         )
         (pack / "scene.yaml").write_text(_OFFICIAL_SCENE, encoding="utf-8")
         register_room_hook("test_dummy", RecordingHook())
+        with pytest.raises(SceneLoadError, match="hooks|内容包|UGC|官方"):
+            load_pack(pack)
+
+    def test_pack_rejects_bandit_ambush_min_item_value_params(self, tmp_path: Path) -> None:
+        """S3 / C12：UGC 包声明 hooks（含 min_item_value）仍必须失败——未打开缺口。"""
+        pack = tmp_path / "pack"
+        pack.mkdir()
+        (pack / "manifest.yaml").write_text(
+            "id: ugc_bandit\nversion: 0.0.1\n",
+            encoding="utf-8",
+        )
+        (pack / "scene.yaml").write_text(_UGC_BANDIT_MIN_VALUE_SCENE, encoding="utf-8")
         with pytest.raises(SceneLoadError, match="hooks|内容包|UGC|官方"):
             load_pack(pack)
 

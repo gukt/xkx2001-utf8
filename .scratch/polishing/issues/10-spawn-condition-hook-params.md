@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 10 — C12 刷怪条件扩展（官方 hooks 参数化）
@@ -10,11 +10,21 @@ Status: ready-for-agent
 
 **Blocked by:** None — 可立即开始。
 
-- [ ] `room_hooks.py`：`bandit_ambush`（及后续同类刷怪钩子）读取 `ctx.params` 里的 `min_item_value`（可选，缺省则不启用该条件，行为与现状一致）；实现「触发实体背包非货币物品价值总和/单件达到阈值」判定函数，供刷怪钩子内部调用。
-- [ ] 不改动 `ai.py` 条件求值器或 `conditions.py`：本票不新增任何 DSL 谓词/字段（如不新增 `has_item_value_gte`）。
-- [ ] 验收对照：`min_item_value` 阈值/触发概率数值为本引擎自定义可调参数，不追求与 LPC 源码位一致（ADR-0001，不做行为等价验证）。
-- [ ] `engine/data/xingxiu_mechanics.yaml`（或既有 `bandit_ambush` 验收房间）补充/调整一条使用 `min_item_value` 的场景切片，用于测试锚点。
-- [ ] `docs/gap-ledger.md`：「运行时改世界机关」行补一句「贵重物等条件走官方 hooks params，已落地」。
-- [ ] `test_room_hooks.py`/`test_xingxiu_mechanics_08.py`（现有 `bandit_ambush` 测试文件）扩展 `params.min_item_value` 用例：达阈值触发、未达阈值不触发。
-- [ ] S3 回归：UGC 包声明 `hooks`（含本票新增的 `params` 形状）仍必须失败，复用既有 ADR-0012 边界测试模式，确认本次扩展未打开 UGC 缺口。
-- [ ] `just test` 全绿。
+- [x] `room_hooks.py`：`bandit_ambush`（及后续同类刷怪钩子）读取 `ctx.params` 里的 `min_item_value`（可选，缺省则不启用该条件，行为与现状一致）；实现「触发实体背包非货币物品价值总和/单件达到阈值」判定函数，供刷怪钩子内部调用。
+- [x] 不改动 `ai.py` 条件求值器或 `conditions.py`：本票不新增任何 DSL 谓词/字段（如不新增 `has_item_value_gte`）。
+- [x] 验收对照：`min_item_value` 阈值/触发概率数值为本引擎自定义可调参数，不追求与 LPC 源码位一致（ADR-0001，不做行为等价验证）。
+- [x] `engine/data/xingxiu_mechanics.yaml`（或既有 `bandit_ambush` 验收房间）补充/调整一条使用 `min_item_value` 的场景切片，用于测试锚点。
+- [x] `docs/gap-ledger.md`：「运行时改世界机关」行补一句「贵重物等条件走官方 hooks params，已落地」。
+- [x] `test_room_hooks.py`/`test_xingxiu_mechanics_08.py`（现有 `bandit_ambush` 测试文件）扩展 `params.min_item_value` 用例：达阈值触发、未达阈值不触发。
+- [x] S3 回归：UGC 包声明 `hooks`（含本票新增的 `params` 形状）仍必须失败，复用既有 ADR-0012 边界测试模式，确认本次扩展未打开 UGC 缺口。
+- [x] `just test` 全绿。
+
+## Comments
+
+**实现摘要（2026-07-23）**
+
+- 判定：`RoomHookContext.actor_meets_min_item_value(min_value)`——背包 `Valuable` 单件或总和达阈值；角色 `Currency` 不计。
+- 钩子：`bandit_ambush` 读可选 `params.min_item_value`；缺省行为与扩展前一致。
+- 验收切片：`xingxiu_mechanics.yaml` 的 `ambush_trail` 设 `min_item_value: 100`；峰脚 `iron_sword` 设 `value: 100`（先 `get 铁剑` 再进小径才刷怪）。
+- 阈值 `100` 为本引擎可调参数，不做 LPC 位等价（ADR-0001）。
+- 未改 `conditions.py` / `ai.condition_from_data`；UGC 含 `hooks`+`min_item_value` 仍加载失败（S3）。

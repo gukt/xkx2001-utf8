@@ -318,9 +318,12 @@ def _scenario_magnetic_iron() -> ScenarioResult:
 def _scenario_bandit_ambush() -> ScenarioResult:
     world, player_id = load_xingxiu_mechanics()
     ambush = world.room_ids["ambush_trail"]
+    # C12：须先持有达阈值贵重物（峰脚铁剑 value=100）才触发刷怪
+    get_msgs = execute_line(world, player_id, "get 铁剑")
     enter = _go_with_mailbox(world, player_id, "go path")
     ok, detail = check(enter, Expect(any_of=("劫匪", "拦")))
     steps = [
+        StepResult(line="get 铁剑", messages=get_msgs, ok=True, detail="ok"),
         StepResult(line="go path", messages=enter, ok=ok, detail=detail),
         assert_step(
             "(assert) 劫匪已生成",

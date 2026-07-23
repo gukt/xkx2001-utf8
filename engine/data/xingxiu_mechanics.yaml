@@ -257,6 +257,8 @@ rooms:
       hook_id: bandit_ambush
       params:
         npc: road_bandit
+        # C12：背包非货币物品价值门槛（与峰脚铁剑 value 对齐；无贵重物不刷）
+        min_item_value: 100
   ambush_end:
     name: 小径尽头
     long: 劫匪拦路之后才能到达的空地。
@@ -325,6 +327,7 @@ items:
     - 剑
     short: 一把铁剑
     long: 普通铁剑，入玉厅恐被磁力所吸。
+    value: 100
     tags:
     - iron
 npcs:

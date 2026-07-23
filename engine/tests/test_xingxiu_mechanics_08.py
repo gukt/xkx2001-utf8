@@ -9,6 +9,8 @@ import pytest
 from mud_engine.components import (
     BlockEntry,
     BlockExits,
+    Container,
+    Currency,
     Exit,
     Exits,
     Identity,
@@ -16,6 +18,7 @@ from mud_engine.components import (
     PlayerSession,
     Position,
     RoomHookBinding,
+    Valuable,
 )
 from mud_engine.parsing import execute_line
 from mud_engine.room_hooks import (
@@ -187,6 +190,48 @@ class TestBanditAmbushCommandS1:
         )
 
 
+class TestBanditAmbushMinItemValueC12:
+    """C12：params.min_item_value 贵重物门槛（钩子内部，不进 DSL）。"""
+
+    def test_below_threshold_does_not_spawn(self) -> None:
+        world, trail, player = _minimal_ambush_world()
+        binding = world.require_component(trail, RoomHookBinding)
+        binding.params = {**binding.params, "min_item_value": 100}
+        world.add_component(player, Container())
+        # 银两再多也不计；无 Valuable 物品
+        world.add_component(player, Currency(amount=9999))
+        BanditAmbushHook().on_enter(_ctx(world, trail, player))
+        assert _bandit_in_room(world, trail) is None
+        assert world.drain_messages(player) == []
+
+    def test_single_item_at_threshold_spawns(self) -> None:
+        world, trail, player = _minimal_ambush_world()
+        binding = world.require_component(trail, RoomHookBinding)
+        binding.params = {**binding.params, "min_item_value": 100}
+        bag = Container()
+        gem = world.create_entity()
+        world.add_component(gem, Valuable(value=100))
+        world.add_component(gem, Identity(name="玉佩"))
+        bag.items.add(gem)
+        world.add_component(player, bag)
+        BanditAmbushHook().on_enter(_ctx(world, trail, player))
+        assert _bandit_in_room(world, trail) is not None
+
+    def test_sum_of_items_reaches_threshold(self) -> None:
+        world, trail, player = _minimal_ambush_world()
+        binding = world.require_component(trail, RoomHookBinding)
+        binding.params = {**binding.params, "min_item_value": 100}
+        bag = Container()
+        for value in (40, 60):
+            item = world.create_entity()
+            world.add_component(item, Valuable(value=value))
+            world.add_component(item, Identity(name=f"物{value}"))
+            bag.items.add(item)
+        world.add_component(player, bag)
+        BanditAmbushHook().on_enter(_ctx(world, trail, player))
+        assert _bandit_in_room(world, trail) is not None
+
+
 class TestXingxiuMechanics08Slice:
     def test_slice_has_ambush_binding(self) -> None:
         world, _pid = load_xingxiu_mechanics()
@@ -195,15 +240,24 @@ class TestXingxiuMechanics08Slice:
         binding = world.require_component(room, RoomHookBinding)
         assert binding.hook_id == "bandit_ambush"
         assert binding.params.get("npc") == "road_bandit"
+        assert binding.params.get("min_item_value") == 100
         block = world.require_component(room, BlockExits)
         assert block.by_direction.get("north") == BlockEntry(npc_template="road_bandit")
         assert "road_bandit" in world.spawners
         assert world.spawners["road_bandit"].desired_count == 0
         assert _bandit_in_room(world, room) is None
 
+    def test_slice_without_valuables_no_ambush(self) -> None:
+        world, player_id = load_xingxiu_mechanics()
+        ambush = world.room_ids["ambush_trail"]
+        execute_line(world, player_id, "go path")
+        assert world.require_component(player_id, Position).room == ambush
+        assert _bandit_in_room(world, ambush) is None
+
     def test_slice_ambush_path_playable(self) -> None:
         world, player_id = load_xingxiu_mechanics()
         ambush = world.room_ids["ambush_trail"]
+        execute_line(world, player_id, "get 铁剑")
         execute_line(world, player_id, "go path")
         assert world.require_component(player_id, Position).room == ambush
         assert _bandit_in_room(world, ambush) is not None
