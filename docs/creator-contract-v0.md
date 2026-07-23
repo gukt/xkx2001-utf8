@@ -36,13 +36,15 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`, `hotel`
 
 `objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 
-房间风景：`details` 为键 → 描述字符串；可含语义色 markup；不占 `objects`、不可 `get`。`look <键>` 在同房实体未命中后查本映射。
+房间风景：`details` 为键 → 描述字符串或 `{text, aliases?}`；可含语义色 markup；不占 `objects`、不可 `get`。`look <键|别名>` 在同房实体未命中后查本映射。
 
-房间旗标：`no_fight` / `no_steal` / `no_sleep_room`（布尔）。`no_fight` 拦 `attack`/`kill`；后二者可声明并校验，无对应命令面时行为 inert。
+房间旗标：`no_fight` / `no_steal` / `no_sleep_room`（布尔）。`no_fight` 拦 `attack`/`kill`；`no_sleep_room` 拦 `sleep`；`no_steal` 可声明并校验，无对应命令面时行为 inert。
+
+客店：`hotel: true` 挂客店房——须先 `pay <同房店家 NPC>` 付固定房钱（引擎常量，当前 10 两）置 `rent_paid` 后才能 `sleep`；离开该房清除已付状态。挂 `hotel` 的房间同房拦 `practice`（与 `library` 并列、不共用组件）。普通房间默认允许 `sleep`（恢复气血/精力至上限，内力不变），除非声明 `no_sleep_room: true`。
 
 日间店：`day_shop: true` 加载期编成白天放行的 `entry_guard`（谓词 `is_day`，拒入文案「晚上不开门。」）。同房不得再手写 `entry_guard`（冲突则加载失败）。
 

@@ -62,6 +62,8 @@ UNCONSCIOUS_BLOCKED_VERBS: frozenset[str] = frozenset(
         "buy",
         "sell",
         "ask",
+        "pay",
+        "sleep",
         "join",
         "open",
         "close",

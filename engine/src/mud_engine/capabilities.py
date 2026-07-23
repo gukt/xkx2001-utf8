@@ -48,12 +48,14 @@ from mud_engine.components import (
     Faction,
     Ferry,
     Gender,
+    HotelRoom,
     Inquiry,
     ItemFlags,
     ItemTags,
     LibraryRoom,
     Mount,
     NoDeathZone,
+    RentPaid,
     Riding,
     RoomDetails,
     RoomFlags,
@@ -754,6 +756,28 @@ def _des_room_flags(d: dict) -> RoomFlags:
     )
 
 
+def _parse_hotel_room(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> HotelRoom | None:
+    """``hotel: true`` → 挂 HotelRoom；缺省 / false 不挂。"""
+    raw = data.get("hotel")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return HotelRoom()
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'hotel' 应是 true/false，实际是 {raw!r}"
+    )
+
+
+def _ser_hotel_room(_c: HotelRoom) -> dict:
+    return {}
+
+
+def _des_hotel_room(_d: dict) -> HotelRoom:
+    return HotelRoom()
+
+
 def _parse_library_room(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> LibraryRoom | None:
@@ -877,6 +901,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_library_room,
         to_dict=_ser_library_room,
         from_dict=_des_library_room,
+    ),
+    CapabilitySpec(
+        component_type=HotelRoom,
+        known_fields=frozenset({"hotel"}),
+        from_yaml=_parse_hotel_room,
+        to_dict=_ser_hotel_room,
+        from_dict=_des_hotel_room,
     ),
 ]
 
@@ -1420,6 +1451,14 @@ def _des_mount(d: dict) -> Mount:
     )
 
 
+def _ser_rent_paid(_c: RentPaid) -> dict:
+    return {}
+
+
+def _des_rent_paid(_d: dict) -> RentPaid:
+    return RentPaid()
+
+
 def _ser_riding(c: Riding) -> dict:
     return {"mount_id": int(c.mount_id)}
 
@@ -1549,6 +1588,13 @@ NPC_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_runtime_marker,
         to_dict=_ser_riding,
         from_dict=_des_riding,
+    ),
+    CapabilitySpec(
+        component_type=RentPaid,
+        known_fields=frozenset(),
+        from_yaml=_parse_runtime_marker,
+        to_dict=_ser_rent_paid,
+        from_dict=_des_rent_paid,
     ),
     CapabilitySpec(
         component_type=Gender,

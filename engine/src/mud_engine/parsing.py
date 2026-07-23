@@ -124,6 +124,8 @@ class DeterministicParser(Parser):
             return self._parse_look(rest, world, player_id)
         if verb == "ask":
             return self._parse_ask(rest, world, player_id)
+        if verb == "pay":
+            return self._parse_pay(rest, world, player_id)
         if verb == "attack":
             return self._parse_attack(rest, world, player_id)
         if verb == "say":
@@ -401,6 +403,20 @@ class DeterministicParser(Parser):
             return matched
         canonical, entity_id = matched
         return Intent(verb="ask", target=canonical, args=(topic,), target_id=entity_id)
+
+    def _parse_pay(
+        self, args: list[str], world: World, player_id: EntityId
+    ) -> Intent | ParseFailure:
+        """``pay <npc>``：同房可 ask NPC（Polishing-06 客店房钱）。"""
+        if not args:
+            return Intent(verb="pay", target=None)
+        token = " ".join(args)
+        candidates = self._npc_entity_candidates(world, player_id)
+        matched = self._match_entity_token(token, candidates, verb="pay")
+        if isinstance(matched, ParseFailure):
+            return matched
+        canonical, entity_id = matched
+        return Intent(verb="pay", target=canonical, target_id=entity_id)
 
     def _parse_attack(
         self, args: list[str], world: World, player_id: EntityId

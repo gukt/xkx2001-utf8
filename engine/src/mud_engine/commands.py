@@ -37,6 +37,7 @@ from dataclasses import dataclass
 
 from mud_engine import lookup
 from mud_engine.components import (
+    HOTEL_RENT_COST,
     MOUNT_JINGLI_PER_TERRAIN_COST,
     WALK_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
@@ -53,6 +54,7 @@ from mud_engine.components import (
     Faction,
     Ferry,
     HiddenExits,
+    HotelRoom,
     Identity,
     Inquiry,
     LibraryRoom,
@@ -62,6 +64,7 @@ from mud_engine.components import (
     PlayerSession,
     Position,
     ReadingSession,
+    RentPaid,
     Riding,
     RoomDetails,
     RoomFlags,
@@ -1062,6 +1065,55 @@ def _cmd_unride(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     return [f"你从{name}上下来了。"]
 
 
+@register("sleep")
+def _cmd_sleep(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """在房间睡觉恢复气血/精力（Polishing-06）。
+
+    ``RoomFlags.no_sleep_room`` 拒绝；``HotelRoom`` 须先有 ``RentPaid``。
+    成功时将 ``qi_current`` / ``jingli_current`` 拉满（内力不变）。
+    """
+    room = _player_room(world, player_id)
+    flags = world.get_component(room, RoomFlags)
+    if flags is not None and flags.no_sleep_room:
+        return ["这里不适合睡觉。"]
+    if world.get_component(room, HotelRoom) is not None:
+        if not world.has_component(player_id, RentPaid):
+            return ["你还没付房钱，不能在客店睡。先 pay <店小二>。"]
+    vitals = world.get_component(player_id, Vitals)
+    if vitals is not None:
+        vitals.qi_current = vitals.qi_max
+        vitals.jingli_current = vitals.jingli_max
+    return ["你舒服地睡了一觉，精神好多了。"]
+
+
+@register("pay")
+def _cmd_pay(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """向同房 NPC 付客店房钱：``pay <npc>``（Polishing-06）。
+
+    房间须挂 ``HotelRoom``；扣 ``HOTEL_RENT_COST`` 银两后置 ``RentPaid``。
+    已付过则提示无需再付（不重复扣款）。
+    """
+    npc_name = intent.target
+    if npc_name is None:
+        return ["付给谁？用法：pay <人物>"]
+    room = _player_room(world, player_id)
+    if world.get_component(room, HotelRoom) is None:
+        return ["这里不是客店，没什么好付的。"]
+    npc = intent.target_id
+    if npc is None or not world.has_component(npc, Identity):
+        npc = _find_npc_in_room(world, player_id, npc_name)
+    if npc is None:
+        return [f"这里没有 {npc_name}。"]
+    if world.has_component(player_id, RentPaid):
+        return ["你已经付过房钱了。"]
+    currency = world.get_component(player_id, Currency)
+    if currency is None or currency.amount < HOTEL_RENT_COST:
+        return [f"你的银两不够（房钱 {HOTEL_RENT_COST} 两）。"]
+    currency.amount -= HOTEL_RENT_COST
+    world.add_component(player_id, RentPaid())
+    return [f"你付给{npc_name} {HOTEL_RENT_COST} 两银子作房钱。"]
+
+
 @register("practice")
 def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     """练习已学会的技能（M2-13）。消耗/经验门槏来自 SkillData。"""
@@ -1070,6 +1122,8 @@ def _cmd_practice(world: World, player_id: EntityId, intent: Intent) -> list[str
     room = _player_room(world, player_id)
     if world.get_component(room, LibraryRoom) is not None:
         return ["这里是读书的地方，还是别练功了。"]
+    if world.get_component(room, HotelRoom) is not None:
+        return ["这里是客店，还是别练功了。"]
 
     skill_token = intent.target or (intent.args[0] if intent.args else None)
     if not skill_token:

@@ -318,6 +318,7 @@ rooms:
   yangzhou_kedian:
     name: 悦来客栈
     long: 客栈大堂灯火通明，账房算盘噼啪作响。店小二穿梭于桌椅之间招呼客官。
+    hotel: true
     exits:
       west:
         to: yangzhou_beidajie

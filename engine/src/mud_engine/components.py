@@ -531,11 +531,35 @@ class RoomDetails:
 
 @dataclass
 class RoomFlags:
-    """房间级布尔约束（Pre-M4-03）：只对已有命令面生效；其余 inert。启动固定。"""
+    """房间级布尔约束（Pre-M4-03）：对已有命令面生效。启动固定。
+
+    ``no_sleep_room`` 拦 ``sleep``（Polishing-06）；``no_steal`` 仍可声明，
+    无对应命令面时行为 inert。
+    """
 
     no_fight: bool = False
     no_steal: bool = False
     no_sleep_room: bool = False
+
+
+@dataclass
+class HotelRoom:
+    """客店房间：须 ``RentPaid`` 才能 ``sleep``，同房拦 ``practice``。启动固定。
+
+    由房间 YAML ``hotel: true`` 挂载；存在性即语义，无额外字段。
+    """
+
+
+@dataclass
+class RentPaid:
+    """玩家已付本次入住房钱。运行时可变进存档。
+
+    离开 ``HotelRoom`` 时由 ``on_leave_room`` 清除（不允许付一次钱无限回来睡）。
+    """
+
+
+# 客店固定房钱（银两）；题材包若需调价可日后升为场景参数。
+HOTEL_RENT_COST: int = 10
 
 
 @dataclass(frozen=True)

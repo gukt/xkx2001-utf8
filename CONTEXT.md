@@ -59,8 +59,12 @@ _Avoid_: 假定已支持同进程多 World / 世界实例隔离已落地
 _Avoid_: 能力橱窗包（与 GAP 台账不同交付物）, 空脚本沙箱接缝
 
 **房间旗标**:
-房间级布尔约束（本波：`no_fight` / `no_steal` / `no_sleep_room`），任意房间可在 YAML 声明。只对**已有命令面**生效：`no_fight` 拦 `attack`/`kill`；尚无对应命令的旗标可声明并校验，但不假装已禁。藏书阁另以同房规则拦 `practice`（及日后打坐类命令）。
-_Avoid_: 为让旗标「成真」而本波补齐 steal/睡眠子系统, 把旗标逻辑硬编码成单一房间特例
+房间级布尔约束（本波：`no_fight` / `no_steal` / `no_sleep_room`），任意房间可在 YAML 声明。只对**已有命令面**生效：`no_fight` 拦 `attack`/`kill`；`no_sleep_room` 拦 `sleep`；尚无对应命令的旗标可声明并校验，但不假装已禁。藏书阁另以同房规则拦 `practice`（及日后打坐类命令）。
+_Avoid_: 为让旗标「成真」而本波补齐 steal 子系统, 把旗标逻辑硬编码成单一房间特例
+
+**客店**:
+房间声明 `hotel: true` 表示客店房：须先 `pay <同房店家>` 付固定房钱（`HOTEL_RENT_COST`，当前 10 两）获得 `RentPaid` 后才能 `sleep`；离开该房经 `on_leave_room` 清除已付状态。挂 `HotelRoom` 的房间同房拦 `practice`（与 `LibraryRoom` 并列、不共用组件）。普通房间默认允许 `sleep`（拉满气血/精力，内力不变），除非 `no_sleep_room: true`。
+_Avoid_: 复用 buy/give 付房钱, 用 LibraryRoom 拦客店练功, 付一次钱可无限回来睡
 
 **藏书**:
 题材包内可检索、选定并付费阅读的书档内容（顶层 `books` + 房间 `library`）；玩家主路径含书架 TOC、书名缩写解析、选书、按章付费阅读与分页展示。官方验收以扬州藏书阁为准。同房挂 `library` 即拦练功（`practice`）；房间旗标可一并声明（见「房间旗标」）。
