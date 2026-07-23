@@ -5,24 +5,24 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与架构不变量。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-23：Polishing Wave 9 落地（票 `13`）；ADR-0013 Accepted；effort 关闭。Next Up → M4 评估。**不自动开 M4**。
+**最后更新**：2026-07-23：Polishing S5 `verify_polishing` 矩阵落地；effort 收口齐。Next Up → M4 评估。**不自动开 M4**。
 
 ## 当前状态速览
 
-- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 里程碑可宣布完成**；**M3 停机加固整体完成**。**暂缓 M4**。Pre-M4 三批已关。**Polishing 已关闭**（Wave 1–9；票 `01`–`13` resolved）。
+- **阶段**：M0 完成；mvp-scope 10/10；**M1/M2/M3 里程碑可宣布完成**；**M3 停机加固整体完成**。**暂缓 M4**。Pre-M4 三批已关。**Polishing 已关闭**（Wave 1–9 + S5 verify；票 `01`–`13` resolved）。
 - **工作分支**：`feat/polishing`（可合入 master；勿在 master 上直接续作 polishing）。
-- **engine/**：测试绿（974）。
+- **engine/**：测试绿（975）；`just verify-polishing` 13/13。
 - **拍板依据**：[CONTEXT.md](CONTEXT.md)；[ADR-0007](docs/adr/0007-effect-lifecycle-deferred-from-m2-m3-stop.md)～[0013](docs/adr/0013-local-nature-room-sticker.md)（Accepted）；Polishing 规格见 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)。
 
 ## Done
 
 > 滑动窗口只留最近 5 条，更早的见 [已完成项归档](.scratch/progress-archive.md)。
 
-- [x] **Polishing Wave 9 落地：局部天气继承实现 + effort 关闭**（2026-07-23）：票 `13`；`LocalNature`/`local_nature`；`resolve_effective_nature`/`nature_snapshot_for_room`/`outdoor_desc_for_room`；户外 look + 条件 DSL（entry_guard/join/AI when/hooks ctx）按房合成；回退 `房间 → World.nature`；[ADR-0013](docs/adr/0013-local-nature-room-sticker.md) `accepted`；契约/GAP/CONTEXT/condition-dsl 回写；`test_local_nature.py`；fixed point `polishing-wave9-start`；code-review fix：合成快照 helper、entry_guard/AI when 集成测。974 绿。**不自动开 M4**。
-- [x] **Polishing Wave 8 落地：局部天气继承 ADR**（2026-07-23）：票 `12`；[ADR-0013](docs/adr/0013-local-nature-room-sticker.md)（当时 `proposed`）：房间级静态贴纸；回退 `房间 → World.nature`；fixed point `polishing-wave8-start`；code-review fix：US44 广播边界。无代码变更。
-- [x] **Polishing Wave 7 落地：多文件路径引用 `includes`**（2026-07-23）：票 `11`；顶层单层 `includes`；fixed point `polishing-wave7-start`；961 绿。
+- [x] **Polishing S5：`verify_polishing` 端到端矩阵**（2026-07-23）：`scripts/verify_polishing.py` + `test_verify_polishing_matrix.py` + `just verify-polishing`；票 `01`–`13` 各 ≥1 场景步骤；13/13 通过。正式门禁仍以各票单测为准。975 绿。**不自动开 M4**。
+- [x] **Polishing Wave 9 落地：局部天气继承实现 + effort 关闭**（2026-07-23）：票 `13`；`LocalNature`/`local_nature`；合成查询；ADR-0013 `accepted`；fixed point `polishing-wave9-start`；974 绿。
+- [x] **Polishing Wave 8 落地：局部天气继承 ADR**（2026-07-23）：票 `12`；ADR-0013（当时 `proposed`）；fixed point `polishing-wave8-start`。
+- [x] **Polishing Wave 7 落地：多文件路径引用 `includes`**（2026-07-23）：票 `11`；fixed point `polishing-wave7-start`；961 绿。
 - [x] **Polishing Wave 6 落地：随机 objects 表 + 刷怪条件 hooks params**（2026-07-23）：票 `09`/`10`；fixed point `polishing-wave6-start`；948 绿。
-- [x] **Polishing Wave 5 落地：条件 DSL 文档 + 液体/eat/drink**（2026-07-23）：票 `07`/`08`；fixed point `polishing-wave5-start`；935 绿。
 
 ## In Progress
 
@@ -37,10 +37,6 @@
 ### 1. M4 评估（独立拍板）
 
 独立决定是否开 M4（商业化数据模型）。**不因 Polishing 关闭而自动滑入 M4**。
-
-### 2.（可选）Polishing S5 端到端矩阵
-
-若需要给人看的一页转录：补 `scripts/verify_polishing.py` + `test_verify_polishing_matrix.py`（每项至少一条场景步骤）；正式门禁仍以各票单测为准。
 
 ## 交接约定
 

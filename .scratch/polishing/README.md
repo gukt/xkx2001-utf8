@@ -15,7 +15,7 @@
 | 状态 | **已关闭**（Wave 1–9；票 `01`–`13` 全部 `resolved`；分支 `feat/polishing`） |
 | 决策 | grill 拍板 [session-notes-2026-07-23.md](../polishing-candidate-review/session-notes-2026-07-23.md) + [session-qa-provenance-2026-07-23.md](../polishing-candidate-review/session-qa-provenance-2026-07-23.md) |
 | Spec / 票 | [spec.md](spec.md)；[issues/](issues/) `01`–`13`；拆票分析见 [to-tickets-notes.md](to-tickets-notes.md)；执行手册（9 Wave）见 [implement-plan.md](implement-plan.md) |
-| 收口 | 契约 / GAP / CONTEXT / ADR-0013 Accepted 已回写；可选 S5 `verify_polishing` 见 [PROGRESS.md](../../PROGRESS.md) Next Up |
+| 收口 | 契约 / GAP / CONTEXT / ADR-0013 Accepted 已回写；S5 [`just verify-polishing`](../../justfile)（`scripts/verify_polishing.py`，13/13） |
 | 不走 | `/wayfinder`；把打磨项并入 M4 商业化叙事；**关完自动滑入 M4** |
 
 ## 与相邻交付物的关系

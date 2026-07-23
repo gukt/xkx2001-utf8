@@ -127,6 +127,10 @@ verify-room-fidelity:
 verify-xingxiu:
     cd engine && uv run python scripts/verify_pre_m4_xingxiu_mechanics.py
 
+# Polishing 13 项 S5 矩阵（给人看的转录；正式门禁见各票单测 + test_verify_polishing_matrix）
+verify-polishing:
+    cd engine && uv run python scripts/verify_polishing.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）
