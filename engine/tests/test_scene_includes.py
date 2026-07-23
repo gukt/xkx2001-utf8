@@ -47,7 +47,7 @@ def _write(path: Path, content: str) -> Path:
 
 
 class TestSceneIncludesLoad:
-    def test_merges_items_and_npcs_from_include(self, tmp_path: Path) -> None:
+    def test_merges_item_from_include_onto_floor(self, tmp_path: Path) -> None:
         scene = _write(tmp_path / "scene.yaml", _BASE_SCENE)
         _write(tmp_path / "templates" / "shared.yaml", _SHARED_TEMPLATES)
 
@@ -59,6 +59,12 @@ class TestSceneIncludesLoad:
         }
         assert "共享石" in floor_names
         assert "shared_stone" in world.item_templates
+
+    def test_merges_npc_from_include_into_room(self, tmp_path: Path) -> None:
+        scene = _write(tmp_path / "scene.yaml", _BASE_SCENE)
+        _write(tmp_path / "templates" / "shared.yaml", _SHARED_TEMPLATES)
+
+        world, _ = load_scene(scene)
         assert "shared_guard" in world.spawners
         assert any(
             world.require_component(e, Identity).name == "共享守卫"

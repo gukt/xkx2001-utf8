@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Polishing Wave 2 落地：房间风景 details 升级（K2+U+S1+N1）**（2026-07-23）：票 `03`；`DetailEntry`/`room_details.py`；旧写法自动转换；N1 六变体 look；S1 `scan_detail_mentions`；fixed point `polishing-wave2-start`；code-review fix：`_match_detail_key` 去重、裸 `(…)` 跳过。907 绿。
+
 - [x] **Polishing Wave 1 落地：出口导航别名 + YAML 简写规范化**（2026-07-23）：票 `01`/`02`；`directions.py` 十向内置同义词；三层候选合并；`Reason.REQUIRES_GO`；look `东(east)`；官方范本清冗余方位 aliases；`scene-authoring-guide` 推荐写法；fixed point `polishing-wave1-start`；code-review fix：删死 `DIRECTION_SHORTCUTS`、收窄 REQUIRES_GO 至中文、补十向黑盒与目标房 aliases 测。895 绿。
 
 - [x] **Polishing `/to-tickets` + implement-plan**（2026-07-23）：把 [.scratch/polishing/spec.md](../polishing/spec.md) 13 项按候选 ID 顺序拆成 [.scratch/polishing/issues/](../polishing/issues/) `01`–`13`；补 [implement-plan.md](../polishing/implement-plan.md)（9 Wave）；新开 `feat/polishing`。

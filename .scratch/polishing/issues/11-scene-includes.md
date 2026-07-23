@@ -28,8 +28,8 @@ Status: resolved
 
 - **字段形状**：顶层可选 `includes: [<相对路径字符串>, ...]`；列入 `_TOP_LEVEL_KNOWN_SECTIONS`（不透传）。
 - **合并时机**：`load_scene` 在取 `rooms`/`player` 之前调用 `_merge_includes_templates`；先按列表顺序合并各 include 的 `items`/`npcs`，再合并本文件同名段；重复键 → `SceneLoadError`（「重复定义」「合并后的模板命名空间须全局唯一」）。
-- **路径校验**：相对 `scene_path.parent`；`resolve()` 后须 `relative_to(base)`；绝对路径拒绝；文件缺失报具体 `includes` 条目。内容包轨（`pack_track=True`）另以 `scene_path.parent` 为包根再做一层边界。
+- **路径校验**：相对 `scene_path.parent`；`resolve()` 后须 `relative_to(base)`；绝对路径拒绝；文件缺失报具体 `includes` 条目。内容包轨由 `load_pack` 传入 `pack_root=pack_dir`，另做一层不得穿出包根（与场景父目录在现行「scene.yaml 在包根」约定下重合，但接缝已分开）。
 - **被 include 文件**：仅允许顶层 `items`/`npcs`；出现 `includes` →「不允许嵌套」；出现其它段 →「仅允许顶层段 items/npcs」。
-- **strict**：include 内模板未消费字段随实体构建进 `entity_extension_data`，`--pack --validate --strict` 复用既有汇总，无平行校验表。
+- **strict**：include 内**已实例化**模板的未消费字段随实体构建进 `entity_extension_data`，`--pack --validate --strict` 复用既有汇总（与主场景同限：纯商店未放置模板不进汇总）；无平行校验表。
 - **文档**：契约 / GAP / scene-authoring-guide / CONTEXT「场景 includes」已回写。
 - **测试**：`test_scene_includes.py`（S2）+ `test_load_pack.py::TestLoadPackIncludes`（S3）。

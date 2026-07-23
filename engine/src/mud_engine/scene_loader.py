@@ -82,6 +82,7 @@ def load_scene(
     scene_path: Path,
     *,
     pack_track: bool = False,
+    pack_root: Path | None = None,
     rng: random.Random | None = None,
 ) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
@@ -97,7 +98,8 @@ def load_scene(
 
     可选顶层 ``includes: [<相对路径>, ...]``（相对本文件所在目录）在解析
     ``items``/``npcs``/``rooms`` 之前合并被引用文件的 ``items``/``npcs`` 模板；
-    不支持嵌套 include；路径不得穿出场景目录（内容包轨另不得穿出包目录）。
+    不支持嵌套 include；路径不得穿出场景目录。内容包轨另以 ``pack_root``
+    （缺省为场景父目录；``load_pack`` 传入包目录）约束不得穿出包根。
 
     ``rng`` 供加载期出口 ``random_of`` 选定目标，以及 C11 随机 objects 槽位的
     **初始**抽签；缺省用系统 ``Random()``。出口与 objects 池走不同求值函数
@@ -105,10 +107,15 @@ def load_scene(
     """
     scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
-    # 内容包轨：包根 = 场景文件所在目录（约定 scene.yaml 与 manifest.yaml 同级）。
-    pack_root = scene_path.parent.resolve() if pack_track else None
+    resolved_pack_root: Path | None = None
+    if pack_track:
+        resolved_pack_root = (
+            Path(pack_root).resolve()
+            if pack_root is not None
+            else scene_path.parent.resolve()
+        )
     items, npcs = _merge_includes_templates(
-        data, scene_path, pack_root=pack_root
+        data, scene_path, pack_root=resolved_pack_root
     )
     rooms = _expect_mapping(data, scene_path, "rooms")
     player = _expect_mapping(data, scene_path, "player")

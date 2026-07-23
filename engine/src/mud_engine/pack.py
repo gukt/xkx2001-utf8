@@ -73,7 +73,11 @@ def load_pack(pack_dir: Path) -> tuple[World, EntityId]:
     """
     pack_dir = Path(pack_dir)
     manifest = load_manifest(pack_dir)
-    world, player_id = load_scene(pack_dir / "scene.yaml", pack_track=True)
+    world, player_id = load_scene(
+        pack_dir / "scene.yaml",
+        pack_track=True,
+        pack_root=pack_dir,
+    )
     world.pack_manifest = manifest
     return world, player_id
 
