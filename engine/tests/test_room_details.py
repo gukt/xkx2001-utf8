@@ -243,6 +243,16 @@ class TestScanDetailMentions:
         assert hits[0].lookable is True
         assert hits[0].detail_key == "shi_qiu"
 
+    def test_bare_parens_without_display_skipped(self) -> None:
+        details = RoomDetails(
+            entries={"shi_shi": DetailEntry(text="x", aliases=("石狮",))}
+        )
+        hits = scan_detail_mentions("公式 (a+b) 与石狮(shi_shi)。", details)
+        assert len(hits) == 1
+        assert hits[0].display == "石狮"
+        assert hits[0].raw_id == "shi_shi"
+        assert hits[0].lookable is True
+
     def test_resolve_uses_n1(self) -> None:
         details = RoomDetails(
             entries={

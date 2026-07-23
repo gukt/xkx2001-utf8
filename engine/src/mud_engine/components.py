@@ -501,8 +501,8 @@ class DetailEntry:
     ``text`` 可含语义色 token；``aliases`` 参与 look 匹配（与主键同权，经 N1 归一）。
     """
 
-    text: str
-    aliases: tuple[str, ...] = ()
+    text: str  # 风景正文，如「一对石狮蹲在旗杆两侧。」；可含 <c:name>…</c>
+    aliases: tuple[str, ...] = ()  # look 别名，如 ("石狮", "shi shi", "ss")
 
 
 @dataclass
@@ -514,6 +514,7 @@ class RoomDetails:
     """
 
     entries: dict[str, DetailEntry] = field(default_factory=dict)
+    # 主键 → 条目；如 {"shi_shi": DetailEntry(text=..., aliases=("石狮",))}
 
 
 @dataclass

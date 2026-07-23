@@ -28,16 +28,22 @@ def normalize_detail_token(token: str) -> str:
     return token.translate(_SEPARATORS).casefold()
 
 
-def resolve_detail(details: RoomDetails, token: str) -> DetailEntry | None:
-    """按键或任一 alias 做 N1 归一匹配；多条命中时取首次登记的那条。"""
+def _match_detail_key(details: RoomDetails, token: str) -> str | None:
+    """N1 匹配主键或任一 alias，返回 details 主键；无命中返回 None。"""
     needle = normalize_detail_token(token)
     if not needle:
         return None
     for key, entry in details.entries.items():
         names = (key, *entry.aliases)
         if any(normalize_detail_token(name) == needle for name in names):
-            return entry
+            return key
     return None
+
+
+def resolve_detail(details: RoomDetails, token: str) -> DetailEntry | None:
+    """按键或任一 alias 做 N1 归一匹配；多条命中时取首次登记的那条。"""
+    key = _match_detail_key(details, token)
+    return details.entries[key] if key is not None else None
 
 
 @dataclass(frozen=True)
@@ -50,17 +56,6 @@ class DetailMention:
     end: int
     lookable: bool
     detail_key: str | None
-
-
-def _detail_key_for_id(details: RoomDetails, raw_id: str) -> str | None:
-    needle = normalize_detail_token(raw_id)
-    if not needle:
-        return None
-    for key, entry in details.entries.items():
-        names = (key, *entry.aliases)
-        if any(normalize_detail_token(name) == needle for name in names):
-            return key
-    return None
 
 
 def _fallback_display(before: str) -> str:
@@ -90,15 +85,20 @@ def _display_before_paren(
 
 
 def scan_detail_mentions(text: str, details: RoomDetails) -> list[DetailMention]:
-    """扫描 ``名(id)``；仅当 id（经 N1）命中本房已登记 details 时 ``lookable=True``（S1）。"""
+    """扫描 ``名(id)``；仅当 id（经 N1）命中本房已登记 details 时 ``lookable=True``（S1）。
+
+    无展示名可回推的裸 ``(…)`` 不计入 mention（避免误伤普通括号）。
+    """
     hits: list[DetailMention] = []
     for match in _ID_IN_PARENS_RE.finditer(text):
         raw_id = match.group(1)
-        detail_key = _detail_key_for_id(details, raw_id)
+        detail_key = _match_detail_key(details, raw_id)
         before = text[: match.start()]
         display = _display_before_paren(
             before, detail_key=detail_key, details=details
         )
+        if not display:
+            continue
         hits.append(
             DetailMention(
                 display=display,

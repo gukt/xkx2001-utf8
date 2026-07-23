@@ -11,7 +11,7 @@ Status: resolved
 **Blocked by:** None — 可立即开始。
 
 - [x] `components.py`：`RoomDetails` 从 `dict[str, str]` 升级为 `dict[str, DetailEntry]`；`DetailEntry` 含 `text: str` + `aliases: tuple[str, ...]`。
-- [x] `scene_loader.py`：`details` 段解析支持新形状 `{ <id>: { text, aliases? } }`；旧写法 `{ <键>: <纯字符串> }` 自动转换为 `{text: 值, aliases: [键]}`（双轨兼容，选定方案：自动转换而非强制迁移官方范本——落地时如与本决策冲突可在实现票 Comments 里记录变更理由）。
+- [x] `capabilities.py`（房间能力注册表 `_parse_room_details`；非 `scene_loader` 直写）：`details` 段解析支持新形状 `{ <id>: { text, aliases? } }`；旧写法 `{ <键>: <纯字符串> }` 自动转换为 `{text: 值, aliases: [键]}`（双轨兼容）。
 - [x] `look` 匹配逻辑扩展：键或任一 alias 精确匹配（不做中文分词），且做 N1 分隔符归一（空格/`_`/`-`/全粘连视为同一骨架）；look id 大小写不敏感。
 - [x] 新增文本扫描辅助函数：扫描 `long`/`details.*.text` 里 `名(id)` 形态，仅当 `id`（经 N1 归一）命中本房已注册 details 时返回「可 look」判定，供未来客户端/CLI 高亮消费；未登记形态原样返回纯文本判定。
 - [x] 嵌套 look：`details.*.text` 内的 `名(id)` 同样走 S1 扫描；目标必须在同一房间 `details` 扁平登记才可 `look` 到。
@@ -46,4 +46,4 @@ def resolve_detail(details: RoomDetails, token: str) -> DetailEntry | None: ...
 def normalize_detail_token(token: str) -> str: ...
 ```
 
-  扫描先找 `(id)`，再以已登记键/别名最长后缀回推 `display`；未登记则启发式短名（连续汉字取末两字）。**不**从 long 自动登记 aliases。
+  扫描先找 `(id)`，再以已登记键/别名最长后缀回推 `display`；无展示名可回推的裸 `(…)` 跳过；未登记则启发式短名（连续汉字取末两字）。**不**从 long 自动登记 aliases。创作者要 `look 石狮` 须在 `aliases`（或旧写法键）显式列出「石狮」——与 A4「明确不做 long 自动登记」一致；`docs/creator-contract-v0.md` 新形状回写留给 effort 收口（Wave 9）。
