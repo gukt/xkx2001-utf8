@@ -88,6 +88,7 @@ from mud_engine.library import (
 from mud_engine.messaging import publish_channel, room_say
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.quest import accept_quest, try_complete_quest_on_give
+from mud_engine.room_details import resolve_detail
 from mud_engine.transfer import item_weight, transfer
 from mud_engine.world import EntityId, World
 
@@ -1610,8 +1611,10 @@ def _look_target(world: World, player_id: EntityId, intent: Intent) -> list[str]
     if lib is not None and name == lib.shelf_key and lib.books:
         return start_more(world, player_id, format_toc(lib))
     details = world.get_component(room, RoomDetails)
-    if details is not None and name in details.entries:
-        return [details.entries[name]]
+    if details is not None:
+        entry = resolve_detail(details, name)
+        if entry is not None:
+            return [entry.text]
     return [f"这里没有 {name}。"]
 
 

@@ -494,11 +494,26 @@ class NoDeathZone:
     """房间级免死区标记：气血耗尽只昏迷、不转 Dead。启动固定。"""
 
 
+@dataclass(frozen=True)
+class DetailEntry:
+    """单条房间风景：描述正文 + look 别名。启动固定。
+
+    ``text`` 可含语义色 token；``aliases`` 参与 look 匹配（与主键同权，经 N1 归一）。
+    """
+
+    text: str
+    aliases: tuple[str, ...] = ()
+
+
 @dataclass
 class RoomDetails:
-    """房间风景：键 → 描述文本，供 ``look <键>``；不占 objects、非实体。启动固定。"""
+    """房间风景：主键 → ``DetailEntry``，供 ``look``；不占 objects、非实体。启动固定。
 
-    entries: dict[str, str] = field(default_factory=dict)
+    主键推荐无空格英文 id（K2）；旧 YAML「键→纯字符串」加载时转为
+    ``DetailEntry(text=值, aliases=(键,))``。
+    """
+
+    entries: dict[str, DetailEntry] = field(default_factory=dict)
 
 
 @dataclass

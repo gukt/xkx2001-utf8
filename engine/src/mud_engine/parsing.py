@@ -355,10 +355,13 @@ class DeterministicParser(Parser):
     def _parse_look(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """无参 look 看房间；有参则：物品 → 同房 NPC → 交执行层查 details（Pre-M4-01）。"""
+        """无参 look 看房间；有参则：物品 → 同房 NPC → 交执行层查 details（Pre-M4-01）。
+
+        目标 token 取 ``args`` 全文拼接，以支持 details 别名里的空格拼音（如 ``shi shi``）。
+        """
         if not args:
             return Intent(verb="look", target=None)
-        token = args[0]
+        token = " ".join(args)
         item_matched = self._match_item_token(
             token, self._look_item_candidates(world, player_id), verb="look"
         )
