@@ -407,7 +407,7 @@ class DeterministicParser(Parser):
     def _parse_pay(
         self, args: list[str], world: World, player_id: EntityId
     ) -> Intent | ParseFailure:
-        """``pay <npc>``：同房可 ask NPC（Polishing-06 客店房钱）。"""
+        """``pay <npc>``：同房可识别 NPC（Polishing-06 客店房钱）。"""
         if not args:
             return Intent(verb="pay", target=None)
         token = " ".join(args)
