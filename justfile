@@ -123,6 +123,10 @@ verify-m3:
 verify-room-fidelity:
     cd engine && uv run python scripts/verify_pre_m4_room_fidelity.py
 
+# Pre-M4 房间钩子 / 星宿机制（xingxiu_mechanics 十类机关 S3；正式门禁见 test_xingxiu_mechanics_*）
+verify-xingxiu:
+    cd engine && uv run python scripts/verify_pre_m4_xingxiu_mechanics.py
+
 # ── 原型（throwaway）────────────────────────────────────
 
 # ECS vs 继承 vs Feature：UGC 组合手感（逻辑原型）

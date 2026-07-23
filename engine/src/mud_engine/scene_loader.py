@@ -15,6 +15,7 @@ components + world + PyYAML，不 import commands，也不把加载逻辑写进 
 
 from __future__ import annotations
 
+import random
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from mud_engine.capabilities import (
 from mud_engine.components import (
     AIController,
     Behaviors,
+    BlockExits,
     Container,
     Description,
     Door,
@@ -46,7 +48,6 @@ from mud_engine.components import (
     Ferry,
     HiddenExit,
     HiddenExits,
-    BlockExits,
     Identity,
     Inquiry,
     ItemTemplateKey,
@@ -55,6 +56,7 @@ from mud_engine.components import (
     PlayerSession,
     Position,
     QuestProgress,
+    RoomHookBinding,
     ShopInventory,
 )
 from mud_engine.death_flow import parse_death_policy, parse_loot_table
@@ -71,7 +73,12 @@ from mud_engine.world import EntityId, World
 # ``from mud_engine.scene_loader import SceneLoadError`` 向后兼容。
 
 
-def load_scene(scene_path: Path) -> tuple[World, EntityId]:
+def load_scene(
+    scene_path: Path,
+    *,
+    pack_track: bool = False,
+    rng: random.Random | None = None,
+) -> tuple[World, EntityId]:
     """从一份 YAML 场景文件构造 ``(world, player_id)``。
 
     任何结构性错误（YAML 语法、缺字段、引用不存在的房间键）都收口成
@@ -79,7 +86,13 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     房间 ``objects`` 摆物品、连出口/门、放 NPC、放玩家--物品先于出口是因为出口
     的门锁可引用物品作为钥匙（04 号票），建出口时需要物品的 entity id 已就绪。
     放置权威是房间 ``objects``（ADR-0010）；``placed_in`` / ``in_room`` 一律拒绝。
+
+    ``pack_track=True``（内容包轨道，由 ``load_pack`` 传入）时禁止房间 ``hooks``
+    字段——与旁路检测到同级 ``manifest.yaml`` 一样 fail-closed（ADR-0012）。
+
+    ``rng`` 供加载期 ``random_of`` 出口原语选定目标；缺省用系统 ``Random()``。
     """
+    scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
     rooms = _expect_mapping(data, scene_path, "rooms")
     items = _expect_mapping(data, scene_path, "items", default={})
@@ -91,7 +104,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     # skills:/factions: 是全局注册表（非实体）；每次加载清空重建，避免两次加载互相污染。
     replace_skills_registry(load_skills_from_mapping(data.get("skills"), scene_path))
     replace_factions_registry(load_factions_from_mapping(data.get("factions"), scene_path))
-    room_ids = _build_rooms(world, rooms, scene_path)
+    reject_hooks = pack_track or (scene_path.parent / "manifest.yaml").is_file()
+    room_ids = _build_rooms(world, rooms, scene_path, reject_hooks=reject_hooks)
     world.room_ids = dict(room_ids)
     catalog = parse_book_catalog(data.get("books"), scene_path)
     resolve_library_books(world, catalog, scene_path)
@@ -101,7 +115,8 @@ def load_scene(scene_path: Path) -> tuple[World, EntityId]:
     placements = _collect_room_objects(rooms, items, npcs, scene_path)
     _reject_door_key_slot_conflicts(rooms, items, placements, scene_path)
     item_ids = _build_items(world, items, placements, room_ids, scene_path)
-    _build_exits(world, rooms, room_ids, item_ids, scene_path)
+    exit_rng = rng if rng is not None else random.Random()
+    _build_exits(world, rooms, room_ids, item_ids, scene_path, rng=exit_rng)
     _build_npcs(world, npcs, placements, room_ids, scene_path)
     _validate_shop_inventories(world, scene_path)
     _validate_faction_refs(world, scene_path)
@@ -157,7 +172,16 @@ _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
     }
 )
 _ROOM_INTRINSIC_FIELDS = frozenset(
-    {"name", "aliases", "short", "long", "exits", "objects", "block_exits"}
+    {
+        "name",
+        "aliases",
+        "short",
+        "long",
+        "exits",
+        "objects",
+        "block_exits",
+        "hooks",  # 官方轨专属；内容包轨见 _attach_room_hook_binding 拒绝
+    }
 )
 _ROOM_KNOWN_FIELDS = frozenset(
     _ROOM_INTRINSIC_FIELDS | {field for spec in ROOM_CAPABILITIES for field in spec.known_fields}
@@ -263,7 +287,13 @@ def _as_mapping(data: object, *, label: str, scene_path: Path) -> dict:
     return dict(data)
 
 
-def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, EntityId]:
+def _build_rooms(
+    world: World,
+    rooms: Mapping,
+    scene_path: Path,
+    *,
+    reject_hooks: bool = False,
+) -> dict[str, EntityId]:
     """建全部房间实体（Identity+Description+Exits+Container），返回 key->entity id。"""
     room_ids: dict[str, EntityId] = {}
     for room_key, raw in rooms.items():
@@ -283,9 +313,62 @@ def _build_rooms(world: World, rooms: Mapping, scene_path: Path) -> dict[str, En
         _attach_capability_specs(
             world, room, data, ROOM_CAPABILITIES, label=label, scene_path=scene_path
         )
+        _attach_room_hook_binding(
+            world, room, data, room_key, scene_path, reject_hooks=reject_hooks
+        )
         _capture_entity_unknown_fields(world, room, data, _ROOM_KNOWN_FIELDS)
         room_ids[room_key] = room
     return room_ids
+
+
+def _attach_room_hook_binding(
+    world: World,
+    room: EntityId,
+    data: Mapping,
+    room_key: str,
+    scene_path: Path,
+    *,
+    reject_hooks: bool,
+) -> None:
+    """解析 ``hooks: {hook_id, params?}``；内容包轨或未注册 id 一律 ``SceneLoadError``。"""
+    raw = data.get("hooks")
+    if raw is None:
+        return
+    if reject_hooks:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 声明了 hooks，"
+            f"但内容包轨道禁止房间钩子（hooks 为官方轨专属，见 ADR-0012）"
+        )
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 'hooks' 应是映射，"
+            f"实际是 {type(raw).__name__}"
+        )
+    hook_id = raw.get("hook_id")
+    if hook_id is None or hook_id == "":
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 hooks 缺少必需字段 'hook_id'"
+        )
+    hook_id_s = str(hook_id)
+    from mud_engine.room_hooks import get_room_hook
+
+    if get_room_hook(hook_id_s) is None:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 引用了未注册的 hook_id "
+            f"'{hook_id_s}'"
+        )
+    params_raw = raw.get("params", {})
+    if params_raw is None:
+        params_raw = {}
+    if not isinstance(params_raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 hooks.params 应是映射，"
+            f"实际是 {type(params_raw).__name__}"
+        )
+    world.add_component(
+        room,
+        RoomHookBinding(hook_id=hook_id_s, params=dict(params_raw)),
+    )
 
 
 def _build_exits(
@@ -294,12 +377,17 @@ def _build_exits(
     room_ids: dict[str, EntityId],
     item_ids: dict[str, EntityId],
     scene_path: Path,
+    *,
+    rng: random.Random,
 ) -> None:
     """把每个房间的 exits 段连成 Exit 组件条目，校验目标房间键都已定义。
 
     出口可选挂门状态（``door``/``key``/``consume_key`` 字段）：带门的出口同时往
     该房间的 ``Doors`` 组件里记一条 ``Door``。``hidden_until_unlocked: true`` 的
     出口进入 ``HiddenExits``（不进 ``Exits``），解锁后由命令层揭示。
+
+    ``random_of``：加载期从候选目标中随机选定一个，落地为普通 ``to`` 出口（无运行时
+    副作用；不进钩子注册表）。
     """
     for room_key, raw in rooms.items():
         data = _as_mapping(raw, label=f"房间 '{room_key}'", scene_path=scene_path)
@@ -317,7 +405,7 @@ def _build_exits(
         doors: Doors | None = None
         hidden: HiddenExits | None = None
         for direction, exit_data in exits_data.items():
-            target_key = _exit_target(exit_data, room_key, direction, scene_path)
+            target_key = _exit_target(exit_data, room_key, direction, scene_path, rng=rng)
             if target_key not in room_ids:
                 raise SceneLoadError(
                     f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 "
@@ -383,9 +471,27 @@ def _attach_block_exits(
         world.add_component(room, BlockExits(by_direction=by_dir))
 
 
-def _exit_target(exit_data: object, room_key: str, direction: object, scene_path: Path) -> str:
-    """取出口目标房间键：``{ to: <key> }`` 映射或裸字符串键都接受。"""
+def _exit_target(
+    exit_data: object,
+    room_key: str,
+    direction: object,
+    scene_path: Path,
+    *,
+    rng: random.Random,
+) -> str:
+    """取出口目标房间键：``{ to: <key> }`` / ``{ random_of: [...] }`` 映射或裸字符串键。"""
     if isinstance(exit_data, Mapping):
+        has_to = "to" in exit_data and exit_data.get("to") not in (None, "")
+        has_random = "random_of" in exit_data
+        if has_to and has_random:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+                f"不能同时声明 'to' 与 'random_of'"
+            )
+        if has_random:
+            return _exit_random_of_target(
+                exit_data["random_of"], room_key, direction, scene_path, rng
+            )
         target = exit_data.get("to")
         if not target:
             raise SceneLoadError(
@@ -398,6 +504,23 @@ def _exit_target(exit_data: object, room_key: str, direction: object, scene_path
         f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
         f"应是映射或目标房间键字符串，实际是 {type(exit_data).__name__}"
     )
+
+
+def _exit_random_of_target(
+    raw: object,
+    room_key: str,
+    direction: object,
+    scene_path: Path,
+    rng: random.Random,
+) -> str:
+    """加载期从 ``random_of`` 候选列表选定一个目标房间键。"""
+    if not isinstance(raw, (list, tuple)) or not raw:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的出口 '{direction}' "
+            f"的 'random_of' 应是非空列表"
+        )
+    candidates = [str(c) for c in raw]
+    return rng.choice(candidates)
 
 
 def _exit_aliases(
@@ -522,7 +645,8 @@ def _collect_room_objects(
                     f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects "
                     f"引用未定义的模板 '{key}'"
                 )
-            count = _parse_positive_int(raw_count, "objects", key, scene_path)
+            # 允许 0：登记蓝图/槽位但不首刷（劫匪刷拦等「进房再生成」机关）。
+            count = _parse_non_negative_int(raw_count, "objects", key, scene_path)
             if key in npc_keys and key in placements:
                 prev_room, _ = placements[key][0]
                 raise SceneLoadError(
@@ -541,7 +665,7 @@ def _collect_door_key_templates(rooms: Mapping, scene_path: Path) -> set[str]:
         exits_data = data.get("exits")
         if not isinstance(exits_data, Mapping):
             continue
-        for direction, exit_data in exits_data.items():
+        for _direction, exit_data in exits_data.items():
             if not isinstance(exit_data, Mapping):
                 continue
             raw_key = exit_data.get("key")
@@ -756,19 +880,47 @@ def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> d
     return attached
 
 
-def _parse_positive_int(raw: object, field: str, key: object, scene_path: Path) -> int:
-    """解析正整数字段（objects 数量等）：须为 >= 1 的整数。"""
+def _parse_bounded_int(
+    raw: object,
+    field: str,
+    key: object,
+    scene_path: Path,
+    *,
+    min_value: int,
+    label: str,
+) -> int:
+    """解析整数并校验 ``>= min_value``；``label`` 用于错误文案（如「正整数」）。"""
     try:
         value = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是正整数，实际是 {raw!r}"
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应是{label}，实际是 {raw!r}"
         ) from None
-    if value < 1:
+    if value < min_value:
         raise SceneLoadError(
-            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= 1，实际是 {value}"
+            f"场景文件 {scene_path} 的 '{key}' 的 '{field}' 应 >= {min_value}，"
+            f"实际是 {value}"
         )
     return value
+
+
+def _parse_non_negative_int(
+    raw: object, field: str, key: object, scene_path: Path
+) -> int:
+    """解析非负整数字段（房间 ``objects`` 数量）：须为 >= 0 的整数。
+
+    ``0`` 表示登记模板/蓝图但不生成初始实例（供钩子运行时 ``ensure_npc``）。
+    """
+    return _parse_bounded_int(
+        raw, field, key, scene_path, min_value=0, label="非负整数"
+    )
+
+
+def _parse_positive_int(raw: object, field: str, key: object, scene_path: Path) -> int:
+    """解析正整数字段：须为 >= 1 的整数。"""
+    return _parse_bounded_int(
+        raw, field, key, scene_path, min_value=1, label="正整数"
+    )
 
 
 def _build_player(

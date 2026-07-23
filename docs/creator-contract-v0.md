@@ -3,7 +3,8 @@
 > 现行场景 YAML / 内容包 manifest 的冻结字段集合。  
 > 对应实现：`engine/src/mud_engine/scene_loader.py`、`engine/src/mud_engine/pack.py`。  
 > 机器可检查侧：`mud_engine --pack <dir> --validate`（默认 warn）与 `--strict`（未消费字段失败）——见 M3 停机加固票 [`05`](../.scratch/m3-hardening/issues/05-validate-strict-unconsumed-fields.md)。  
-> Pre-M4 房间保真加法：票 [`07`](../.scratch/pre-m4-engine-room-fidelity/issues/07-closeout-contract-gap.md)（字段形状见同 effort 票 `01`–`06` Comments）。
+> Pre-M4 房间保真加法：票 [`07`](../.scratch/pre-m4-engine-room-fidelity/issues/07-closeout-contract-gap.md)（字段形状见同 effort 票 `01`–`06` Comments）。  
+> Pre-M4 房间钩子收口：票 [`11`](../.scratch/pre-m4-room-hooks-xingxiu/issues/11-closeout-ugc-boundary-contract-gap.md)（`hooks` 官方轨专属说明，非加法承诺）。
 
 本文档承诺：**这些字段现在可以用、语义已冻结、只会新增不会改义。** 创作者不必去读引擎源码里的 `_ROOM_KNOWN_FIELDS` 等常量。
 
@@ -131,6 +132,17 @@ python -m mud_engine --pack <包目录> --validate --strict
 ## 官方轨与内容包轨
 
 场景 YAML 字段集合被两条加载轨道共用：无 `manifest` 的官方单文件，与带 `manifest.yaml` 的内容包。入口差异与范本见 [场景创作：官方轨与内容包轨](scene-authoring-guide.md)（M3 停机加固票 [`09`](../.scratch/m3-hardening/issues/09-scene-authoring-two-tracks-doc.md)）。
+
+## 官方轨专属：房间钩子引用（非创作者契约加法）
+
+房间字段 `hooks: { hook_id, params? }` **不是** 本契约 v0 的加法承诺字段，也不在上文 `rooms.*` 已知集合的「创作者可用」清单内。
+
+| 轨道 | 行为 |
+|---|---|
+| 官方单文件（无 `manifest.yaml`，如 `xingxiu_mechanics.yaml`） | 允许引用已注册的可信 `hook_id`；实现永远是引擎 / 题材包自带 Python，不是 YAML 内联脚本 |
+| 内容包（带 `manifest.yaml`） | **禁止** 声明 `hooks`；`load_pack`、`--pack --validate`、`--pack --validate --strict` 与非严格加载路径一律 **失败**（信任边界，非「未消费字段只警告」） |
+
+见 [ADR-0012](adr/0012-trusted-room-hooks-narrow-ctx.md)。创作者需要「运行时改世界」类机关时，勿在 UGC 包里写 `hooks`；降级方式见 [GAP 台账](gap-ledger.md)。
 
 ## 契约表达不到的地方
 

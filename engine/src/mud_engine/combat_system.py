@@ -190,6 +190,8 @@ def build_combat_context(
         defender_dex=d_attrs.dex,
         defender_int=d_attrs.int_,
         move=move,
+        world=world,
+        defender_id=defender,
     )
 
 

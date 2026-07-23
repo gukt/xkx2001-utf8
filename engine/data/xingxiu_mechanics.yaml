@@ -1,0 +1,423 @@
+# Pre-M4 官方机制切片：星宿同构机关验收（非整区移植；官方单文件轨道，无 manifest）。
+# 本文件由票 02 创建；后续机关票逐票追加房间。
+rooms:
+  dig_base:
+    name: 白玉峰脚
+    long: 峰脚乱石滩，北面是可试着挖洞的坡壁。东面有一条岔路，西面通向玉石甬道，南面是沙漠，东北可登峭壁。另有荒僻小径与日月洞口。
+    outdoors: true
+    exits:
+      north:
+        to: dig_peak
+        aliases:
+          - 北
+          - 峰顶
+      east:
+        to: fork_hub
+        aliases:
+          - 东
+          - 岔路
+      west:
+        to: jade_gate
+        aliases:
+          - 西
+          - 玉路
+      south:
+        to: desert_maze
+        aliases:
+          - 南
+          - 沙漠
+      northeast:
+        to: cliff_edge
+        aliases:
+          - 东北
+          - 峭壁
+      southeast:
+        to: cliff_base
+        aliases:
+          - 东南
+          - 崖底
+      northwest:
+        to: sunlit_room
+        aliases:
+          - 西北
+          - 日光玉室
+      southwest:
+        to: magnetic_hall
+        aliases:
+          - 西南
+          - 磁力玉厅
+      path:
+        to: ambush_trail
+        aliases:
+          - 小径
+          - 山脚
+      cave:
+        to: sun_moon_cave
+        aliases:
+          - 洞穴
+          - 日月洞
+      silk:
+        to: silk_yard
+        aliases:
+          - 柔丝
+          - 庭院
+    objects:
+      iron_sword: 1
+  dig_peak:
+    name: 白玉峰坡
+    long: 陡峭的白玉岩壁，似乎可以挖出一条临时通道。南面回到峰脚。
+    outdoors: true
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+    hooks:
+      hook_id: dig_collapse
+      params:
+        direction: north
+        target: dig_cave
+        ttl_ticks: 3
+  dig_cave:
+    name: 临时洞府
+    long: 刚刚挖出的狭小石洞，岩壁不稳，随时可能塌陷。
+    exits:
+      south:
+        to: dig_peak
+        aliases:
+          - 南
+          - 出口
+  fork_hub:
+    name: 岔路口
+    long: 小路在此分岔，北面通向未知，西面回到峰脚。
+    outdoors: true
+    exits:
+      west:
+        to: dig_base
+        aliases:
+          - 西
+          - 峰脚
+      north:
+        random_of:
+          - fork_left
+          - fork_right
+        aliases:
+          - 北
+  fork_left:
+    name: 左岔小路
+    long: 岔路左侧一条安静的小径，尽头是空地。
+    outdoors: true
+    exits:
+      south:
+        to: fork_hub
+        aliases:
+          - 南
+          - 岔路
+  fork_right:
+    name: 右岔小路
+    long: 岔路右侧一条绕石的小径，尽头是空地。
+    outdoors: true
+    exits:
+      south:
+        to: fork_hub
+        aliases:
+          - 南
+          - 岔路
+  jade_gate:
+    name: 玉石甬道
+    long: 甬道尽头是厚重石门，门环锈迹斑斑，一把斧头插在环中。
+    exits:
+      east:
+        to: dig_base
+        aliases:
+          - 东
+          - 峰脚
+    hooks:
+      hook_id: multi_step_gate
+      params:
+        direction: north
+        target: jade_chamber
+  jade_chamber:
+    name: 玉室
+    long: 推开石门后的小室，壁面温润如玉。
+    exits:
+      south:
+        to: jade_gate
+        aliases:
+          - 南
+          - 甬道
+  desert_maze:
+    name: 大沙漠
+    long: 一望无际的沙海，四周景色几乎相同。南面似有边缘，但很容易迷失方向。
+    outdoors: true
+    exits:
+      north:
+        to: dig_base
+        aliases:
+          - 北
+          - 峰脚
+      south:
+        to: desert_edge
+        aliases:
+          - 南
+          - 边缘
+    hooks:
+      hook_id: lost_in_maze
+      params:
+        required_steps: 3
+        escape_target: desert_edge
+  desert_edge:
+    name: 沙漠边缘
+    long: 沙海尽头，足迹终于清晰起来。
+    outdoors: true
+    exits:
+      north:
+        to: desert_maze
+        aliases:
+          - 北
+          - 沙漠
+  cliff_edge:
+    name: 峭壁边
+    long: 深涧横亘面前，地势稍高，或许可以纵身一跃。
+    outdoors: true
+    exits:
+      southwest:
+        to: dig_base
+        aliases:
+          - 西南
+          - 峰脚
+    hooks:
+      hook_id: skill_gate
+      params:
+        verb: jump
+        skill_id: dodge
+        min_level: 50
+        direction: north
+        target: cliff_far
+  cliff_far:
+    name: 涧对岸
+    long: 跳过深涧后的平台，回望来路令人腿软。
+    outdoors: true
+    exits:
+      south:
+        to: cliff_edge
+        aliases:
+          - 南
+          - 峭壁
+  cliff_base:
+    name: 崖底
+    long: 峭壁根部，石缝可攀。西面回到峰脚。
+    outdoors: true
+    exits:
+      west:
+        to: dig_base
+        aliases:
+          - 西
+          - 峰脚
+    hooks:
+      hook_id: skill_gate
+      params:
+        verb: climb
+        skill_id: dodge
+        min_level: 30
+        direction: up
+        target: cliff_top
+  cliff_top:
+    name: 崖顶
+    long: 攀上崖顶，风声猎猎。
+    outdoors: true
+    exits:
+      down:
+        to: cliff_base
+        aliases:
+          - 下
+          - 崖底
+  sunlit_room:
+    name: 日光玉室
+    long: 玉壁通透，日光下隐约可见北方一道缝隙。
+    exits:
+      southeast:
+        to: dig_base
+        aliases:
+          - 东南
+          - 峰脚
+      north:
+        to: secret_tunnel
+        aliases:
+          - 北
+          - 秘道
+    hooks:
+      hook_id: time_of_day_passage
+      params:
+        direction: north
+        when: day
+  secret_tunnel:
+    name: 秘道
+    long: 日光照入时才显现的窄道，尽头通向未知。
+    exits:
+      south:
+        to: sunlit_room
+        aliases:
+          - 南
+          - 玉室
+  magnetic_hall:
+    name: 磁力玉厅
+    long: 厅中隐有异力，铁器入内恐被吸住。
+    exits:
+      northeast:
+        to: dig_base
+        aliases:
+          - 东北
+          - 峰脚
+    hooks:
+      hook_id: magnetic_iron
+      params:
+        tag: iron
+  ambush_trail:
+    name: 山脚小径
+    long: 荒僻小径，常有劫匪出没。北面通向深处，南面回到峰脚。
+    outdoors: true
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+      north:
+        to: ambush_end
+        aliases:
+          - 北
+          - 深处
+    block_exits:
+      north:
+        npc: road_bandit
+    objects:
+      road_bandit: 0
+    hooks:
+      hook_id: bandit_ambush
+      params:
+        npc: road_bandit
+  ambush_end:
+    name: 小径尽头
+    long: 劫匪拦路之后才能到达的空地。
+    outdoors: true
+    exits:
+      south:
+        to: ambush_trail
+        aliases:
+          - 南
+          - 小径
+  sun_moon_cave:
+    name: 日月洞
+    long: 洞口阴冷，似有杀令张挂。南面回到峰脚。
+    exits:
+      south:
+        to: dig_base
+        aliases:
+          - 南
+          - 峰脚
+    objects:
+      cave_guard: 1
+    hooks:
+      hook_id: kill_order
+      params:
+        faction: shaolin
+        npc: cave_guard
+  silk_yard:
+    name: 柔丝庭院
+    long: 庭院中央悬着蛛网般的柔丝，北面是幽暗的柔丝室。西面回到峰脚。
+    exits:
+      west:
+        to: dig_base
+        aliases:
+          - 西
+          - 峰脚
+      north:
+        to: silk_prison
+        aliases:
+          - 北
+          - 密室
+  silk_prison:
+    name: 柔丝室
+    long: 密闭石室，四壁缠满柔丝，被擒者往往困于此处。
+    exits:
+      south:
+        to: silk_yard
+        aliases:
+          - 南
+          - 庭院
+
+factions:
+  shaolin:
+    display_name: 少林
+    skill_pool: []
+
+skills:
+  dodge:
+    type: martial
+    level_req: 0
+  silk_rope:
+    type: martial
+    level_req: 0
+    moves:
+    - name: 柔丝索
+      force: 40
+      dodge: 0
+      damage_type: blunt
+      damage: 1
+
+items:
+  iron_sword:
+    name: 铁剑
+    aliases:
+      - 剑
+    short: 一把铁剑
+    long: 普通铁剑，入玉厅恐被磁力所吸。
+    tags:
+      - iron
+
+npcs:
+  road_bandit:
+    name: 劫匪
+    aliases:
+      - 强盗
+    short: 拦路劫匪
+    long: 一伙凶神恶煞的劫匪，挡住了北去的路。
+    respawn: false
+    vitals:
+      qi_current: 40
+      qi_max: 40
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
+  cave_guard:
+    name: 洞卫
+    aliases:
+      - 守卫
+    short: 日月洞守卫
+    long: 洞口守卫，对特定门派杀气腾腾。
+    respawn: false
+    vitals:
+      qi_current: 50
+      qi_max: 50
+      neili_current: 0
+      neili_max: 0
+      jingli_current: 10
+      jingli_max: 10
+
+player:
+  name: 试炼者
+  start_room: dig_base
+  faction: shaolin
+  skills:
+    dodge: 50
+    silk_rope: 1
+  vitals:
+    qi: 100
+    qi_max: 100
+    neili: 50
+    neili_max: 50
+    jingli: 50
+    jingli_max: 50

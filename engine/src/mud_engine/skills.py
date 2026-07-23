@@ -102,10 +102,47 @@ class DemoPoisonStrikeBehavior:
         return None
 
 
+class SilkRopeCaptureBehavior:
+    """柔丝索（Pre-M4-10）：命中后直调 ``relocate_entity`` 把防御方拽入捕获房。
+
+    不是 ``RoomHook``；不经房间钩子注册表。``capture_room`` 为 ``world.room_ids``
+    键。缺活引用或未知房间键时返回 ``None``（不播报「捕获成功」），避免仅文案
+    假装生效；纯数值 ``CombatContext`` 测试可安全调用。
+    """
+
+    DEFAULT_CAPTURE_ROOM = "silk_prison"
+
+    def __init__(self, capture_room: str = DEFAULT_CAPTURE_ROOM) -> None:
+        self.capture_room = capture_room
+
+    def hit_ob(self, ctx: CombatContext, damage: int) -> int | str | None:
+        _ = damage  # 捕获不改伤害数值
+        world = ctx.world
+        defender_id = ctx.defender_id
+        if world is None or defender_id is None:
+            return None
+        room_ids = world.room_ids or {}
+        to_room = room_ids.get(self.capture_room)
+        if to_room is None:
+            return None
+        from mud_engine.room_hooks import relocate_entity
+
+        relocate_entity(world, defender_id, to_room)
+        return "柔丝索缠住对方，将其拽入密室！"
+
+    def hit_by(self, ctx: CombatContext) -> str | None:
+        return None
+
+    def post_action(self, ctx: CombatContext) -> str | None:
+        return None
+
+
 def _register_builtin_behaviors() -> None:
     """引擎内置示范行为；``clear_skill_behaviors`` 后会重新挂上。"""
     if "poison_strike" not in _SKILL_BEHAVIORS:
         _SKILL_BEHAVIORS["poison_strike"] = DemoPoisonStrikeBehavior()
+    if "silk_rope" not in _SKILL_BEHAVIORS:
+        _SKILL_BEHAVIORS["silk_rope"] = SilkRopeCaptureBehavior()
 
 
 _register_builtin_behaviors()
@@ -268,6 +305,7 @@ def _require_int(
 __all__ = [
     "SKILLS",
     "DemoPoisonStrikeBehavior",
+    "SilkRopeCaptureBehavior",
     "SkillBehavior",
     "SkillData",
     "SkillMove",

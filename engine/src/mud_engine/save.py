@@ -59,6 +59,8 @@ from mud_engine.components import (
     Position,
     QuestProgress,
     ReadingSession,
+    RoomFreeState,
+    RoomHookBinding,
 )
 from mud_engine.world import EntityId, World
 
@@ -161,6 +163,34 @@ def _ser_block_exits(c: BlockExits) -> dict:
 def _des_block_exits(d: dict) -> BlockExits:
     raw = d.get("by_direction") or {}
     return BlockExits(by_direction={str(k): str(v) for k, v in dict(raw).items()})
+
+
+def _ser_room_hook_binding(c: RoomHookBinding) -> dict:
+    return {"hook_id": c.hook_id, "params": dict(c.params)}
+
+
+def _des_room_hook_binding(d: dict) -> RoomHookBinding:
+    params_raw = d.get("params") or {}
+    return RoomHookBinding(
+        hook_id=str(d["hook_id"]),
+        params=dict(params_raw) if isinstance(params_raw, dict) else {},
+    )
+
+
+def _ser_room_free_state(c: RoomFreeState) -> dict:
+    return {
+        "data": dict(c.data),
+        "schedules": {str(k): int(v) for k, v in c.schedules.items()},
+    }
+
+
+def _des_room_free_state(d: dict) -> RoomFreeState:
+    data_raw = d.get("data") or {}
+    schedules_raw = d.get("schedules") or {}
+    return RoomFreeState(
+        data=dict(data_raw) if isinstance(data_raw, dict) else {},
+        schedules={str(k): int(v) for k, v in dict(schedules_raw).items()},
+    )
 
 
 def _ser_npc_spawn_meta(c: NpcSpawnMeta) -> dict:
@@ -266,6 +296,8 @@ _CODECS.update(
         Doors: (_ser_doors, _des_doors),
         HiddenExits: (_ser_hidden_exits, _des_hidden_exits),
         BlockExits: (_ser_block_exits, _des_block_exits),
+        RoomHookBinding: (_ser_room_hook_binding, _des_room_hook_binding),
+        RoomFreeState: (_ser_room_free_state, _des_room_free_state),
         NpcSpawnMeta: (_ser_npc_spawn_meta, _des_npc_spawn_meta),
         ItemSpawnMeta: (_ser_item_spawn_meta, _des_item_spawn_meta),
         ItemTemplateKey: (_ser_item_template_key, _des_item_template_key),

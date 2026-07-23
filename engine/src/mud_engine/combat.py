@@ -1,8 +1,10 @@
 """战斗结算核心：CombatContext 快照 + resolve_attack 七步管线 + PowerModel（M2-02 / ADR-0004）。
 
-纯函数 seam：不读写 World，不依赖 tick/命令。调用方（12 号票）负责把
-``CombatRoundResult`` apply 回真实组件。``hit_ob``/``hit_by``/``post_action``
-三个钩子调用点本票留空占位（16 号票接入真实 SkillBehavior）。
+数值结算本身不依赖 tick/命令；调用方（12 号票）负责把 ``CombatRoundResult``
+apply 回真实组件。``hit_ob``/``hit_by``/``post_action`` 经 SkillBehavior 接入
+（M2-16）；当 ``CombatContext`` 携带可选活引用（``world`` / 实体 id）时，
+行为钩子可在命中回调里做受限改世界副作用（Pre-M4-10 柔丝索
+``relocate_entity``）。未填活引用时仍为纯数值路径。
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import random
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from mud_engine.world import World
+from mud_engine.world import EntityId, World
 
 Rng = random.Random
 
@@ -30,7 +32,12 @@ class CombatMoveSnapshot:
 
 @dataclass(frozen=True)
 class CombatContext:
-    """参战双方只读快照：气血/内力/属性/当前招式。不含任何活组件引用。"""
+    """参战双方只读快照：气血/内力/属性/当前招式。
+
+    数值字段供 ``resolve_attack`` 结算。可选 ``world`` / ``defender_id`` 供
+    ``SkillBehavior`` 在命中回调里做受限改世界副作用（如柔丝索
+    ``relocate_entity``）；纯数值测试不填，默认为 ``None``。
+    """
 
     attacker_qi_current: int
     attacker_neili_current: int
@@ -45,6 +52,8 @@ class CombatContext:
     defender_dex: int
     defender_int: int
     move: CombatMoveSnapshot
+    world: World | None = None
+    defender_id: EntityId | None = None
 
 
 @dataclass(frozen=True)
@@ -126,14 +135,16 @@ def resolve_attack(
     *,
     power_model: PowerModel | None = None,
 ) -> CombatRoundResult:
-    """七步战斗结算纯函数。
+    """七步战斗结算。
 
     顺序（ADR-0004 / spec A1）：选技能 → 取招式 → 算 AP/DP → dodge
     （``random(ap+dp) < dp``）→ parry（``random(ap+pp) < pp``）→ 算伤害
-    （``hit_ob``/``hit_by`` 占位）→ inflict → exp+riposte（二者本 MVP 均为 no-op）。
+    （``hit_ob``/``hit_by``/``post_action``）→ inflict 报告 → exp+riposte
+    （二者本 MVP 均为 no-op）。
 
-    本票 CombatContext 已携带选定招式快照，"选技能/取招式"两步退化为读取
-    ``ctx.move``（12 号票再从真实 SkillLevels + SKILLS 选型填入）。
+    本函数不直接写 Vitals；伤害 apply 由调用方负责。若 ``ctx`` 带活引用，
+    ``SkillBehavior.hit_ob`` 可能改世界（如柔丝索 relocate）。CombatContext
+    已携带选定招式快照，"选技能/取招式"两步退化为读取 ``ctx.move``。
     """
     model = power_model if power_model is not None else _DEFAULT_POWER_MODEL
     move = ctx.move  # 步骤 1–2：已由调用方选定

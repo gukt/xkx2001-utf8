@@ -1,0 +1,30 @@
+---
+Status: resolved
+---
+
+# 04 — 机关 #4 `valid_leave` 步数迷途
+
+**What to build:** 新增引擎事件总线的「离房否决」事件点（`ON_BEFORE_LEAVE_ROOM`，可否决，镜像既有 `ON_BEFORE_ENTER_ROOM`；目前离房只 `dispatch`、不可否决）。挂一个"离开前必须先在房间内待够/走够若干步"的官方房间钩子（沙漠灵感）：钩子用房间自由状态计步；步数不够时尝试离开被拒绝（或被重新绕回原地等价效果）并有提示；步数够了之后可以正常离开。不复刻 LPC 沙漠原版扣水等资源消耗细节，最小切片验收。在 `xingxiu_mechanics.yaml` 追加对应验收房间。
+
+对应 spec：US21–24；Testing S0/S1。
+
+**Blocked by:** `01`（房间自由状态组件 + 窄 `ctx`）。
+
+- [x] 引擎事件总线新增 `ON_BEFORE_LEAVE_ROOM`（可否决），供本机关钩子订阅；不做成钩子协议里的通用方法族，只服务本机关（与 ADR-0007「等未来多个子系统都要用再一并抽象」同一取舍）。
+- [x] 钩子用 `ctx` 房间级自由状态计步（进房后每次尝试相关动作或每 tick 计一次，具体计数触发点按实现决定）。
+- [x] 步数不够时尝试离开该房间被否决并有提示；步数达标后可正常离开。
+- [x] `xingxiu_mechanics.yaml` 追加至少一条覆盖本机关的验收房间。
+- [x] 测试（S0）：直调钩子计步与离开否决逻辑。测试（S1）：命令序列——步数不足时 `go` 被拒并有提示，达标后 `go` 成功离开。
+- [x] `just test` 全绿。
+
+## Comments
+
+### 实现摘要（2026-07-22 Wave 3）
+
+- **事件点**：`ON_BEFORE_LEAVE_ROOM` = `"on_before_leave_room"`（`commands` + `room_hooks` 同名常量）；`go` 在 `ON_BEFORE_ENTER_ROOM` 之前 `run_vetoable`
+- **钩子**：`lost_in_maze`（`LostInMazeHook`）；方法 `on_enter`（重置 steps）+ `veto_leave(ctx, to_room=)`（**非** RoomHook 协议通用族；`attach_room_hooks` 见 `hasattr(veto_leave)` 专挂）
+- **计步**：每次被否决的离房尝试 `steps += 1`；`steps >= required_steps` 后放行
+- **params**：`required_steps`；可选 `escape_target`（仅离开前往该房间键时否决/计步；其他方向自由离房）
+- **文案**：`你在茫茫沙海中迷失了方向，只好走回原地。`
+- **验收房**：`desert_maze`（`required_steps: 3`，`escape_target: desert_edge`）/ `desert_edge`（自 `dig_base` 南入）
+- **测试**：`engine/tests/test_xingxiu_mechanics_04.py`
