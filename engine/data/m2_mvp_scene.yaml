@@ -7,12 +7,10 @@ rooms:
       north:
         to: huashan_guide
         aliases:
-        - 北
         - 村里
       south:
         to: road_huashan_yz
         aliases:
-        - 南
         - 官道
         - 扬州
   huashan_guide:
@@ -23,12 +21,10 @@ rooms:
       south:
         to: huashan_birth
         aliases:
-        - 南
         - 村口
       east:
         to: huashan_training
         aliases:
-        - 东
         - 练武场
     objects:
       huashan_guide_npc: 1
@@ -41,7 +37,6 @@ rooms:
       west:
         to: huashan_guide
         aliases:
-        - 西
         - 广场
     objects:
       training_pebble: 1
@@ -56,25 +51,14 @@ rooms:
     exits:
       north:
         to: yangzhou_beidajie
-        aliases:
-        - 北
       south:
         to: yangzhou_nandajie
-        aliases:
-        - 南
       east:
         to: yangzhou_dongdajie
-        aliases:
-        - 东
       west:
         to: yangzhou_xidajie
-        aliases:
-        - 西
       northeast:
         to: yangzhou_wumiao
-        aliases:
-        - 东北
-        - 武庙
   yangzhou_beidajie:
     name: 北大街
     long: 北大街青石铺就，酒幌与布招随风轻晃，行人多往北门方向去。 东侧是热闹客栈。
@@ -83,17 +67,12 @@ rooms:
       south:
         to: yangzhou_guangchang
         aliases:
-        - 南
         - 广场
       north:
         to: yangzhou_beimen
-        aliases:
-        - 北
-        - 北门
       east:
         to: yangzhou_kedian
         aliases:
-        - 东
         - 客栈
   yangzhou_nandajie:
     name: 南大街
@@ -103,17 +82,12 @@ rooms:
       north:
         to: yangzhou_guangchang
         aliases:
-        - 北
         - 广场
       south:
         to: yangzhou_nanmen
-        aliases:
-        - 南
-        - 南门
       west:
         to: yangzhou_biaoju
         aliases:
-        - 西
         - 镖局
   yangzhou_dongdajie:
     name: 东大街
@@ -123,27 +97,20 @@ rooms:
       west:
         to: yangzhou_guangchang
         aliases:
-        - 西
         - 广场
       east:
         to: yangzhou_dongmen
-        aliases:
-        - 东
-        - 东门
       north:
         to: yangzhou_qianzhuang
         aliases:
-        - 北
         - 钱庄
       south:
         to: yangzhou_chaguan
         aliases:
-        - 南
         - 茶馆
       northeast:
         to: yangzhou_hanlin
         aliases:
-        - 东北
         - 翰林院
   yangzhou_hanlin:
     name: 翰林府前院
@@ -151,13 +118,9 @@ rooms:
     exits:
       southwest:
         to: yangzhou_dongdajie
-        aliases:
-        - 西南
-        - 东大街
       west:
         to: yangzhou_hanlin_garden
         aliases:
-        - 西
         - 小园
       east:
         to: yangzhou_hanlin_neiyuan
@@ -166,7 +129,6 @@ rooms:
         consume_key: true
         hidden_until_unlocked: true
         aliases:
-        - 东
         - 闺房
     block_exits:
       west:
@@ -181,7 +143,6 @@ rooms:
       east:
         to: yangzhou_hanlin
         aliases:
-        - 东
         - 前院
   yangzhou_hanlin_neiyuan:
     name: 翰林闺房
@@ -190,7 +151,6 @@ rooms:
       west:
         to: yangzhou_hanlin
         aliases:
-        - 西
         - 前院
   yangzhou_xidajie:
     name: 西大街
@@ -200,23 +160,13 @@ rooms:
       east:
         to: yangzhou_guangchang
         aliases:
-        - 东
         - 广场
       west:
         to: yangzhou_ximen
-        aliases:
-        - 西
-        - 西门
       north:
         to: yangzhou_datiepu
-        aliases:
-        - 北
-        - 打铁铺
       south:
         to: yangzhou_stable
-        aliases:
-        - 南
-        - 马厩
   yangzhou_beimen:
     name: 北门
     long: 扬州北门城楼高耸，门洞可通马车。城外是北郊田野。
@@ -224,9 +174,6 @@ rooms:
     exits:
       south:
         to: yangzhou_beidajie
-        aliases:
-        - 南
-        - 北大街
   yangzhou_nanmen:
     name: 南门
     long: 南门相对冷清，守军换岗的脚步声在砖石间回响。南面官道通往华山方向。
@@ -234,13 +181,9 @@ rooms:
     exits:
       north:
         to: yangzhou_nandajie
-        aliases:
-        - 北
-        - 南大街
       south:
         to: road_huashan_yz
         aliases:
-        - 南
         - 官道
         - 华山
   yangzhou_dongmen:
@@ -250,13 +193,9 @@ rooms:
     exits:
       west:
         to: yangzhou_dongdajie
-        aliases:
-        - 西
-        - 东大街
       east:
         to: road_yz_east
         aliases:
-        - 东
         - 官道
   yangzhou_ximen:
     name: 西门
@@ -265,9 +204,6 @@ rooms:
     exits:
       east:
         to: yangzhou_xidajie
-        aliases:
-        - 东
-        - 西大街
     objects:
       yangzhou_ximen_guard: 2
   road_huashan_yz:
@@ -278,15 +214,12 @@ rooms:
       north:
         to: huashan_birth
         aliases:
-        - 北
         - 华山
         - 村口
       south:
         to: yangzhou_nanmen
         aliases:
-        - 南
         - 扬州
-        - 南门
   road_yz_east:
     name: 扬州东门外官道
     long: 出东门后的官道路段，黄土飞扬。东面地势渐险，通往扬州郊外林野。 路边拴着一匹矮种马，耐力一般，难走陡坡。
@@ -294,13 +227,9 @@ rooms:
     exits:
       west:
         to: yangzhou_dongmen
-        aliases:
-        - 西
-        - 东门
       east:
         to: wild_edge
         aliases:
-        - 东
         - 郊外
     objects:
       road_pony: 1
@@ -313,12 +242,10 @@ rooms:
       west:
         to: road_yz_east
         aliases:
-        - 西
         - 官道
       east:
         to: wild_forest
         aliases:
-        - 东
         - 密林
   wild_forest:
     name: 扬州郊外密林
@@ -328,12 +255,10 @@ rooms:
       west:
         to: wild_edge
         aliases:
-        - 西
         - 陡坡
       east:
         to: wild_thicket
         aliases:
-        - 东
         - 林深处
     objects:
       bandit_purse: 1
@@ -346,12 +271,10 @@ rooms:
       west:
         to: wild_forest
         aliases:
-        - 西
         - 密林
       east:
         to: ferry_west
         aliases:
-        - 东
         - 渡口
   ferry_west:
     name: 官道西岸渡口
@@ -365,7 +288,6 @@ rooms:
       west:
         to: wild_thicket
         aliases:
-        - 西
         - 林深处
   ferry_east:
     name: 官道东岸渡口
@@ -379,7 +301,6 @@ rooms:
       east:
         to: road_shaolin
         aliases:
-        - 东
         - 官道
   road_shaolin:
     name: 少林山门外官道
@@ -389,12 +310,10 @@ rooms:
       west:
         to: ferry_east
         aliases:
-        - 西
         - 渡口
       east:
         to: shaolin_shanmen
         aliases:
-        - 东
         - 山门
   yangzhou_kedian:
     name: 悦来客栈
@@ -402,9 +321,6 @@ rooms:
     exits:
       west:
         to: yangzhou_beidajie
-        aliases:
-        - 西
-        - 北大街
     objects:
       kedian_waiter: 1
   yangzhou_qianzhuang:
@@ -413,9 +329,6 @@ rooms:
     exits:
       south:
         to: yangzhou_dongdajie
-        aliases:
-        - 南
-        - 东大街
     objects:
       bank_note: 1
       bank_clerk: 1
@@ -426,9 +339,6 @@ rooms:
     exits:
       south:
         to: yangzhou_xidajie
-        aliases:
-        - 南
-        - 西大街
     objects:
       steel_blade: 1
       blacksmith: 1
@@ -438,9 +348,6 @@ rooms:
     exits:
       east:
         to: yangzhou_nandajie
-        aliases:
-        - 东
-        - 南大街
     objects:
       escort_chief: 1
       escort_cargo: 1
@@ -451,13 +358,9 @@ rooms:
       southwest:
         to: yangzhou_guangchang
         aliases:
-        - 西南
         - 广场
       north:
         to: yangzhou_cangshuge
-        aliases:
-        - 北
-        - 藏书阁
     objects:
       temple_keeper: 1
   yangzhou_cangshuge:
@@ -477,18 +380,12 @@ rooms:
     exits:
       south:
         to: yangzhou_wumiao
-        aliases:
-        - 南
-        - 武庙
   yangzhou_chaguan:
     name: 富春茶馆
     long: 茶馆里氤氲着龙井香气，茶博士提着铜壶穿梭，说书人的惊堂木偶一响。
     exits:
       north:
         to: yangzhou_dongdajie
-        aliases:
-        - 北
-        - 东大街
     objects:
       tea_master: 1
   yangzhou_stable:
@@ -498,9 +395,6 @@ rooms:
     exits:
       north:
         to: yangzhou_xidajie
-        aliases:
-        - 北
-        - 西大街
     objects:
       yangzhou_horse: 1
       stable_groom: 1
@@ -523,12 +417,10 @@ rooms:
       west:
         to: road_shaolin
         aliases:
-        - 西
         - 官道
       north:
         to: shaolin_guangchang
         aliases:
-        - 北
         - 广场
     objects:
       shaolin_receptionist: 1
@@ -540,23 +432,15 @@ rooms:
       south:
         to: shaolin_shanmen
         aliases:
-        - 南
         - 山门
       west:
         to: shaolin_damoyuan
-        aliases:
-        - 西
-        - 达摩院
       east:
         to: shaolin_wuchang
         aliases:
-        - 东
         - 武场
       north:
         to: shaolin_cangjingge
-        aliases:
-        - 北
-        - 藏经阁
   shaolin_damoyuan:
     name: 达摩院
     long: 达摩院内烛光摇曳，壁上绘着达摩面壁图。院僧沉默拂尘，不主动搭话。
@@ -564,7 +448,6 @@ rooms:
       east:
         to: shaolin_guangchang
         aliases:
-        - 东
         - 广场
     objects:
       damoyuan_monk: 1
@@ -575,7 +458,6 @@ rooms:
       south:
         to: shaolin_guangchang
         aliases:
-        - 南
         - 广场
     objects:
       library_monk: 1
@@ -587,7 +469,6 @@ rooms:
       west:
         to: shaolin_guangchang
         aliases:
-        - 西
         - 广场
     objects:
       shaolin_monk_trainer: 1

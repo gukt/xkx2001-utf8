@@ -57,6 +57,41 @@ python -m mud_engine --pack .scratch/m3-ugc-loop-creation-surface/example-pack -
 
 两轨都不要发明私有顶层段当「稳定 API」——透传键不在 v0 冻结范围内；表达不了的玩法先查 [GAP 台账](gap-ledger.md)。
 
+## 出口写法推荐（标准方位不必手写）
+
+引擎为十向出口键（`north` / `south` / `east` / `west` / `northeast` / `northwest` / `southeast` / `southwest` / `up` / `down`）内置中英同义词（如 `east`/`e`/`东`）。`look` 出口列表展示为中英并列（`东(east)`）。因此：
+
+- **标准方位不必**在每条出口手写 `aliases: [东]`——写了也会与内置表重复，官方范本已清理这类冗余。
+- **地名 / 绰号**建议写在**目标房间**的 `name` / `aliases` 一次；邻接出口即可 `go 武庙` 命中（解析回退：出口 aliases → 目标房 name/aliases → 方向内置）。
+- 出口级 `aliases` 仍可用于错别字或出口专属绰号（如「密道」），不必再抄标准方位。
+
+不推荐（旧样板）：
+
+```yaml
+rooms:
+  temple:
+    name: 武庙
+  square:
+    exits:
+      northeast:
+        to: temple
+        aliases: [东北, 武庙]   # 「东北」冗余；「武庙」宜落在目标房
+```
+
+推荐：
+
+```yaml
+rooms:
+  temple:
+    name: 武庙
+    # aliases: [武圣庙]   # 可选绰号也写在目标房
+  square:
+    exits:
+      northeast: temple       # 简写即可；或 mapping 且不写标准方位 aliases
+```
+
+玩家侧：`go east` / `east` / `e` / `go 东` / `go 武庙` 均可；裸中文方位或裸中文地名须带 `go`（如 `go 东`，不能只输入 `东`）。
+
 ## 本窗口明确不做
 
 - 不把 `m2_mvp_scene.yaml`（或 `m1_default_scene.yaml`）改造成带 `manifest.yaml` 的内容包目录。

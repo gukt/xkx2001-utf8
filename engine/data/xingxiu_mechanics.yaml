@@ -9,58 +9,43 @@ rooms:
       north:
         to: dig_peak
         aliases:
-          - 北
-          - 峰顶
+        - 峰顶
       east:
         to: fork_hub
         aliases:
-          - 东
-          - 岔路
+        - 岔路
       west:
         to: jade_gate
         aliases:
-          - 西
-          - 玉路
+        - 玉路
       south:
         to: desert_maze
         aliases:
-          - 南
-          - 沙漠
+        - 沙漠
       northeast:
         to: cliff_edge
         aliases:
-          - 东北
-          - 峭壁
+        - 峭壁
       southeast:
         to: cliff_base
-        aliases:
-          - 东南
-          - 崖底
       northwest:
         to: sunlit_room
-        aliases:
-          - 西北
-          - 日光玉室
       southwest:
         to: magnetic_hall
-        aliases:
-          - 西南
-          - 磁力玉厅
       path:
         to: ambush_trail
         aliases:
-          - 小径
-          - 山脚
+        - 小径
+        - 山脚
       cave:
         to: sun_moon_cave
         aliases:
-          - 洞穴
-          - 日月洞
+        - 洞穴
       silk:
         to: silk_yard
         aliases:
-          - 柔丝
-          - 庭院
+        - 柔丝
+        - 庭院
     objects:
       iron_sword: 1
   dig_peak:
@@ -71,8 +56,7 @@ rooms:
       south:
         to: dig_base
         aliases:
-          - 南
-          - 峰脚
+        - 峰脚
     hooks:
       hook_id: dig_collapse
       params:
@@ -86,8 +70,7 @@ rooms:
       south:
         to: dig_peak
         aliases:
-          - 南
-          - 出口
+        - 出口
   fork_hub:
     name: 岔路口
     long: 小路在此分岔，北面通向未知，西面回到峰脚。
@@ -96,14 +79,11 @@ rooms:
       west:
         to: dig_base
         aliases:
-          - 西
-          - 峰脚
+        - 峰脚
       north:
         random_of:
-          - fork_left
-          - fork_right
-        aliases:
-          - 北
+        - fork_left
+        - fork_right
   fork_left:
     name: 左岔小路
     long: 岔路左侧一条安静的小径，尽头是空地。
@@ -112,8 +92,7 @@ rooms:
       south:
         to: fork_hub
         aliases:
-          - 南
-          - 岔路
+        - 岔路
   fork_right:
     name: 右岔小路
     long: 岔路右侧一条绕石的小径，尽头是空地。
@@ -122,8 +101,7 @@ rooms:
       south:
         to: fork_hub
         aliases:
-          - 南
-          - 岔路
+        - 岔路
   jade_gate:
     name: 玉石甬道
     long: 甬道尽头是厚重石门，门环锈迹斑斑，一把斧头插在环中。
@@ -131,8 +109,7 @@ rooms:
       east:
         to: dig_base
         aliases:
-          - 东
-          - 峰脚
+        - 峰脚
     hooks:
       hook_id: multi_step_gate
       params:
@@ -145,8 +122,7 @@ rooms:
       south:
         to: jade_gate
         aliases:
-          - 南
-          - 甬道
+        - 甬道
   desert_maze:
     name: 大沙漠
     long: 一望无际的沙海，四周景色几乎相同。南面似有边缘，但很容易迷失方向。
@@ -155,13 +131,11 @@ rooms:
       north:
         to: dig_base
         aliases:
-          - 北
-          - 峰脚
+        - 峰脚
       south:
         to: desert_edge
         aliases:
-          - 南
-          - 边缘
+        - 边缘
     hooks:
       hook_id: lost_in_maze
       params:
@@ -175,8 +149,7 @@ rooms:
       north:
         to: desert_maze
         aliases:
-          - 北
-          - 沙漠
+        - 沙漠
   cliff_edge:
     name: 峭壁边
     long: 深涧横亘面前，地势稍高，或许可以纵身一跃。
@@ -185,8 +158,7 @@ rooms:
       southwest:
         to: dig_base
         aliases:
-          - 西南
-          - 峰脚
+        - 峰脚
     hooks:
       hook_id: skill_gate
       params:
@@ -203,8 +175,7 @@ rooms:
       south:
         to: cliff_edge
         aliases:
-          - 南
-          - 峭壁
+        - 峭壁
   cliff_base:
     name: 崖底
     long: 峭壁根部，石缝可攀。西面回到峰脚。
@@ -213,8 +184,7 @@ rooms:
       west:
         to: dig_base
         aliases:
-          - 西
-          - 峰脚
+        - 峰脚
     hooks:
       hook_id: skill_gate
       params:
@@ -230,9 +200,6 @@ rooms:
     exits:
       down:
         to: cliff_base
-        aliases:
-          - 下
-          - 崖底
   sunlit_room:
     name: 日光玉室
     long: 玉壁通透，日光下隐约可见北方一道缝隙。
@@ -240,13 +207,9 @@ rooms:
       southeast:
         to: dig_base
         aliases:
-          - 东南
-          - 峰脚
+        - 峰脚
       north:
         to: secret_tunnel
-        aliases:
-          - 北
-          - 秘道
     hooks:
       hook_id: time_of_day_passage
       params:
@@ -259,8 +222,7 @@ rooms:
       south:
         to: sunlit_room
         aliases:
-          - 南
-          - 玉室
+        - 玉室
   magnetic_hall:
     name: 磁力玉厅
     long: 厅中隐有异力，铁器入内恐被吸住。
@@ -268,8 +230,7 @@ rooms:
       northeast:
         to: dig_base
         aliases:
-          - 东北
-          - 峰脚
+        - 峰脚
     hooks:
       hook_id: magnetic_iron
       params:
@@ -282,13 +243,11 @@ rooms:
       south:
         to: dig_base
         aliases:
-          - 南
-          - 峰脚
+        - 峰脚
       north:
         to: ambush_end
         aliases:
-          - 北
-          - 深处
+        - 深处
     block_exits:
       north:
         npc: road_bandit
@@ -306,8 +265,7 @@ rooms:
       south:
         to: ambush_trail
         aliases:
-          - 南
-          - 小径
+        - 小径
   sun_moon_cave:
     name: 日月洞
     long: 洞口阴冷，似有杀令张挂。南面回到峰脚。
@@ -315,8 +273,7 @@ rooms:
       south:
         to: dig_base
         aliases:
-          - 南
-          - 峰脚
+        - 峰脚
     objects:
       cave_guard: 1
     hooks:
@@ -331,13 +288,11 @@ rooms:
       west:
         to: dig_base
         aliases:
-          - 西
-          - 峰脚
+        - 峰脚
       north:
         to: silk_prison
         aliases:
-          - 北
-          - 密室
+        - 密室
   silk_prison:
     name: 柔丝室
     long: 密闭石室，四壁缠满柔丝，被擒者往往困于此处。
@@ -345,14 +300,11 @@ rooms:
       south:
         to: silk_yard
         aliases:
-          - 南
-          - 庭院
-
+        - 庭院
 factions:
   shaolin:
     display_name: 少林
     skill_pool: []
-
 skills:
   dodge:
     type: martial
@@ -366,22 +318,20 @@ skills:
       dodge: 0
       damage_type: blunt
       damage: 1
-
 items:
   iron_sword:
     name: 铁剑
     aliases:
-      - 剑
+    - 剑
     short: 一把铁剑
     long: 普通铁剑，入玉厅恐被磁力所吸。
     tags:
-      - iron
-
+    - iron
 npcs:
   road_bandit:
     name: 劫匪
     aliases:
-      - 强盗
+    - 强盗
     short: 拦路劫匪
     long: 一伙凶神恶煞的劫匪，挡住了北去的路。
     respawn: false
@@ -395,7 +345,7 @@ npcs:
   cave_guard:
     name: 洞卫
     aliases:
-      - 守卫
+    - 守卫
     short: 日月洞守卫
     long: 洞口守卫，对特定门派杀气腾腾。
     respawn: false
@@ -406,7 +356,6 @@ npcs:
       neili_max: 0
       jingli_current: 10
       jingli_max: 10
-
 player:
   name: 试炼者
   start_room: dig_base
