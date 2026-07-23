@@ -55,7 +55,7 @@
 
 引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 
-房间风景：`details` 为键 → 描述字符串或 `{text, aliases?}`；可含语义色 markup；不占 `objects`、不可 `get`。`look <键|别名>` 在同房实体未命中后查本映射。
+房间风景：`details` 推荐 K2 形状——无空格英文 id → `{text, aliases?}`（如 `shi_shi: {text: …, aliases: [石狮, ss]}`）；旧「中文键 → 纯字符串」仍兼容（加载为 `{text: 值, aliases: [键]}`）。可含语义色 markup；不占 `objects`、不可 `get`。作者在 `long`/`text` 手写 `石狮(shi_shi)`（或 `石狮(shi shi)`）供客户端按 S1 扫描高亮；`look <键|别名>` 在同房实体未命中后查本映射（N1 分隔符归一）。
 
 房间旗标：`no_fight` / `no_steal` / `no_sleep_room`（布尔）。`no_fight` 拦 `attack`/`kill`；`no_sleep_room` 拦 `sleep`；`no_steal` 可声明并校验，无对应命令面时行为 inert。
 

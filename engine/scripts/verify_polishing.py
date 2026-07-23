@@ -166,49 +166,30 @@ def _scenario_02_yaml_shorthand() -> ScenarioResult:
 
 
 def _scenario_03_room_details() -> ScenarioResult:
-    """MVP legacy look + K2 aliases / N1 归一。"""
+    """官方广场已迁 K2：英键 + long 手写 ``名(id)`` + aliases / N1。"""
     world, player_id = load_mvp_scene()
     move_to(world, player_id, "yangzhou_guangchang")
     steps = run_lines(
         world,
         player_id,
         [
+            ("look", Expect(contains=("石狮(shi_shi)", "旗杆(qi_gan)"))),
             ("look 石狮", Expect(contains=("石狮",))),
+            ("look shi_shi", Expect(contains=("石狮",))),
+            ("look ss", Expect(contains=("石狮",))),
             ("look 旗杆", Expect(contains=("<c:yellow>旗角</c>",))),
+            ("look qi_gan", Expect(contains=("<c:yellow>旗角</c>",))),
         ],
     )
     plaza = world.room_ids["yangzhou_guangchang"]
     details = world.require_component(plaza, RoomDetails)
     steps.append(
         assert_step(
-            "(assert) MVP details 已归一为 DetailEntry",
-            "石狮" in details.entries and details.entries["石狮"].text != "",
-            messages=[repr(details.entries.get("石狮"))],
-        )
-    )
-
-    k2 = """rooms:
-  plaza:
-    name: 广场
-    long: 广场。
-    details:
-      shi_shi:
-        text: 一对石狮蹲在旗杆两侧。
-        aliases: [石狮, ss]
-    exits: {}
-player:
-  name: 你
-  start_room: plaza
-"""
-    w2, p2 = load_scene(_write_tmp_scene(k2))
-    steps.extend(
-        run_lines(
-            w2,
-            p2,
-            [
-                ("look ss", Expect(contains=("石狮",))),
-                ("look shi_shi", Expect(contains=("石狮",))),
-            ],
+            "(assert) MVP details 键为 shi_shi / qi_gan",
+            set(details.entries) == {"shi_shi", "qi_gan"}
+            and "石狮" in details.entries["shi_shi"].aliases
+            and "旗杆" in details.entries["qi_gan"].aliases,
+            messages=[repr(sorted(details.entries))],
         )
     )
     return ScenarioResult(name="03 房间风景 details 升级", steps=steps)

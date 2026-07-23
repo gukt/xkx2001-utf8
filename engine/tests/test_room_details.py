@@ -269,6 +269,19 @@ class TestScanDetailMentions:
 
 
 class TestOfficialYangzhouDetails:
+    def test_guangchang_k2_keys_and_paren_in_long(self) -> None:
+        """官方范本：英键 + long 手写名(id)（Polishing A4 / CONTEXT 房间风景）。"""
+        world, player_id = load_mvp_scene()
+        assert world.room_ids is not None
+        plaza = world.room_ids["yangzhou_guangchang"]
+        world.require_component(player_id, Position).room = plaza
+        details = world.require_component(plaza, RoomDetails)
+        assert set(details.entries) == {"shi_shi", "qi_gan"}
+        assert "石狮" in details.entries["shi_shi"].aliases
+        look = execute_line(world, player_id, "look")
+        assert any("石狮(shi_shi)" in line for line in look)
+        assert any("旗杆(qi_gan)" in line for line in look)
+
     def test_guangchang_look_shishi(self) -> None:
         world, player_id = load_mvp_scene()
         assert world.room_ids is not None
@@ -277,6 +290,10 @@ class TestOfficialYangzhouDetails:
         ]
         lines = execute_line(world, player_id, "look 石狮")
         assert any("石狮" in line and "旗杆" in line for line in lines)
+        assert any(
+            "石狮" in line and "旗杆" in line
+            for line in execute_line(world, player_id, "look shi_shi")
+        )
 
     def test_guangchang_look_qigan_keeps_semantic_color(self) -> None:
         """S3：户外广场 details 带语义色（旗杆）。"""

@@ -43,11 +43,20 @@ rooms:
       training_dummy: 1
   yangzhou_guangchang:
     name: 中央广场
-    long: 扬州城心的中央广场，石狮守着旗杆，往来车马络绎不绝。 四条大街由此散开，是城中枢纽，也是传闻中动态事件的落脚处。 东北角可见武庙飞檐。
+    long: 扬州城心的中央广场，石狮(shi_shi)守着旗杆(qi_gan)，往来车马络绎不绝。 四条大街由此散开，是城中枢纽，也是传闻中动态事件的落脚处。 东北角可见武庙飞檐。
     outdoors: true
     details:
-      石狮: 一对石狮蹲在旗杆两侧，爪下各按着一只小石球，神态威严。
-      旗杆: 广场中央矗立着旗杆，<c:yellow>旗角</c>猎猎作响。
+      shi_shi:
+        text: 一对石狮蹲在旗杆两侧，爪下各按着一只小石球，神态威严。
+        aliases:
+        - 石狮
+        - shi shi
+        - ss
+      qi_gan:
+        text: 广场中央矗立着旗杆，<c:yellow>旗角</c>猎猎作响。
+        aliases:
+        - 旗杆
+        - qi gan
     exits:
       north:
         to: yangzhou_beidajie
@@ -366,7 +375,7 @@ rooms:
       temple_keeper: 1
   yangzhou_cangshuge:
     name: 藏书阁
-    long: 扬州藏书阁内书架林立，纸墨清香。墙上有告示：此处只供读书，不许练功比武。
+    long: 扬州藏书阁内书架(shu_jia)林立，纸墨清香。墙上有告示(gao_shi)：此处只供读书，不许练功比武。
     no_fight: true
     no_steal: true
     no_sleep_room: true
@@ -376,8 +385,15 @@ rooms:
       - xkx_intro
       - yangzhou_notes
     details:
-      书架: 一排古旧的书架，书脊上贴着标签。
-      告示: 告示写着：藏书阁内禁止练功比武；读书须按章付银。
+      shu_jia:
+        text: 一排古旧的书架，书脊上贴着标签。
+        aliases:
+        - 书架
+      gao_shi:
+        text: 告示写着：藏书阁内禁止练功比武；读书须按章付银。
+        aliases:
+        - 告示
+        - gao shi
     exits:
       south:
         to: yangzhou_wumiao

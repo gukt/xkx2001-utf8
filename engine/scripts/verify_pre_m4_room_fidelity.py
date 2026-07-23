@@ -49,8 +49,9 @@ def _scenario_outdoor_details_color() -> ScenarioResult:
         world,
         player_id,
         [
-            ("look", Expect(contains=("中央广场",))),
+            ("look", Expect(contains=("中央广场", "石狮(shi_shi)", "旗杆(qi_gan)"))),
             ("look 石狮", Expect(contains=("石狮",))),
+            ("look shi_shi", Expect(contains=("石狮",))),
             (
                 "look 旗杆",
                 Expect(contains=("<c:yellow>旗角</c>",), absent=("\x1b[",)),
