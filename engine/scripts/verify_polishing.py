@@ -38,7 +38,6 @@ from verify_harness import (
 from mud_engine.ai import spawn_scan
 from mud_engine.components import (
     Exits,
-    Identity,
     NpcSpawnMeta,
     Position,
     RoomDetails,
