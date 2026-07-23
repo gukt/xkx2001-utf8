@@ -421,7 +421,7 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         if entry is not None:
             blocker = _find_npc_template_in_room(world, room, entry.npc_template)
             if blocker is not None:
-                if entry.deny_message is not None:
+                if entry.deny_message:
                     return [entry.deny_message]
                 name = world.require_component(blocker, Identity).name
                 return [f"{name}挡住了{direction}方向的去路。"]

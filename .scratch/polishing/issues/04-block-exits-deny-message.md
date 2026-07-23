@@ -23,6 +23,6 @@ Status: resolved
 
 - **字段形状**：`BlockEntry(npc_template: str, deny_message: str | None = None)`；`BlockExits.by_direction: dict[str, BlockEntry]`。
 - **YAML**：推荐 `{npc, deny_message?}`；纯字符串 `<dir>: <模板键>` → `deny_message=None`。
-- **命令**：`deny_message is not None` 时原样返回该字符串；否则默认「{名}挡住了{方向}方向的去路。」。
+- **命令**：非空 `deny_message` 时原样返回；`None`/空串回退默认「{名}挡住了{方向}方向的去路。」。
 - **存档**：新格式 `{npc_template, deny_message}`；旧存档字符串值仍可反序列化。
 - **契约**：`docs/creator-contract-v0.md` 剧情挡向段已补 `deny_message` 与字符串简写说明。

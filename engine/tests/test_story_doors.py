@@ -178,6 +178,20 @@ class TestBlockExits:
         lines = execute_line(world, player_id, "go west")
         assert any("门卫挡住了west方向的去路。" in line for line in lines)
 
+    def test_deny_message_empty_falls_back_to_default(self, tmp_path: Path) -> None:
+        data = _story_scene()
+        data["rooms"]["yard"]["block_exits"] = {
+            "west": {"npc": "guard_npc", "deny_message": ""}
+        }
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        entry = world.require_component(world.room_ids["yard"], BlockExits).by_direction[
+            "west"
+        ]
+        assert entry.deny_message is None
+        execute_line(world, player_id, "go north")
+        lines = execute_line(world, player_id, "go west")
+        assert any("门卫挡住了west方向的去路。" in line for line in lines)
+
     def test_block_exits_string_shorthand_loads(self, tmp_path: Path) -> None:
         data = _story_scene()
         data["rooms"]["yard"]["block_exits"] = {"west": "guard_npc"}

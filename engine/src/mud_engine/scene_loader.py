@@ -477,7 +477,10 @@ def _attach_block_exits(
                 f"缺少 'npc'（NPC 模板键）"
             )
         deny_raw = spec.get("deny_message")
-        deny_message = None if deny_raw is None else str(deny_raw)
+        if deny_raw is None or (isinstance(deny_raw, str) and not deny_raw.strip()):
+            deny_message = None
+        else:
+            deny_message = str(deny_raw)
         by_dir[str(direction)] = BlockEntry(
             npc_template=str(npc), deny_message=deny_message
         )

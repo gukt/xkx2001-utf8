@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- Polishing Wave 3：票 `04`（`block_exits` deny_message）+ `05`（步行 `cost` 精力）；fixed point `polishing-wave3-start`。
 
 ## Blocked
 

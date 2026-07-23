@@ -184,9 +184,13 @@ def _des_block_exits(d: dict) -> BlockExits:
             continue
         npc = value.get("npc_template", value.get("npc", ""))
         deny_raw = value.get("deny_message")
+        if deny_raw is None or (isinstance(deny_raw, str) and not deny_raw.strip()):
+            deny_message = None
+        else:
+            deny_message = str(deny_raw)
         by_dir[str(direction)] = BlockEntry(
             npc_template=str(npc),
-            deny_message=None if deny_raw is None else str(deny_raw),
+            deny_message=deny_message,
         )
     return BlockExits(by_direction=by_dir)
 
