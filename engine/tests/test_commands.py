@@ -74,8 +74,7 @@ class TestGo:
 
     class WhenDirectionIsGivenByAlias:
         def test_moves_player_through_the_aliased_exit(self) -> None:
-            # start_yard 的 north 出口带别名"北道"（见 scenes.py），验证方向
-            # 别名经通用匹配工具解析后能正常通行（02 号票目标别名机制）。
+            # corridor 房间 aliases 含「北道」，经目标房回退可 go 北道。
             world, player_id = build_world()
             start = world.require_component(player_id, Position).room
             messages = execute_line(world, player_id, "go 北道")

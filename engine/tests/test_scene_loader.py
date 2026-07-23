@@ -76,10 +76,13 @@ class TestLoadDefaultScene:
         assert corridor_exits.by_direction["south"].target == start_room
 
     def test_direction_aliases_survive_the_yaml_round_trip(self) -> None:
+        # 「北道」挂在目标房 corridor 的 Identity.aliases（出口简写无 Exit.aliases）。
         world, player_id = build_world()
         start_room = world.require_component(player_id, Position).room
         exits = world.require_component(start_room, Exits)
-        assert "北道" in exits.by_direction["north"].aliases
+        corridor = exits.by_direction["north"].target
+        assert exits.by_direction["north"].aliases == ()
+        assert "北道" in world.require_component(corridor, Identity).aliases
 
 
 class TestStaticDisplayNpc:

@@ -4,10 +4,7 @@ rooms:
     long: 一片空荡荡的庭院，只搭了最基本的骨架，等待后续题材内容填充。
     outdoors: true
     exits:
-      north:
-        to: corridor
-        aliases:
-        - 北道
+      north: corridor
       south:
         to: storage_room
         door: closed
@@ -19,10 +16,11 @@ rooms:
       patrol_pair: 2
   corridor:
     name: 长廊
+    aliases:
+    - 北道
     long: 一条连接南北两侧的长廊，两侧墙壁空无一物。
     exits:
-      south:
-        to: start_yard
+      south: start_yard
       north:
         to: quiet_room
         door: locked
@@ -36,8 +34,7 @@ rooms:
     name: 储藏室
     long: 一间堆放杂物的小储藏室，光线昏暗。
     exits:
-      north:
-        to: start_yard
+      north: start_yard
     objects:
       wooden_box: 1
       copper_coins_a: 1

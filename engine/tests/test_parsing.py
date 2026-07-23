@@ -98,7 +98,7 @@ class TestDeterministicParser:
             assert result == ParseFailure(Reason.REQUIRES_GO, original="东")
 
         def test_bare_chinese_place_alias_requires_go(self) -> None:
-            # 北道是 start_yard.north 的出口别名。
+            # 北道是 corridor 房间 aliases（经目标房回退可 go 北道）。
             result = _parse("北道")
             assert result == ParseFailure(Reason.REQUIRES_GO, original="北道")
 
