@@ -10,9 +10,18 @@ Status: resolved
 
 **Blocked by:** None — 可立即开始。
 
-- [ ] `docs/condition-dsl.md`：分节讲清四个接入点各自的字段位置（`rooms.*.entry_guard`、`day_shop` 派生 `is_day`、`skills.*.learn_condition`、`npcs.*.behaviors[].when`）+ 共用语法（`predicate`/`field`+`value`/`gte`/`and`/`or`/`not`）。
-- [ ] 每个接入点至少一段取自现有官方范本（少林山门 `entry_guard`、打铁铺 `day_shop`、`luohan_quan.learn_condition` 等）的真实 YAML 片段，直接摘自 `engine/data/*.yaml`，不虚构示例。
-- [ ] 「现在不支持」清单：背包任意物查询、任务旗标查询、局部天气查询等，措辞与 `docs/gap-ledger.md` 对齐。
-- [ ] `docs/creator-contract-v0.md`：新增一行引用 `docs/condition-dsl.md`。
-- [ ] 可选：文档内嵌 YAML 范例用既有 `load_scene` seam 跑一次「能加载、条件求值符合预期」验证测试（非必需，如加则归入 `test_conditions.py`/`test_entry_guard.py`）。
-- [ ] 无契约/加载器代码变更（本票仅产出文档）。
+- [x] `docs/condition-dsl.md`：分节讲清四个接入点各自的字段位置（`rooms.*.entry_guard`、`day_shop` 派生 `is_day`、`skills.*.learn_condition`、`npcs.*.behaviors[].when`）+ 共用语法（`predicate`/`field`+`value`/`gte`/`and`/`or`/`not`）。
+- [x] 每个接入点至少一段取自现有官方范本（少林山门 `entry_guard`、打铁铺 `day_shop`、`luohan_quan.learn_condition` 等）的真实 YAML 片段，直接摘自 `engine/data/*.yaml`，不虚构示例。
+- [x] 「现在不支持」清单：背包任意物查询、任务旗标查询、局部天气查询等，措辞与 `docs/gap-ledger.md` 对齐。
+- [x] `docs/creator-contract-v0.md`：新增一行引用 `docs/condition-dsl.md`。
+- [x] 可选：文档内嵌 YAML 范例用既有 `load_scene` seam 跑一次「能加载、条件求值符合预期」验证测试（非必需，如加则归入 `test_conditions.py`/`test_entry_guard.py`）。（本票跳过；官方范本已有既有测试覆盖加载/求值。）
+- [x] 无契约/加载器代码变更（本票仅产出文档）。
+
+## Comments
+
+实现摘要（2026-07-23）：
+
+- **文档**：`docs/condition-dsl.md`——共用语法 + 四个接入点真实 YAML（`m2_mvp_scene.yaml` 少林山门/`day_shop` 打铁铺/`luohan_quan`；`m1_default_scene.yaml` `night_owl.when`）。
+- **契约**：`creator-contract-v0.md` 日间店段落后新增指向 `condition-dsl.md` 的一行。
+- **「现在不支持」**：背包任意物 / 任务旗标 / 局部天气——措辞对齐 gap-ledger 对应行；并注明 C12 走 hooks params、不扩 DSL。
+- **无代码变更**。

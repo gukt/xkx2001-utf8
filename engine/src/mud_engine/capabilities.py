@@ -53,12 +53,14 @@ from mud_engine.components import (
     ItemFlags,
     ItemTags,
     LibraryRoom,
+    LiquidContainer,
     Mount,
     NoDeathZone,
     RentPaid,
     Riding,
     RoomDetails,
     RoomFlags,
+    RoomResources,
     ShopEntry,
     ShopInventory,
     SkillLevels,
@@ -170,7 +172,7 @@ def _parse_equippable(
 def _parse_consumable(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> Consumable | None:
-    """``consumable: true|{uses}`` 占位。"""
+    """``consumable: true|{uses}``。"""
     raw = data.get("consumable")
     if raw is None or raw is False:
         return None
@@ -188,6 +190,38 @@ def _parse_consumable(
         f"场景文件 {scene_path} 的{label}的 'consumable' 应是 true 或映射，"
         f"实际是 {type(raw).__name__}"
     )
+
+
+def _parse_liquid_container(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> LiquidContainer | None:
+    """``liquid_container: true`` → 空容器；可选 ``filled_liquid`` 初值（测试/存档）。"""
+    raw = data.get("liquid_container")
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        filled = data.get("filled_liquid")
+        if filled is None:
+            return LiquidContainer()
+        return LiquidContainer(filled_liquid=str(filled))
+    if isinstance(raw, Mapping):
+        filled = raw.get("filled_liquid")
+        if filled is None:
+            return LiquidContainer()
+        return LiquidContainer(filled_liquid=str(filled))
+    raise SceneLoadError(
+        f"场景文件 {scene_path} 的{label}的 'liquid_container' 应是 true 或映射，"
+        f"实际是 {type(raw).__name__}"
+    )
+
+
+def _ser_liquid_container(c: LiquidContainer) -> dict:
+    return {"filled_liquid": c.filled_liquid}
+
+
+def _des_liquid_container(d: dict) -> LiquidContainer:
+    filled = d.get("filled_liquid")
+    return LiquidContainer(filled_liquid=None if filled is None else str(filled))
 
 
 def _parse_item_flags(
@@ -383,6 +417,13 @@ CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_consumable,
         to_dict=_ser_consumable,
         from_dict=_des_consumable,
+    ),
+    CapabilitySpec(
+        component_type=LiquidContainer,
+        known_fields=frozenset({"liquid_container", "filled_liquid"}),
+        from_yaml=_parse_liquid_container,
+        to_dict=_ser_liquid_container,
+        from_dict=_des_liquid_container,
     ),
     CapabilitySpec(
         component_type=ItemFlags,
@@ -778,6 +819,33 @@ def _des_hotel_room(_d: dict) -> HotelRoom:
     return HotelRoom()
 
 
+def _parse_room_resources(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> RoomResources | None:
+    """``resource: {water?: bool}``；无 water 真值则不挂。"""
+    raw = data.get("resource")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'resource' 应是映射，实际是 {type(raw).__name__}"
+        )
+    water = _parse_bool_flag(
+        raw.get("water"), field="resource.water", label=label, scene_path=scene_path
+    )
+    if not water:
+        return None
+    return RoomResources(water=True)
+
+
+def _ser_room_resources(c: RoomResources) -> dict:
+    return {"water": c.water}
+
+
+def _des_room_resources(d: dict) -> RoomResources:
+    return RoomResources(water=bool(d.get("water", False)))
+
+
 def _parse_library_room(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> LibraryRoom | None:
@@ -908,6 +976,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_hotel_room,
         to_dict=_ser_hotel_room,
         from_dict=_des_hotel_room,
+    ),
+    CapabilitySpec(
+        component_type=RoomResources,
+        known_fields=frozenset({"resource"}),
+        from_yaml=_parse_room_resources,
+        to_dict=_ser_room_resources,
+        from_dict=_des_room_resources,
     ),
 ]
 

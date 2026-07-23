@@ -116,6 +116,8 @@ class DeterministicParser(Parser):
             return self._parse_get(rest, world, player_id)
         if verb == "drop":
             return self._parse_drop(rest, world, player_id)
+        if verb in ("fill", "drink", "eat"):
+            return self._parse_inventory_item(rest, world, player_id, verb=verb)
         if verb == "put":
             return self._parse_put(rest, world, player_id)
         if verb == "give":
@@ -227,6 +229,21 @@ class DeterministicParser(Parser):
         if isinstance(matched, ParseFailure):
             return matched
         return Intent(verb="drop", target=matched, args=tuple(qty_args))
+
+    def _parse_inventory_item(
+        self, args: list[str], world: World, player_id: EntityId, *, verb: str
+    ) -> Intent | ParseFailure:
+        """``fill`` / ``drink`` / ``eat``：匹配玩家背包物品规范名。"""
+        if not args:
+            return Intent(verb=verb, target=None)
+        matched = self._match_item_token(
+            args[0],
+            self._item_candidates(world, player_id, "player"),
+            verb=verb,
+        )
+        if isinstance(matched, ParseFailure):
+            return matched
+        return Intent(verb=verb, target=matched)
 
     def _parse_get_from(
         self,

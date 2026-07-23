@@ -37,11 +37,15 @@ from dataclasses import dataclass
 
 from mud_engine import lookup
 from mud_engine.components import (
+    DRINK_RESTORE_JINGLI,
+    EAT_RESTORE_JINGLI,
+    EAT_RESTORE_QI,
     HOTEL_RENT_COST,
     MOUNT_JINGLI_PER_TERRAIN_COST,
     WALK_JINGLI_PER_TERRAIN_COST,
     BaseAttributes,
     BlockExits,
+    Consumable,
     Container,
     Currency,
     Description,
@@ -58,7 +62,7 @@ from mud_engine.components import (
     Identity,
     Inquiry,
     LibraryRoom,
-    MoreBuffer,
+    LiquidContainer,
     Mount,
     NpcSpawnMeta,
     PlayerSession,
@@ -69,6 +73,7 @@ from mud_engine.components import (
     RoomDetails,
     RoomFlags,
     RoomHookBinding,
+    RoomResources,
     ShopInventory,
     SkillLevels,
     SkillProgress,
@@ -1112,6 +1117,97 @@ def _cmd_pay(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     currency.amount -= HOTEL_RENT_COST
     world.add_component(player_id, RentPaid())
     return [f"你付给{npc_name} {HOTEL_RENT_COST} 两银子作房钱。"]
+
+
+@register("fill")
+def _cmd_fill(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """在有 ``resource.water`` 的房间给液体容器灌水：``fill <容器>``（Polishing-08）。"""
+    name = intent.target
+    if not name:
+        return ["灌什么？用法：fill <容器>"]
+    bag = world.get_component(player_id, Container)
+    if bag is None:
+        return [f"你身上没有「{name}」。"]
+    item = _find_item_in_container(world, bag, name)
+    if item is None:
+        return [f"你身上没有「{name}」。"]
+    liquid = world.get_component(item, LiquidContainer)
+    if liquid is None:
+        return [f"「{name}」不能装水。"]
+    room = _player_room(world, player_id)
+    resources = world.get_component(room, RoomResources)
+    if resources is None or not resources.water:
+        return ["这里没有水源，没法打水。"]
+    if liquid.filled_liquid is not None:
+        return [f"「{name}」已经装满了。"]
+    liquid.filled_liquid = "water"
+    return [f"你把{name}灌满了清水。"]
+
+
+@register("drink")
+def _cmd_drink(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """饮用已灌装容器：一次性恢复精力并清空灌装（Polishing-08；不接 Effect 生命周期）。"""
+    name = intent.target
+    if not name:
+        return ["喝什么？用法：drink <容器>"]
+    bag = world.get_component(player_id, Container)
+    if bag is None:
+        return [f"你身上没有「{name}」。"]
+    item = _find_item_in_container(world, bag, name)
+    if item is None:
+        return [f"你身上没有「{name}」。"]
+    liquid = world.get_component(item, LiquidContainer)
+    if liquid is None:
+        return [f"「{name}」不是容器。"]
+    if liquid.filled_liquid is None:
+        return [f"「{name}」是空的，没什么可喝。"]
+    liquid.filled_liquid = None
+    vitals = world.get_component(player_id, Vitals)
+    if vitals is not None:
+        vitals.jingli_current = min(
+            vitals.jingli_max, vitals.jingli_current + DRINK_RESTORE_JINGLI
+        )
+    return [f"你喝了{name}里的水，精神好些了。"]
+
+
+@register("eat")
+def _cmd_eat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
+    """进食可消耗物：一次性恢复气血/精力，并按 ``Consumable.uses`` 递减/销毁。"""
+    name = intent.target
+    if not name:
+        return ["吃什么？用法：eat <食物>"]
+    bag = world.get_component(player_id, Container)
+    if bag is None:
+        return [f"你身上没有「{name}」。"]
+    item = _find_item_in_container(world, bag, name)
+    if item is None:
+        return [f"你身上没有「{name}」。"]
+    consumable = world.get_component(item, Consumable)
+    if consumable is None:
+        return [f"「{name}」不能吃。"]
+    vitals = world.get_component(player_id, Vitals)
+    if vitals is not None:
+        vitals.qi_current = min(vitals.qi_max, vitals.qi_current + EAT_RESTORE_QI)
+        vitals.jingli_current = min(
+            vitals.jingli_max, vitals.jingli_current + EAT_RESTORE_JINGLI
+        )
+    _consume_uses(world, player_id, item)
+    return [f"你吃了{name}，觉得好多了。"]
+
+
+def _consume_uses(world: World, holder_id: EntityId, item: EntityId) -> None:
+    """递减 ``Consumable.uses``；耗尽则从持有者容器移除并 ``destroy_entity``。
+
+    eat 等命令共用本路径，不另建平行销毁逻辑。
+    """
+    consumable = world.require_component(item, Consumable)
+    consumable.uses -= 1
+    if consumable.uses > 0:
+        return
+    bag = world.get_component(holder_id, Container)
+    if bag is not None:
+        bag.items.discard(item)
+    world.destroy_entity(item)
 
 
 @register("practice")

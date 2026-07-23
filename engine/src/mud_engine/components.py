@@ -276,9 +276,28 @@ class Equippable:
 
 @dataclass
 class Consumable:
-    """可消耗占位（18 号票）。M1 不实现 eat/drink；uses 供 M2 状态系统接入。"""
+    """可消耗物品（``eat`` 递减 uses；耗尽销毁）。运行时 ``uses`` 可变进存档。"""
 
-    uses: int = 1  # 剩余使用次数；运行时可变进存档（M2 消耗时改）
+    uses: int = 1  # 剩余使用次数；eat 成功后递减，<=0 时销毁
+
+
+@dataclass
+class LiquidContainer:
+    """液体容器（``fill`` / ``drink``）。``filled_liquid`` 运行时可变进存档。
+
+    YAML ``liquid_container: true`` 挂载；``filled_liquid`` 为 ``None`` 表示空，
+    灌水后为 ``"water"``（本票仅支持水）。
+    """
+
+    filled_liquid: str | None = None  # None=空；"water"=已灌水
+
+
+# 饮用一次恢复的精力；题材包若需调参可日后升为场景/物品字段。
+DRINK_RESTORE_JINGLI: int = 20
+
+# 进食一次恢复的气血 / 精力（当次结算，不挂持续 Effect）。
+EAT_RESTORE_QI: int = 15
+EAT_RESTORE_JINGLI: int = 10
 
 
 @dataclass
@@ -548,6 +567,17 @@ class HotelRoom:
 
     由房间 YAML ``hotel: true`` 挂载；存在性即语义，无额外字段。
     """
+
+
+@dataclass
+class RoomResources:
+    """房间布尔资源（河边打水等）。启动固定。
+
+    YAML ``resource: {water: true}``。本票只消费 ``water``（``fill`` 门禁）；
+    ``grass`` / 坐骑喂食未打通，不在本组件暴露。
+    """
+
+    water: bool = False
 
 
 @dataclass
