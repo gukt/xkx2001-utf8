@@ -84,6 +84,27 @@ class TestRoomResourceLoad:
         assert world.get_component(dry, RoomResources) is None
         assert "resource" not in world.entity_extension_data(river)
 
+    def test_liquid_container_consumed_not_extension(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
+        execute_line(world, player_id, "get 水袋")
+        skin = _item_in_bag(world, player_id, "水袋")
+        assert skin is not None
+        assert world.has_component(skin, LiquidContainer)
+        extras = world.entity_extension_data(skin)
+        assert "liquid_container" not in extras
+        assert "filled_liquid" not in extras
+
+    def test_unknown_resource_key_fails_load(self, tmp_path: Path) -> None:
+        from mud_engine.scene_loader import SceneLoadError
+
+        bad = _SCENE.replace("water: true", "grass: true")
+        try:
+            load_scene(_write_scene(tmp_path, bad))
+        except SceneLoadError as exc:
+            assert "grass" in str(exc)
+        else:
+            raise AssertionError("expected SceneLoadError for resource.grass")
+
 
 class TestFill:
     def test_fill_ok_at_water_room(self, tmp_path: Path) -> None:

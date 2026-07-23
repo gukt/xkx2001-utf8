@@ -1125,12 +1125,10 @@ def _cmd_fill(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     name = intent.target
     if not name:
         return ["灌什么？用法：fill <容器>"]
-    bag = world.get_component(player_id, Container)
-    if bag is None:
-        return [f"你身上没有「{name}」。"]
-    item = _find_item_in_container(world, bag, name)
-    if item is None:
-        return [f"你身上没有「{name}」。"]
+    item, err = _inventory_item_or_error(world, player_id, name)
+    if err is not None:
+        return err
+    assert item is not None
     liquid = world.get_component(item, LiquidContainer)
     if liquid is None:
         return [f"「{name}」不能装水。"]
@@ -1150,17 +1148,17 @@ def _cmd_drink(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     name = intent.target
     if not name:
         return ["喝什么？用法：drink <容器>"]
-    bag = world.get_component(player_id, Container)
-    if bag is None:
-        return [f"你身上没有「{name}」。"]
-    item = _find_item_in_container(world, bag, name)
-    if item is None:
-        return [f"你身上没有「{name}」。"]
+    item, err = _inventory_item_or_error(world, player_id, name)
+    if err is not None:
+        return err
+    assert item is not None
     liquid = world.get_component(item, LiquidContainer)
     if liquid is None:
         return [f"「{name}」不是容器。"]
     if liquid.filled_liquid is None:
         return [f"「{name}」是空的，没什么可喝。"]
+    if liquid.filled_liquid != "water":
+        return [f"「{name}」里装的不是水，你不想喝。"]
     liquid.filled_liquid = None
     vitals = world.get_component(player_id, Vitals)
     if vitals is not None:
@@ -1176,12 +1174,10 @@ def _cmd_eat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     name = intent.target
     if not name:
         return ["吃什么？用法：eat <食物>"]
-    bag = world.get_component(player_id, Container)
-    if bag is None:
-        return [f"你身上没有「{name}」。"]
-    item = _find_item_in_container(world, bag, name)
-    if item is None:
-        return [f"你身上没有「{name}」。"]
+    item, err = _inventory_item_or_error(world, player_id, name)
+    if err is not None:
+        return err
+    assert item is not None
     consumable = world.get_component(item, Consumable)
     if consumable is None:
         return [f"「{name}」不能吃。"]
@@ -1193,6 +1189,19 @@ def _cmd_eat(world: World, player_id: EntityId, intent: Intent) -> list[str]:
         )
     _consume_uses(world, player_id, item)
     return [f"你吃了{name}，觉得好多了。"]
+
+
+def _inventory_item_or_error(
+    world: World, player_id: EntityId, name: str
+) -> tuple[EntityId | None, list[str] | None]:
+    """在玩家背包按规范名找物品；缺失时返回 ``(None, 错误文案)``。"""
+    bag = world.get_component(player_id, Container)
+    if bag is None:
+        return None, [f"你身上没有「{name}」。"]
+    item = _find_item_in_container(world, bag, name)
+    if item is None:
+        return None, [f"你身上没有「{name}」。"]
+    return item, None
 
 
 def _consume_uses(world: World, holder_id: EntityId, item: EntityId) -> None:

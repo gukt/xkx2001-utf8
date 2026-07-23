@@ -822,13 +822,19 @@ def _des_hotel_room(_d: dict) -> HotelRoom:
 def _parse_room_resources(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> RoomResources | None:
-    """``resource: {water?: bool}``；无 water 真值则不挂。"""
+    """``resource: {water?: bool}``；无 water 真值则不挂。未知子键加载失败。"""
     raw = data.get("resource")
     if raw is None:
         return None
     if not isinstance(raw, Mapping):
         raise SceneLoadError(
             f"场景文件 {scene_path} 的{label}的 'resource' 应是映射，实际是 {type(raw).__name__}"
+        )
+    unknown = [str(k) for k in raw if str(k) != "water"]
+    if unknown:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 resource 含未知字段 "
+            f"{', '.join(sorted(unknown))}（当前仅支持 water；grass/喂食见 GAP）"
         )
     water = _parse_bool_flag(
         raw.get("water"), field="resource.water", label=label, scene_path=scene_path

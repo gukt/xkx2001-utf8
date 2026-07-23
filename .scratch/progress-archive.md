@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Polishing `/to-tickets` + implement-plan**（2026-07-23）：把 [.scratch/polishing/spec.md](../polishing/spec.md) 13 项按候选 ID 顺序拆成 [.scratch/polishing/issues/](../polishing/issues/) `01`–`13`；补 [implement-plan.md](../polishing/implement-plan.md)（9 Wave）；新开 `feat/polishing`。
+
 - [x] **Polishing `/to-spec`**（2026-07-23）：13 项转成 [.scratch/polishing/spec.md](../polishing/spec.md)；C14 标先 ADR 再实现；C12 标只走官方 hooks params。
 
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 7 收口（effort 关闭）**（2026-07-22）：票 `11`；UGC `hooks` 边界复核；契约/GAP/CONTEXT 回写；861 绿。**不自动开 M4**。

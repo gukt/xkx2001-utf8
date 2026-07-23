@@ -29,5 +29,6 @@ Status: resolved
 - **物品**：`LiquidContainer(filled_liquid: str | None)`；YAML `liquid_container: true`（可选顶层/`映射`内 `filled_liquid` 初值）。
 - **命令**：`fill <容器>` / `drink <容器>` / `eat <食物>`；解析层走背包物品匹配（别名可用）。
 - **恢复常量**：`DRINK_RESTORE_JINGLI=20`；`EAT_RESTORE_QI=15`；`EAT_RESTORE_JINGLI=10`（当次 cap 到 max）。
-- **耗尽销毁**：`_consume_uses`——`uses -= 1`，`<=0` 时从容器 discard + `destroy_entity`（eat 专用入口；先前无现成路径）。
-- **明确不做**：醉酒/持续 Effect；`resource.grass`。
+- **耗尽销毁**：`_consume_uses`——`uses -= 1`，`<=0` 时从容器 discard + `destroy_entity`（本票落地的 uses 递减入口；先前无命令面路径）。
+- **明确不做**：醉酒/持续 Effect；`resource.grass`（未知 `resource.*` 子键加载失败，避免静默吞掉）。
+- **code-review fix**：CONTEXT 补「条件 DSL」「液体与进食」；S2 测 liquid 字段不透传；`drink` 仅接受 `filled_liquid == "water"`。
