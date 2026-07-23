@@ -35,7 +35,7 @@ from mud_engine.components import (
     Stackable,
 )
 from mud_engine.directions import (
-    DIRECTION_FORMS,
+    has_cjk,
     merge_exit_match_names,
     resolve_chinese_builtin,
     resolve_english_bare,
@@ -54,13 +54,6 @@ from mud_engine.matching import (
 )
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.world import EntityId, World
-
-# 兼容旧名：英文裸输入（全写/简写）→ 方向键。权威表见 directions.DIRECTION_FORMS。
-DIRECTION_SHORTCUTS: dict[str, str] = {
-    token: direction
-    for direction, (short, _zh) in DIRECTION_FORMS.items()
-    for token in (direction, short)
-}
 
 # 门命令（04 号票）：方向目标解析与 go 共用 _parse_direction，只是动词不同。
 # 门名即出口方向名，候选同 go（当前房间 Exits.by_direction），不另起一套匹配。
@@ -98,9 +91,10 @@ class DeterministicParser(Parser):
             english_dir = resolve_english_bare(head_raw)
             if english_dir is not None:
                 return Intent(verb="go", target=english_dir)
-            # 裸中文方位，或裸 token 能命中出口候选（地名/出口别名）→ 须带 go。
+            # 裸中文方位，或含 CJK 且能命中出口候选的裸中文地名 → 须带 go。
+            # 裸英文非方向绰号仍走 UNKNOWN_VERB（规格只要求中文地名须带 go）。
             requires_go = resolve_chinese_builtin(head_raw) is not None
-            if not requires_go:
+            if not requires_go and has_cjk(head_raw):
                 preview = match_target(
                     head_raw, self._direction_candidates(world, player_id)
                 )

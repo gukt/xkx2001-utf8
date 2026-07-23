@@ -1753,9 +1753,9 @@ def _exit_label(world: World, room: EntityId, direction: str) -> str:
     十向展示如 ``东(east)``（与 ``directions`` 内置表同源）；非十向键仍显示原键。
     门状态后缀保留在英文键之后：``东(east)（关）``。
     """
-    from mud_engine.directions import exit_display_base
+    from mud_engine.directions import exit_display_label
 
-    base = exit_display_base(direction)
+    base = exit_display_label(direction)
     door = _door_in_direction(world, room, direction)
     if door is not None and door.state is not DoorState.OPEN:
         suffix = "（锁）" if door.state is DoorState.LOCKED else "（关）"

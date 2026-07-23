@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Pre-M4 房间钩子 / 星宿机制 Wave 5 落地：劫匪刷拦 + 杀令介入**（2026-07-22）：票 `08`/`09`；`bandit_ambush`/`kill_order`；`objects: 0` 蓝图登记；`ensure_npc`/`actor_faction_id`/`try_engage`；fixed point `pre-m4-room-hooks-xingxiu-wave5-start`；code-review fix：切片 `player.faction`、劫匪解除路径、`on_leave` 只清 `triggered`、解析器去重。852 绿。
+
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 4 落地：时段秘道 + 磁力吸铁**（2026-07-22）：票 `06`/`07`；`time_of_day_passage`/`magnetic_iron`；`actor_has_item_tag`；fixed point `pre-m4-room-hooks-xingxiu-wave4-start`；code-review fix：首 sync 经 HiddenExits、挂载冷启动 `on_tick`、`when` 校验、磁力文案跟 tag。837 绿。
 
 - [x] **Polishing 候选 `/grill-with-docs` 共享理解确认**（2026-07-23）：矩阵 A1–C15 拍板；13 项进 Polishing（纳入即做）、B7/C15 → GAP·后置；出口导航 / details(K2+U+S1+N1) 等写入 session-notes + CONTEXT；无「进 M4」桶。**未**开实现、**未**改契约加载器。底稿 [.scratch/polishing-candidate-review/](.scratch/polishing-candidate-review/)。后续见 PROGRESS Done「Polishing `/to-spec`」（2026-07-23）与 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)。

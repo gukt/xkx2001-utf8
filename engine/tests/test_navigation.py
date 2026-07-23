@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from mud_engine.components import Identity, Position
+from mud_engine.directions import DIRECTION_FORMS
 from mud_engine.parsing import execute_line
 from mud_engine.scene_loader import load_scene
 from mud_engine.scenes import build_world, load_mvp_scene
@@ -21,27 +24,53 @@ def _write(tmp_path: Path, content: str) -> Path:
     return path
 
 
-class TestBuiltinDirectionNavigation:
-    def test_go_east_forms_move_when_exit_exists(self, tmp_path: Path) -> None:
-        scene = _write(
-            tmp_path,
-            """
+_TEN_HUB_SCENE = """
 rooms:
-  a:
-    name: 甲
+  hub:
+    name: 枢纽
     exits:
-      east: b
-  b:
-    name: 乙
+      north: n_room
+      south: s_room
+      east: e_room
+      west: w_room
+      northeast: ne_room
+      northwest: nw_room
+      southeast: se_room
+      southwest: sw_room
+      up: u_room
+      down: d_room
+  n_room: {name: 北房, exits: {south: hub}}
+  s_room: {name: 南房, exits: {north: hub}}
+  e_room: {name: 东房, exits: {west: hub}}
+  w_room: {name: 西房, exits: {east: hub}}
+  ne_room: {name: 东北房, exits: {southwest: hub}}
+  nw_room: {name: 西北房, exits: {southeast: hub}}
+  se_room: {name: 东南房, exits: {northwest: hub}}
+  sw_room: {name: 西南房, exits: {northeast: hub}}
+  u_room: {name: 上层, exits: {down: hub}}
+  d_room: {name: 下层, exits: {up: hub}}
 player:
   name: 你
-  start_room: a
-""",
-        )
-        for line in ("go east", "east", "e", "go 东"):
+  start_room: hub
+"""
+
+
+class TestBuiltinDirectionNavigation:
+    @pytest.mark.parametrize(
+        "direction,short,chinese,dest",
+        [
+            (d, short, zh, f"{zh}房" if d not in ("up", "down") else ("上层" if d == "up" else "下层"))
+            for d, (short, zh) in DIRECTION_FORMS.items()
+        ],
+    )
+    def test_ten_direction_forms_move(
+        self, tmp_path: Path, direction: str, short: str, chinese: str, dest: str
+    ) -> None:
+        scene = _write(tmp_path, _TEN_HUB_SCENE)
+        for line in (f"go {direction}", direction, short, f"go {chinese}"):
             world, player_id = load_scene(scene)
             msgs = execute_line(world, player_id, line)
-            assert _room_name(world, player_id) == "乙", (line, msgs)
+            assert _room_name(world, player_id) == dest, (line, msgs)
 
     def test_bare_chinese_cardinal_is_rejected_with_requires_go_wording(self) -> None:
         world, player_id = build_world()
@@ -50,6 +79,34 @@ player:
         assert _room_name(world, player_id) == before
         assert any("须写成 go" in m for m in msgs)
         assert not any("未知命令" in m for m in msgs)
+
+    def test_bare_english_exit_nickname_is_unknown_not_requires_go(
+        self, tmp_path: Path
+    ) -> None:
+        scene = _write(
+            tmp_path,
+            """
+rooms:
+  a:
+    name: 甲
+    exits:
+      north:
+        to: b
+        aliases: [secret]
+  b:
+    name: 乙
+player:
+  name: 你
+  start_room: a
+""",
+        )
+        world, player_id = load_scene(scene)
+        msgs = execute_line(world, player_id, "secret")
+        assert _room_name(world, player_id) == "甲"
+        assert any("未知命令" in m for m in msgs)
+        assert not any("须写成 go" in m for m in msgs)
+        msgs = execute_line(world, player_id, "go secret")
+        assert _room_name(world, player_id) == "乙", msgs
 
     def test_unknown_verb_still_says_unknown(self) -> None:
         world, player_id = build_world()
@@ -79,6 +136,10 @@ player:
         )
         world, player_id = load_scene(scene)
         msgs = execute_line(world, player_id, "go 武庙")
+        assert _room_name(world, player_id) == "武庙", msgs
+
+        world, player_id = load_scene(scene)
+        msgs = execute_line(world, player_id, "go 武圣庙")
         assert _room_name(world, player_id) == "武庙", msgs
 
         world, player_id = load_scene(scene)

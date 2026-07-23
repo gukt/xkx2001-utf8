@@ -3,7 +3,7 @@
 from mud_engine.directions import (
     DIRECTION_FORMS,
     builtin_aliases,
-    exit_display_base,
+    exit_display_label,
     merge_exit_match_names,
     resolve_chinese_builtin,
     resolve_english_bare,
@@ -70,6 +70,6 @@ class TestMergeAndDisplay:
         assert merged.index("北") < merged.index("north")
 
     def test_look_label_is_chinese_parenthetical_english(self) -> None:
-        assert exit_display_base("east") == "东(east)"
-        assert exit_display_base("southeast") == "东南(southeast)"
-        assert exit_display_base("cave") == "cave"
+        assert exit_display_label("east") == "东(east)"
+        assert exit_display_label("southeast") == "东南(southeast)"
+        assert exit_display_label("cave") == "cave"

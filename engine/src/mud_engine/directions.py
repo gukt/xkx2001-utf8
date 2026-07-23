@@ -32,28 +32,32 @@ def builtin_aliases(direction: str) -> tuple[str, ...]:
     return (direction, short, chinese)
 
 
+# 由 DIRECTION_FORMS 一次派生，避免英文/中文解析各扫一遍表。
+_ENGLISH_BARE_TO_DIRECTION: dict[str, str] = {
+    token: direction
+    for direction, (short, _zh) in DIRECTION_FORMS.items()
+    for token in (direction, short)
+}
+_CHINESE_TO_DIRECTION: dict[str, str] = {
+    chinese: direction for direction, (_short, chinese) in DIRECTION_FORMS.items()
+}
+
+
 def resolve_english_bare(token: str) -> str | None:
     """裸英文全写/简写 → 方向键；非英文方向表内则 None。"""
     needle = token.strip().lower()
-    if not needle:
-        return None
-    if needle in DIRECTION_FORMS:
-        return needle
-    for direction, (short, _zh) in DIRECTION_FORMS.items():
-        if needle == short:
-            return direction
-    return None
+    return _ENGLISH_BARE_TO_DIRECTION.get(needle) if needle else None
 
 
 def resolve_chinese_builtin(token: str) -> str | None:
     """内置中文方位 → 方向键；否则 None。"""
     needle = token.strip()
-    if not needle:
-        return None
-    for direction, (_short, chinese) in DIRECTION_FORMS.items():
-        if needle == chinese:
-            return direction
-    return None
+    return _CHINESE_TO_DIRECTION.get(needle) if needle else None
+
+
+def has_cjk(token: str) -> bool:
+    """token 是否含 CJK 统一汉字（用于区分裸中文地名 vs 裸英文绰号）。"""
+    return any("\u4e00" <= ch <= "\u9fff" for ch in token)
 
 
 def merge_exit_match_names(
@@ -90,8 +94,8 @@ def merge_exit_match_names(
     return tuple(ordered)
 
 
-def exit_display_base(direction: str) -> str:
-    """``look`` 出口单项的基础标签：十向为「中(english)」，其余为原方向键。"""
+def exit_display_label(direction: str) -> str:
+    """``look`` 出口方向标签（不含门状态后缀）：十向为「中(english)」，其余为原键。"""
     form = DIRECTION_FORMS.get(direction)
     if form is None:
         return direction
@@ -102,7 +106,8 @@ def exit_display_base(direction: str) -> str:
 __all__ = [
     "DIRECTION_FORMS",
     "builtin_aliases",
-    "exit_display_base",
+    "exit_display_label",
+    "has_cjk",
     "merge_exit_match_names",
     "resolve_chinese_builtin",
     "resolve_english_bare",
