@@ -1,48 +1,42 @@
 rooms:
   huashan_birth:
     name: 华山村口
+    aliases:
+    - 华山
+    - 村口
     long: 华山脚下一座宁静的小村落，石板路通向村中。这里是江湖新人落脚的地方， 不强制归属任何门派。北面是村中小径，可找向导讨教；南面官道通往扬州。
     outdoors: true
     exits:
-      north:
-        to: huashan_guide
-        aliases:
-        - 村里
-      south:
-        to: road_huashan_yz
-        aliases:
-        - 官道
-        - 扬州
+      north: huashan_guide
+      south: road_huashan_yz
   huashan_guide:
     name: 华山村广场
+    aliases:
+    - 广场
+    - 村里
     long: 村中央一块空地，老槐树下立着一块指路木牌。向导常在此歇脚， 乐意给初入江湖的人讲解基础门道。东边有一块练武空地。
     outdoors: true
     exits:
-      south:
-        to: huashan_birth
-        aliases:
-        - 村口
-      east:
-        to: huashan_training
-        aliases:
-        - 练武场
+      south: huashan_birth
+      east: huashan_training
     objects:
       huashan_guide_npc: 1
   huashan_training:
     name: 华山村练武场
+    aliases:
+    - 练武场
     long: 一块踩得坚实的泥地，立着几个稻草人木桩。这里是切磋安全区—— 即便力竭也不会真正丢了性命，适合初学搏击。
     outdoors: true
     no_death: true
     exits:
-      west:
-        to: huashan_guide
-        aliases:
-        - 广场
+      west: huashan_guide
     objects:
       training_pebble: 1
       training_dummy: 1
   yangzhou_guangchang:
     name: 中央广场
+    aliases:
+    - 广场
     long: 扬州城心的中央广场，石狮(shi_shi)守着旗杆(qi_gan)，往来车马络绎不绝。 四条大街由此散开，是城中枢纽，也是传闻中动态事件的落脚处。 东北角可见武庙飞檐。
     outdoors: true
     details:
@@ -58,87 +52,52 @@ rooms:
         - 旗杆
         - qi gan
     exits:
-      north:
-        to: yangzhou_beidajie
-      south:
-        to: yangzhou_nandajie
-      east:
-        to: yangzhou_dongdajie
-      west:
-        to: yangzhou_xidajie
-      northeast:
-        to: yangzhou_wumiao
+      north: yangzhou_beidajie
+      south: yangzhou_nandajie
+      east: yangzhou_dongdajie
+      west: yangzhou_xidajie
+      northeast: yangzhou_wumiao
   yangzhou_beidajie:
     name: 北大街
     long: 北大街青石铺就，酒幌与布招随风轻晃，行人多往北门方向去。 东侧是热闹客栈。
     outdoors: true
     exits:
-      south:
-        to: yangzhou_guangchang
-        aliases:
-        - 广场
-      north:
-        to: yangzhou_beimen
-      east:
-        to: yangzhou_kedian
-        aliases:
-        - 客栈
+      south: yangzhou_guangchang
+      north: yangzhou_beimen
+      east: yangzhou_kedian
   yangzhou_nandajie:
     name: 南大街
     long: 南大街较北街略窄，茶香与脚力车的铃声混在一处，尽头是南门。 西侧镖局匾额赫然。
     outdoors: true
     exits:
-      north:
-        to: yangzhou_guangchang
-        aliases:
-        - 广场
-      south:
-        to: yangzhou_nanmen
-      west:
-        to: yangzhou_biaoju
-        aliases:
-        - 镖局
+      north: yangzhou_guangchang
+      south: yangzhou_nanmen
+      west: yangzhou_biaoju
   yangzhou_dongdajie:
     name: 东大街
     long: 东大街通向东门，再往东便是出城官道。街边多钱庄商号，南侧有茶馆。
     outdoors: true
     exits:
-      west:
-        to: yangzhou_guangchang
-        aliases:
-        - 广场
-      east:
-        to: yangzhou_dongmen
-      north:
-        to: yangzhou_qianzhuang
-        aliases:
-        - 钱庄
-      south:
-        to: yangzhou_chaguan
-        aliases:
-        - 茶馆
-      northeast:
-        to: yangzhou_hanlin
-        aliases:
-        - 翰林院
+      west: yangzhou_guangchang
+      east: yangzhou_dongmen
+      north: yangzhou_qianzhuang
+      south: yangzhou_chaguan
+      northeast: yangzhou_hanlin
   yangzhou_hanlin:
     name: 翰林府前院
+    aliases:
+    - 前院
+    - 翰林院
     long: 翰林府前院清幽，东侧闺房门紧闭。凌翰林立于西廊，似在守着通往小园的路。
     exits:
-      southwest:
-        to: yangzhou_dongdajie
-      west:
-        to: yangzhou_hanlin_garden
-        aliases:
-        - 小园
+      southwest: yangzhou_dongdajie
+      west: yangzhou_hanlin_garden
       east:
         to: yangzhou_hanlin_neiyuan
         door: locked
         key: hanlin_key
         consume_key: true
         hidden_until_unlocked: true
-        aliases:
-        - 闺房
     block_exits:
       west:
         npc: ling_hanlin
@@ -147,146 +106,115 @@ rooms:
       ling_hanlin: 1
   yangzhou_hanlin_garden:
     name: 翰林小园
+    aliases:
+    - 小园
     long: 小园里几丛修竹，石凳上落着薄尘。
     exits:
-      east:
-        to: yangzhou_hanlin
-        aliases:
-        - 前院
+      east: yangzhou_hanlin
   yangzhou_hanlin_neiyuan:
     name: 翰林闺房
+    aliases:
+    - 闺房
     long: 闺房窗棂透进一缕光，案上摊着未写完的诗稿。
     exits:
-      west:
-        to: yangzhou_hanlin
-        aliases:
-        - 前院
+      west: yangzhou_hanlin
   yangzhou_xidajie:
     name: 西大街
     long: 西大街连通西门，铁匠铺的锤声隐约可闻，南侧有马厩，马蹄印留在土路上。
     outdoors: true
     exits:
-      east:
-        to: yangzhou_guangchang
-        aliases:
-        - 广场
-      west:
-        to: yangzhou_ximen
-      north:
-        to: yangzhou_datiepu
-      south:
-        to: yangzhou_stable
+      east: yangzhou_guangchang
+      west: yangzhou_ximen
+      north: yangzhou_datiepu
+      south: yangzhou_stable
   yangzhou_beimen:
     name: 北门
     long: 扬州北门城楼高耸，门洞可通马车。城外是北郊田野。
     outdoors: true
     exits:
-      south:
-        to: yangzhou_beidajie
+      south: yangzhou_beidajie
   yangzhou_nanmen:
     name: 南门
+    aliases:
+    - 扬州
     long: 南门相对冷清，守军换岗的脚步声在砖石间回响。南面官道通往华山方向。
     outdoors: true
     exits:
-      north:
-        to: yangzhou_nandajie
-      south:
-        to: road_huashan_yz
-        aliases:
-        - 官道
-        - 华山
+      north: yangzhou_nandajie
+      south: road_huashan_yz
   yangzhou_dongmen:
     name: 东门
     long: 东门是出城官道的起点，车马与客商多从此门进出。城门外官道向东延伸。
     outdoors: true
     exits:
-      west:
-        to: yangzhou_dongdajie
-      east:
-        to: road_yz_east
-        aliases:
-        - 官道
+      west: yangzhou_dongdajie
+      east: road_yz_east
   yangzhou_ximen:
     name: 西门
     long: 西门城垛上旗帜猎猎。两名同名官兵并肩站岗，盘查过往行人。
     outdoors: true
     exits:
-      east:
-        to: yangzhou_xidajie
+      east: yangzhou_xidajie
     objects:
       yangzhou_ximen_guard: 2
   road_huashan_yz:
     name: 华山至扬州官道
+    aliases:
+    - 华山
+    - 官道
+    - 扬州
     long: 连接华山村与扬州南门的官道路段。北端通向华山村口，南端可见扬州城墙。 路面平坦，适合步行或骑乘。
     outdoors: true
     exits:
-      north:
-        to: huashan_birth
-        aliases:
-        - 华山
-        - 村口
-      south:
-        to: yangzhou_nanmen
-        aliases:
-        - 扬州
+      north: huashan_birth
+      south: yangzhou_nanmen
   road_yz_east:
     name: 扬州东门外官道
+    aliases:
+    - 官道
     long: 出东门后的官道路段，黄土飞扬。东面地势渐险，通往扬州郊外林野。 路边拴着一匹矮种马，耐力一般，难走陡坡。
     outdoors: true
     exits:
-      west:
-        to: yangzhou_dongmen
-      east:
-        to: wild_edge
-        aliases:
-        - 郊外
+      west: yangzhou_dongmen
+      east: wild_edge
     objects:
       road_pony: 1
   wild_edge:
     name: 扬州郊外陡坡
+    aliases:
+    - 郊外
+    - 陡坡
     long: 官道在此折入陡坡，乱石嶙峋。坐骑能力不足者只能下马步行。 再往东便是密林遭遇区。
     outdoors: true
     cost: 8
     exits:
-      west:
-        to: road_yz_east
-        aliases:
-        - 官道
-      east:
-        to: wild_forest
-        aliases:
-        - 密林
+      west: road_yz_east
+      east: wild_forest
   wild_forest:
     name: 扬州郊外密林
+    aliases:
+    - 密林
     long: 林深叶密，鸟雀惊飞。偶有山贼出没，会主动袭击过路人。
     outdoors: true
     exits:
-      west:
-        to: wild_edge
-        aliases:
-        - 陡坡
-      east:
-        to: wild_thicket
-        aliases:
-        - 林深处
+      west: wild_edge
+      east: wild_thicket
     objects:
       bandit_purse: 1
       wild_bandit: 1
   wild_thicket:
     name: 郊外林深处
+    aliases:
+    - 林深处
     long: 灌木丛生，小径蜿蜒。东面隐约传来水声，是官道渡口。
     outdoors: true
     exits:
-      west:
-        to: wild_forest
-        aliases:
-        - 密林
-      east:
-        to: ferry_west
-        aliases:
-        - 渡口
+      west: wild_forest
+      east: ferry_west
   ferry_west:
     name: 官道西岸渡口
+    aliases:
+    - 渡口
     long: 河面不宽，渡船按钟点往返两岸。东岸通向少林方向官道。
     outdoors: true
     ferry:
@@ -294,12 +222,11 @@ rooms:
       cross_interval: 3
       direction: across
     exits:
-      west:
-        to: wild_thicket
-        aliases:
-        - 林深处
+      west: wild_thicket
   ferry_east:
     name: 官道东岸渡口
+    aliases:
+    - 渡口
     long: 东岸渡口石阶湿滑，渡船靠岸时可过河。再往东是少林山门前官道。
     outdoors: true
     ferry:
@@ -307,38 +234,33 @@ rooms:
       cross_interval: 3
       direction: across
     exits:
-      east:
-        to: road_shaolin
-        aliases:
-        - 官道
+      east: road_shaolin
   road_shaolin:
     name: 少林山门外官道
+    aliases:
+    - 官道
     long: 官道尽头可见少林山门匾额。西面是渡口，东面即山门。
     outdoors: true
     exits:
-      west:
-        to: ferry_east
-        aliases:
-        - 渡口
-      east:
-        to: shaolin_shanmen
-        aliases:
-        - 山门
+      west: ferry_east
+      east: shaolin_shanmen
   yangzhou_kedian:
     name: 悦来客栈
+    aliases:
+    - 客栈
     long: 客栈大堂灯火通明，账房算盘噼啪作响。店小二穿梭于桌椅之间招呼客官。
     hotel: true
     exits:
-      west:
-        to: yangzhou_beidajie
+      west: yangzhou_beidajie
     objects:
       kedian_waiter: 1
   yangzhou_qianzhuang:
     name: 金生钱庄
+    aliases:
+    - 钱庄
     long: 钱庄柜台后堆着账册与银箱。伙计笑脸相迎，专营银票兑换与钱财往来。
     exits:
-      south:
-        to: yangzhou_dongdajie
+      south: yangzhou_dongdajie
     objects:
       bank_note: 1
       bank_clerk: 1
@@ -347,17 +269,17 @@ rooms:
     long: 炉火正旺，铁砧上火星四溅。墙上挂着新打的刀剑与农具。
     day_shop: true
     exits:
-      south:
-        to: yangzhou_xidajie
+      south: yangzhou_xidajie
     objects:
       steel_blade: 1
       blacksmith: 1
   yangzhou_biaoju:
     name: 龙门镖局
+    aliases:
+    - 镖局
     long: 镖局门楣高悬「龙门」二字，镖头在厅中擦拭兵器，墙上挂满镖旗。
     exits:
-      east:
-        to: yangzhou_nandajie
+      east: yangzhou_nandajie
     objects:
       escort_chief: 1
       escort_cargo: 1
@@ -365,12 +287,8 @@ rooms:
     name: 武庙
     long: 武庙香火未绝，关公塑像威严。庙祝低声诵念，供桌上陈列兵器模型。
     exits:
-      southwest:
-        to: yangzhou_guangchang
-        aliases:
-        - 广场
-      north:
-        to: yangzhou_cangshuge
+      southwest: yangzhou_guangchang
+      north: yangzhou_cangshuge
     objects:
       temple_keeper: 1
   yangzhou_cangshuge:
@@ -395,14 +313,14 @@ rooms:
         - 告示
         - gao shi
     exits:
-      south:
-        to: yangzhou_wumiao
+      south: yangzhou_wumiao
   yangzhou_chaguan:
     name: 富春茶馆
+    aliases:
+    - 茶馆
     long: 茶馆里氤氲着龙井香气，茶博士提着铜壶穿梭，说书人的惊堂木偶一响。
     exits:
-      north:
-        to: yangzhou_dongdajie
+      north: yangzhou_dongdajie
     objects:
       tea_master: 1
   yangzhou_stable:
@@ -410,13 +328,14 @@ rooms:
     long: 马厩干草铺地，几匹牲口甩着尾巴。马夫招呼客人选购坐骑，出城官道骑乘更方便。
     outdoors: true
     exits:
-      north:
-        to: yangzhou_xidajie
+      north: yangzhou_xidajie
     objects:
       yangzhou_horse: 1
       stable_groom: 1
   shaolin_shanmen:
     name: 少林山门
+    aliases:
+    - 山门
     long: 少林山门气势威严，门楣「少林寺」三字浑厚。知客僧在侧稽首，盘查来客身份。
     outdoors: true
     entry_guard:
@@ -431,62 +350,43 @@ rooms:
             value: shaolin
       deny_message: 少林山门：须为男子、未属他派。
     exits:
-      west:
-        to: road_shaolin
-        aliases:
-        - 官道
-      north:
-        to: shaolin_guangchang
-        aliases:
-        - 广场
+      west: road_shaolin
+      north: shaolin_guangchang
     objects:
       shaolin_receptionist: 1
   shaolin_guangchang:
     name: 少林广场
+    aliases:
+    - 广场
     long: 寺内广场青石平整，香客与僧众往来。东侧武场传出喝声，西侧达摩院静穆。
     outdoors: true
     exits:
-      south:
-        to: shaolin_shanmen
-        aliases:
-        - 山门
-      west:
-        to: shaolin_damoyuan
-      east:
-        to: shaolin_wuchang
-        aliases:
-        - 武场
-      north:
-        to: shaolin_cangjingge
+      south: shaolin_shanmen
+      west: shaolin_damoyuan
+      east: shaolin_wuchang
+      north: shaolin_cangjingge
   shaolin_damoyuan:
     name: 达摩院
     long: 达摩院内烛光摇曳，壁上绘着达摩面壁图。院僧沉默拂尘，不主动搭话。
     exits:
-      east:
-        to: shaolin_guangchang
-        aliases:
-        - 广场
+      east: shaolin_guangchang
     objects:
       damoyuan_monk: 1
   shaolin_cangjingge:
     name: 藏经阁
     long: 藏经阁木梯蜿蜒，经卷陈列整齐。阁僧轻声提醒：勿高声喧哗。
     exits:
-      south:
-        to: shaolin_guangchang
-        aliases:
-        - 广场
+      south: shaolin_guangchang
     objects:
       library_monk: 1
   shaolin_wuchang:
     name: 少林武场
+    aliases:
+    - 武场
     long: 武场沙地开阔，木人桩林立。武僧在此指点入门弟子演练拳脚。
     outdoors: true
     exits:
-      west:
-        to: shaolin_guangchang
-        aliases:
-        - 广场
+      west: shaolin_guangchang
     objects:
       shaolin_monk_trainer: 1
 items:
@@ -773,28 +673,38 @@ books:
     - intro
     chapter_cost: 1
     chapters:
-    - |
-      第一回·初入江湖
+    - '第一回·初入江湖
+
 
       天下风云出我辈，一入江湖岁月催。
+
       华山村口石板路，通往扬州与少林。
+
       新人当先识方位，再谈刀枪与拳脚。
-    - |
-      第二回·扬州见闻
+
+      '
+    - '第二回·扬州见闻
+
 
       扬州城中四街通衢，武庙侧有藏书阁。
+
       阁中书卷可按章付银阅读，切记此处只宜读书，不宜练功。
+
+      '
   yangzhou_notes:
     title: 扬州风物志
     abbrevs:
     - yzfw
     chapter_cost: 1
     chapters:
-    - |
-      卷一·城池
+    - '卷一·城池
+
 
       扬州中央广场石狮守旗，东有茶馆钱庄，西有打铁铺马厩。
+
       北门出城入野，南门官道可达华山。
+
+      '
 quests:
   escort_delivery:
     name: 华山镖运

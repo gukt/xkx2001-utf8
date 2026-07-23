@@ -140,17 +140,25 @@ def _scenario_01_exit_nav() -> ScenarioResult:
 
 
 def _scenario_02_yaml_shorthand() -> ScenarioResult:
-    """票 02：官方范本清理后靠目标房 name 走 ``go 武庙``，出口无冗余方位 alias。"""
+    """票 02：出口简写 + 地名挂目标房 aliases（``go 武庙`` / ``go 广场``）。"""
+    from mud_engine.components import Identity
+
     world, player_id = load_mvp_scene()
     move_to(world, player_id, "yangzhou_guangchang")
     plaza = world.room_ids["yangzhou_guangchang"]
     exit_ne = world.require_component(plaza, Exits).by_direction["northeast"]
+    plaza_id = world.require_component(plaza, Identity)
     steps = [
         assert_step(
             "(assert) northeast→武庙出口无冗余 aliases",
-            "武庙" not in exit_ne.aliases and "东北" not in exit_ne.aliases,
+            exit_ne.aliases == (),
             messages=[f"aliases={exit_ne.aliases!r}"],
-        )
+        ),
+        assert_step(
+            "(assert) 中央广场房间 aliases 含「广场」",
+            "广场" in plaza_id.aliases,
+            messages=[f"aliases={plaza_id.aliases!r}"],
+        ),
     ]
     steps.extend(
         run_lines(world, player_id, [("go 武庙", Expect(contains=("武庙",)))])
@@ -160,6 +168,15 @@ def _scenario_02_yaml_shorthand() -> ScenarioResult:
             "(assert) 抵达武庙",
             world.require_component(player_id, Position).room
             == world.room_ids["yangzhou_wumiao"],
+        )
+    )
+    steps.extend(
+        run_lines(world, player_id, [("go 广场", Expect(contains=("中央广场",)))])
+    )
+    steps.append(
+        assert_step(
+            "(assert) 经房间 aliases 回到广场",
+            world.require_component(player_id, Position).room == plaza,
         )
     )
     return ScenarioResult(name="02 YAML 简写规范化", steps=steps)
