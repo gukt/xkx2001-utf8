@@ -1748,12 +1748,19 @@ def _set_door_state(
 
 
 def _exit_label(world: World, room: EntityId, direction: str) -> str:
-    """look 出口列表的单项：方向名 + 门状态标注（关/锁），无门或开着不加标注。"""
+    """look 出口列表的单项：中英并列方向名 + 门状态标注（关/锁）。
+
+    十向展示如 ``东(east)``（与 ``directions`` 内置表同源）；非十向键仍显示原键。
+    门状态后缀保留在英文键之后：``东(east)（关）``。
+    """
+    from mud_engine.directions import exit_display_base
+
+    base = exit_display_base(direction)
     door = _door_in_direction(world, room, direction)
     if door is not None and door.state is not DoorState.OPEN:
         suffix = "（锁）" if door.state is DoorState.LOCKED else "（关）"
-        return direction + suffix
-    return direction
+        return base + suffix
+    return base
 
 
 def _find_item_in_container(world: World, container: Container, name: str) -> EntityId | None:

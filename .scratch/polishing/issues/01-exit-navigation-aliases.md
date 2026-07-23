@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 01 — A1+A2 出口导航别名（内置十向同义词 + 分层别名回退）
@@ -10,12 +10,22 @@ Status: ready-for-agent
 
 **Blocked by:** None — 可立即开始。
 
-- [ ] `parsing.py`：`DIRECTION_SHORTCUTS`（或等价常量）扩容为十向键各自的内置默认同义词集合（英文全写/简写/中文），供解析器与 `look` 展示共用同一份数据源。
-- [ ] 出口 token 解析函数按「① 出口 `aliases` → ② 目标房 `name`/`aliases` → ③ 方向键内置同义词」三层顺序合并候选；候选去重（内置同义词与自定义别名重名时不重复展示/不重复计数——展示去重策略拆票时钉：内置项与自定义重名时只展示一次）。
-- [ ] 合法性校验：裸中文方位、裸中文地名解析为「不合法，须带 go」，不静默失败为「无此出口」之外的更友好提示信息（信息内容拆票时可自行措辞，但必须区分「不认识」与「须带 go」两种拒绝原因）。
-- [ ] `commands.py::_cmd_go` 改用同一套候选解析（不得与 `look` 展示各写一套判定逻辑）。
-- [ ] `commands.py` `look`：出口列表改「中(english)」并列展示；已有门状态后缀保留在英文键后。
-- [ ] 多出口同名命中 → 复用既有 `Ambiguous` 提示路径（不新增消歧机制）。
-- [ ] `test_parsing.py`：方向解析单元测试覆盖十向 × {英文全写, 英文简写, 中文, 斜向} 全矩阵 + 裸中文拒绝 + `go` 前缀放行。
-- [ ] `test_navigation.py`（或按现有测试文件归类）：`execute_line` 黑盒覆盖 `go east`/`east`/`e`/`go 东`/`go 武庙`（地名命中目标房）/`Ambiguous` 场景。
-- [ ] `just test` 全绿。
+- [x] `parsing.py`：`DIRECTION_SHORTCUTS`（或等价常量）扩容为十向键各自的内置默认同义词集合（英文全写/简写/中文），供解析器与 `look` 展示共用同一份数据源。
+- [x] 出口 token 解析函数按「① 出口 `aliases` → ② 目标房 `name`/`aliases` → ③ 方向键内置同义词」三层顺序合并候选；候选去重（内置同义词与自定义别名重名时不重复展示/不重复计数——展示去重策略拆票时钉：内置项与自定义重名时只展示一次）。
+- [x] 合法性校验：裸中文方位、裸中文地名解析为「不合法，须带 go」，不静默失败为「无此出口」之外的更友好提示信息（信息内容拆票时可自行措辞，但必须区分「不认识」与「须带 go」两种拒绝原因）。
+- [x] `commands.py::_cmd_go` 改用同一套候选解析（不得与 `look` 展示各写一套判定逻辑）。
+- [x] `commands.py` `look`：出口列表改「中(english)」并列展示；已有门状态后缀保留在英文键后。
+- [x] 多出口同名命中 → 复用既有 `Ambiguous` 提示路径（不新增消歧机制）。
+- [x] `test_parsing.py`：方向解析单元测试覆盖十向 × {英文全写, 英文简写, 中文, 斜向} 全矩阵 + 裸中文拒绝 + `go` 前缀放行。
+- [x] `test_navigation.py`（或按现有测试文件归类）：`execute_line` 黑盒覆盖 `go east`/`east`/`e`/`go 东`/`go 武庙`（地名命中目标房）/`Ambiguous` 场景。
+- [x] `just test` 全绿。
+
+## Comments
+
+### 实现摘要（2026-07-23）
+
+- **内置同义词表结构**：新模块 `engine/src/mud_engine/directions.py`。权威表 `DIRECTION_FORMS: dict[str, tuple[str, str]]`（方向键 → `(英文简写, 中文)`）；`builtin_aliases` 展开为 `(全写, 简写, 中文)`。本批**仅十向**，不含 `in`/`out`。`parsing.DIRECTION_SHORTCUTS` 由该表派生（兼容旧名）。
+- **候选合并**：`merge_exit_match_names` / `DeterministicParser._merged_direction_aliases`——① 出口 aliases → ② 目标房 `Identity.name`+`aliases` → ③ 内置。解析与门命令共用 `_direction_candidates`；`look` 经 `exit_display_base` 读同一 `DIRECTION_FORMS`（避免两套表）。
+- **去重策略**：大小写不敏感、**先出现者保留**（自定义层优先占位，内置重名丢弃）。`look` 只展示 `中(english)`，不枚举全部 aliases。
+- **拒绝原因**：新增 `Reason.REQUIRES_GO`；提示「「X」须写成 go X。」；与 `UNKNOWN_VERB`（未知命令）区分。裸英文全写/简写仍合法；裸中文方位或能命中出口候选的裸中文地名 → `REQUIRES_GO`。
+- **测试**：`test_directions.py` 十向矩阵；`test_parsing.py` 解析信号；`test_navigation.py` `execute_line` 黑盒；`test_doors.py` look 断言改为 `南(south)（关）`。885 绿。

@@ -22,6 +22,7 @@ class Reason(Enum):
     NO_TARGET_MATCH = "no_target_match"  # 目标 token 无任何候选命中
     AMBIGUOUS_TARGET = "ambiguous_target"  # 目标 token 同时命中多个候选
     INDEX_OUT_OF_RANGE = "index_out_of_range"  # 同名序号越界（M2-20）
+    REQUIRES_GO = "requires_go"  # 裸中文方位/地名：须写成 go <token>（Polishing A1）
 
 
 @dataclass(frozen=True)

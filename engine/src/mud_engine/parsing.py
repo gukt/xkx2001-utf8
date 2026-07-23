@@ -13,6 +13,10 @@
 ``put <物> in <容器>``、``look <物品>``；verify 补齐 ``get/drop all`` 与
 ``drop <物> <数量>``（规范动词 ``get``，``take`` 为别名）。
 
+出口方向（Polishing A1+A2）：裸英文全写/简写等价 ``go``；候选按
+``directions.merge_exit_match_names`` 三层合并（出口 aliases → 目标房 name/aliases
+→ 十向内置同义词）。裸中文方位/能命中出口的裸中文地名返回 ``Reason.REQUIRES_GO``。
+
 ``execute_line`` 是 CLI 的入口：拿一行原始文本 -> 解析 -> 执行 -> 返回消息。
 解析失败时把 ``ParseFailure`` 翻译成给玩家的提示，不抛异常。
 """
@@ -30,6 +34,12 @@ from mud_engine.components import (
     Position,
     Stackable,
 )
+from mud_engine.directions import (
+    DIRECTION_FORMS,
+    merge_exit_match_names,
+    resolve_chinese_builtin,
+    resolve_english_bare,
+)
 from mud_engine.intent import Intent, ParseFailure, Reason
 from mud_engine.lookup import find_reachable_container, iter_lookable_containers
 from mud_engine.matching import (
@@ -45,13 +55,11 @@ from mud_engine.matching import (
 from mud_engine.npc_query import is_askable_npc
 from mud_engine.world import EntityId, World
 
-# 方向简写：单独输入一个简写等价于 go <方向>。不走命令别名表（因为 n -> go
-# north 不是 verb -> verb 的替换，而是带预填参数），是解析器的语法规则。
+# 兼容旧名：英文裸输入（全写/简写）→ 方向键。权威表见 directions.DIRECTION_FORMS。
 DIRECTION_SHORTCUTS: dict[str, str] = {
-    "n": "north",
-    "s": "south",
-    "e": "east",
-    "w": "west",
+    token: direction
+    for direction, (short, _zh) in DIRECTION_FORMS.items()
+    for token in (direction, short)
 }
 
 # 门命令（04 号票）：方向目标解析与 go 共用 _parse_direction，只是动词不同。
@@ -82,15 +90,27 @@ class DeterministicParser(Parser):
             return ParseFailure(Reason.UNKNOWN_VERB, original=stripped)
 
         tokens = stripped.split()
-        head, rest = tokens[0].lower(), tokens[1:]
+        head_raw, rest = tokens[0], tokens[1:]
+        head = head_raw.lower()
 
-        # 方向简写：单独输入 n/s/e/w -> go <对应方向>（方向是确定值，无需候选匹配）。
-        if head in DIRECTION_SHORTCUTS and not rest:
-            return Intent(verb="go", target=DIRECTION_SHORTCUTS[head])
+        # 裸英文全写/简写 → go <方向>（无需再查出口候选；出口有无由执行层提示）。
+        if not rest:
+            english_dir = resolve_english_bare(head_raw)
+            if english_dir is not None:
+                return Intent(verb="go", target=english_dir)
+            # 裸中文方位，或裸 token 能命中出口候选（地名/出口别名）→ 须带 go。
+            requires_go = resolve_chinese_builtin(head_raw) is not None
+            if not requires_go:
+                preview = match_target(
+                    head_raw, self._direction_candidates(world, player_id)
+                )
+                requires_go = isinstance(preview, (Resolved, Ambiguous))
+            if requires_go:
+                return ParseFailure(Reason.REQUIRES_GO, original=head_raw)
 
         verb = resolve_verb(head)
         if verb is None:
-            return ParseFailure(Reason.UNKNOWN_VERB, original=head)
+            return ParseFailure(Reason.UNKNOWN_VERB, original=head_raw)
 
         if verb == "go":
             return self._parse_direction(rest, world, player_id, verb="go")
@@ -447,20 +467,56 @@ class DeterministicParser(Parser):
         room = world.require_component(player_id, Position).room
         exits = world.require_component(room, Exits)
         candidates: list[Candidate] = [
-            (direction, passage.aliases) for direction, passage in exits.by_direction.items()
+            (
+                direction,
+                DeterministicParser._merged_direction_aliases(
+                    world, direction, passage.aliases, passage.target
+                ),
+            )
+            for direction, passage in exits.by_direction.items()
         ]
         # 渡口：船不在此岸时出口被撤掉，仍把过河方向纳入候选，
         # 以便 go 到达命令层给出「渡船不在此岸」专用提示（M2-09/25）。
         ferry = world.get_component(room, Ferry)
         if ferry is not None and ferry.direction not in exits.by_direction:
-            candidates.append((ferry.direction, ()))
+            candidates.append(
+                (
+                    ferry.direction,
+                    DeterministicParser._merged_direction_aliases(
+                        world, ferry.direction, (), ferry.far_bank
+                    ),
+                )
+            )
         if include_hidden:
             hidden = world.get_component(room, HiddenExits)
             if hidden is not None:
                 for direction, pending in hidden.by_direction.items():
                     if direction not in exits.by_direction:
-                        candidates.append((direction, pending.aliases))
+                        candidates.append(
+                            (
+                                direction,
+                                DeterministicParser._merged_direction_aliases(
+                                    world, direction, pending.aliases, pending.target
+                                ),
+                            )
+                        )
         return candidates
+
+    @staticmethod
+    def _merged_direction_aliases(
+        world: World,
+        direction: str,
+        exit_aliases: tuple[str, ...],
+        target_id: EntityId,
+    ) -> tuple[str, ...]:
+        """① 出口 aliases → ② 目标房 name/aliases → ③ 方向内置同义词。"""
+        identity = world.get_component(target_id, Identity)
+        return merge_exit_match_names(
+            direction,
+            exit_aliases,
+            target_name=identity.name if identity is not None else None,
+            target_aliases=identity.aliases if identity is not None else (),
+        )
 
     @staticmethod
     def _item_candidates(world: World, player_id: EntityId, source: str) -> list[Candidate]:
@@ -613,6 +669,8 @@ def _failure_message(failure: ParseFailure) -> list[str]:
     """把结构化解析失败翻译成给玩家的一句提示。"""
     if failure.reason is Reason.UNKNOWN_VERB:
         return [f"未知命令：{failure.original}。输入 help 查看当前支持的命令列表。"]
+    if failure.reason is Reason.REQUIRES_GO:
+        return [f"「{failure.original}」须写成 go {failure.original}。"]
     if failure.reason is Reason.AMBIGUOUS_TARGET:
         candidates = "、".join(failure.candidates)
         return [f"不确定你指的是哪个：{candidates}。"]

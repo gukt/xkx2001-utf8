@@ -80,6 +80,35 @@ class TestDeterministicParser:
             assert result.original == "门"
             assert set(result.candidates) == {"north", "east"}
 
+    class WhenUsingBuiltinDirectionSynonyms:
+        def test_go_with_chinese_cardinal_resolves(self) -> None:
+            assert _parse("go 北") == Intent(verb="go", target="north")
+
+        def test_bare_english_full_resolves_to_go(self) -> None:
+            assert _parse("east") == Intent(verb="go", target="east")
+
+        def test_bare_english_diagonal_shortcut_resolves_to_go(self) -> None:
+            # 默认场景无 northeast 出口；解析仍落到 Intent，执行层再报无出口。
+            world, player_id = build_world()
+            result = DeterministicParser().parse("ne", world, player_id)
+            assert result == Intent(verb="go", target="northeast")
+
+        def test_bare_chinese_cardinal_requires_go(self) -> None:
+            result = _parse("东")
+            assert result == ParseFailure(Reason.REQUIRES_GO, original="东")
+
+        def test_bare_chinese_place_alias_requires_go(self) -> None:
+            # 北道是 start_yard.north 的出口别名。
+            result = _parse("北道")
+            assert result == ParseFailure(Reason.REQUIRES_GO, original="北道")
+
+        def test_go_to_target_room_name_resolves(self) -> None:
+            # corridor 房间 name=长廊；经目标房回退可 go 长廊。
+            assert _parse("go 长廊") == Intent(verb="go", target="north")
+
+        def test_unknown_bare_token_is_still_unknown_verb(self) -> None:
+            assert _parse("fly") == ParseFailure(Reason.UNKNOWN_VERB, original="fly")
+
 
 class TestParserChain:
     def test_returns_the_first_successful_intent_without_calling_later_parsers(

@@ -61,7 +61,7 @@ class TestClosedDoor:
         def test_look_annotates_the_door_as_closed(self) -> None:
             world, player_id = build_world()
             combined = " ".join(execute_line(world, player_id, "look"))
-            assert "south（关）" in combined
+            assert "南(south)（关）" in combined
 
     class WhenTheDoorHasBeenOpened:
         def test_open_then_go_moves_the_player_through(self) -> None:
