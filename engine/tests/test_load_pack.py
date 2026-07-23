@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mud_engine.components import Engaged, Exits, Identity, Position
+from mud_engine.components import Container, Engaged, Exits, Identity, Position
 from mud_engine.errors import PackManifestError
 from mud_engine.pack import load_manifest, load_pack, reattach_pack_manifest
 from mud_engine.parsing import execute_line
@@ -247,3 +247,91 @@ player:
         assert world2.require_component(bandit, Engaged).opponent == rid
         reattach_pack_manifest(world2)
         assert world2.pack_manifest == before_manifest
+
+
+# --- C13 includes（Polishing 票 11）：内容包轨 ---
+
+_SCENE_WITH_INCLUDES = """
+includes:
+  - templates/shared.yaml
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    objects:
+      shared_stone: 1
+    exits: {}
+player:
+  name: 你
+  start_room: start_yard
+"""
+
+_INCLUDE_TEMPLATES = """
+items:
+  shared_stone:
+    name: 共享石
+    short: 一块共享石
+"""
+
+_INCLUDE_WITH_TYPO = """
+items:
+  shared_stone:
+    name: 共享石
+    short: 一块共享石
+    typo_field: oops
+"""
+
+
+class TestLoadPackIncludes:
+    def test_merges_include_templates(self, tmp_path: Path) -> None:
+        pack_dir = tmp_path / "pack"
+        _write_pack(pack_dir, scene=_SCENE_WITH_INCLUDES)
+        (pack_dir / "templates").mkdir()
+        (pack_dir / "templates" / "shared.yaml").write_text(
+            _INCLUDE_TEMPLATES, encoding="utf-8"
+        )
+        world, player_id = load_pack(pack_dir)
+        assert world.pack_manifest is not None
+        assert "shared_stone" in world.item_templates
+        room = world.require_component(player_id, Position).room
+        names = {
+            world.require_component(e, Identity).name
+            for e in world.require_component(room, Container).items
+        }
+        assert "共享石" in names
+
+    def test_escape_outside_pack_fails(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside.yaml"
+        outside.write_text(_INCLUDE_TEMPLATES, encoding="utf-8")
+        pack_dir = tmp_path / "pack"
+        scene = """
+includes:
+  - ../outside.yaml
+rooms:
+  start_yard:
+    name: 起始庭院
+    long: 庭院
+    exits: {}
+player:
+  name: 你
+  start_room: start_yard
+"""
+        _write_pack(pack_dir, scene=scene)
+        with pytest.raises(SceneLoadError) as exc_info:
+            load_pack(pack_dir)
+        msg = str(exc_info.value)
+        assert "越界" in msg or "穿出" in msg
+
+    def test_validate_strict_flags_include_unconsumed_fields(
+        self, tmp_path: Path
+    ) -> None:
+        from mud_engine.__main__ import _main
+
+        pack_dir = tmp_path / "pack"
+        _write_pack(pack_dir, scene=_SCENE_WITH_INCLUDES)
+        (pack_dir / "templates").mkdir()
+        (pack_dir / "templates" / "shared.yaml").write_text(
+            _INCLUDE_WITH_TYPO, encoding="utf-8"
+        )
+        assert _main(["--pack", str(pack_dir), "--validate"]) == 0
+        assert _main(["--pack", str(pack_dir), "--validate", "--strict"]) != 0

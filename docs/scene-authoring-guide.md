@@ -17,12 +17,13 @@
 
 | | **官方轨**（无 manifest） | **内容包轨**（有 manifest） |
 |---|---|---|
-| 场景数据 | 单文件场景 YAML | 包目录内的 `scene.yaml` |
+| 场景数据 | 单文件场景 YAML（可 `includes` 拆模板） | 包目录内的 `scene.yaml`（同样可 `includes`） |
 | 包身份 | 无 | 同目录 `manifest.yaml`（`id` / `version` 等） |
 | 加载入口 | `load_scene(path)`；CLI **无** `--pack` | `load_pack(dir)`；CLI `--pack <目录>` |
 | 校验入口 | （无独立 `--validate`；靠引擎测试 / `just verify-m2` 等） | `--pack <目录> --validate`［可选 `--strict`］ |
 | 具体范本 | [`engine/data/m2_mvp_scene.yaml`](../engine/data/m2_mvp_scene.yaml)（官方轻量武侠题材包） | [`.scratch/m3-ugc-loop-creation-surface/example-pack/`](../.scratch/m3-ugc-loop-creation-surface/example-pack/)（非武侠「废弃探测站」） |
 | 共用契约 | [创作者契约 v0](creator-contract-v0.md) 的场景 YAML 字段集合 | 同左；另加契约中的 `manifest.yaml` 已知字段 |
+| 多文件模板 | 顶层 `includes`（仅合并 `items`/`npcs`；单层） | 同左；路径不得穿出包目录 |
 
 ## 官方轨
 
@@ -56,6 +57,28 @@ python -m mud_engine --pack .scratch/m3-ugc-loop-creation-surface/example-pack -
 - **交外部 / 异题材包、需要包身份与 `--validate` 反馈通道**：建目录，放 `manifest.yaml` + `scene.yaml`，对照 `example-pack/`，走内容包轨。
 
 两轨都不要发明私有顶层段当「稳定 API」——透传键不在 v0 冻结范围内；表达不了的玩法先查 [GAP 台账](gap-ledger.md)。
+
+## 多文件模板（`includes`）
+
+两轨均可在场景顶层写：
+
+```yaml
+includes:
+  - templates/weapons.yaml
+  - templates/npcs_common.yaml
+rooms:
+  # 房间拓扑仍只写在本文件
+  ...
+items:
+  # 可与 include 合并；模板 id 全局唯一
+  ...
+```
+
+规则摘要（完整契约见 [创作者契约 v0](creator-contract-v0.md)「多文件 includes」）：
+
+- 路径相对**本场景文件**所在目录，不得穿出该目录树；内容包轨另不得穿出包根。
+- 被 include 的文件只含 `items` / `npcs`；**禁止嵌套** `includes`，也不得在其中写 `rooms` / `player`。
+- 合并后模板 id 重复 → 加载失败。`--pack --validate --strict` 对 include 内未消费字段与主场景同一套检查。
 
 ## 出口写法推荐（标准方位不必手写）
 
@@ -96,4 +119,4 @@ rooms:
 
 - 不把 `m2_mvp_scene.yaml`（或 `m1_default_scene.yaml`）改造成带 `manifest.yaml` 的内容包目录。
 - 不合并两条 CLI 入口，也不要求创作者「只学其中一条」。
-- 不新增场景字段或加载器行为——本文只说明现状。
+- 不把官方默认场景改造成必须多文件；`includes` 为可选加法，单文件仍是合法默认。

@@ -95,15 +95,22 @@ def load_scene(
     ``pack_track=True``（内容包轨道，由 ``load_pack`` 传入）时禁止房间 ``hooks``
     字段——与旁路检测到同级 ``manifest.yaml`` 一样 fail-closed（ADR-0012）。
 
+    可选顶层 ``includes: [<相对路径>, ...]``（相对本文件所在目录）在解析
+    ``items``/``npcs``/``rooms`` 之前合并被引用文件的 ``items``/``npcs`` 模板；
+    不支持嵌套 include；路径不得穿出场景目录（内容包轨另不得穿出包目录）。
+
     ``rng`` 供加载期出口 ``random_of`` 选定目标，以及 C11 随机 objects 槽位的
     **初始**抽签；缺省用系统 ``Random()``。出口与 objects 池走不同求值函数
     （见 ``_exit_random_of_target`` vs ``draw_random_object_template``）。
     """
     scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
+    # 内容包轨：包根 = 场景文件所在目录（约定 scene.yaml 与 manifest.yaml 同级）。
+    pack_root = scene_path.parent.resolve() if pack_track else None
+    items, npcs = _merge_includes_templates(
+        data, scene_path, pack_root=pack_root
+    )
     rooms = _expect_mapping(data, scene_path, "rooms")
-    items = _expect_mapping(data, scene_path, "items", default={})
-    npcs = _expect_mapping(data, scene_path, "npcs", default={})
     player = _expect_mapping(data, scene_path, "player")
 
     world = World()
@@ -179,8 +186,11 @@ _TOP_LEVEL_KNOWN_SECTIONS = frozenset(
         "death_policy",
         "quests",
         "books",
+        "includes",
     }
 )
+# 被 include 的文件只贡献模板段；不得再声明 includes（禁止嵌套）或其它顶层段。
+_INCLUDE_ALLOWED_SECTIONS = frozenset({"items", "npcs"})
 _ROOM_INTRINSIC_FIELDS = frozenset(
     {
         "name",
@@ -231,6 +241,150 @@ _NPC_KNOWN_FIELDS = frozenset(
 _PLAYER_KNOWN_FIELDS = frozenset(
     {"name", "start_room"} | {field for spec in NPC_CAPABILITIES for field in spec.known_fields}
 )
+
+
+def _merge_includes_templates(
+    data: Mapping,
+    scene_path: Path,
+    *,
+    pack_root: Path | None,
+) -> tuple[dict, dict]:
+    """解析顶层 ``includes``，合并被引用文件与本文件的 ``items``/``npcs``。
+
+    路径相对 ``scene_path`` 所在目录，不得穿出该目录树；内容包轨另不得穿出
+    ``pack_root``。仅一层：被 include 文件若再写 ``includes`` 或其它顶层段则失败。
+    合并后模板键在同一次加载命名空间内全局唯一（跨文件重复 id 报错）。
+    """
+    items: dict = {}
+    npcs: dict = {}
+    include_paths = _parse_includes_list(data.get("includes"), scene_path)
+    for rel in include_paths:
+        included_path = _resolve_include_path(
+            scene_path, rel, pack_root=pack_root
+        )
+        included = _read_yaml(included_path)
+        _reject_include_disallowed_sections(included, included_path, rel)
+        _merge_template_mapping(
+            items,
+            _expect_mapping(included, included_path, "items", default={}),
+            kind="物品",
+            scene_path=scene_path,
+            source_label=rel,
+        )
+        _merge_template_mapping(
+            npcs,
+            _expect_mapping(included, included_path, "npcs", default={}),
+            kind="NPC",
+            scene_path=scene_path,
+            source_label=rel,
+        )
+    _merge_template_mapping(
+        items,
+        _expect_mapping(data, scene_path, "items", default={}),
+        kind="物品",
+        scene_path=scene_path,
+        source_label="本文件",
+    )
+    _merge_template_mapping(
+        npcs,
+        _expect_mapping(data, scene_path, "npcs", default={}),
+        kind="NPC",
+        scene_path=scene_path,
+        source_label="本文件",
+    )
+    return items, npcs
+
+
+def _parse_includes_list(raw: object, scene_path: Path) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的顶层 'includes' 应是路径字符串列表，"
+            f"实际是 {type(raw).__name__}"
+        )
+    paths: list[str] = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, str) or not entry.strip():
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 includes[{i}] 应是非空相对路径字符串，"
+                f"实际是 {type(entry).__name__}"
+            )
+        paths.append(entry.strip())
+    return paths
+
+
+def _resolve_include_path(
+    scene_path: Path,
+    rel: str,
+    *,
+    pack_root: Path | None,
+) -> Path:
+    """把 include 相对路径解析为绝对路径；越界或文件缺失则 ``SceneLoadError``。"""
+    rel_path = Path(rel)
+    if rel_path.is_absolute():
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 includes 路径 '{rel}' 必须是相对路径，"
+            f"不允许绝对路径"
+        )
+    base = scene_path.parent.resolve()
+    candidate = (base / rel_path).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError as exc:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 includes 路径 '{rel}' 越界："
+            f"不允许穿出场景文件所在目录 {base}"
+        ) from exc
+    if pack_root is not None:
+        try:
+            candidate.relative_to(pack_root.resolve())
+        except ValueError as exc:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的 includes 路径 '{rel}' 越界："
+                f"内容包轨不允许穿出包目录 {pack_root.resolve()}"
+            ) from exc
+    if not candidate.is_file():
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的 includes 路径 '{rel}' 对应的文件不存在"
+            f"（解析为 {candidate}）"
+        )
+    return candidate
+
+
+def _reject_include_disallowed_sections(
+    included: Mapping, included_path: Path, rel: str
+) -> None:
+    if "includes" in included:
+        raise SceneLoadError(
+            f"被 include 的文件 {included_path}（场景 includes 条目 '{rel}'）"
+            f"不允许嵌套 includes；仅当前场景文件顶层可声明 includes"
+        )
+    disallowed = sorted(set(included) - _INCLUDE_ALLOWED_SECTIONS)
+    if disallowed:
+        keys = ", ".join(repr(k) for k in disallowed)
+        raise SceneLoadError(
+            f"被 include 的文件 {included_path}（场景 includes 条目 '{rel}'）"
+            f"仅允许顶层段 items/npcs，但出现了：{keys}"
+        )
+
+
+def _merge_template_mapping(
+    dest: dict,
+    source: Mapping,
+    *,
+    kind: str,
+    scene_path: Path,
+    source_label: str,
+) -> None:
+    for key, value in source.items():
+        template_key = str(key)
+        if template_key in dest:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{kind}模板 '{template_key}' 重复定义"
+                f"（来源：{source_label}；合并后的模板命名空间须全局唯一）"
+            )
+        dest[template_key] = value
 
 
 def _capture_top_level_unknown_sections(world: World, data: Mapping) -> None:

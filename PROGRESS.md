@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- Polishing Wave 7：票 [`11`](.scratch/polishing/issues/11-scene-includes.md)（`includes`）；fixed point `polishing-wave7-start`。
 
 ## Blocked
 

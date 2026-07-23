@@ -63,9 +63,13 @@ def load_manifest(pack_dir: Path) -> PackManifest:
 def load_pack(pack_dir: Path) -> tuple[World, EntityId]:
     """加载内容包：先校验 manifest，再委托 ``load_scene`` 加载 ``scene.yaml``。
 
-    成功时把 ``PackManifest`` 赋给返回 ``world.pack_manifest``。不修改
-    ``load_scene``——纯组合。manifest 校验失败抛 ``PackManifestError``（不会
-    调用 ``load_scene``）；场景结构性错误原样抛出 ``SceneLoadError``。
+    成功时把 ``PackManifest`` 赋给返回 ``world.pack_manifest``。manifest 校验
+    失败抛 ``PackManifestError``（不会调用 ``load_scene``）；场景结构性错误
+    原样抛出 ``SceneLoadError``。
+
+    内容包轨允许场景顶层 ``includes``（见 ``scene_loader``）：路径相对
+    ``scene.yaml`` 所在目录，且不得穿出包目录；被 include 文件仅贡献
+    ``items``/``npcs`` 模板。
     """
     pack_dir = Path(pack_dir)
     manifest = load_manifest(pack_dir)
