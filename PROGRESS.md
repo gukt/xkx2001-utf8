@@ -5,7 +5,7 @@
 >
 > 2026-07-17 项目重设、07-18 新目标定稿（原目标与取舍战略已放弃）。新目标用 `/wayfinder` 走完 [.scratch/mvp-scope/](.scratch/mvp-scope/) 10/10 票决策并写回 [CLAUDE.md](CLAUDE.md) 的"项目一句话"与架构不变量。重设前的进度历史见 [docs/archive/PROGRESS.md](docs/archive/PROGRESS.md)，仅作背景参考。
 
-**最后更新**：2026-07-23：Polishing 候选 `/grill-with-docs` **共享理解已确认**（13 项进 Polishing / B7·C15 GAP 后置）。下一步：`/to-spec` 开 polishing effort。**不自动开 M4**。
+**最后更新**：2026-07-23：Polishing grill **共享理解已确认**并交接；Next Up 写明新 session `/to-spec` 开工读与第一句。**不自动开 M4**。
 
 ## 当前状态速览
 
