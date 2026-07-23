@@ -581,6 +581,18 @@ class RoomResources:
 
 
 @dataclass
+class LocalNature:
+    """房间级静态 Nature 贴纸（ADR-0013）。启动固定，运行期不演进。
+
+    YAML ``local_nature: {weather?: clear|rain, phase?: <相位表已有名>}``。
+    字段为 ``None`` 表示该面回退 ``World.nature``；查询时按房间合成读数。
+    """
+
+    weather: str | None = None  # "clear" | "rain" | None
+    phase: str | None = None
+
+
+@dataclass
 class RentPaid:
     """玩家已付本次入住房钱。运行时可变进存档。
 

@@ -151,7 +151,7 @@ night_owl:
 |---|---|
 | **背包任意物查询**（如「背包是否有某模板物品」作通用谓词） | 条件 DSL **当前没有** `has_item` / 任意背包查询原语。GAP「装备槏位与真实 wield / unwield」行虽在降级建议里提到 `has_item`，那是设计指引而非已实现谓词——勿在 YAML 条件里写 `has_item`。持刃谓词是特例且命令面未齐。 |
 | **任务旗标查询**（在条件里读 `QuestProgress` 旗标） | 对齐「脚本化任务 / 剧情分支」：声明式旗标任务已支持接取/交物完成，但条件 DSL **不**暴露任务旗标作通用谓词；勿在 `entry_guard` / `learn_condition` / `when` 里写旗标查询。 |
-| **局部天气查询**（按房间覆盖全局 Nature） | 对齐「局部 / 区域天气继承」：**未支持**（Nature 为 World 单例）。实现前只用全局昼夜/雨；勿假设房间局部天气。Polishing C14 另票。 |
+| **局部天气专用谓词**（如另起 `is_local_raining`） | 对齐「局部 / 区域天气继承」：**房间贴纸已支持**（`local_nature`，见 [ADR-0013](adr/0013-local-nature-room-sticker.md)），复用既有 `is_raining`/`is_night`/`is_day`/`phase` 按演员/门禁所在房合成读数。**不**新增专用局部天气谓词；勿在 DSL 里发明第二套查询面。 |
 
 贵重物刷怪等玩法条件扩展走**官方 hooks `params`**，**不**往本 DSL 加专用谓词（见 GAP「运行时改世界机关」与 ADR-0012）。
 

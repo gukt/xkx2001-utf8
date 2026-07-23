@@ -1,5 +1,5 @@
 ---
-Status: proposed
+Status: accepted
 ---
 
 # 局部天气：房间级静态贴纸，不增殖 NatureState

@@ -26,5 +26,5 @@
 | **运行时改世界机关**（动态出口/时限崩塌、多步状态机、迷途、jump·climb、时段秘道、磁力、劫匪刷拦、杀令介入、柔丝索捕获等） | **已支持（官方轨严格切片）**：可信房间钩子（`hooks` + 窄 `ctx`）与加载期小原语 `random_of`；验收挂 `xingxiu_mechanics.yaml`。UGC 内容包仍**禁止** `hooks`。贵重物等刷怪条件走官方 hooks `params`（如 `bandit_ambush.min_item_value`），**已落地**（不扩条件 DSL）。**C15** 额外 valid_leave 脚本化 → 仍 GAP 后置。 | 纯声明式 YAML **独立表达不到**这类机关；UGC 用剧情门三件套 / 静态拓扑降级——勿在内容包写 `hooks`；勿为贵重物往 DSL 加谓词。 |
 | **液体灌装 / 饮用 / eat** | **已支持（严格切片）**：房间 `resource.water`；物品 `liquid_container` + 运行时 `filled_liquid`；命令 `fill` / `drink` / `eat`。效果为当次一次性数值变化，不接持续 Effect（ADR-0007）。**未**打通：`resource.grass` / 坐骑喂食、醉酒/持续中毒等跨 tick 状态。 | 河边/井边标 `resource.water: true`；水袋标 `liquid_container: true`；干粮标 `consumable`。勿假设饮酒致醉或草场喂马已可用。 |
 | **invalid_startroom / 存档出生点** | **未支持**（渡船等禁存起点）。**Polishing grill：B7 → GAP·后置**。 | 后置；勿假设 quit 会强制改写出生点到客店。 |
-| **局部 / 区域天气继承** | **未支持**（Nature 为 World 单例）。**Polishing C14 已拍板纳入**（需 ADR，待 to-spec）。 | 实现前只用全局昼夜/雨；勿假设房间局部天气。 |
+| **局部 / 区域天气继承** | **已支持（房间级静态贴纸）**：房间 `local_nature: {weather?: clear\|rain, phase?: <相位名>}` 挂 `LocalNature`；查询时合成户外 `look` 与条件 DSL `is_raining`/`is_night`/`is_day`/`phase`（演员/门禁所在房）。回退 `房间 → World.nature`。见 [ADR-0013](adr/0013-local-nature-room-sticker.md)。**不做** region 树、第二天气循环、天气→数值玩法。 | 特色房写 `local_nature`；勿假设邻房互见局部天气或按房分裂广播。 |
 | **防拐带（NPC 进玩家容器）** | **未支持**：无 `valid_leave` 式防拐带规则。 | 后置；勿设计「把 NPC 塞进背包带走」玩法。 |

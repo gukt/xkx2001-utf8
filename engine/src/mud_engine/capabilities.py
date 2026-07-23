@@ -54,6 +54,7 @@ from mud_engine.components import (
     ItemTags,
     LibraryRoom,
     LiquidContainer,
+    LocalNature,
     Mount,
     NoDeathZone,
     RentPaid,
@@ -852,6 +853,84 @@ def _des_room_resources(d: dict) -> RoomResources:
     return RoomResources(water=bool(d.get("water", False)))
 
 
+_LOCAL_NATURE_WEATHERS = frozenset({"clear", "rain"})
+
+
+def _allowed_local_nature_phases(scene_path: Path) -> frozenset[str]:
+    """加载期可接受的 phase 名：场景 ``nature.day_phases`` ∪ 默认四相。"""
+    from mud_engine.nature import DEFAULT_PHASES
+    from mud_engine.scene_loader import read_nature_config
+
+    names = {p.name for p in DEFAULT_PHASES}
+    cfg = read_nature_config(scene_path)
+    if isinstance(cfg, Mapping):
+        raw = cfg.get("day_phases")
+        if isinstance(raw, list):
+            for entry in raw:
+                if isinstance(entry, Mapping) and entry.get("name"):
+                    names.add(str(entry["name"]))
+    return frozenset(names)
+
+
+def _parse_local_nature(
+    data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
+) -> LocalNature | None:
+    """``local_nature: {weather?, phase?}``；两面皆缺则不挂。"""
+    raw = data.get("local_nature")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 'local_nature' 应是映射，"
+            f"实际是 {type(raw).__name__}"
+        )
+    unknown = [str(k) for k in raw if str(k) not in {"weather", "phase"}]
+    if unknown:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的{label}的 local_nature 含未知字段 "
+            f"{', '.join(sorted(unknown))}（仅支持 weather / phase）"
+        )
+    weather: str | None = None
+    if "weather" in raw and raw["weather"] is not None:
+        weather = str(raw["weather"])
+        if weather not in _LOCAL_NATURE_WEATHERS:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 local_nature.weather "
+                f"须为 clear/rain，实际是 {weather!r}"
+            )
+    phase: str | None = None
+    if "phase" in raw and raw["phase"] is not None:
+        phase = str(raw["phase"])
+        allowed = _allowed_local_nature_phases(scene_path)
+        if phase not in allowed:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的{label}的 local_nature.phase "
+                f"须为当前相位表已有名（{', '.join(sorted(allowed))}），"
+                f"实际是 {phase!r}"
+            )
+    if weather is None and phase is None:
+        return None
+    return LocalNature(weather=weather, phase=phase)
+
+
+def _ser_local_nature(c: LocalNature) -> dict:
+    out: dict = {}
+    if c.weather is not None:
+        out["weather"] = c.weather
+    if c.phase is not None:
+        out["phase"] = c.phase
+    return out
+
+
+def _des_local_nature(d: dict) -> LocalNature:
+    weather = d.get("weather")
+    phase = d.get("phase")
+    return LocalNature(
+        weather=None if weather is None else str(weather),
+        phase=None if phase is None else str(phase),
+    )
+
+
 def _parse_library_room(
     data: Mapping, label: str, scene_path: Path, attached: dict[type, object]
 ) -> LibraryRoom | None:
@@ -989,6 +1068,13 @@ ROOM_CAPABILITIES: list[CapabilitySpec] = [
         from_yaml=_parse_room_resources,
         to_dict=_ser_room_resources,
         from_dict=_des_room_resources,
+    ),
+    CapabilitySpec(
+        component_type=LocalNature,
+        known_fields=frozenset({"local_nature"}),
+        from_yaml=_parse_local_nature,
+        to_dict=_ser_local_nature,
+        from_dict=_des_local_nature,
     ),
 ]
 

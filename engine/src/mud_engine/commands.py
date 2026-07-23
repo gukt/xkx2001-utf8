@@ -382,9 +382,13 @@ def _cmd_look(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     exits = world.require_component(room, Exits)
 
     lines = [description.short, description.long]
-    # 户外房间追加当前时辰 × 天气描述（15/17 号票）；室内不追加。
-    if description.outdoors and world.nature is not None:
-        lines.append(world.nature.outdoor_desc())
+    # 户外房间追加当前时辰 × 天气描述（15/17 号票；ADR-0013 按本房贴纸合成）。
+    if description.outdoors:
+        from mud_engine.nature import outdoor_desc_for_room
+
+        nature_line = outdoor_desc_for_room(world, room)
+        if nature_line is not None:
+            lines.append(nature_line)
     # 渡口状态现算（M2-09）：不塞进 Description。
     from mud_engine.ferry import ferry_status_line
 
@@ -1633,13 +1637,23 @@ class _JoinContext:
     """join 命令专用最小 ConditionContext（M2-08；通用 EntityGateContext 见 11 号票）。"""
 
     def __init__(self, world: World, player_id: EntityId) -> None:
+        from mud_engine.nature import resolve_effective_nature
+
         self._world = world
         self._player_id = player_id
-        nature = world.nature
-        self.phase = getattr(nature, "phase", "day") if nature else "day"
-        self.is_night = bool(getattr(nature, "is_night", False)) if nature else False
-        self.is_day = bool(getattr(nature, "is_day", True)) if nature else True
-        self.is_raining = bool(getattr(nature, "is_raining", False)) if nature else False
+        room = world.get_component(player_id, Position)
+        room_id = room.room if room is not None else None
+        eff = resolve_effective_nature(world, room_id)
+        if eff is None:
+            self.phase = "day"
+            self.is_night = False
+            self.is_day = True
+            self.is_raining = False
+        else:
+            self.phase = eff.phase
+            self.is_night = eff.is_night
+            self.is_day = eff.is_day
+            self.is_raining = eff.is_raining
         faction = world.get_component(player_id, Faction)
         self.faction_id = faction.faction_id if faction else None
         self.has_faction = self.faction_id is not None

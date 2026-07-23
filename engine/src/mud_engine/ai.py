@@ -166,7 +166,6 @@ def _on_ai_tick(context: TickContext) -> None:
     tick = context.tick
     if ai.spawn_scan_interval > 0 and tick % ai.spawn_scan_interval == 0:
         spawn_scan(world)
-    cond_ctx = _condition_context(world)
     for entity in list(world.entities_with(AIController)):
         controller = world.require_component(entity, AIController)
         interval = max(1, controller.tick_interval)
@@ -175,6 +174,10 @@ def _on_ai_tick(context: TickContext) -> None:
         behaviors = world.get_component(entity, Behaviors)
         if behaviors is None:
             continue
+        # 每实体按所在房合成 Nature 读数（ADR-0013），不共用 World 单例快照。
+        pos = world.get_component(entity, Position)
+        room_id = pos.room if pos is not None else None
+        cond_ctx = _condition_context(world, room_id=room_id)
         for spec in behaviors.entries:
             _tick_behavior(world, entity, spec, rng=ai.rng, cond_ctx=cond_ctx)
 
@@ -434,11 +437,20 @@ _spawn_scan = spawn_scan
 _spawn_from_blueprint = spawn_from_blueprint
 
 
-def _condition_context(world: World) -> ConditionContext:
-    """取条件求值 context：优先 ``world.nature``（块 B），否则 StubContext。"""
-    nature = getattr(world, "nature", None)
-    if nature is not None and isinstance(nature, ConditionContext):
-        return nature
+def _condition_context(
+    world: World, *, room_id: EntityId | None = None
+) -> ConditionContext:
+    """取条件求值 context：按房间合成 Nature（ADR-0013），否则 StubContext。"""
+    from mud_engine.nature import resolve_effective_nature
+
+    eff = resolve_effective_nature(world, room_id)
+    if eff is not None:
+        return StubContext(
+            phase=eff.phase,
+            is_night=eff.is_night,
+            is_day=eff.is_day,
+            is_raining=eff.is_raining,
+        )
     return StubContext()
 
 

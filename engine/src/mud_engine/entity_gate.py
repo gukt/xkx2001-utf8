@@ -40,14 +40,34 @@ class EntityGateContext:
 
     除协议字段外，另暴露 ``str_``/``con``/``dex``/``int_``/``has_faction``，
     供 learn 门槏（M2-14）用 ``Equals`` 查询，无需再扩协议。
+
+    Nature 读数按 ``room_id``（缺省为实体当前房）合成房间贴纸（ADR-0013）。
     """
 
-    def __init__(self, world: World, entity_id: EntityId) -> None:
-        nature = world.nature
-        self.phase = getattr(nature, "phase", "day") if nature else "day"
-        self.is_night = bool(getattr(nature, "is_night", False)) if nature else False
-        self.is_day = bool(getattr(nature, "is_day", True)) if nature else True
-        self.is_raining = bool(getattr(nature, "is_raining", False)) if nature else False
+    def __init__(
+        self,
+        world: World,
+        entity_id: EntityId,
+        *,
+        room_id: EntityId | None = None,
+    ) -> None:
+        from mud_engine.components import Position
+        from mud_engine.nature import resolve_effective_nature
+
+        if room_id is None:
+            pos = world.get_component(entity_id, Position)
+            room_id = pos.room if pos is not None else None
+        eff = resolve_effective_nature(world, room_id)
+        if eff is None:
+            self.phase = "day"
+            self.is_night = False
+            self.is_day = True
+            self.is_raining = False
+        else:
+            self.phase = eff.phase
+            self.is_night = eff.is_night
+            self.is_day = eff.is_day
+            self.is_raining = eff.is_raining
 
         faction = world.get_component(entity_id, Faction)
         self.faction_id = faction.faction_id if faction else None
@@ -95,7 +115,8 @@ def attach_entry_guards(world: World) -> None:
         if condition is None:
             # 配置损坏时 fail-closed，避免门禁失效静默放行。
             return Deny(guard.deny_message)
-        gate = EntityGateContext(world, ctx.player_id)
+        # 门禁挂在目标房：用 to_room 贴纸合成昼夜/雨（ADR-0013）。
+        gate = EntityGateContext(world, ctx.player_id, room_id=ctx.to_room)
         if not evaluate(condition, gate):
             return Deny(guard.deny_message)
         return None

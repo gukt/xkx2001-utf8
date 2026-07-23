@@ -319,7 +319,7 @@ class TestChatter:
         monkeypatch.setattr(
             ai_mod,
             "_condition_context",
-            lambda _w: StubContext(phase="day", is_night=False, is_day=True),
+            lambda _w, **_kw: StubContext(phase="day", is_night=False, is_day=True),
         )
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         world.pending_messages.clear()
@@ -336,7 +336,7 @@ class TestChatter:
         monkeypatch.setattr(
             ai_mod,
             "_condition_context",
-            lambda _w: StubContext(phase="night", is_night=True, is_day=False),
+            lambda _w, **_kw: StubContext(phase="night", is_night=True, is_day=False),
         )
         loop = TickLoop(save_fn=lambda: None, world=world, interval=100)
         world.pending_messages.clear()

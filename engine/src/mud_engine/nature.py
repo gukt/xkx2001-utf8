@@ -21,7 +21,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from mud_engine.components import Description, PlayerSession, Position
+from mud_engine.components import Description, LocalNature, PlayerSession, Position
 from mud_engine.events import ON_TICK, TickContext
 from mud_engine.world import EntityId, World
 
@@ -236,12 +236,23 @@ class NatureState:
 
     def outdoor_desc(self) -> str:
         """户外 look 追加的「时辰 × 天气」描述片段。"""
-        phase = self.current_phase
-        if self.weather is Weather.RAIN:
-            if phase.rain_desc_msg:
-                return phase.rain_desc_msg
-            return f"{phase.desc_msg}{_DEFAULT_RAIN_SUFFIX}"
-        return phase.desc_msg
+        return self.outdoor_desc_for(phase=self.phase, weather=self.weather)
+
+    def outdoor_desc_for(self, *, phase: str, weather: Weather) -> str:
+        """按给定 phase×weather 取户外文案（仍用本单例相位表，ADR-0013）。"""
+        phase_cfg = self._phase_by_name(phase)
+        if weather is Weather.RAIN:
+            if phase_cfg.rain_desc_msg:
+                return phase_cfg.rain_desc_msg
+            return f"{phase_cfg.desc_msg}{_DEFAULT_RAIN_SUFFIX}"
+        return phase_cfg.desc_msg
+
+    def _phase_by_name(self, name: str) -> DayPhase:
+        for phase in self.phases:
+            if phase.name == name:
+                return phase
+        # 贴纸 phase 应在加载期已校验；运行期若漂移则回退当前相，避免 look 崩。
+        return self.current_phase
 
     def align_from_clock(self, clock: Clock) -> None:
         """按时钟对齐当前相位与相位内进度（重启 / attach 时调用）。
@@ -317,6 +328,55 @@ class NatureState:
             return _WEATHER_RAIN_MSG
         self.weather = Weather.CLEAR
         return _WEATHER_CLEAR_MSG
+
+
+@dataclass(frozen=True)
+class EffectiveNature:
+    """房间贴纸与 World.nature 合成后的只读读数（ADR-0013）。"""
+
+    phase: str
+    weather: Weather
+    is_night: bool
+    is_day: bool
+    is_raining: bool
+
+
+def resolve_effective_nature(
+    world: World, room_id: EntityId | None
+) -> EffectiveNature | None:
+    """按房间合成 Nature 读数；无 ``World.nature`` 时返回 None（与今日一致）。
+
+    回退：``LocalNature`` 已声明的面 → ``World.nature`` 单例。
+    """
+    nature = world.nature
+    if nature is None:
+        return None
+    local = (
+        world.get_component(room_id, LocalNature) if room_id is not None else None
+    )
+    phase = local.phase if local is not None and local.phase is not None else nature.phase
+    if local is not None and local.weather is not None:
+        weather = Weather.RAIN if local.weather == Weather.RAIN.value else Weather.CLEAR
+    else:
+        weather = nature.weather
+    return EffectiveNature(
+        phase=phase,
+        weather=weather,
+        is_night=phase in NIGHT_PHASES,
+        is_day=phase in DAY_PHASES,
+        is_raining=weather is Weather.RAIN,
+    )
+
+
+def outdoor_desc_for_room(world: World, room_id: EntityId | None) -> str | None:
+    """户外 look 追加行：合成 phase×weather，文案仍取 World 相位表。"""
+    nature = world.nature
+    if nature is None:
+        return None
+    eff = resolve_effective_nature(world, room_id)
+    if eff is None:
+        return None
+    return nature.outdoor_desc_for(phase=eff.phase, weather=eff.weather)
 
 
 def attach_nature(
@@ -467,8 +527,11 @@ __all__ = [
     "ON_NATURE_CHANGE",
     "Clock",
     "DayPhase",
+    "EffectiveNature",
     "NatureChangeContext",
     "NatureState",
     "Weather",
     "attach_nature",
+    "outdoor_desc_for_room",
+    "resolve_effective_nature",
 ]

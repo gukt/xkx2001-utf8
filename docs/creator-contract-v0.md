@@ -46,7 +46,7 @@
 
 ### `rooms.*`
 
-`name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`, `hotel`, `resource`
+`name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`, `hotel`, `resource`, `local_nature`
 
 `objects` 为放置权威，写法二选一（单槽位互斥）：
 
@@ -62,6 +62,8 @@
 客店：`hotel: true` 挂客店房——须先 `pay <同房店家 NPC>` 付固定房钱（引擎常量，当前 10 两）置 `rent_paid` 后才能 `sleep`；离开该房清除已付状态。挂 `hotel` 的房间同房拦 `practice`（与 `library` 并列、不共用组件）。普通房间默认允许 `sleep`（恢复气血/精力至上限，内力不变），除非声明 `no_sleep_room: true`。
 
 房间资源：`resource: { water?: bool }`——`water: true` 时本房可 `fill <液体容器>` 灌水。坐骑喂食用的 `grass` **未**纳入本契约（见 GAP）。
+
+局部天气贴纸：`local_nature: { weather?: clear|rain, phase?: <当前相位表已有名> }`——房间级静态覆盖（不随 World `NatureState` tick/翻转变化）。户外 `look` 与条件 DSL 的 `is_raining`/`is_night`/`is_day`/`phase` 按本房合成；未声明的面回退 `World.nature`。见 [ADR-0013](adr/0013-local-nature-room-sticker.md)。不新增天气→移动/战斗/坐骑数值影响。
 
 日间店：`day_shop: true` 加载期编成白天放行的 `entry_guard`（谓词 `is_day`，拒入文案「晚上不开门。」）。同房不得再手写 `entry_guard`（冲突则加载失败）。
 
