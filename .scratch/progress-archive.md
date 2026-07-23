@@ -3,6 +3,8 @@
 > [PROGRESS.md](../PROGRESS.md) 的 Done 区只保留最近 5 条，更早的在此归档。新 -> 旧。
 > 细节见各条链接的 issue / ADR / 调研笔记；归档为历史快照，措辞沿用当时表述，不随基线更新而回改。
 
+- [x] **Polishing 候选 `/grill-with-docs` 共享理解确认**（2026-07-23）：矩阵 A1–C15 拍板；13 项进 Polishing（纳入即做）、B7/C15 → GAP·后置；出口导航 / details(K2+U+S1+N1) 等写入 session-notes + CONTEXT；无「进 M4」桶。**未**开实现、**未**改契约加载器。底稿 [.scratch/polishing-candidate-review/](.scratch/polishing-candidate-review/)。后续见 PROGRESS Done「Polishing `/to-spec`」（2026-07-23）与 [.scratch/polishing/spec.md](.scratch/polishing/spec.md)。
+
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 3 落地：多步状态机 + 迷途 + jump/climb**（2026-07-22）：票 `03`/`04`/`05`；`multi_step_gate`/`lost_in_maze`/`skill_gate`；`ON_BEFORE_LEAVE_ROOM`；fixed point `pre-m4-room-hooks-xingxiu-wave3-start`；code-review fix：协议文档补 jump/climb、迷途 `escape_target`、技能门槛播报用 `direction`。820 绿。
 
 - [x] **Pre-M4 房间钩子 / 星宿机制 Wave 2 落地：dig_collapse + random_of + xingxiu_mechanics**（2026-07-22）：票 `02`；`DigCollapseHook`/`dig`/`random_of`；创建 `engine/data/xingxiu_mechanics.yaml`；fixed point `pre-m4-room-hooks-xingxiu-wave2-start`；code-review fix：协议文档补 `on_dig`、拒绝文案常量、官方切片岔路可玩测。802 绿。
