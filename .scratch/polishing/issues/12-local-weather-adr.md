@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: resolved
 ---
 
 # 12 — C14a 局部天气继承：ADR
@@ -10,11 +10,22 @@ Status: ready-for-agent
 
 **Blocked by:** None — 可立即开始（本票是 C14 的前置门闩，票 `13` 的实现依赖本票的 ADR 结论）。
 
-- [ ] ADR 正面回答：与 [ADR-0009](../../../docs/adr/0009-single-process-single-world.md)「单进程单 World」的关系——局部天气是否意味着引入多个 `NatureState` 实例？若是，是否违反或需要收窄 ADR-0009？
-- [ ] ADR 正面回答：与 `nature.py` 现有「`NatureState` 是 world 级纯内存态单例」设计注释的关系——是否改造为每 room/region 可覆盖，还是新增一层独立于 tick 推进的静态覆盖（不随时间/天气翻转变化，只是「这个房间描述永远长这样」）。
-- [ ] ADR 明确影响范围边界：至少覆盖户外 `look` 描述文案与条件 DSL 里 `is_raining`/`is_night` 类谓词在该房间求值时的取值；**不**引入跨房间气候传播、不引入需要额外调度的独立天气循环（除非 ADR 明确论证需要）。
-- [ ] ADR 明确回退语义：房间未声明局部覆盖时必须无条件回退到某个确定态（回退到父级 region 还是直接回退到 world 单例 `NatureState`，由 ADR 定），两级回退链不能丢，不能出现「无覆盖也无默认」的未定义态。
-- [ ] ADR 裁剪范围可以是「本效力只做一层房间覆盖，不做多级 region 继承」这种最小满足需求的形状，只要写清楚裁剪理由；不要求做到「任意粒度、任意继承深度」的通用区域树。
-- [ ] ADR 明确不做局部天气对玩法数值的额外影响（移动/战斗/坐骑等）——只影响描述性文本与既有条件谓词读数，不新增天气→数值的映射。
-- [ ] ADR 状态：`Proposed`（`/implement` 阶段落地后回写 `Accepted`，与既有 ADR 惯例一致）。
-- [ ] `CONTEXT.md` / `PROGRESS.md` 无需在本票同步回写（留给票 `13` 实现落地时一并处理）。
+- [x] ADR 正面回答：与 [ADR-0009](../../../docs/adr/0009-single-process-single-world.md)「单进程单 World」的关系——局部天气是否意味着引入多个 `NatureState` 实例？若是，是否违反或需要收窄 ADR-0009？
+- [x] ADR 正面回答：与 `nature.py` 现有「`NatureState` 是 world 级纯内存态单例」设计注释的关系——是否改造为每 room/region 可覆盖，还是新增一层独立于 tick 推进的静态覆盖（不随时间/天气翻转变化，只是「这个房间描述永远长这样」）。
+- [x] ADR 明确影响范围边界：至少覆盖户外 `look` 描述文案与条件 DSL 里 `is_raining`/`is_night` 类谓词在该房间求值时的取值；**不**引入跨房间气候传播、不引入需要额外调度的独立天气循环（除非 ADR 明确论证需要）。
+- [x] ADR 明确回退语义：房间未声明局部覆盖时必须无条件回退到某个确定态（回退到父级 region 还是直接回退到 world 单例 `NatureState`，由 ADR 定），两级回退链不能丢，不能出现「无覆盖也无默认」的未定义态。
+- [x] ADR 裁剪范围可以是「本效力只做一层房间覆盖，不做多级 region 继承」这种最小满足需求的形状，只要写清楚裁剪理由；不要求做到「任意粒度、任意继承深度」的通用区域树。
+- [x] ADR 明确不做局部天气对玩法数值的额外影响（移动/战斗/坐骑等）——只影响描述性文本与既有条件谓词读数，不新增天气→数值的映射。
+- [x] ADR 状态：`Proposed`（`/implement` 阶段落地后回写 `Accepted`，与既有 ADR 惯例一致）。
+- [x] `CONTEXT.md` / `PROGRESS.md` 无需在本票同步回写（留给票 `13` 实现落地时一并处理）。
+
+## Comments
+
+**实现摘要（2026-07-23）**：产出 [ADR-0013](../../../docs/adr/0013-local-nature-room-sticker.md)（`Status: proposed`）。
+
+- **方案**：房间级静态贴纸（建议组件 `LocalNature` / YAML `local_nature`），可选覆 `weather`（`clear`/`rain`）与 `phase`（须为 World 相位表已有名）；查询时按演员所在房合成读数。
+- **ADR-0009**：不增殖 World / 不增殖可 tick 的 `NatureState`；无需收窄 0009。
+- **与单例关系**：`World.nature` 仍唯一推进与广播；贴纸不随 tick 翻转。
+- **回退**：`房间已声明面 → World.nature`（两级）；裁剪掉 region 中间层。
+- **范围**：户外 `look` Nature 行 + 既有条件谓词读数；无气候传播、无第二循环、无天气→数值玩法。
+- **票 13**：实现模块/契约字段以本 ADR 为准；落地后把 ADR 状态回写 `accepted`。
