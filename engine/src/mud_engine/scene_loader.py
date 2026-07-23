@@ -36,6 +36,7 @@ from mud_engine.capabilities import (
 from mud_engine.components import (
     AIController,
     Behaviors,
+    BlockEntry,
     BlockExits,
     Container,
     Description,
@@ -445,7 +446,7 @@ def _attach_block_exits(
     room_key: str,
     scene_path: Path,
 ) -> None:
-    """解析 ``block_exits: {dir: {npc: template_key}}``。"""
+    """解析 ``block_exits``：映射 ``{npc, deny_message?}`` 或纯字符串模板键。"""
     raw = data.get("block_exits")
     if raw is None:
         return
@@ -453,12 +454,21 @@ def _attach_block_exits(
         raise SceneLoadError(
             f"场景文件 {scene_path} 的房间 '{room_key}' 的 'block_exits' 应是映射"
         )
-    by_dir: dict[str, str] = {}
+    by_dir: dict[str, BlockEntry] = {}
     for direction, spec in raw.items():
+        if isinstance(spec, str):
+            # 旧简写：方向 → 模板键，等价于 deny_message: null
+            if not spec:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的房间 '{room_key}' 的 block_exits['{direction}'] "
+                    f"字符串写法不能为空（须为 NPC 模板键）"
+                )
+            by_dir[str(direction)] = BlockEntry(npc_template=spec, deny_message=None)
+            continue
         if not isinstance(spec, Mapping):
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的房间 '{room_key}' 的 block_exits['{direction}'] "
-                f"应是映射（含 npc）"
+                f"应是映射（含 npc）或 NPC 模板键字符串"
             )
         npc = spec.get("npc")
         if not npc:
@@ -466,7 +476,11 @@ def _attach_block_exits(
                 f"场景文件 {scene_path} 的房间 '{room_key}' 的 block_exits['{direction}'] "
                 f"缺少 'npc'（NPC 模板键）"
             )
-        by_dir[str(direction)] = str(npc)
+        deny_raw = spec.get("deny_message")
+        deny_message = None if deny_raw is None else str(deny_raw)
+        by_dir[str(direction)] = BlockEntry(
+            npc_template=str(npc), deny_message=deny_message
+        )
     if by_dir:
         world.add_component(room, BlockExits(by_direction=by_dir))
 

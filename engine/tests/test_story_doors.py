@@ -10,6 +10,8 @@ from pathlib import Path
 import yaml
 
 from mud_engine.components import (
+    BlockEntry,
+    BlockExits,
     Container,
     DoorState,
     Exits,
@@ -19,6 +21,7 @@ from mud_engine.components import (
     Position,
 )
 from mud_engine.parsing import execute_line
+from mud_engine.save import restore_world, save_world
 from mud_engine.scene_loader import load_scene
 from mud_engine.scenes import load_mvp_scene
 
@@ -148,6 +151,61 @@ class TestBlockExits:
         world.destroy_entity(npc)
         execute_line(world, player_id, "go west")
         assert world.require_component(player_id, Position).room == world.room_ids["garden"]
+
+    def test_deny_message_custom_text(self, tmp_path: Path) -> None:
+        data = _story_scene()
+        data["rooms"]["yard"]["block_exits"] = {
+            "west": {"npc": "guard_npc", "deny_message": "门卫冷冷道：闲人止步。"}
+        }
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        yard = world.room_ids["yard"]
+        entry = world.require_component(yard, BlockExits).by_direction["west"]
+        assert entry == BlockEntry(
+            npc_template="guard_npc", deny_message="门卫冷冷道：闲人止步。"
+        )
+        execute_line(world, player_id, "go north")
+        before = world.require_component(player_id, Position).room
+        lines = execute_line(world, player_id, "go west")
+        assert world.require_component(player_id, Position).room == before
+        assert lines == ["门卫冷冷道：闲人止步。"]
+
+    def test_deny_message_absent_falls_back_to_default(self, tmp_path: Path) -> None:
+        world, player_id = load_scene(_write_scene(tmp_path, _story_scene()))
+        yard = world.room_ids["yard"]
+        entry = world.require_component(yard, BlockExits).by_direction["west"]
+        assert entry == BlockEntry(npc_template="guard_npc", deny_message=None)
+        execute_line(world, player_id, "go north")
+        lines = execute_line(world, player_id, "go west")
+        assert any("门卫挡住了west方向的去路。" in line for line in lines)
+
+    def test_block_exits_string_shorthand_loads(self, tmp_path: Path) -> None:
+        data = _story_scene()
+        data["rooms"]["yard"]["block_exits"] = {"west": "guard_npc"}
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        entry = world.require_component(world.room_ids["yard"], BlockExits).by_direction[
+            "west"
+        ]
+        assert entry == BlockEntry(npc_template="guard_npc", deny_message=None)
+        execute_line(world, player_id, "go north")
+        lines = execute_line(world, player_id, "go west")
+        assert any("挡住了" in line for line in lines)
+
+    def test_block_exits_deny_message_save_restore(self, tmp_path: Path) -> None:
+        data = _story_scene()
+        data["rooms"]["yard"]["block_exits"] = {
+            "west": {"npc": "guard_npc", "deny_message": "此路不通。"}
+        }
+        world, player_id = load_scene(_write_scene(tmp_path, data))
+        save_dir = tmp_path / "save"
+        save_world(world, player_id, save_dir)
+        restored, _rid = restore_world(save_dir)
+        yard = next(
+            e
+            for e in restored.entities_with(BlockExits)
+            if (ident := restored.get_component(e, Identity)) and ident.name == "前院"
+        )
+        entry = restored.require_component(yard, BlockExits).by_direction["west"]
+        assert entry == BlockEntry(npc_template="guard_npc", deny_message="此路不通。")
 
 
 class TestOfficialHanlin:

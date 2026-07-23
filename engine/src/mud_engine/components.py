@@ -185,11 +185,23 @@ class HiddenExits:
     by_direction: dict[str, HiddenExit] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class BlockEntry:
+    """单条 NPC 挡向：模板键 + 可选自定义拒走文案。启动固定。
+
+    ``deny_message`` 为 ``None`` 时 ``go`` 回退默认「{名}挡住了{方向}方向的去路。」。
+    旧 YAML 纯字符串（方向 → 模板键）加载时转为 ``deny_message=None``。
+    """
+
+    npc_template: str  # NPC 模板键，对齐 ``NpcSpawnMeta.template_key``
+    deny_message: str | None = None  # 自定义拒走文案；缺省用默认句式
+
+
 @dataclass
 class BlockExits:
-    """NPC 在场则挡向：方向 → NPC 模板键（``NpcSpawnMeta.template_key``）。启动固定。"""
+    """NPC 在场则挡向：方向 → ``BlockEntry``。启动固定。"""
 
-    by_direction: dict[str, str] = field(default_factory=dict)
+    by_direction: dict[str, BlockEntry] = field(default_factory=dict)
 
 
 @dataclass

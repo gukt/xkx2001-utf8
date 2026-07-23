@@ -42,6 +42,7 @@ from mud_engine.capabilities import (
 )
 from mud_engine.components import (
     TRANSIENT,
+    BlockEntry,
     BlockExits,
     Door,
     Doors,
@@ -157,12 +158,37 @@ def _des_hidden_exits(d: dict) -> HiddenExits:
 
 
 def _ser_block_exits(c: BlockExits) -> dict:
-    return {"by_direction": dict(c.by_direction)}
+    return {
+        "by_direction": {
+            str(direction): {
+                "npc_template": entry.npc_template,
+                "deny_message": entry.deny_message,
+            }
+            for direction, entry in c.by_direction.items()
+        }
+    }
 
 
 def _des_block_exits(d: dict) -> BlockExits:
     raw = d.get("by_direction") or {}
-    return BlockExits(by_direction={str(k): str(v) for k, v in dict(raw).items()})
+    by_dir: dict[str, BlockEntry] = {}
+    for direction, value in dict(raw).items():
+        if isinstance(value, str):
+            # 旧存档：方向 → 模板键字符串
+            by_dir[str(direction)] = BlockEntry(npc_template=value, deny_message=None)
+            continue
+        if not isinstance(value, dict):
+            by_dir[str(direction)] = BlockEntry(
+                npc_template=str(value), deny_message=None
+            )
+            continue
+        npc = value.get("npc_template", value.get("npc", ""))
+        deny_raw = value.get("deny_message")
+        by_dir[str(direction)] = BlockEntry(
+            npc_template=str(npc),
+            deny_message=None if deny_raw is None else str(deny_raw),
+        )
+    return BlockExits(by_direction=by_dir)
 
 
 def _ser_room_hook_binding(c: RoomHookBinding) -> dict:

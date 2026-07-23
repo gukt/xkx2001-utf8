@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from mud_engine.components import (
+    BlockEntry,
     BlockExits,
     Exit,
     Exits,
@@ -94,7 +95,9 @@ def _minimal_ambush_world() -> tuple[World, int, int]:
     )
     world.add_component(ante, Exits(by_direction={"north": Exit(target=trail)}))
     world.add_component(end, Exits(by_direction={"south": Exit(target=trail)}))
-    world.add_component(trail, BlockExits(by_direction={"north": "road_bandit"}))
+    world.add_component(
+        trail, BlockExits(by_direction={"north": BlockEntry(npc_template="road_bandit")})
+    )
     world.room_ids = {"trail": trail, "ante": ante, "road_end": end}
     world.spawners["road_bandit"] = SpawnerBlueprint(
         template_key="road_bandit",
@@ -193,7 +196,7 @@ class TestXingxiuMechanics08Slice:
         assert binding.hook_id == "bandit_ambush"
         assert binding.params.get("npc") == "road_bandit"
         block = world.require_component(room, BlockExits)
-        assert block.by_direction.get("north") == "road_bandit"
+        assert block.by_direction.get("north") == BlockEntry(npc_template="road_bandit")
         assert "road_bandit" in world.spawners
         assert world.spawners["road_bandit"].desired_count == 0
         assert _bandit_in_room(world, room) is None

@@ -416,10 +416,12 @@ def _cmd_go(world: World, player_id: EntityId, intent: Intent) -> list[str]:
     # NPC 挡向（剧情门）：在查出口之前也可挡已有出口。
     block = world.get_component(room, BlockExits)
     if block is not None:
-        npc_key = block.by_direction.get(direction) if direction else None
-        if npc_key:
-            blocker = _find_npc_template_in_room(world, room, npc_key)
+        entry = block.by_direction.get(direction) if direction else None
+        if entry is not None:
+            blocker = _find_npc_template_in_room(world, room, entry.npc_template)
             if blocker is not None:
+                if entry.deny_message is not None:
+                    return [entry.deny_message]
                 name = world.require_component(blocker, Identity).name
                 return [f"{name}挡住了{direction}方向的去路。"]
 

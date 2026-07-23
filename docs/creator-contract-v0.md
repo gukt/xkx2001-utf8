@@ -48,7 +48,7 @@
 
 藏书房：`library: true`（仅同房禁 `practice`）或 `library: {shelf, books: [id…]}`（`shelf` 默认 `书架`；`books` 引用顶层 `books.*`）。`look <shelf>` 出 TOC（可 `more`）；`read <缩写|书名|id>` 选书；`read <章号>` 按 `chapter_cost` 扣银两读章。
 
-剧情挡向：`block_exits: { <dir>: {npc: <模板键>} }`——该向在对应 NPC 模板实例同房在场时拒走。
+剧情挡向：`block_exits: { <dir>: {npc: <模板键>, deny_message?: <字符串>} }`——该向在对应 NPC 模板实例同房在场时拒走。`deny_message` 可选；未声明时回退默认文案「{名}挡住了{方向}方向的去路。」。亦兼容纯字符串简写 `<dir>: <模板键>`（等价于无 `deny_message`）。
 
 #### `rooms.*.exits.*`
 
