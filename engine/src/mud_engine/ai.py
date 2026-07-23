@@ -351,21 +351,18 @@ def spawn_from_random_object_slot(
             raise KeyError(f"未知 NPC 模板: {template_key}")
         return spawn_from_blueprint(world, npc_bp, room=blueprint.startroom)
     if blueprint.kind == "item":
-        from mud_engine.scene_loader import instantiate_item
-
-        item = instantiate_item(world, template_key)
-        world.add_component(
-            item,
-            ItemSpawnMeta(
+        # 复用 ItemSpawnerBlueprint 装配路径，但不登记到 world.item_spawners
+        # （池槽位由 RandomObjectSlotBlueprint.slots 独占名额）。
+        return spawn_item_from_blueprint(
+            world,
+            ItemSpawnerBlueprint(
                 template_key=template_key,
+                room_key=blueprint.room_key,
                 startroom=blueprint.startroom,
                 desired_count=blueprint.desired_count,
                 respawn=blueprint.respawn,
             ),
         )
-        room_container = world.require_component(blueprint.startroom, Container)
-        room_container.items.add(item)
-        return item
     raise ValueError(f"未知 random object slot kind: {blueprint.kind!r}")
 
 

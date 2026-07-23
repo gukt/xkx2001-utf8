@@ -28,3 +28,5 @@ Status: resolved
 - 与出口边界：出口仍只走 `_exit_random_of_target`（加载期）；objects 池**不**调用该函数——`test_spawner.py::test_spawn_scan_redraws_independent_of_exit_random_of` 双重锚定。
 - rng：`spawn_scan(world, *, rng=None)` 只做加法；缺省 `world.ai.rng` → `Random()`。`load_scene(rng=)` 兼作初始抽签种子（与出口共用注入点，但求值函数分离）。
 - 候选模板在 `world.spawners` 登记 `desired_count=0` / `respawn=False`，避免普通 spawn_scan 双刷。
+- 单槽位候选须同 kind（全物品或全 NPC）；LPC「落日林」式物品+NPC 混表用**多个槽位**或分次抽签表达，不在单 `random_of` 列表混写（US32 示例是能力意图，非单列表字面混种）。
+- 额外加载约束（Comments 钉死）：槽位键≠模板键；候选 `respawn` 一致；同一模板不得既固定放置又进池 / 跨多池。

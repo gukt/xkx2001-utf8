@@ -15,7 +15,14 @@ from pathlib import Path
 import pytest
 
 from mud_engine.ai import spawn_scan
-from mud_engine.components import Description, Exits, Identity, NpcSpawnMeta, Position
+from mud_engine.components import (
+    Description,
+    Exits,
+    Identity,
+    ItemSpawnMeta,
+    NpcSpawnMeta,
+    Position,
+)
 from mud_engine.scene_loader import SceneLoadError, load_scene
 
 
@@ -325,6 +332,70 @@ player:
                 == fixed_target
             )
         assert seen == ["rabbit", "snake", "crow"]
+
+    def test_item_pool_load_and_respawn_redraw(self, tmp_path: Path) -> None:
+        """物品候选组：S2 加载 + S4 补刷重抽（与 NPC 池对称）。"""
+        scene = """rooms:
+  yard:
+    name: 院子
+    exits: {}
+    objects:
+      scrap:
+        random_of:
+        - twig
+        - pebble
+items:
+  twig:
+    name: 小树枝
+    respawn: true
+  pebble:
+    name: 石子
+    respawn: true
+npcs: {}
+player:
+  name: 你
+  start_room: yard
+"""
+        world, _ = load_scene(
+            _write_scene(tmp_path, scene),
+            rng=_ScriptedChoiceRng(["twig"]),
+        )
+        bp = world.random_object_slots[("yard", "scrap")]
+        assert bp.kind == "item"
+        assert bp.candidates == ("twig", "pebble")
+        eid = bp.slots[0]
+        assert eid is not None
+        assert world.require_component(eid, ItemSpawnMeta).template_key == "twig"
+        world.destroy_entity(eid)
+        spawn_scan(world, rng=_ScriptedChoiceRng(["pebble"]))
+        new_eid = bp.slots[0]
+        assert new_eid is not None
+        assert world.require_component(new_eid, ItemSpawnMeta).template_key == "pebble"
+
+    def test_rejects_mixed_item_and_npc_candidates(self, tmp_path: Path) -> None:
+        scene = """rooms:
+  yard:
+    name: 院子
+    exits: {}
+    objects:
+      mix:
+        random_of:
+        - twig
+        - crow
+items:
+  twig:
+    name: 小树枝
+    respawn: true
+npcs:
+  crow:
+    name: 乌鸦
+    respawn: true
+player:
+  name: 你
+  start_room: yard
+"""
+        with pytest.raises(SceneLoadError, match="不能混用|物品与 NPC"):
+            load_scene(_write_scene(tmp_path, scene))
 
     def test_respawn_false_pool_does_not_refill(self, tmp_path: Path) -> None:
         scene = """rooms:
