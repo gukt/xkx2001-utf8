@@ -38,7 +38,12 @@
 
 `name`, `aliases`, `short`, `long`, `exits`, `objects`, `block_exits`, `outdoors`, `no_death`, `ferry`, `entry_guard`, `day_shop`, `cost`, `terrain`, `details`, `no_fight`, `no_steal`, `no_sleep_room`, `library`, `hotel`, `resource`
 
-`objects` 为放置权威（模板键 → 正整数数量），引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
+`objects` 为放置权威，写法二选一（单槽位互斥）：
+
+- **固定**：模板键 → 非负整数数量（`0` 表示登记蓝图但不首刷）。
+- **随机候选组（C11）**：槽位键 → `{ random_of: [<模板键>, ...], count?: <非负整数> }`（`count` 缺省 1）。槽位键**不得**与模板键同名；候选须同为物品或同为 NPC；各候选 `respawn` 须一致。初始生成与销毁后补刷均按 rng **重新抽签**（可连续抽到同一模板），与出口加载期一次性 `random_of` 正交。
+
+引用同文件 `items.*` / `npcs.*` 模板；见 [ADR-0010](adr/0010-room-centric-objects-placement.md)。已退役的 `placed_in`（物品）/ `in_room` 与模板段 `count` 若出现，加载失败。
 
 房间风景：`details` 为键 → 描述字符串或 `{text, aliases?}`；可含语义色 markup；不占 `objects`、不可 `get`。`look <键|别名>` 在同房实体未命中后查本映射。
 

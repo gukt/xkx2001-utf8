@@ -101,6 +101,29 @@ class ItemSpawnerBlueprint:
 
 
 @dataclass
+class RandomObjectSlotBlueprint:
+    """房间 ``objects`` 补刷期随机候选组槽位（Polishing C11）。
+
+    键为 ``(room_key, slot_key)``，登记在 ``world.random_object_slots``。
+    初始生成与 ``spawn_scan`` 补刷时按 rng 从 ``candidates`` 独立抽签（允许连续
+    抽到同一模板）。
+
+    与出口加载期 ``random_of``（``scene_loader._exit_random_of_target``）正交：
+    出口在连图时一次性选定并落地为固定 ``to``；本蓝图每次生成都重新抽签。
+    **不得**复用出口那条求值函数。
+    """
+
+    slot_key: str
+    room_key: str
+    startroom: EntityId
+    candidates: tuple[str, ...]
+    desired_count: int
+    respawn: bool
+    kind: str  # "npc" | "item"
+    slots: list[EntityId | None] = field(default_factory=list)
+
+
+@dataclass
 class AISystem:
     """NPC AI 子系统挂到 world 的运行时态（25 号票）：rng + spawn 扫描间隔。
 
@@ -228,12 +251,33 @@ def _tick_aggro(
     try_engage(world, entity, candidates[0])
 
 
-def spawn_scan(world: World) -> None:
+def draw_random_object_template(
+    candidates: tuple[str, ...] | list[str], rng: Rng
+) -> str:
+    """从 objects 候选组抽签选定模板键（补刷期 / 初始生成共用）。
+
+    刻意独立于出口加载期 ``_exit_random_of_target``——两者数据形状相似但求值
+    时机不同，共用会破坏出口「加载期定死」语义。
+    """
+    if not candidates:
+        raise ValueError("random object candidates 不能为空")
+    return rng.choice(list(candidates))
+
+
+def spawn_scan(world: World, *, rng: Rng | None = None) -> None:
     """低频 Spawn/Reset 扫描：按蓝图槽位指针补齐缺口（ADR-0010 / pre-m4-04）。
 
     登记实例仍存在于世界任意处则占名额（``get``/``drop``/换房不产生缺口）；
     仅 ``destroy_entity`` 后且 ``respawn=True`` 时在出生房补齐空槽。
+
+    ``rng`` 供 C11 随机 objects 槽位抽签；缺省复用 ``world.ai.rng``（若已挂载），
+    再否则 ``Random()``。既有无参调用方行为不变。
     """
+    draw_rng = rng
+    if draw_rng is None and world.ai is not None:
+        draw_rng = world.ai.rng
+    if draw_rng is None:
+        draw_rng = random.Random()
     for blueprint in world.spawners.values():
         if not blueprint.respawn:
             continue
@@ -242,6 +286,10 @@ def spawn_scan(world: World) -> None:
         if not blueprint.respawn:
             continue
         _refill_item_slots(world, blueprint)
+    for blueprint in world.random_object_slots.values():
+        if not blueprint.respawn:
+            continue
+        _refill_random_object_slots(world, blueprint, draw_rng)
 
 
 def _ensure_slot_capacity(slots: list[EntityId | None], desired: int) -> None:
@@ -279,6 +327,46 @@ def _refill_item_slots(world: World, blueprint: ItemSpawnerBlueprint) -> None:
         blueprint.desired_count,
         lambda: spawn_item_from_blueprint(world, blueprint),
     )
+
+
+def _refill_random_object_slots(
+    world: World, blueprint: RandomObjectSlotBlueprint, rng: Rng
+) -> None:
+    def _spawn() -> EntityId:
+        template_key = draw_random_object_template(blueprint.candidates, rng)
+        return spawn_from_random_object_slot(world, blueprint, template_key)
+
+    _refill_slots(world, blueprint.slots, blueprint.desired_count, _spawn)
+
+
+def spawn_from_random_object_slot(
+    world: World,
+    blueprint: RandomObjectSlotBlueprint,
+    template_key: str,
+) -> EntityId:
+    """按已抽中的模板键为随机 objects 槽位生成一个实例（不写入候选模板自己的 slots）。"""
+    if blueprint.kind == "npc":
+        npc_bp = world.spawners.get(template_key)
+        if npc_bp is None:
+            raise KeyError(f"未知 NPC 模板: {template_key}")
+        return spawn_from_blueprint(world, npc_bp, room=blueprint.startroom)
+    if blueprint.kind == "item":
+        from mud_engine.scene_loader import instantiate_item
+
+        item = instantiate_item(world, template_key)
+        world.add_component(
+            item,
+            ItemSpawnMeta(
+                template_key=template_key,
+                startroom=blueprint.startroom,
+                desired_count=blueprint.desired_count,
+                respawn=blueprint.respawn,
+            ),
+        )
+        room_container = world.require_component(blueprint.startroom, Container)
+        room_container.items.add(item)
+        return item
+    raise ValueError(f"未知 random object slot kind: {blueprint.kind!r}")
 
 
 def spawn_from_blueprint(
@@ -420,11 +508,14 @@ __all__ = [
     "AISystem",
     "DEFAULT_SPAWN_SCAN_INTERVAL",
     "ItemSpawnerBlueprint",
+    "RandomObjectSlotBlueprint",
     "Rng",
     "SpawnerBlueprint",
     "attach_ai_system",
     "condition_from_data",
+    "draw_random_object_template",
     "spawn_from_blueprint",
+    "spawn_from_random_object_slot",
     "spawn_item_from_blueprint",
     "spawn_scan",
 ]

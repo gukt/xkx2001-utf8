@@ -17,14 +17,18 @@ from __future__ import annotations
 
 import random
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from mud_engine.ai import (
     ItemSpawnerBlueprint,
+    RandomObjectSlotBlueprint,
     SpawnerBlueprint,
+    draw_random_object_template,
     spawn_from_blueprint,
+    spawn_from_random_object_slot,
     spawn_item_from_blueprint,
 )
 from mud_engine.capabilities import (
@@ -91,7 +95,9 @@ def load_scene(
     ``pack_track=True``（内容包轨道，由 ``load_pack`` 传入）时禁止房间 ``hooks``
     字段——与旁路检测到同级 ``manifest.yaml`` 一样 fail-closed（ADR-0012）。
 
-    ``rng`` 供加载期 ``random_of`` 出口原语选定目标；缺省用系统 ``Random()``。
+    ``rng`` 供加载期出口 ``random_of`` 选定目标，以及 C11 随机 objects 槽位的
+    **初始**抽签；缺省用系统 ``Random()``。出口与 objects 池走不同求值函数
+    （见 ``_exit_random_of_target`` vs ``draw_random_object_template``）。
     """
     scene_path = Path(scene_path)
     data = _read_yaml(scene_path)
@@ -113,12 +119,15 @@ def load_scene(
     world.death_policy = parse_death_policy(data.get("death_policy"))
     _resolve_ferry_refs(world, room_ids, scene_path)
     _reject_legacy_placement_fields(items, npcs, scene_path)
-    placements = _collect_room_objects(rooms, items, npcs, scene_path)
+    load_rng = rng if rng is not None else random.Random()
+    placements, random_pools = _collect_room_objects(rooms, items, npcs, scene_path)
     _reject_door_key_slot_conflicts(rooms, items, placements, scene_path)
     item_ids = _build_items(world, items, placements, room_ids, scene_path)
-    exit_rng = rng if rng is not None else random.Random()
-    _build_exits(world, rooms, room_ids, item_ids, scene_path, rng=exit_rng)
-    _build_npcs(world, npcs, placements, room_ids, scene_path)
+    _build_exits(world, rooms, room_ids, item_ids, scene_path, rng=load_rng)
+    _build_npcs(world, npcs, placements, random_pools, room_ids, scene_path)
+    _build_random_object_slots(
+        world, random_pools, items, npcs, room_ids, scene_path, rng=load_rng
+    )
     _validate_shop_inventories(world, scene_path)
     _validate_faction_refs(world, scene_path)
     _load_quests(world, data.get("quests"), npcs, items, scene_path)
@@ -632,17 +641,31 @@ def _reject_legacy_placement_fields(
             )
 
 
+@dataclass(frozen=True)
+class _RandomPoolSpec:
+    """加载期解析出的 objects 随机候选组（C11）；运行时落到 ``RandomObjectSlotBlueprint``。"""
+
+    slot_key: str
+    room_key: str
+    candidates: tuple[str, ...]
+    count: int
+
+
 def _collect_room_objects(
     rooms: Mapping,
     items: Mapping,
     npcs: Mapping,
     scene_path: Path,
-) -> dict[str, list[tuple[str, int]]]:
-    """收集房间 ``objects``：返回 template_key -> [(room_key, count), ...]。
+) -> tuple[dict[str, list[tuple[str, int]]], list[_RandomPoolSpec]]:
+    """收集房间 ``objects``：固定放置 + 随机候选组槽位。
 
-    物品模板可出现在多个房间；NPC 模板受单蓝图约束，只能出现在一个房间。
+    固定写法：``模板键 → 非负整数``。
+    随机写法（加法）：``槽位键 → {random_of: [...], count?: int}``（``count`` 缺省 1）。
+    单槽位两种写法互斥；随机槽位键不得与模板键同名。
     """
     placements: dict[str, list[tuple[str, int]]] = {}
+    pools: list[_RandomPoolSpec] = []
+    pool_template_rooms: dict[str, str] = {}
     item_keys = {str(k) for k in items}
     npc_keys = {str(k) for k in npcs}
     for room_key, raw in rooms.items():
@@ -655,15 +678,46 @@ def _collect_room_objects(
                 f"场景文件 {scene_path} 的房间 '{room_key}' 的 'objects' 应是映射，"
                 f"实际是 {type(objects).__name__}"
             )
-        for template_key, raw_count in objects.items():
-            key = str(template_key)
+        for slot_key, raw_value in objects.items():
+            key = str(slot_key)
+            if isinstance(raw_value, Mapping):
+                pool = _parse_random_object_slot(
+                    raw_value,
+                    slot_key=key,
+                    room_key=str(room_key),
+                    item_keys=item_keys,
+                    npc_keys=npc_keys,
+                    scene_path=scene_path,
+                )
+                for cand in pool.candidates:
+                    if cand in placements:
+                        raise SceneLoadError(
+                            f"场景文件 {scene_path} 的模板 '{cand}' 已有固定放置，"
+                            f"不能再出现在房间 '{room_key}' 的 objects['{key}'].random_of 中（冲突）"
+                        )
+                    if cand in pool_template_rooms:
+                        prev = pool_template_rooms[cand]
+                        raise SceneLoadError(
+                            f"场景文件 {scene_path} 的模板 '{cand}' 已在房间 '{prev}' "
+                            f"的 random_of 中出现，不能再写入房间 '{room_key}' "
+                            f"的 objects['{key}']（冲突）"
+                        )
+                    pool_template_rooms[cand] = str(room_key)
+                pools.append(pool)
+                continue
             if key not in item_keys and key not in npc_keys:
                 raise SceneLoadError(
                     f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects "
                     f"引用未定义的模板 '{key}'"
                 )
+            if key in pool_template_rooms:
+                raise SceneLoadError(
+                    f"场景文件 {scene_path} 的模板 '{key}' 已在房间 "
+                    f"'{pool_template_rooms[key]}' 的 random_of 中出现，"
+                    f"不能再作房间 '{room_key}' 的固定放置（冲突）"
+                )
             # 允许 0：登记蓝图/槽位但不首刷（劫匪刷拦等「进房再生成」机关）。
-            count = _parse_non_negative_int(raw_count, "objects", key, scene_path)
+            count = _parse_non_negative_int(raw_value, "objects", key, scene_path)
             if key in npc_keys and key in placements:
                 prev_room, _ = placements[key][0]
                 raise SceneLoadError(
@@ -671,7 +725,68 @@ def _collect_room_objects(
                     f"'{room_key}' 的 objects 中重复出现；每个 NPC 模板只能放在一个房间"
                 )
             placements.setdefault(key, []).append((str(room_key), count))
-    return placements
+    return placements, pools
+
+
+def _parse_random_object_slot(
+    raw: Mapping,
+    *,
+    slot_key: str,
+    room_key: str,
+    item_keys: set[str],
+    npc_keys: set[str],
+    scene_path: Path,
+) -> _RandomPoolSpec:
+    """解析 ``{random_of: [...], count?: int}``；拒绝与固定数量写法混用的非法形状。"""
+    if slot_key in item_keys or slot_key in npc_keys:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects 槽位 '{slot_key}' "
+            f"使用 random_of 时键名不得与模板键同名（模板键请写在 random_of 列表内）"
+        )
+    unknown = set(raw) - {"random_of", "count"}
+    if unknown:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects['{slot_key}'] "
+            f"含未知字段 {sorted(unknown)}；随机槽位仅允许 random_of / count"
+        )
+    if "random_of" not in raw:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects['{slot_key}'] "
+            f"映射写法必须含 'random_of'（与「模板键→数量」写法互斥）"
+        )
+    candidates_raw = raw["random_of"]
+    if not isinstance(candidates_raw, (list, tuple)) or not candidates_raw:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects['{slot_key}'] "
+            f"的 'random_of' 应是非空列表"
+        )
+    candidates = tuple(str(c) for c in candidates_raw)
+    kinds: set[str] = set()
+    for cand in candidates:
+        if cand in item_keys:
+            kinds.add("item")
+        elif cand in npc_keys:
+            kinds.add("npc")
+        else:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects['{slot_key}'] "
+                f"的 random_of 引用未定义的模板 '{cand}'"
+            )
+    if len(kinds) != 1:
+        raise SceneLoadError(
+            f"场景文件 {scene_path} 的房间 '{room_key}' 的 objects['{slot_key}'] "
+            f"的 random_of 不能混用物品与 NPC 模板"
+        )
+    if "count" in raw and raw["count"] is not None:
+        count = _parse_non_negative_int(raw["count"], "objects.count", slot_key, scene_path)
+    else:
+        count = 1
+    return _RandomPoolSpec(
+        slot_key=slot_key,
+        room_key=room_key,
+        candidates=candidates,
+        count=count,
+    )
 
 
 def _collect_door_key_templates(rooms: Mapping, scene_path: Path) -> set[str]:
@@ -799,25 +914,39 @@ def _build_npcs(
     world: World,
     npcs: Mapping,
     placements: Mapping[str, list[tuple[str, int]]],
+    random_pools: list[_RandomPoolSpec],
     room_ids: dict[str, EntityId],
     scene_path: Path,
 ) -> None:
     """建 NPC：解析一次能力 → 注册 SpawnerBlueprint → 经 spawn_from_blueprint 实例化。
 
-    初始位置与期望数量来自房间 ``objects``；模板 ``respawn`` 控制补刷；``startroom``
-    若声明则须与 objects 房间一致（补刷落点），缺省即 objects 房间。同一 template
-    的多个实例只注册一条蓝图（M2-04）。加载与重生共用 ``spawn_from_blueprint``。
+    初始位置与期望数量来自房间 ``objects`` 固定写法；模板 ``respawn`` 控制补刷；
+    ``startroom`` 若声明则须与 objects 房间一致（补刷落点），缺省即 objects 房间。
+    仅出现在 C11 ``random_of`` 候选组的 NPC 登记 ``desired_count=0`` /
+    ``respawn=False`` 的蓝图（实例由 ``_build_random_object_slots`` / ``spawn_scan``
+    抽签生成，不走本函数的固定槽位）。
     """
+    pool_room_by_template: dict[str, str] = {}
+    for pool in random_pools:
+        for cand in pool.candidates:
+            if cand in npcs:
+                pool_room_by_template[cand] = pool.room_key
+
     for npc_key, raw in npcs.items():
         data = _as_mapping(raw, label=f"NPC '{npc_key}'", scene_path=scene_path)
         key = str(npc_key)
         room_placements = placements.get(key)
-        if not room_placements:
+        pool_room = pool_room_by_template.get(key)
+        if not room_placements and pool_room is None:
             raise SceneLoadError(
                 f"场景文件 {scene_path} 的 NPC '{npc_key}' 未出现在任何房间的 "
                 f"objects 中（见 docs/adr/0010-room-centric-objects-placement.md）"
             )
-        room_key, count = room_placements[0]
+        if room_placements:
+            room_key, count = room_placements[0]
+        else:
+            assert pool_room is not None
+            room_key, count = pool_room, 0
         start_key = data.get("startroom") or room_key
         if str(start_key) not in room_ids:
             raise SceneLoadError(
@@ -830,7 +959,10 @@ def _build_npcs(
                 f"'{start_key}' 与 objects 房间 '{room_key}' 不一致；"
                 f"objects 决定初始位置，startroom 仅作补刷出生房且须相同"
             )
-        respawn = bool(data.get("respawn", False))
+        # 池内候选的补刷由 RandomObjectSlotBlueprint 负责；蓝图自身不参与普通 spawn_scan。
+        respawn = False if pool_room is not None and not room_placements else bool(
+            data.get("respawn", False)
+        )
         room_id = room_ids[room_key]
         startroom_id = room_ids[str(start_key)]
         label = f"NPC '{npc_key}'"
@@ -885,6 +1017,72 @@ def _build_npcs(
             if world.has_component(npc, ShopInventory) and not world.has_component(npc, Container):
                 world.add_component(npc, Container())
             _capture_entity_unknown_fields(world, npc, data, _NPC_KNOWN_FIELDS)
+
+
+def _build_random_object_slots(
+    world: World,
+    pools: list[_RandomPoolSpec],
+    items: Mapping,
+    npcs: Mapping,
+    room_ids: dict[str, EntityId],
+    scene_path: Path,
+    *,
+    rng: random.Random,
+) -> None:
+    """登记 C11 随机 objects 槽位并做初始抽签生成。
+
+    抽签走 ``draw_random_object_template``（补刷期同函数），**不**调用
+    ``_exit_random_of_target``（出口加载期一次性选定）。
+    """
+    item_keys = {str(k) for k in items}
+    for pool in pools:
+        kind = "item" if pool.candidates[0] in item_keys else "npc"
+        respawn_flags = []
+        for cand in pool.candidates:
+            raw = items[cand] if kind == "item" else npcs[cand]
+            data = _as_mapping(
+                raw,
+                label=f"{'物品' if kind == 'item' else 'NPC'} '{cand}'",
+                scene_path=scene_path,
+            )
+            respawn_flags.append(bool(data.get("respawn", False)))
+        if len(set(respawn_flags)) != 1:
+            raise SceneLoadError(
+                f"场景文件 {scene_path} 的房间 '{pool.room_key}' 的 "
+                f"objects['{pool.slot_key}'].random_of 内各候选的 respawn 必须一致"
+            )
+        blueprint = RandomObjectSlotBlueprint(
+            slot_key=pool.slot_key,
+            room_key=pool.room_key,
+            startroom=room_ids[pool.room_key],
+            candidates=pool.candidates,
+            desired_count=pool.count,
+            respawn=respawn_flags[0],
+            kind=kind,
+        )
+        world.random_object_slots[(pool.room_key, pool.slot_key)] = blueprint
+        for _ in range(pool.count):
+            template_key = draw_random_object_template(pool.candidates, rng)
+            entity = spawn_from_random_object_slot(world, blueprint, template_key)
+            blueprint.slots.append(entity)
+            if kind == "npc":
+                data = _as_mapping(
+                    npcs[template_key],
+                    label=f"NPC '{template_key}'",
+                    scene_path=scene_path,
+                )
+                if world.has_component(entity, ShopInventory) and not world.has_component(
+                    entity, Container
+                ):
+                    world.add_component(entity, Container())
+                _capture_entity_unknown_fields(world, entity, data, _NPC_KNOWN_FIELDS)
+            else:
+                data = _as_mapping(
+                    items[template_key],
+                    label=f"物品 '{template_key}'",
+                    scene_path=scene_path,
+                )
+                _capture_entity_unknown_fields(world, entity, data, _ITEM_KNOWN_FIELDS)
 
 
 def _parse_npc_capabilities(data: Mapping, *, label: str, scene_path: Path) -> dict[type, object]:

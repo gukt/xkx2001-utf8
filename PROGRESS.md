@@ -26,7 +26,7 @@
 
 ## In Progress
 
-当前无进行中项。
+- Polishing Wave 6：票 `09`（随机 objects 表）+ `10`（刷怪条件 hooks params）；分支 `feat/polishing`；fixed point `polishing-wave6-start`。
 
 ## Blocked
 

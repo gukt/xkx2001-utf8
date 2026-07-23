@@ -17,7 +17,12 @@ from mud_engine.components import Container, Identity, PlayerSession, Position
 from mud_engine.events import EventBus
 
 if TYPE_CHECKING:
-    from mud_engine.ai import AISystem, ItemSpawnerBlueprint, SpawnerBlueprint
+    from mud_engine.ai import (
+        AISystem,
+        ItemSpawnerBlueprint,
+        RandomObjectSlotBlueprint,
+        SpawnerBlueprint,
+    )
     from mud_engine.combat import PowerModel
     from mud_engine.combat_system import CombatSystem
     from mud_engine.death_flow import DeathPolicy
@@ -82,6 +87,8 @@ class World:
         self.spawners: dict[str, SpawnerBlueprint] = {}
         # 物品槽位蓝图（pre-m4-04）：键为 ``(room_key, template_key)``；纯内存、不进存档。
         self.item_spawners: dict[tuple[str, str], ItemSpawnerBlueprint] = {}
+        # 随机 objects 槽位（Polishing C11）：键为 ``(room_key, slot_key)``；纯内存、不进存档。
+        self.random_object_slots: dict[tuple[str, str], RandomObjectSlotBlueprint] = {}
         # 物品模板原始 YAML（M2-07 商店 buy 实例化用）：纯内存、不进存档。
         self.item_templates: dict[str, dict] = {}
         # 声明式任务表（pre-m4-06）：纯内存、不进存档；由 scene_loader 填充。
