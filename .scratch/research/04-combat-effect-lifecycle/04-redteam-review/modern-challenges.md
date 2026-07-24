@@ -1,272 +1,231 @@
-# 红队挑战：现代玩法对 LPC 战斗与效果生命周期簇结论的尖锐质疑
+# 红队挑战：现代战斗玩法评审结论质疑
 
-> 角色：现代玩法挑战者（红队）。任务：对 `modern-design-review.md` 的"保留/现代化/丢弃"三档裁决与玩家心理/留存结论提出反向论证。
-> 证据要求：每条质疑引用被质疑文件与段落 + LPC 源码文件路径与函数/对象名。禁止凭空推断。
-> 立场声明：本文件不代表"全面保守"，而是针对 modern-design-review 中**论证不充分、内部矛盾、过度现代化**的具体条目逐一挑战，并给出裁决建议供评审委员会裁决。
+> 角色：现代玩法挑战者（红队）。任务：对 `03-engine-insights/modern-design-review.md` 的“保留/现代化/丢弃”三档结论与交叉文件（`player-psychology.md`、`ugc-surface.md`、`engine-comparison.md`、项目 `CLAUDE.md`）提出尖锐质疑。每条质疑引用被质疑文件与段落，并附 LPC 一手源码或 engine 模块证据。禁止凭空推断。
 
 ---
 
-## 挑战 1：「战中玩家不主动选招」被定为"最大过时点"——误判了文本 MUD 武侠战斗的核心沉浸价值
+## 0. 总质疑摘要
 
-### 被质疑结论
+`modern-design-review.md` 存在三处需要评审委员会重新裁决的偏见：
 
-`modern-design-review.md` §5.3 与 §6.2：
-> "战中玩家不主动选招（`attack.c:163` 随机触发）是最大的过时点。当代玩家预期'我决定何时放绝招'。LPC 模式接近现代的'自动战斗'……新引擎至少应提供'主动释放大招/绝技'的指令面，把随机招式降级为'普攻自动循环'。"
-
-`modern-design-review.md` §7.1 进一步建议"战斗定位应明确'半自动'而非'全自动'"。
-
-### 质疑论证
-
-**（1）modern-design-review 自相矛盾：它承认 perform/exert 已是主动操作面，却声称"玩家不主动选招"**
-
-`cmds/skill/perform.c:10-80`（已确认存在于 `cmds/skill/perform.c`，非 `cmds/std/`）实现了玩家主动施放外功绝技的完整指令：
-- 四道门闸检查（`is_busy`/`huagong`/`feng`/`cannot_perform`，`perform.c:14-25`）
-- 解析 `martial.skill` 参数，取 `weapon->skill_type` 或 `query_skill_prepare()`（`perform.c:36-48`）
-- 调 `SKILL_D(skill)->perform_action(me, arg)` 执行绝技（`perform.c:65`）
-- 施放后挂 `apply_condition("perform", martial)` 冷却锁（`perform.c:69`）
-
-同样，`cmds/skill/exert.c` 提供内功主动运功指令（`exert_function` 调用，见 `mechanisms.md` §7.5 与 `gameplay-slices.md` 切片 2）。
-
-**LPC 的战斗操作模型实际是「普攻自动循环 + 绝技主动释放 + 内功主动运功 + 逃跑决策」**，而非 modern-design-review 所声称的"玩家不主动选招"。review 把"普攻自动"等同于"全程无操作"，忽略了 perform/exert 这层主动操作面。
-
-**（2）"招式想象空间"是文本 MUD 武侠战斗的不可替代核心价值，被 review 完全忽略**
-
-`kungfu/skill/18-zhang.c:52-218` 的 `action[]` 数组每条含 `action`（招式文案，如"$N一招「亢龙有悔」向$n的$l攻去！"）、`damage_type`（瘀伤/劈伤/内伤/…）、`dodge`/`parry`/`force`/`damage` 数值修正、`skill_name`、可选 `post_action`（如 `sanhui` 三叠亢龙有悔）。
-
-玩家在战斗中的核心体验是**阅读招式文案的文学想象**——每一次 `do_attack` 触发 `damage_msg()`（`combatd.c:68-204`）按伤害区间返回不同严重度的描述文本（6 档：`<20`/`<40`/`<80`/`<120`/`<160`/`else`），加上 `report_status()`（`combatd.c:278`）的彩色状态报告。这正是武侠小说式的"战斗叙事"体验——玩家像读小说一样看自己的角色出招、命中、受伤。
-
-modern-design-review §0 自称"对标时关注的是设计意图与玩家体验，而非逐键手感"，但 §5.3 的"最大过时点"结论恰恰是从"逐键手感"视角（"玩家不操作""无操作意义"）推出的，与 §0 的方法论声明矛盾。
-
-**（3）"操作意义"被狭义定义为"按键"，忽略了 build 配置是更深层的策略层**
-
-LPC 的策略深度在**战前**：`feature/skill.c:42-78` 的 `map_skill`（把技能类别映射到具体武功）与 `prepare_skill`（预备双手互搏技能）是玩家的 build 配置层。战斗是**对 build 的检验**，而非对 APM 的检验。这对应现代品类中的"团队配置"/"build crafter"玩法（如《暗黑》配装、《流放之路》天赋树、《最终幻想 XIV》的 macro），而非动作战斗。
-
-把"主动按键释放绝技"当成必备现代化，等于把文本 MUD 武侠从"build 驱动的阅读式战斗"改造成"操作驱动的动作战斗"——后者在现代有 Genshin/魂系等成熟品类，文本 MUD 在这个赛道无任何竞争力。
-
-### 裁决建议
-
-**将 §5.3「战中玩家不主动选招」从"最大过时点"降级为"可选增强项，非必须"**。perform/exert 已提供主动操作面（`perform.c`/`exert.c` 证据确凿），普攻自动循环恰好是"武侠小说式战斗叙事"的载体。若新引擎要增强，应在 perform/exert 的丰富度（更多绝技、更深的资源管理）上下功夫，而非把普攻也改成主动按键。
+1. **将“主动按键操作”默认为现代化方向**，未充分论证文本 MUD 目标用户是否追求该方向，且与文本媒介的可读性约束冲突。
+2. **将地府轮回/鬼魂态降级为“题材包可选内容”**，与项目基线中“死亡与轮回为 MVP 必做”冲突，且低估了引擎层支撑需求。
+3. **对玩家心理结论选择性吸收**：采纳“防秒杀”“死亡惩罚封顶”等保护机制，却未处理这些机制与“保留 wound 上限伤害”“保留地府重量感”之间的内在矛盾。
 
 ---
 
-## 挑战 2：tick 驱动战斗现代化建议将破坏战斗紧张感与可读性
+## 1. 质疑一：是否过度现代化，丢弃文本 MUD 武侠战斗的核心沉浸价值？
 
-### 被质疑结论
+### 1.1 “战中玩家不主动选招 = 最大过时点”的质疑
 
-`modern-design-review.md` §1.3：
-> "过时的不是 tick，而是'玩家在 tick 中无事可做'……新引擎应让 Effect 跳数与战斗节奏在玩家感知上对齐。"
+**被质疑结论**：`modern-design-review.md §5.3`（段落 3）与 `§6.2`（“战中不主动选招”条目）认为：
+> “战中玩家不主动选招（`attack.c:163` 随机触发）是最大的过时点……新引擎至少应提供主动释放大招/绝技的指令面，把随机招式降级为普攻自动循环。”
 
-`modern-design-review.md` §7.1：
-> "应在 tick 之上提供'主动绝技/主动走位/主动防御'的操作层。"
+**红队挑战**：
 
-### 质疑论证
+- **LPC 并非没有主动操作面**。`cmds/skill/perform.c:10-80` 已实现玩家主动施放外功绝技：检查 `is_busy`/`huagong`/`feng`/`cannot_perform`（`perform.c:14-25`），解析 `martial.skill`（`perform.c:36-48`），调 `SKILL_D(skill)->perform_action(me, arg)`（`perform.c:65`），并挂 `apply_condition("perform", martial)` 冷却锁（`perform.c:69`）。`cmds/skill/exert.c:8-42` 同样提供内功主动运功。`modern-design-review.md` 将“普攻随机”扩大为“玩家全程无操作”，证据不足。
+- **招式文案阅读是文本 MUD 不可替代的沉浸源**。`kungfu/skill/18-zhang.c:52-218` 的 `action[]` 数组每条含文学化文案（如 `$N一招「亢龙有悔」向$n的$l攻去！`）、`damage_type`（瘀伤/劈伤/内伤/擦伤/刺伤等）、`dodge`/`parry`/`force`/`damage` 修正与 `post_action`（如 `sanhui` 三叠亢龙有悔）。`adm/daemons/combatd.c:68-204 damage_msg()` 按 6 档伤害区间输出不同严重度描述，`combatd.c:278 report_status()` 输出彩色状态报告。`modern-design-review.md §0` 声称关注“设计意图与玩家体验，而非逐键手感”，但 §5.3 的“过时点”结论恰恰从“逐键手感”视角（“玩家不操作”“无操作意义”）推出，与 §0 方法论自相矛盾。
+- **Build 配置是深层策略层，不应被“按键”定义取代**。`feature/skill.c:42-78` 的 `map_skill` 与 `prepare_skill` 让玩家在战前决定武功映射与双手互搏组合，战斗是 build 的检验而非 APM 比拼。`modern-design-review.md §5.3` 把主动选招作为默认现代化，等于把文本 MUD 武侠从“build 驱动的阅读式战斗”改造成“操作驱动的动作战斗”，后者在现代市场已有 Genshin/魂系等成熟品类，文本 MUD 在此赛道无竞争优势。
 
-**（1）guard/guarding 不是"空转"，是武侠战斗节奏的张力机制**
+**裁决建议**：将 §5.3“战中玩家不主动选招”从“最大过时点”降级为“可选增强项”。perform/exert 已提供主动操作面；普攻自动循环是“武侠小说式战斗叙事”的载体。若增强，应优先扩展 perform/exert 的丰富度与资源管理，而非把普攻改为主动按键。
 
-`adm/daemons/combatd.c:818-842` 的 `fight()` 三分支中，当 `random(victim->query_dex()*3) >= me->query_str()*2 + apply/speed` 时进入 `guarding` 态（`combatd.c:837-842`，播 `guard_msg`"注视着对方，企图寻找机会出手"）。
+### 1.2 “use-based 技能成长争议大”的质疑
 
-modern-design-review 把这视为"节奏被打断"的负面体验（§1.3 引用），但这是**武侠对决的核心张力**——双方对峙、寻找破绽、蓄势待发。这正是武侠小说中"两人对峙良久，突然一人出手"的节奏感。guard 不是 bug，是设计意图。
+**被质疑结论**：`modern-design-review.md §5.3`（段落 4）认为：
+> “use-based 技能成长（`combatd.c:450`）在当代争议大……新引擎建议至少给玩家可分配点数接口。”
 
-`player-psychology.md` §4.1 自己也承认："1 秒间隔给了玩家阅读战况、输入指令的时间窗口。MUD 文本战斗需要阅读描述（招式名、伤害描述、状态报告），1 秒间隔是可读的下限。" 这与 modern-design-review 的"玩家无事可做"判断直接矛盾——玩家在 tick 间隔**正在阅读战斗叙事**，这是核心玩法循环，不是"空等"。
+**红队挑战**：
 
-**（2）"主动走位"是品类错位——文本 MUD 没有空间走位的概念**
+- LPC 的 use-based 成长是武侠沉浸的关键：`adm/daemons/combatd.c:450 me->improve_skill(attack_skill, random(int))` 与 `combatd.c:442 victim->improve_skill("dodge", 1)` 让“招式越用越熟”有叙事实感。`modern-design-review.md` 仅将其与“挂机刷”绑定，但未引用 `feature/skill.c:166-168` 的 `spi=30` 学习技能数上限惩罚——多学技能会分散经验，本身就是对纯挂机最优解的约束。
+- `player-psychology.md` 全文未讨论 use-based 成长对心理/留存的影响。“争议大”是结论，但无证据。红队认为，在武侠文本语境下，use-based 成长可能是**正向沉浸源**，而非争议源。
+- `modern-design-review.md §8 未决问题 4` 将“use-based 成长是否保留”列为未决，但 §5.3 已给出明确现代化建议，存在结论先行。
 
-modern-design-review §7.1 建议"主动走位"，对标 WoW/Genshin 的空间战斗。但文本 MUD 的"房间"是离散拓扑节点（`d/` 目录的房间映射），不存在 2D/3D 空间中的"走位""闪避方向"。在文本 MUD 中引入"走位"是品类错位——它既无法实现（无空间坐标），也无意义（文本战斗的张力来自数值对抗与叙事，不来自空间操作）。
-
-**（3）Effect 更新频率与普攻不一致是"隐藏体验问题"的判断证据不足**
-
-modern-design-review §1.3 称"`char.c:141-144` 每 5~15 tick 才 update_condition，中毒数字跳得比普攻慢很多，玩家难以建立'我正在持续掉血'的直觉"。
-
-但 `kungfu/condition/bt_poison.c:7-42` 的实现是**每次 Effect tick 都有独立播报**（`tell_object(me, HIB "你觉得一股冷气直透心口...")` + `message("vision", me->name()+"突然打了个寒战...", environment(me), me)`，见 `gameplay-slices.md` 切片 3）。播报频率低于普攻恰恰制造了**中毒的"阴险感"**——它不像被打那样每秒刷屏，而是隔几秒突然冒出一条"你觉得一股冷气直透心口"，制造了与普攻不同的节奏张力。这不是 bug，是中毒体验的设计意图。
-
-### 裁决建议
-
-1. **撤回 §7.1 的"主动走位"建议**（品类错位，文本 MUD 无空间走位语义）。
-2. **将 §1.3 对 guard 的定性从"节奏断裂"改为"武侠对峙张力"**——guard 是设计意图而非缺陷。
-3. **将 §1.3 对 Effect 频率不一致的"隐藏体验问题"判断降级为"需 A/B 测试验证"**——低频播报可能正是中毒阴险感的设计，而非体验缺陷。至少标注为"未决"，而非直接判"现代化"。
+**裁决建议**：保留 use-based 成长作为默认机制，可分配点数作为题材包可选扩展，而非默认现代化。
 
 ---
 
-## 挑战 3：死亡惩罚现代化（轻惩罚/复活点）将丢失 LPC 死亡的重量感与轮回叙事
+## 2. 质疑二：tick 驱动战斗现代化是否会破坏战斗紧张感与可读性？
 
-### 被质疑结论
+### 2.1 “玩家在 tick 中无事可做”与 guard 机制的质疑
 
-`modern-design-review.md` §4.3：
-> "建议：地府流程保留为题材包的'死亡叙事'，但引擎层默认惩罚参数（经验/物品/技能）应是可配置的，且默认值偏轻。"
+**被质疑结论**：`modern-design-review.md §1.3`（段落 1）与 `§7.1` 认为：
+> “过时的不是 tick，而是玩家在 tick 中无事可做……应在 tick 之上提供主动绝技/主动走位/主动防御。”
 
-`modern-design-review.md` §6.2：
-> "死亡惩罚过重且不可逆 | `gate.c:32` 全清物品，`combatd.c:1001` | 默认轻惩罚，惩罚参数可配"
+**红队挑战**：
 
-`player-psychology.md` §2.1 称死亡惩罚"极其严厉"，§6.2 建议"死亡惩罚递减与封顶"。
+- **guard/guarding 不是“空转”，而是武侠对峙张力**。`adm/daemons/combatd.c:818-842 fight()` 三分支中，当 `random(victim->query_dex()*3) >= me->query_str()*2 + apply/speed` 时进入 `guarding` 态，播 `guard_msg`“注视着对方，企图寻找机会出手”。这是武侠小说中“两人对峙良久，突然出手”的节奏来源。`modern-design-review.md` 将其判为“节奏被打断”，但 `player-psychology.md §4.1` 承认 1 秒 tick 给了玩家阅读战况、输入指令的时间窗口——玩家正在阅读战斗叙事，这是核心玩法循环，不是“空等”。
+- **“主动走位”是品类错位**。文本 MUD 的房间是离散拓扑节点，无 2D/3D 空间坐标。引入“走位”“闪避方向”既无实现基础，也无文本叙事意义。`modern-design-review.md` 用 MMO/动作品类标准评判文本 MUD，未考虑媒介差异。
 
-### 质疑论证
+**裁决建议**：撤回 §7.1 的“主动走位”建议；将 §1.3 对 guard 的定性从“节奏断裂”改为“武侠对峙张力”。
 
-**（1）"轻惩罚"与"死亡重量感"不可兼得——modern-design-review 与 player-psychology 的建议合在一起制造了体验真空**
+### 2.2 Effect 更新频率与普攻对齐的质疑
 
-`player-psychology.md` §2.5 自己指出 LPC 死亡的"恶性循环：死亡 -> 变弱 -> 更容易死 -> 更弱"，并视为**留存风险**。但这恰恰是武侠世界中"死亡有后果"的叙事重量——在武侠小说中，败阵/重伤/中毒都有持续影响（武功倒退、内力受损、需要疗伤），这是**故事张力**而非"bug"。
+**被质疑结论**：`modern-design-review.md §1.3`（段落 3）认为：
+> “Effect 更新频率（`char.c:141-144` 每 5~15 tick）与普攻不一致是隐藏的体验问题……应让 Effect 跳数与战斗节奏在玩家感知上对齐。”
 
-如果同时采纳两份文件的"轻惩罚"（modern-design-review §4.3）+"递减封顶"（player-psychology §6.2）+"伤害硬上限防秒杀"（player-psychology §6.4），死亡将变得**完全无意义**——不死（有上限防秒杀）、不痛（轻惩罚）、不怕（递减封顶）。这与 LPC 死亡的"地府走轮回"叙事（`d/death/` 整个区域）完全割裂。
+**红队挑战**：
 
-**（2）"地府走轮回"的叙事价值被两份文件系统性低估**
+- `feature/condition.c:15-19` 注释明确警告：“don't make player got too much this kind of conditions or you might got lots of 'Too long evaluation' error”。`char.c:54 tick = 5+random(10)` 是**性能设计**，不是体验 bug。`modern-design-review.md` 建议对齐频率，未评估性能后果。
+- 毒/内伤等持续状态在武侠叙事中本就是“慢慢侵蚀”。`kungfu/condition/bt_poison.c:11-26` 每次 Effect tick 独立播报“你觉得一股冷气直透心口”，低频播报制造的是中毒的“阴险感”与“失控感”，与普攻的激烈节奏形成对比。`player-psychology.md §3.1` 也指出这种“无法主动干预”的无力感是中毒体验的一部分。强行对齐会削弱武侠特色。
 
-`d/death/` 的 14 房间（`source-inventory.md` §1.5）构成了完整的死亡叙事：鬼门关（`gate.c`，清空物品 + 清状态）-> 酆都城门（`gateway.c`，禁止回头"没有回头路了"）-> 鬼门大道（`road1-3.c`）-> 小店（`inn1.c`，隐藏复活路径"ask about 回家"）。
-
-`player-psychology.md` §2.3 把这定性为"不可跳过、无交互乐趣、纯惩罚体验的死亡过场动画"，建议"应允许跳过或压缩"。
-
-但这忽略了：**文本 MUD 的核心体验就是阅读叙事**。地府的阴森房间描述、白无常的对话（`d/death/npc/wgargoyle.c:10-17` 的 `death_msg` 五段："喂！新来的，你叫什么名字？"->"用奇异的眼光盯著你"->"从袖中掏出一本像帐册的东西翻看著"->"咦？阳寿未尽？"->"罢了罢了，你走吧"）、鬼门大道的迷雾循环（`road2.c:24-46` 的 `long_road` 计数谜题）——这些是**独特的死亡叙事体验**，在"即时复活"的现代设计中完全不存在。
-
-modern-design-review §4.3 自己也说"地府走轮回作为'题材性死亡流程'有武侠/民俗魅力"，但紧接着就建议"默认值偏轻"——这是自相矛盾的：如果承认叙事魅力，就不该把支撑叙事的惩罚力度全部砍掉。
-
-**（3）"即便硬核如魂系，掉魂也是可捡回的"是错误类比**
-
-modern-design-review §4.3 用魂系的"掉魂可捡回"论证 LPC 的"物品全丢不可接受"。但魂系是**动作游戏**，其死亡惩罚的核心是"重新跑图"（spatial retraversal），"捡魂"是跑图的动机。文本 MUD 没有跑图概念，死亡惩罚的载体是**数值与叙事**（经验损失、技能倒退、地府叙事），而非空间挑战。用动作游戏的惩罚逻辑评判文本 MUD 的惩罚设计是品类错位。
-
-### 裁决建议
-
-1. **"默认轻惩罚"改为"分层惩罚"**：区分"劝退级惩罚"（技能等级 -1 `skill.c:121-147`、物品全销毁 `gate.c:32-36`）与"叙事级惩罚"（经验损失、地府行走流程）。前者可降级，后者应保留为题材包默认。
-2. **"递减封顶"与"防秒杀硬上限"不应同时采纳**——两者叠加会让死亡完全无后果。建议二选一：要么保留伤害硬上限（防秒杀）但保持惩罚力度，要么保留惩罚力度但移除秒杀风险（通过 `no_death` 安全区扩展而非全局硬上限）。
-3. **地府叙事不应被"跳过/压缩"**，而应被**重新设计为有交互的叙事**（见挑战 4）。
+**裁决建议**：保留 `5+random(10)` 稀释频率作为默认；Effect 频率不一致不应判为“需现代化”，至少标注为“需 A/B 测试验证”。
 
 ---
 
-## 挑战 4：保留地府轮回/鬼魂态的论证不充分——LPC 原版是半成品，不是值得"保留精神"的成熟设计
+## 3. 质疑三：死亡惩罚现代化是否会丢失 LPC 死亡的重量感与轮回叙事？
 
-### 被质疑结论
+### 3.1 “默认轻惩罚”与轮回叙事重量的质疑
 
-`modern-design-review.md` §4.3 与 §6.1：
-> "保留：鬼魂态 + `astral_vision` 可见性（`damage.c:9-11`，`char.c:181-186`）是有趣的探索机制，可作为题材包的'鬼魂跑尸/阴阳两界'玩法保留精神。"
+**被质疑结论**：`modern-design-review.md §4.3`（段落 3）与 `§6.2` 认为：
+> “地府流程保留为题材包的死亡叙事，但引擎层默认惩罚参数应是可配置的，且默认值偏轻。”
 
-`abstraction-options.md` §5.4：
-> "鬼魂/地府轮回不进 engine core，全归题材包内容。"
+**红队挑战**：
 
-### 质疑论证
+- LPC 的轮回叙事重量感来自惩罚与仪式的绑定。`combatd.c:987-1025 death_penalty()` 扣 combat_exp、potential 减半、skill -1 级；`d/death/gate.c:32-36` 入地府销毁全部物品；`d/death/gateway.c:28-37` 禁止回头；`d/death/road2.c:24-46` 迷雾循环需走 5 次；`d/death/npc/wgargoyle.c:51-71` 白无常 55 秒剧情后才能复活。惩罚越重，轮回流程越像“劫后余生”的仪式。若默认惩罚偏轻，轮回流程退化为无成本过场动画，与其保留的叙事价值自相矛盾。
+- `player-psychology.md §6.2` 建议的是“死亡惩罚递减与封顶”（当日第 3 次起惩罚减半），**保留单次死亡的重量但防止反复恶性循环**。`modern-design-review.md` 的“默认偏轻”更激进，且未解释为何轻惩罚能保留叙事重量。
+- `modern-design-review.md §6.1` 将“两段式死亡”“no_death 安全区”“地府走轮回”并列为保留项，但 §6.2 又建议“死亡惩罚过重且不可逆”现代化为“默认轻惩罚”。保留地府轮回的“惩罚-仪式-重生”三段式却抽走惩罚，三段式仅剩仪式外壳。
 
-**（1）LPC 地府区是半成品，"保留精神"缺乏可保留的"精神"**
+**裁决建议**：不采用“默认偏轻”。采用 `player-psychology.md §6.2` 的“单次保留重量 + 当日死亡封顶/递减”方案。`DeathPolicy` 保留 `penalty_ratio`，但新增 `daily_penalty_cap` 与 `repeat_death_decay`。
 
-`d/death/road3.c:9-13` 的房间描述字面是：
-```
-set("long", @LONG
+### 3.2 “死亡全清物品应丢弃”的质疑
 
-..... 还没想到 ....
+**被质疑结论**：`modern-design-review.md §6.3` 第 3 条认为：
+> “死亡全清物品不可逆（`gate.c:32-36`）应丢弃……即便硬核如魂系，掉魂也是可捡回的。”
 
-LONG
-```
-开发者自己都承认"还没想到"。这是一个**未完成的死胡同房间**，只有一条 exit 回 `road2`。
+**红队挑战**：
 
-`gameplay-slices.md` 切片 5 指出地府流程"几乎无操作空间，纯粹是'惩罚过场'"。`wgargoyle.c:48-71` 的自动复活是 30 秒等待 + 5 段×5 秒对话 = 约 55 秒**强制等待**，期间玩家无法做任何事。`inn1.c:67-83` 的隐藏复活路径需要 `ask <自己id> about 回家`，**无任何提示**（`inn2.c` 墙上字"靠自己啦"是唯一暗示）。
+- `player-psychology.md §2.2` 承认装备全损“比经验惩罚更致命”，但并未建议完全取消，而是强调其对新玩家资产清零的杀伤。完全取消死亡掉装备会消除 LPC 死亡的“真实损失”感。
+- `modern-design-review.md` 的魂系类比不适用于纯文本 MUD：魂系通过精确跑图与视觉地标实现“捡回”，文本环境无此类空间锚点。强行引入“捡回尸体”可能造成更差寻路体验。
+- 更平衡的方案是保留 LPC 的 `CHAR_D->make_corpse` + `damage.c:227-228` 尸体掉落（已部分实现），仅去除地府 `gate.c:32-36` 的二次销毁。`engine/src/openmud/death_flow.py:77-86 DeathPolicy` 已支持 `drop_items: bool = True`，方向正确；`modern-design-review.md` 将其判为“应丢弃”过于武断。
 
-这不是一个"有民俗魅力的死亡叙事"，而是一个**功能未完成、交互极低、强制时长的惩罚过场**。说"保留精神"等于保留一个从未被实现好的设计意图。
-
-**（2）鬼魂态 + astral_vision 在 LPC 中是 stub，不是已验证的玩法**
-
-`gameplay-slices.md` 切片 5 明确指出：
-> "代码未实现'鬼魂干扰阳间'机制（无 poltergeist 类 condition），是未实现的扩展点。"
-
-`char.c:181-186` 的 `visible()` 只是一个**可见性布尔**——鬼对活人不可见，除非 `astral_vision`。但全仓库没有任何围绕鬼魂态的玩法（鬼魂无法攻击、无法被攻击、无法与阳间交互）。这是一个**技术 stub**，不是一个"有趣的探索机制"。
-
-modern-design-review 把它列为"保留"（§6.1），论证仅一句"有趣的探索机制"，没有引用任何 LPC 中围绕鬼魂态的**实际玩法实现**——因为不存在。
-
-**（3）"全归题材包"等于"可能永远不会被做"**
-
-`abstraction-options.md` §5.4 把鬼魂/地府全归题材包，engine core 只留"中间态->复活"接缝。但：
-- LPC 的地府区 580 行（`source-inventory.md` §1.5）是半成品（`road3.c` "还没想到"）
-- 谁来重新设计一个好的地府？如果题材包创作者只看到 LPC 的半成品，他们会"保留精神"一个从未完成的设计
-- 如果 engine core 不提供任何支撑（无 ghost 态原语、无鬼魂可见性规则、无鬼域禁武），题材包要从零建一套完整的鬼魂交互系统，工作量巨大
-
-### 裁决建议
-
-1. **将鬼魂态/astral_vision 从 §6.1"保留"降级为"需重新设计"**——LPC 中是未实现的 stub，不存在可"保留精神"的成熟玩法。
-2. **地府轮回不应简单"保留为题材包内容"**，而应标注为"需完全重新设计"——LPC 版是半成品（`road3.c` "还没想到"），"保留精神"会继承未完成的设计债。
-3. **若要保留地府叙事，engine core 应提供最小支撑**（不只是"中间态接缝"）——至少需要：受限动词集（`block_cmd` 等价）、鬼魂可见性规则（`visible()` 等价）、鬼域禁武（`no_fight` 等价）。否则题材包创作者无法实现一个有交互的地府（只能复制 LPC 的"55 秒强制等待"模式）。
-4. **白无常自动复活的 55 秒强制等待应明确标为"设计缺陷"而非"叙事体验"**——`wgargoyle.c:48` 的 `call_out("death_stage", 30, ...)` + 5 段×5 秒对话是纯被动等待，现代设计应改为有玩家选择的地府交互（如赎罪任务减惩罚、选择复活点等）。
+**裁决建议**：保留尸体掉落机制，去除地府二次销毁；不把“死亡全清物品”整体丢弃。
 
 ---
 
-## 挑战 5：玩家心理与留存结论与现代玩法建议存在系统性矛盾
+## 4. 质疑四：保留 LPC 机制（地府轮回/鬼魂态）的论证是否充分？
 
-### 被质疑结论
+### 4.1 地府轮回是否只是“题材包可选内容”？
 
-`player-psychology.md` §6 建议：
-- 6.2 "死亡惩罚递减与封顶"
-- 6.3 "被杀保护期（复活冷却）"
-- 6.4 "伤害硬上限（防秒杀）"
-- 6.7 "围攻限制（反霸凌）"
+**被质疑结论**：`modern-design-review.md §4.3`（段落 3）将地府流程定位为“可选题材包内容而非引擎默认”，`§8` 未决问题 2 又问其应放引擎核心还是题材包。
 
-`modern-design-review.md` §5.3 建议增加"主动绝技/主动走位/主动防御"。
+**红队挑战**：
 
-`modern-design-review.md` §2.3 标注"保留"三类资源 + wound 上限伤害双层模型。
+- 项目 `CLAUDE.md` 架构不变量第 4 条指出“36+5 个已发现子系统全部归类为 MVP 必做（18）/可选（4）/现代化改造（9）/丢弃（11）”，其中“死亡与轮回（系统 39）”在子系统归类中为 **MVP 必做**。`CLAUDE.md` 架构不变量第 7 条 MVP 场景清单虽未直接列“地府”，但死亡与轮回作为系统 39 已被归入必做。`modern-design-review.md` 建议其“题材包可选”，与项目基线冲突。
+- `ugc-surface.md §4.3` 指出：若未来支持地府，创作面应走 C 轨（房间/区域流程轨）+ 可信房间钩子，且 ghost 态组件需一并设计。这说明地府不是“可丢可不丢”的装饰品，而是需要引擎提供 ghost 态、房间钩子链、轮回出口机制的系统性工作。
+- `engine-comparison.md §5.1a` 将“地府轮回流程整体缺失”列为 engine 最严重的负面遗漏之一，并指出这是 brief 明确纳入的 MVP 场景的直接断层。这与 `modern-design-review.md` 的“题材包可选”结论直接矛盾。
 
-### 质疑论证
+**裁决建议**：驳回“题材包可选”定位。地府轮回与鬼魂态应作为引擎必须支撑的 MVP 能力实现，至少提供受限动词集、鬼魂可见性规则、鬼域禁武等最小支撑。
 
-**（1）"防秒杀硬上限"与"保留 wound 上限伤害"直接矛盾**
+### 4.2 鬼魂态保留理由是否充分？
 
-`player-psychology.md` §6.4 建议引入"单次伤害不超过目标最大气血的 X%"硬上限（如 60%）。
+**被质疑结论**：`modern-design-review.md §4.3`（段落 5）与 `§6.1` 认为：
+> “鬼魂态 + astral_vision 可见性是有趣的探索机制，可作为题材包的‘鬼魂跑尸/阴阳两界’玩法保留精神，但不应作为默认死亡流程强制走。”
 
-但 `modern-design-review.md` §2.3 同时"保留"了 `damage.c:39-66` 的 wound 上限伤害机制（"等价现代'血量+最大血量 debuff'"），并称"这种'重伤需要专门治疗'的设计在武侠语境下有题材独特性，应保留精神"。
+**红队挑战**：
 
-问题：武侠战斗的标志性体验是**"高手一掌重伤"**——内力深厚者的绝杀可以一击打穿对方上限（`eff_qi < 0` 直接 `die()`，`char.c:100-104`）。如果加 60% 伤害硬上限，这个体验彻底消失。`combatd.c:317` 的立方缩放（`level^3/3`）虽然数值失控，但其**设计意图**正是让高手碾压低手——这是武侠世界的核心设定（"内力相差悬殊，不可力敌"）。
+- 鬼魂态是 LPC 死亡流程不可分割的部分：`feature/damage.c:9 int ghost = 0`、`:11 is_ghost()`、`:246 ghost = 1`、`:255-264 reincarnate()` 设 `ghost=0`；`inherit/char/char.c:181-186 visible()` 用 ghost 决定可见性。没有 ghost 态，地府流程无法解释“活人看不见死者”的隔离，轮回叙事崩塌。
+- `gameplay-slices.md` 切片 5 明确指出：
+  > “代码未实现‘鬼魂干扰阳间’机制（无 poltergeist 类 condition），是未实现的扩展点。”
+  这说明 LPC 中鬼魂态本身是一个**未充分实现的 stub**，不是已验证的玩法。`modern-design-review.md` 将其列为“保留”，论证仅一句“有趣的探索机制”，未引用任何围绕鬼魂态的实际玩法实现。
+- `ugc-surface.md §4.3` 结论明确：“ghost 态是地府叙事的一部分，应在地府流程设计时一并考虑，不单独建。” 这否定了 `modern-design-review.md` 把 ghost 态作为独立可选机制保留的建议。
 
-modern-design-review §2.3 要"保留"wound 机制，player-psychology §6.4 要"防秒杀硬上限"——两者叠加的结果是：wound 机制存在但永远打不穿（被硬上限截断），`eff_qi < 0` 的死亡路径（`char.c:100-104`）形同虚设。这不是"保留精神"，是**名义保留实质废弃**。
+**裁决建议**：将鬼魂态从“独立保留项”改为“地府轮回设计的附属组件”，不单独保留为可选探索机制；引擎 core 需提供 ghost 组件与可见性规则。
 
-**（2）"主动操作 + 轻惩罚"组合制造"要求注意力但不给后果"的体验真空**
+### 4.3 地府流程本身是半成品
 
-modern-design-review 要求玩家**主动操作**（按绝技键、走位），player-psychology 要求**轻惩罚**（递减封顶、防秒杀、保护期）。合在一起：玩家需要集中注意力操作，但失败了几乎无后果——这是现代免费手游的"体力值"模式（操作有要求但失败无代价），而非武侠世界的"生死搏斗"。
+**补充质疑**：
 
-LPC 的设计是**内部自洽**的：被动战斗（看 build 发挥）+ 重惩罚（死亡有后果）= 武侠模拟。战斗不需要高度专注（因为你不按键），但结果很重要（因为惩罚重）。这是一套连贯的体验设计。
+- `d/death/road3.c:9-13` 的房间描述字面是 `..... 还没想到 ....`，开发者自己承认未完成。`wgargoyle.c:48-71` 的自动复活是 55 秒强制等待，期间玩家无法做任何事。`inn1.c:67-83` 的隐藏复活路径 `ask <自己id> about 回家` 无任何提示（`inn2.c` 墙上“靠自己啦”是唯一暗示）。
+- 这不是一个“有民俗魅力的成熟死亡叙事”，而是一个功能未完成、交互极低、强制时长的惩罚过场。说“保留精神”等于保留一个从未实现好的设计意图。
 
-modern-design-review + player-psychology 的建议合在一起**打破了这种自洽**：要求专注（主动操作）但不给后果（轻惩罚）= 既不是好的动作游戏（文本 MUD 无动作手感），也不是好的武侠模拟（死亡无重量）。
-
-**（3）"围攻限制（反霸凌）"与"保留 MAX_OPPONENT 注意力分散意图"矛盾**
-
-modern-design-review §1.3 与 §6.1"保留"了 `MAX_OPPONENT=4` 的"注意力分散"设计意图，称"多对一时不是简单加法叠加，而是注意力分散"。
-
-但 player-psychology §5.1 指出 4v1 是"数值碾压"和"霸凌的温床"，§6.7 建议"PvP 场景下对围攻做额外限制，如同一玩家最多同时被 2 名玩家攻击"。
-
-如果采纳 player-psychology 的建议（限制到 2v1），那 MAX_OPPONENT 的"注意力分散"设计意图就不存在了（2 人围攻不存在"注意力分散"问题）。如果保留 MAX_OPPONENT 的精神（多人围攻有注意力分散），就不能限制到 2v1。两份文件在围攻设计上直接冲突。
-
-### 裁决建议
-
-1. **"防秒杀硬上限"与"保留 wound 上限伤害"二选一**，不可同时采纳。建议：保留 wound 机制但限制**立方缩放**（`combatd.c:317`）而非加硬上限——用受控的多项式缩放防止数值爆炸，而非用硬上限截断单次伤害。这样"高手碾压"的武侠体验保留，但不会"一刀秒杀"。
-2. **明确战斗定位的二选一**：评审委员会必须裁决——
-   - **路线 A（文本 MUD 武侠模拟）**：被动战斗（普攻自动 + perform/exert 主动绝技）+ 有重量的死亡惩罚 + 无硬上限（靠数值平衡防秒杀）。
-   - **路线 B（现代半自动战斗）**：主动操作（按键选招 + 走位）+ 轻惩罚 + 硬上限防秒杀。
-   - 不可混搭——混搭制造"要求注意力但不给后果"的体验真空。
-3. **围攻设计统一裁决**：要么保留 MAX_OPPONENT 精神（多人围攻有注意力分散，PvP 靠 `no_fight`/`no_death` 安全区 + `pker` 惩罚机制制衡），要么采纳 player-psychology 的硬限制（2v1 上限），但不能两者并存。
+**裁决建议**：明确 LPC 地府是“需重新设计”而非“保留精神”。白无常 55 秒强制等待应标为设计缺陷，现代设计应改为有玩家选择的地府交互（如赎罪任务减惩罚、选择复活点）。
 
 ---
 
-## 汇总裁决建议表
+## 5. 质疑五：玩家心理与留存结论是否与现代玩法建议矛盾？
 
-| # | 被质疑结论（文件/段落） | 质疑核心 | 裁决建议 |
+### 5.1 “主动操作 + 轻惩罚”的矛盾
+
+**矛盾点**：`modern-design-review.md §1.3` 与 `§5.3` 建议在 tick 上增加主动绝技/走位/防御操作面；`player-psychology.md §4.3` 指出默认战斗信息密度已高到可能认知过载。
+
+**红队挑战**：
+
+- `modern-design-review.md` 未说明“增加操作面”如何不加剧信息过载。若每 tick 玩家都要决策绝技/走位/防御，文本输出量与决策压力会同步上升。
+- `player-psychology.md §6.6` 建议默认开启精简战斗描述以降低认知负荷，这与“增加主动操作”方向相反：精简描述是为了少读，主动操作是为了多决策。文本 MUD 的沉浸感来自“读文字 + 想象”，而非“高频决策”。
+
+### 5.2 “防秒杀硬上限”与“保留 wound 上限伤害”的矛盾
+
+**矛盾点**：`player-psychology.md §6.4` 建议引入“单次伤害不超过目标最大气血 X%”的硬上限（如 60%）；`modern-design-review.md §2.3` 同时“保留” `damage.c:39-66` 的 wound 上限伤害机制。
+
+**红队挑战**：
+
+- 武侠战斗的标志性体验是“高手一掌重伤”——内力深厚者的绝杀可以一击打穿上限（`eff_qi < 0` 直接 `die()`，`char.c:100-104`）。若加 60% 硬上限，该体验消失。
+- `combatd.c:317` 的立方缩放（`power = level^3/3`）虽数值失控，但其设计意图正是让高手碾压低手。这是武侠世界的核心设定。
+- 两者叠加的结果是：wound 机制存在但永远打不穿（被硬上限截断），`eff_qi < 0` 的死亡路径形同虚设。这不是“保留精神”，是名义保留实质废弃。
+
+**裁决建议**：“防秒杀硬上限”与“保留 wound 上限伤害”二选一。建议保留 wound 机制，但限制立方缩放（改为受控多项式缩放）而非加硬上限——这样“高手碾压”体验保留，但不会一刀秒杀。
+
+### 5.3 “围攻限制”与“MAX_OPPONENT 注意力分散意图”的矛盾
+
+**矛盾点**：`modern-design-review.md §1.3` 与 `§6.1` 保留 `MAX_OPPONENT=4` 的“注意力分散”设计意图；`player-psychology.md §6.7` 建议 PvP 场景下“同一玩家最多同时被 2 名玩家攻击”。
+
+**红队挑战**：
+
+- 若限制到 2v1，`MAX_OPPONENT` 的“注意力分散”设计意图就不存在（2 人围攻不存在注意力分散问题）。若保留 MAX_OPPONENT 精神（多人围攻有注意力分散），就不能限制到 2v1。
+- 两份文件在围攻设计上直接冲突，评审委员会必须统一裁决。
+
+### 5.4 “use-based 成长争议大”缺乏心理证据
+
+**矛盾点**：`modern-design-review.md §5.3` 判定 use-based 成长“争议大”，但 `player-psychology.md` 未讨论该机制对心理/留存的影响。
+
+**红队挑战**：
+
+- “争议大”是结论，但无证据。玩家心理专家认为死亡与随机性是主要流失源，与 use-based 成长无直接关联。现代玩法评审可能受现代 MMO 品类偏见驱动。
+
+---
+
+## 6. 汇总裁决建议
+
+| # | 被质疑结论 | 质疑核心 | 裁决建议 |
 |---|---|---|---|
-| 1 | modern-design-review §5.3「战中不主动选招=最大过时点」 | 误判：perform/exert 已是主动操作面；文本 MUD 核心价值是阅读招式叙事而非按键 | 降级为"可选增强项"；强化 perform/exert 丰富度而非改普攻为主动 |
-| 2 | modern-design-review §1.3/§7.1「tick 中无事可做 + 需走位」 | guard 是张力机制非空转；走位是品类错位；Effect 低频播报是中毒阴险感设计 | 撤回"走位"建议；guard 重定性为"对峙张力"；Effect 频率判为"需 A/B 测试" |
-| 3 | modern-design-review §4.3/§6.2 + player-psychology §2/§6「轻惩罚+递减封顶+防秒杀」 | 叠加后死亡完全无后果，丢失武侠死亡重量；魂系类比品类错位 | 改"分层惩罚"；防秒杀与重惩罚二选一；地府叙事不跳过而重新设计 |
-| 4 | modern-design-review §6.1 + abstraction-options §5.4「保留鬼魂态/地府精神，全归题材包」 | LPC 鬼魂态是 stub（无玩法），地府是半成品（road3"还没想到"），"保留精神"无成熟设计可保留 | 降级为"需重新设计"；若保留地府 engine core 应提供最小支撑（受限动词/可见性/禁武） |
-| 5 | player-psychology §6 vs modern-design-review §5.3/§2.3 系统性矛盾 | "主动操作+轻惩罚"制造体验真空；"防秒杀硬上限"与"保留 wound"实质矛盾；围攻限制与 MAX_OPPONENT 精神冲突 | 评审委员会必须做路线二选一裁决（文本 MUD 武侠模拟 vs 现代半自动战斗），不可混搭 |
+| 1 | `modern-design-review.md §5.3`：战中不主动选招 = 最大过时点 | perform/exert 已是主动操作面；文本 MUD 核心价值是阅读招式叙事 | 降级为“可选增强项”；强化 perform/exert 丰富度 |
+| 2 | `modern-design-review.md §1.3/§7.1`：tick 中无事可做 + 需走位 | guard 是张力机制；走位是品类错位 | 撤回“走位”；guard 重定性为对峙张力 |
+| 3 | `modern-design-review.md §1.3`：Effect 频率应对齐普攻 | 低频播报是中毒阴险感设计；性能警告约束 | 保留稀释频率；标注为需 A/B 测试 |
+| 4 | `modern-design-review.md §4.3/§6.2` + `player-psychology.md §2/§6`：轻惩罚 + 递减封顶 + 防秒杀 | 叠加后死亡无后果；魂系类比品类错位 | 改“分层惩罚”；防秒杀与重惩罚二选一 |
+| 5 | `modern-design-review.md §4.3/§6.1`：鬼魂态/地府为题材包可选 | 与项目 MVP 必做基线冲突；LPC 地府是半成品 | 地府/鬼魂态作为引擎 MVP 能力实现；LPC 地府需重新设计而非保留精神 |
+| 6 | `player-psychology.md §6.4` vs `modern-design-review.md §2.3`：防秒杀 vs 保留 wound | 硬上限会废弃 `eff_qi < 0` 死亡路径 | 保留 wound，限制缩放曲线而非加硬上限 |
+| 7 | `player-psychology.md §6.7` vs `modern-design-review.md §1.3/§6.1`：围攻限制 vs MAX_OPPONENT | 2v1 限制与“注意力分散”意图冲突 | 评审委员会必须二选一统一裁决 |
+| 8 | `modern-design-review.md §5.3`：use-based 成长争议大 | 无心理证据；技能数上限已约束挂机 | 保留 use-based 为默认，可分配点数为可选 |
 
 ---
 
 ## 附：关键证据索引
 
-### 被质疑文件
-- `03-engine-insights/modern-design-review.md`：§1.3（tick/guard 评估）、§2.3（wound 保留）、§4.3（死亡惩罚/地府）、§5.3（招式选择）、§6.1（保留清单）、§7.1（战斗定位建议）
-- `03-engine-insights/player-psychology.md`：§2（死亡惩罚焦虑）、§4.1（tick 节奏正面）、§6（保护机制建议）
-- `03-engine-insights/abstraction-options.md`：§5.4（鬼魂/地府全归题材包）
+### 被质疑文件与段落
+
+- `03-engine-insights/modern-design-review.md`：§0（方法论）、§1.3（tick/guard/Effect 频率）、§2.3（wound 保留）、§4.3（死亡惩罚/地府/鬼魂态）、§5.3（招式选择/use-based 成长）、§6.1（保留清单）、§6.2（现代化清单）、§6.3（丢弃清单）、§7.1（战斗定位）
+- `03-engine-insights/player-psychology.md`：§2（死亡惩罚焦虑）、§3.1（中毒无力感）、§4.1（tick 节奏）、§4.3（信息密度）、§6（保护机制建议）
+- `03-engine-insights/ugc-surface.md`：§4.3（地府创作面与 ghost 态）
+- `06-engine-critique/engine-comparison.md`：模块 4/5（ghost 态 + 地府轮回缺失是 MVP 断层）
+- `CLAUDE.md`：架构不变量第 4 条（子系统四档归类，死亡与轮回为 MVP 必做）、第 7 条（MVP 场景清单）
 
 ### LPC 源码证据
-- 主动操作面：`cmds/skill/perform.c:10-80`（主动绝技指令）、`cmds/skill/exert.c`（主动内功运功）
-- 招式叙事：`kungfu/skill/18-zhang.c:52-218`（action[] 含文学文案 + 数值 + damage_type）、`adm/daemons/combatd.c:68-204`（damage_msg 六档伤害描述）、`adm/daemons/combatd.c:278`（report_status 彩色状态）
-- guard 机制：`adm/daemons/combatd.c:818-842`（fight 三分支：QUICK/REGULAR/guarding）
-- 死亡惩罚：`adm/daemons/combatd.c:987-1025`（death_penalty 六重惩罚）、`feature/skill.c:121-147`（skill_death_penalty 技能降级）、`feature/damage.c:152-253`（die 流程）、`feature/damage.c:255-264`（reincarnate 满血复活不补损失）
-- 地府半成品：`d/death/road3.c:9-13`（"..... 还想到 ...."）、`d/death/npc/wgargoyle.c:48-71`（55 秒强制等待自动复活）、`d/death/gate.c:32-36`（物品全销毁）、`d/death/inn1.c:67-83`（隐藏复活路径无提示）
-- 鬼魂态 stub：`feature/damage.c:9-11`（ghost 标志）、`inherit/char/char.c:181-186`（visible 可见性规则）；全仓库无鬼魂交互玩法实现（`gameplay-slices.md` 切片 5 确认）
-- wound 上限伤：`feature/damage.c:39-66`（receive_wound 扣 eff_ 上限）、`inherit/char/char.c:100-104`（eff_qi<0 直接 die）
-- Effect 播报：`kungfu/condition/bt_poison.c:11-26`（每次 tick 独立播报"冷气直透心口"）
-- 立方缩放：`adm/daemons/combatd.c:317`（power = level^3/3）
 
-### 一手考古佐证
-- `01-raw-findings/source-inventory.md` §1.5（d/death/ 12 房间清单）、§6.11（地府轮回是房间驱动非函数驱动，start_death 无定义是 no-op）
-- `01-raw-findings/gameplay-slices.md` 切片 2（武功 perform/exert 三位一体）、切片 3（condition 播报）、切片 4（两段式死亡）、切片 5（地府强制流程 + 鬼魂 stub）
-- `01-raw-findings/mechanisms.md` §5.7（reincarnate 不恢复永久损失）、§7.4（perform_action 主动绝技）
-- `06-engine-critique/engine-comparison.md` 模块 4/5（ghost 态 + 地府轮回缺失是 MVP 直接断层）
+- 主动绝技/内功：`cmds/skill/perform.c:10-80`、`cmds/skill/exert.c:8-42`
+- 招式文案与结构：`kungfu/skill/18-zhang.c:52-218`、`kungfu/skill/18-zhang.c:241-291`
+- 伤害描述与状态：`adm/daemons/combatd.c:68-204`（`damage_msg`）、`adm/daemons/combatd.c:278`（`report_status`）
+- 技能映射与成长：`feature/skill.c:42-78`、`feature/skill.c:166-168`、`adm/daemons/combatd.c:450`
+- guard 机制：`adm/daemons/combatd.c:818-842`
+- Effect 频率与性能警告：`inherit/char/char.c:54`、`inherit/char/char.c:141-144`、`feature/condition.c:15-19`
+- 中毒播报：`kungfu/condition/bt_poison.c:11-26`
+- 死亡惩罚：`adm/daemons/combatd.c:987-1025`、`feature/skill.c:121-147`
+- 地府流程：`feature/damage.c:246-248`、`d/death/gate.c:32-36`、`d/death/gateway.c:28-37`、`d/death/road2.c:24-46`、`d/death/npc/wgargoyle.c:51-71`、`d/death/inn1.c:67-83`、`d/death/road3.c:9-13`
+- 鬼魂态：`feature/damage.c:9-11`、`:246-248`、`:255-264`；`inherit/char/char.c:181-186`
+- wound 上限伤与硬死路径：`feature/damage.c:39-66`、`inherit/char/char.c:100-104`
+- 立方缩放：`adm/daemons/combatd.c:317`
+
+### engine 证据
+
+- `engine/src/openmud/death_flow.py:77-86`（`DeathPolicy` 数据驱动惩罚参数）
+- `engine/src/openmud/death_flow.py:283-288`（`_drop_inventory_to_room` 掉落实现）
+- `engine/src/openmud/death.py:13-18`（`DeathState` 枚举无 GHOST 态）
