@@ -2,7 +2,7 @@
 
 > **范围**：Evennia **6.1.0**（`/home/gukt/github/evennia`，`evennia/VERSION.txt`）核心源码 + 仓库内官方 docs（`docs/source/`）+ contrib 教程实现。  
 > **目标**：弄清 NPC / AI /「Agent」在 Evennia 中是否为一等公民、如何挂载行为、与 Session/Account/命令管线如何分叉。  
-> **非目标**：不复述整篇 Evennia vs mud_engine 平台对比（见 [research-evennia-vs-mud-engine-2026-07-23.md](./research-evennia-vs-mud-engine-2026-07-23.md)）；不依赖二手博客。  
+> **非目标**：不复述整篇 Evennia vs mud_engine 平台对比（见 [vs-mud-engine-2026-07-23.md](./vs-mud-engine-2026-07-23.md)）；不依赖二手博客。  
 > **一手原则**：每条重要论断带路径 + 符号 + 可定位片段。
 
 ---
@@ -67,7 +67,7 @@ Handler（约定模式，非基类）
 
 ### 2.3 与平台对比笔记的交叉引用
 
-平台层（Portal/Server、Django、CmdSet 合并、Prototype）见 [research-evennia-vs-mud-engine-2026-07-23.md](./research-evennia-vs-mud-engine-2026-07-23.md)。本文只补 **NPC 行为体** 切片。
+平台层（Portal/Server、Django、CmdSet 合并、Prototype）见 [vs-mud-engine-2026-07-23.md](./vs-mud-engine-2026-07-23.md)。本文只补 **NPC 行为体** 切片。
 
 ---
 
@@ -505,4 +505,4 @@ EvAdventure 理想时序（文档）：外部系统周期性 `mob.ai.run()` → 
 - `docs/source/Howtos/{Tutorial-NPC-Listening,Tutorial-NPC-Reacting,Tutorial-NPC-Merchants}.md`  
 - `docs/source/Howtos/Tutorial-Persistent-Handler.md`  
 - `docs/source/Contribs/Contrib-Llm.md`  
-- 交叉：`.scratch/research-evennia-vs-mud-engine-2026-07-23.md`
+- 交叉：`.scratch/research/02-evennia/vs-mud-engine-2026-07-23.md`

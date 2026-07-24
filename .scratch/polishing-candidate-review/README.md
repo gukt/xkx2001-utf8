@@ -10,4 +10,4 @@
 | [session-notes-2026-07-23.md](session-notes-2026-07-23.md) | 候选清单、grill 决策矩阵、已拍板规格、收口摘要 |
 | [session-qa-provenance-2026-07-23.md](session-qa-provenance-2026-07-23.md) | **本 Agent 窗口** Q1–Q15：用户原问、LPC/YAML 出处、答复摘要、↔ 候选 ID |
 
-相关：[`docs/gap-ledger.md`](../../docs/gap-ledger.md)、[`PROGRESS.md`](../../PROGRESS.md)（Next Up = to-spec）、Evennia 对照 [`.scratch/research-evennia-vs-mud-engine-2026-07-23.md`](../research-evennia-vs-mud-engine-2026-07-23.md)。
+相关：[`docs/gap-ledger.md`](../../docs/gap-ledger.md)、[`PROGRESS.md`](../../PROGRESS.md)（Next Up = to-spec）、Evennia 对照 [`.scratch/research/02-evennia/vs-mud-engine-2026-07-23.md`](../research/02-evennia/vs-mud-engine-2026-07-23.md)。

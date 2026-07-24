@@ -310,7 +310,7 @@ B7 `invalid_startroom` · C15 额外 valid_leave 脚本化
 - Nature：`engine/src/mud_engine/nature.py`（World 单例）
 - 风景决策：`.scratch/pre-m4-engine-room-fidelity/`（旧：不做括号 id）——**A4 拍板部分修正**，见上文「房间风景 details」
 - 范本：`engine/data/m2_mvp_scene.yaml`（少林 entry_guard、翰林 block_exits、旗杆语义色）
-- 外部参照（可选）：`.scratch/research-evennia-vs-mud-engine-2026-07-23.md`
+- 外部参照（可选）：`.scratch/research/02-evennia/vs-mud-engine-2026-07-23.md`
 
 ## 非目标（本笔记不主张改）
 

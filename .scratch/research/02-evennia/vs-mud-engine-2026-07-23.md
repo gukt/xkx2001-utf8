@@ -3,7 +3,7 @@
 > **范围**：Evennia **6.1.0**（`~/github/evennia`，`evennia/VERSION.txt`）源码 + 官方文档（`docs/source/`）第一手；本仓库 `engine/src/mud_engine/`、`docs/adr/`、`CLAUDE.md` / `CONTEXT.md` / `PROGRESS.md` / `docs/creator-contract-v0.md`。  
 > **目标问题**：Evennia 作为成熟 Python MU\* 框架，其架构与实践中哪些思想可迁移到本项目的题材无关内核 + UGC 创作层，哪些必须避开（与架构不变量冲突）？  
 > **非目标**：不建议「换用 / 嵌入 Evennia」；不做 LPC 行为等价；不依赖博客/二手综述；不编造性能数字。  
-> **关联**：本项目不变量见 [CLAUDE.md](../CLAUDE.md)；单进程单 World [ADR-0009](../docs/adr/0009-single-process-single-world.md)；UGC 声明式创作面 [ADR-0005](../docs/adr/0005-m3-ugc-loop-creation-surface.md)；引擎不做编辑器 [ADR-0006](../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md)；内存 + JSON 存档（不变量 §1）；频道/登录单机阶段边界 [ADR-0008](../docs/adr/0008-single-player-channel-login-out-of-stop-scope.md)。  
+> **关联**：本项目不变量见 [CLAUDE.md](../../../CLAUDE.md)；单进程单 World [ADR-0009](../../../docs/adr/0009-single-process-single-world.md)；UGC 声明式创作面 [ADR-0005](../../../docs/adr/0005-m3-ugc-loop-creation-surface.md)；引擎不做编辑器 [ADR-0006](../../../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md)；内存 + JSON 存档（不变量 §1）；频道/登录单机阶段边界 [ADR-0008](../../../docs/adr/0008-single-player-channel-login-out-of-stop-scope.md)。  
 > **第一手来源清单**：见 §9 附录。
 
 ---
@@ -43,7 +43,7 @@
 | 持久化 | Django ORM；默认 SQLite 文件 | `Choosing-a-Database.md`；`settings_default.py` `DATABASES` |
 | 版本/栈 | 6.1.0；Python≥3.12；Django≥6.0.2；Twisted≥24.11 | `VERSION.txt`；`pyproject.toml` |
 
-Evennia 的「题材无关」是 **框架层不加规则**；本项目的「题材无关」是 **内核提供可替换战斗/技能/钩子接缝 + 官方轻量武侠包证明**（[ADR-0004](../docs/adr/0004-combat-effects-boundary-engine.md)、[CLAUDE.md](../CLAUDE.md) 一句话）。二者都「不绑死单一题材」，但厚度相反：Evennia 薄游戏逻辑、厚平台；`mud_engine` 厚可玩内核、薄联网平台。
+Evennia 的「题材无关」是 **框架层不加规则**；本项目的「题材无关」是 **内核提供可替换战斗/技能/钩子接缝 + 官方轻量武侠包证明**（[ADR-0004](../../../docs/adr/0004-combat-effects-boundary-engine.md)、[CLAUDE.md](../../../CLAUDE.md) 一句话）。二者都「不绑死单一题材」，但厚度相反：Evennia 薄游戏逻辑、厚平台；`mud_engine` 厚可玩内核、薄联网平台。
 
 ---
 
@@ -530,7 +530,7 @@ cli.run_repl 读行
 
 ### 9.3 自检
 
-- [x] 文件路径：`.scratch/research-evennia-vs-mud-engine-2026-07-23.md`  
+- [x] 文件路径：`.scratch/research/02-evennia/vs-mud-engine-2026-07-23.md`  
 - [x] 含「给架构师的摘要」  
 - [x] 含功能矩阵、对比表、建议三档  
 - [x] 重要 claim 带路径/符号；未确认项已标明  
