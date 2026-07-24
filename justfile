@@ -73,9 +73,9 @@ gate-quick: lint test-quick
 
 # ── 运行 ────────────────────────────────────────────────
 
-# 启动 M1 demo：真实终端 CLI（python -m mud_engine）
+# 启动 M1 demo：真实终端 CLI（python -m openmud）
 run:
-    cd engine && uv run python -m mud_engine
+    cd engine && uv run python -m openmud
 
 # M1 物品命令矩阵（默认场景，不读写存档）：转录 + PASS/FAIL
 # 手测步骤见 .scratch/m1-core-engine-skeleton/verify-items-cli.md
@@ -139,7 +139,7 @@ proto-ecs-ugc:
 
 # ── 逃生口 / 杂项 ───────────────────────────────────────
 
-# 在 engine venv 跑任意 python：just python -c "import mud_engine; print(mud_engine.__version__)"
+# 在 engine venv 跑任意 python：just python -c "import openmud; print(openmud.__version__)"
 python *args:
     cd engine && uv run python "$@"
 

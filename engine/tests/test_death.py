@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Dead, NoDeathZone, Unconscious
-from mud_engine.death import DeathState, next_death_state
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
+from openmud.components import Dead, NoDeathZone, Unconscious
+from openmud.death import DeathState, next_death_state
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -52,7 +52,7 @@ player:
   start_room: arena
 """
         world, player_id = load_scene(_write_scene(tmp_path, scene))
-        from mud_engine.components import Position
+        from openmud.components import Position
 
         room = world.require_component(player_id, Position).room
         assert world.has_component(room, NoDeathZone)

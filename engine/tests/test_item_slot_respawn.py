@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.ai import spawn_scan
-from mud_engine.components import Container, Identity, ItemSpawnMeta, NpcSpawnMeta, Position
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import SceneLoadError, load_scene
-from mud_engine.world import World
+from openmud.ai import spawn_scan
+from openmud.components import Container, ItemSpawnMeta, NpcSpawnMeta, Position
+from openmud.parsing import execute_line
+from openmud.scene_loader import SceneLoadError, load_scene
+from openmud.world import World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

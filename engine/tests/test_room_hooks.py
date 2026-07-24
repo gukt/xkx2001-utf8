@@ -6,20 +6,20 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Exits, HiddenExits, Position, RoomFreeState, RoomHookBinding
-from mud_engine.errors import SceneLoadError
-from mud_engine.pack import load_pack
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.components import Exits, HiddenExits, Position, RoomFreeState, RoomHookBinding
+from openmud.errors import SceneLoadError
+from openmud.pack import load_pack
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     RoomHookContext,
     clear_room_hooks,
     get_room_hook,
     register_room_hook,
     relocate_entity,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
+from openmud.world import World
 
 
 def _minimal_two_room_world() -> tuple[World, int, int, int]:
@@ -32,7 +32,7 @@ def _minimal_two_room_world() -> tuple[World, int, int, int]:
     world.room_ids = {"a": room_a, "b": room_b}
     player = world.create_entity()
     world.add_component(player, Position(room=room_a))
-    from mud_engine.components import Identity, PlayerSession
+    from openmud.components import Identity, PlayerSession
 
     world.add_component(player, Identity(name="测者"))
     world.add_component(player, PlayerSession())
@@ -108,7 +108,7 @@ class TestRoomHookContextS0:
     def test_hide_and_reveal_exit(self) -> None:
         world, room_a, room_b, player = _minimal_two_room_world()
         exits = world.require_component(room_a, Exits)
-        from mud_engine.components import Exit
+        from openmud.components import Exit
 
         exits.by_direction["north"] = Exit(target=room_b)
         ctx = RoomHookContext(world, room_a, actor_id=player)
@@ -314,7 +314,7 @@ class TestUgcRejectsHooksS2:
 
     def test_cli_validate_rejects_pack_hooks(self, tmp_path: Path) -> None:
         """``--pack --validate`` 与非严格 ``load_pack`` 对 hooks 同为失败判定。"""
-        from mud_engine.__main__ import _main
+        from openmud.__main__ import _main
 
         pack = tmp_path / "pack"
         pack.mkdir()
@@ -334,8 +334,8 @@ class TestUgcRejectsHooksS2:
             execute_line(world, player_id, "go north")
 
     def test_restore_remounts_hooks(self, tmp_path: Path) -> None:
-        from mud_engine.runtime import wire_runtime
-        from mud_engine.save import restore_world, save_world
+        from openmud.runtime import wire_runtime
+        from openmud.save import restore_world, save_world
 
         hook = RecordingHook()
         register_room_hook("test_dummy", hook)
@@ -352,7 +352,7 @@ class TestUgcRejectsHooksS2:
 
 class TestRoomFreeStateSave:
     def test_free_state_roundtrip(self, tmp_path: Path) -> None:
-        from mud_engine.save import restore_world, save_world
+        from openmud.save import restore_world, save_world
 
         register_room_hook("test_dummy", RecordingHook())
         world, player_id = load_scene(_write(tmp_path, "scene.yaml", _OFFICIAL_SCENE))

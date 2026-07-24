@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Engaged, Identity
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.components import Engaged, Identity
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -66,8 +66,8 @@ class TestAggroBehavior:
     def test_already_engaged_player_not_re_aggroed(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
         wolf = _wolf(world, player_id)
-        from mud_engine.ai import spawn_from_blueprint
-        from mud_engine.components import Position
+        from openmud.ai import spawn_from_blueprint
+        from openmud.components import Position
 
         bp = world.spawners["wolf"]
         room = world.require_component(player_id, Position).room

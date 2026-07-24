@@ -31,10 +31,10 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.components import AIController, Identity, NpcSpawnMeta, Position
-from mud_engine.scenes import build_world
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.components import AIController, Identity, NpcSpawnMeta, Position
+from openmud.scenes import build_world
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 class _AlwaysSpeakRng:

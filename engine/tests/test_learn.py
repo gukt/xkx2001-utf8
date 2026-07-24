@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Faction, SkillLevels
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
+from openmud.components import Faction, SkillLevels
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -94,7 +94,7 @@ class TestLearn:
     def test_learn_condition_failure(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
         execute_line(world, player_id, "join 少林")
-        from mud_engine.components import BaseAttributes
+        from openmud.components import BaseAttributes
 
         world.require_component(player_id, BaseAttributes).con = 8
         lines = execute_line(world, player_id, "learn martial")

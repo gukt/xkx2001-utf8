@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Engaged, LibraryRoom, Position, RoomFlags, Vitals
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
+from openmud.components import Engaged, LibraryRoom, Position, RoomFlags, Vitals
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

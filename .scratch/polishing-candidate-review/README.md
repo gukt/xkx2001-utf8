@@ -1,6 +1,6 @@
 # Polishing 候选评审（grill 已确认 → 待 to-spec）
 
-> 收束 LPC 房间/DSL 与当前 `mud_engine` 对照后的打磨项。  
+> 收束 LPC 房间/DSL 与当前 `openmud` 对照后的打磨项。  
 > **2026-07-23**：`/grill-with-docs` **共享理解已确认**（13 项 Polishing / B7·C15 GAP）。  
 > **权威分工**：拍板规格与决策矩阵 → session-notes；原始提问出处 → provenance。  
 > 未 `/to-spec` 前勿改契约 / 加载器。

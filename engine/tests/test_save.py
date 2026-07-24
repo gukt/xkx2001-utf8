@@ -21,12 +21,12 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Container, Doors, Exits, Identity, Position
-from mud_engine.parsing import execute_line
-from mud_engine.save import has_save, restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
+from openmud.components import Container, Doors, Exits, Identity, Position
+from openmud.parsing import execute_line
+from openmud.save import has_save, restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.scenes import build_world
+from openmud.world import EntityId, World
 
 
 def _room_name(world: World, room_id: EntityId) -> str:
@@ -104,7 +104,7 @@ def _mutate_state(world: World, player_id: EntityId) -> None:
     execute_line(world, player_id, "go north")  # -> 静室
     execute_line(world, player_id, "drop 石头")
     # 动态出口：静室加一条 down -> 长廊（静室原本是死胡同，无任何出口）。
-    from mud_engine.components import Exit
+    from openmud.components import Exit
 
     quiet = world.require_component(player_id, Position).room
     world.require_component(quiet, Exits).by_direction["down"] = Exit(target=corridor)
@@ -152,7 +152,7 @@ class TestRestoredDynamicExitAndDoorChanges:
         world, player_id = build_world()
         start = world.require_component(player_id, Position).room
         corridor = world.require_component(start, Exits).by_direction["north"].target
-        from mud_engine.components import Exit
+        from openmud.components import Exit
 
         world.require_component(start, Exits).by_direction["up"] = Exit(target=corridor)
         save_world(world, player_id, tmp_path)
@@ -167,7 +167,7 @@ class TestRestoredDynamicExitAndDoorChanges:
         )  # up 与 north 指向同一个房间（长廊）
 
     def test_changed_door_state_survives_restore(self, tmp_path) -> None:
-        from mud_engine.components import DoorState
+        from openmud.components import DoorState
 
         world, player_id = build_world()
         execute_line(world, player_id, "open south")  # 起始庭院 south 门从关变开

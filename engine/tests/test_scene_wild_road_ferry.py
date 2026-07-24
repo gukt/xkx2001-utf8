@@ -5,7 +5,7 @@ Seam：``load_mvp_scene`` + ``execute_line`` + ``TickLoop``。
 
 from __future__ import annotations
 
-from mud_engine.components import (
+from openmud.components import (
     Currency,
     Engaged,
     Exits,
@@ -17,10 +17,10 @@ from mud_engine.components import (
     Terrain,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _room(world: World, key: str) -> EntityId:
@@ -141,7 +141,7 @@ class TestWildRoadAndFerry:
         # 弱马拒行后 unride 步行进入高地形
         _move_to(world, player_id, "road_yz_east")
         if world.has_component(player_id, Engaged):
-            from mud_engine.combat_system import clear_engagement
+            from openmud.combat_system import clear_engagement
 
             clear_engagement(world, player_id, reason="test")
         execute_line(world, player_id, "ride 矮种马")

@@ -22,10 +22,10 @@ from dataclasses import dataclass
 
 import pytest
 
-from mud_engine import save
-from mud_engine.components import Identity, transient_field
-from mud_engine.save import restore_world, save_world
-from mud_engine.world import World
+from openmud import save
+from openmud.components import Identity, transient_field
+from openmud.save import restore_world, save_world
+from openmud.world import World
 
 
 # ── 测试用组件：演示瞬时字段 ──────────────────────────────────

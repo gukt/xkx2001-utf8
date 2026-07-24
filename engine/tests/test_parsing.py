@@ -5,11 +5,11 @@ ParseFailure 的形状（02 号票 acceptance 第 1、3、4 条）；execute_lin
 行为在 test_commands 覆盖。按 Given/When 场景分组成嵌套类，方法名只写 Then。
 """
 
-from mud_engine.components import Exit, Exits, Position
-from mud_engine.intent import Intent, ParseFailure, Reason
-from mud_engine.parsing import DeterministicParser, Parser, ParserChain
-from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
+from openmud.components import Exit, Exits, Position
+from openmud.intent import Intent, ParseFailure, Reason
+from openmud.parsing import DeterministicParser, Parser, ParserChain
+from openmud.scenes import build_world
+from openmud.world import EntityId, World
 
 
 def _parse(line: str) -> Intent | ParseFailure:

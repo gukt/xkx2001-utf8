@@ -11,12 +11,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from mud_engine.components import Container, Currency, Identity, Position, QuestProgress
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import SceneLoadError, instantiate_item, load_scene
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.world import EntityId, World
+from openmud.components import Container, Currency, Identity, Position, QuestProgress
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import SceneLoadError, instantiate_item, load_scene
+from openmud.scenes import load_mvp_scene
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -180,7 +180,7 @@ quests:
 """
             world, player_id = load_scene(_write_scene(tmp_path, scene))
             execute_line(world, player_id, "quest accept flag_trial")
-            from mud_engine.quest import set_quest_flag
+            from openmud.quest import set_quest_flag
 
             msgs = set_quest_flag(world, player_id, "saw_omen", True)
             assert any("完成" in m for m in msgs)

@@ -6,7 +6,7 @@ import json
 import random
 from pathlib import Path
 
-from mud_engine.components import (
+from openmud.components import (
     Container,
     Currency,
     Engaged,
@@ -17,12 +17,12 @@ from mud_engine.components import (
     Unconscious,
     Vitals,
 )
-from mud_engine.death_flow import ON_BEFORE_DEATH, handle_vitals_depleted
-from mud_engine.events import Deny
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.death_flow import ON_BEFORE_DEATH, handle_vitals_depleted
+from openmud.events import Deny
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -130,7 +130,7 @@ class TestPlayerDeathFlow:
             for i in world.require_component(yard, Container).items
             if world.require_component(i, Identity).name == "解毒丹"
         )
-        from mud_engine.transfer import transfer
+        from openmud.transfer import transfer
 
         transfer(world, herb, yard, player_id, player_id=player_id)
         assert herb in world.require_component(player_id, Container).items
@@ -229,7 +229,7 @@ class TestNpcDeathAndLoot:
 
     def test_respawn_after_scan(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _BASE))
-        from mud_engine.ai import spawn_scan
+        from openmud.ai import spawn_scan
 
         bandit = _npc_named(world, "山贼")
         assert bandit is not None

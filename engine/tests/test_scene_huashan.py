@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Identity, NoDeathZone, Position, Unconscious, Vitals
-from mud_engine.death_flow import handle_vitals_depleted
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import MVP_SCENE_PATH, load_mvp_scene
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.components import Identity, NoDeathZone, Position, Unconscious, Vitals
+from openmud.death_flow import handle_vitals_depleted
+from openmud.parsing import execute_line
+from openmud.scenes import MVP_SCENE_PATH, load_mvp_scene
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _room_by_key(world: World, key: str) -> EntityId:
@@ -68,7 +68,7 @@ class TestHuashanVillage:
         dummy = _npc_named(world, "稻草人", exclude=player_id)
         assert world.has_component(dummy, Vitals)
         # 教学木桩不应反击：无 Behaviors / AIController（spawn 路径亦不挂 AI）
-        from mud_engine.components import AIController, Behaviors
+        from openmud.components import AIController, Behaviors
 
         assert not world.has_component(dummy, Behaviors)
         assert not world.has_component(dummy, AIController)

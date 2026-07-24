@@ -13,15 +13,15 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Container, Description, Exits, Identity, Position
-from mud_engine.conditions import (
+from openmud.components import Container, Description, Exits, Identity, Position
+from openmud.conditions import (
     ConditionContext,
     Equals,
     Predicate,
     StubContext,
     evaluate,
 )
-from mud_engine.nature import (
+from openmud.nature import (
     DEFAULT_PHASES,
     ON_NATURE_CHANGE,
     DayPhase,
@@ -30,12 +30,12 @@ from mud_engine.nature import (
     Weather,
     attach_nature,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene, read_nature_config
-from mud_engine.scenes import build_world
-from mud_engine.tick import TickLoop
-from mud_engine.world import World
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene, read_nature_config
+from openmud.scenes import build_world
+from openmud.tick import TickLoop
+from openmud.world import World
 
 # 短相位：每相 2 游戏分钟，便于 advance() 快进。
 _SHORT_PHASES = (

@@ -5,10 +5,10 @@ seam：同一 World 上双 PlayerSession + ``execute_line`` / ``drain_messages``
 
 from __future__ import annotations
 
-from mud_engine.components import Exits, Identity, Position
-from mud_engine.messaging import room_say
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
+from openmud.components import Exits, Identity, Position
+from openmud.messaging import room_say
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
 
 
 class TestPerSessionMailbox:

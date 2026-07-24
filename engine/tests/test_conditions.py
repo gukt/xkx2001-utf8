@@ -7,7 +7,7 @@
 
 import pytest
 
-from mud_engine.conditions import (
+from openmud.conditions import (
     MAX_DEPTH,
     And,
     ConditionContext,

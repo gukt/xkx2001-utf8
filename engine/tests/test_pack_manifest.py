@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.errors import PackManifestError
-from mud_engine.pack import PackManifest, load_manifest
+from openmud.errors import PackManifestError
+from openmud.pack import PackManifest, load_manifest
 
 
 def _write_manifest(pack_dir: Path, text: str) -> Path:

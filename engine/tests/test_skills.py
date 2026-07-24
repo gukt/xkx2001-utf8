@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.errors import SceneLoadError
-from mud_engine.scene_loader import load_scene
-from mud_engine.skills import (
+from openmud.errors import SceneLoadError
+from openmud.scene_loader import load_scene
+from openmud.skills import (
     SKILLS,
     get_skill_behavior,
     register_skill_behavior,

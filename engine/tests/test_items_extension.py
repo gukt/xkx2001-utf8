@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import (
+from openmud.components import (
     Consumable,
     Container,
     Equippable,
@@ -21,12 +21,12 @@ from mud_engine.components import (
     Stackable,
     Valuable,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import build_world
-from mud_engine.transfer import TransferFailReason, TransferResult, item_weight, transfer
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.scenes import build_world
+from openmud.transfer import TransferFailReason, TransferResult, item_weight, transfer
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -240,8 +240,8 @@ class TestTransferPrimitive:
         assert any("放下" in m and "石头" in m for m in messages)
 
     def test_on_get_deny_still_blocks(self) -> None:
-        from mud_engine.events import Deny
-        from mud_engine.transfer import ON_GET
+        from openmud.events import Deny
+        from openmud.transfer import ON_GET
 
         world, player_id = build_world()
         world.events.register(ON_GET, lambda ctx: Deny(message="诅咒挡住了你。"))
@@ -255,7 +255,7 @@ class TestTransferPrimitive:
 
     def test_transfer_rejects_cyclic_nesting(self) -> None:
         # put A in B 而 B 已在 A 内：transfer 拒绝，防互含循环爆栈（Spec #3）。
-        from mud_engine.transfer import TransferFailReason, transfer
+        from openmud.transfer import TransferFailReason, transfer
 
         world, player_id = build_world()
         # 玩家栏持有容器 A，A 内有容器 B；transfer(A, player, B) 应拒绝。

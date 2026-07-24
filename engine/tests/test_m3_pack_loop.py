@@ -16,11 +16,11 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from mud_engine.__main__ import _main
-from mud_engine.components import Container, Currency, Identity, Position
-from mud_engine.pack import load_manifest, load_pack
-from mud_engine.parsing import execute_line
-from mud_engine.world import EntityId, World
+from openmud.__main__ import _main
+from openmud.components import Container, Currency, Identity, Position
+from openmud.pack import load_manifest, load_pack
+from openmud.parsing import execute_line
+from openmud.world import EntityId, World
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXAMPLE_PACK = (
@@ -93,7 +93,7 @@ def _play_move_and_get_then_save(
 @pytest.fixture
 def stub_repl(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     stub = MagicMock()
-    monkeypatch.setattr("mud_engine.__main__.run_repl", stub)
+    monkeypatch.setattr("openmud.__main__.run_repl", stub)
     return stub
 
 

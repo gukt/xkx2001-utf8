@@ -10,9 +10,9 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from mud_engine.combat import CombatContext, CombatMoveSnapshot, attach_power_model
-from mud_engine.combat_system import attach_combat_system, resolve_one_strike
-from mud_engine.components import (
+from openmud.combat import CombatContext, CombatMoveSnapshot, attach_power_model
+from openmud.combat_system import attach_combat_system, resolve_one_strike
+from openmud.components import (
     BaseAttributes,
     Identity,
     PlayerSession,
@@ -21,10 +21,10 @@ from mud_engine.components import (
     SkillProgress,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.skills import (
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.skills import (
     SilkRopeCaptureBehavior,
     SkillData,
     SkillMove,
@@ -32,8 +32,8 @@ from mud_engine.skills import (
     get_skill_behavior,
     replace_skills_registry,
 )
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _vitals() -> Vitals:
@@ -267,7 +267,7 @@ class TestSilkRopeSlice:
         world, player = load_xingxiu_mechanics()
         assert "silk_yard" in world.room_ids
         assert "silk_prison" in world.room_ids
-        from mud_engine.skills import SKILLS
+        from openmud.skills import SKILLS
 
         assert "silk_rope" in SKILLS
         levels = world.require_component(player, SkillLevels)

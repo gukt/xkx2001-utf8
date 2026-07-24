@@ -6,10 +6,10 @@
 
 from pathlib import Path
 
-from mud_engine.capabilities import NPC_CAPABILITIES, ROOM_CAPABILITIES
-from mud_engine.components import Description, Inquiry, Position
-from mud_engine.scene_loader import load_scene
-from mud_engine.world import EntityId, World
+from openmud.capabilities import NPC_CAPABILITIES, ROOM_CAPABILITIES
+from openmud.components import Description, Inquiry, Position
+from openmud.scene_loader import load_scene
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

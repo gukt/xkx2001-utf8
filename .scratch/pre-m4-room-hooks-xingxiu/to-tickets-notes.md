@@ -10,7 +10,7 @@
 - **上游**：[PROGRESS.md](../../PROGRESS.md)、[CONTEXT.md](../../CONTEXT.md)、[ADR-0012](../../docs/adr/0012-trusted-room-hooks-narrow-ctx.md)、grill 底稿 [session-notes-2026-07-22.md](session-notes-2026-07-22.md)。
 - **兄弟批 precedent**：[pre-m4-engine-room-fidelity](../pre-m4-engine-room-fidelity/)（7 票 / 3 Wave / implement-plan 形状，且本批直接复用其 `Exits`/`HiddenExits`/`block_exits`/`entry_guard`/`is_day`/`is_night`/`ItemTags` 等落地能力）与 [pre-m4-channels-spawn-quest](../pre-m4-channels-spawn-quest/)（双 `PlayerSession` seam，柔丝索复用）。
 - **代码接缝（拆票时点，见 explore 子代理报告）**：
-  - `SkillBehavior` 协议 + 模块级注册表（`engine/src/mud_engine/skills.py`）是本批「同构协议+注册表+窄 ctx」的直接仿照对象；`CombatContext` 是「窄只读 ctx」形状的先例。
+  - `SkillBehavior` 协议 + 模块级注册表（`engine/src/openmud/skills.py`）是本批「同构协议+注册表+窄 ctx」的直接仿照对象；`CombatContext` 是「窄只读 ctx」形状的先例。
   - `EventBus`（`events.py`）已有 `ON_BEFORE_ENTER_ROOM`（可否决）、`ON_ENTER_ROOM`/`ON_LEAVE_ROOM`（dispatch）、`ON_TICK`；**离房目前只 dispatch、不可否决**——`valid_leave` 迷途需要新增一个否决点，工作量不与其他机关同质，值得单独成票（`04`）。
   - `Exits`/`HiddenExits` 组件与 `unlock` 揭示迁移路径（`commands._cmd_unlock`）可直接复用；**没有** `add_exit`/`remove_exit` 封装函数，惯例是直接改 dict（先例 `ferry.py`）——窄 `ctx` 需要包一层。
   - **没有房间级自由 KV 状态组件**——多步状态机（`03`）、迷途步数（`04`）、崩塌延时戳（`02`）都要用，是本批唯一「完全新建」的数据结构，因此归入基建票 `01`，不重复建。

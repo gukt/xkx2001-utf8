@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import (
+from openmud.components import (
     Exits,
     Identity,
     Mount,
@@ -17,10 +17,10 @@ from mud_engine.components import (
     Unconscious,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

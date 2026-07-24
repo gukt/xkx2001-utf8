@@ -61,7 +61,7 @@
 - .scratch/pre-m4-room-hooks-xingxiu/spec.md 的 Implementation Decisions（房间钩子协议与注册表 / 窄 ctx API）
 - .scratch/pre-m4-room-hooks-xingxiu/to-tickets-notes.md「关键设计决策」1、2
 - docs/adr/0012-trusted-room-hooks-narrow-ctx.md
-- engine/src/mud_engine/skills.py（仿照对象：SkillBehavior 协议 + 注册表 + CombatContext 窄只读 ctx 形状）
+- engine/src/openmud/skills.py（仿照对象：SkillBehavior 协议 + 注册表 + CombatContext 窄只读 ctx 形状）
 
 注意：
 - 受限实体移动方法要实现为独立可复用方法本体（供未来票 10 的 SkillBehavior 直调），不要只挂在 ctx 对象上。

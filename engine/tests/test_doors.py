@@ -15,7 +15,7 @@
 按 Given/When 场景分组成嵌套类，方法名只写 Then（见 engine/README.md「测试约定」）。
 """
 
-from mud_engine.components import (
+from openmud.components import (
     Door,
     Doors,
     DoorState,
@@ -24,9 +24,9 @@ from mud_engine.components import (
     Identity,
     Position,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
+from openmud.world import EntityId, World
 
 
 def _player_room(world: World, player_id: EntityId) -> EntityId:

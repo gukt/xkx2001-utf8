@@ -6,17 +6,24 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Exits, Identity, PlayerSession, Position, RoomFreeState, RoomHookBinding
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.components import (
+    Exits,
+    Identity,
+    PlayerSession,
+    Position,
+    RoomFreeState,
+    RoomHookBinding,
+)
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     MultiStepGateHook,
     RoomHookContext,
     clear_room_hooks,
     get_room_hook,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.world import World
 
 
 @pytest.fixture(autouse=True)

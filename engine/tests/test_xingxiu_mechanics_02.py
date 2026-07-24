@@ -7,19 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Exits, Position, RoomFreeState, RoomHookBinding
-from mud_engine.errors import SceneLoadError
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.components import Exits, Position, RoomFreeState, RoomHookBinding
+from openmud.errors import SceneLoadError
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     DigCollapseHook,
     RoomHookContext,
     clear_room_hooks,
     get_room_hook,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import XINGXIU_MECHANICS_PATH, load_xingxiu_mechanics
-from mud_engine.tick import TickLoop
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.scenes import XINGXIU_MECHANICS_PATH, load_xingxiu_mechanics
+from openmud.tick import TickLoop
+from openmud.world import World
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +37,7 @@ def _minimal_dig_world(*, ttl_ticks: int = 3) -> tuple[World, int, int, int]:
     world.add_component(cave, Exits())
     world.room_ids = {"dig_peak": peak, "dig_cave": cave}
     player = world.create_entity()
-    from mud_engine.components import Identity, PlayerSession
+    from openmud.components import Identity, PlayerSession
 
     world.add_component(player, Position(room=peak))
     world.add_component(player, Identity(name="测者"))

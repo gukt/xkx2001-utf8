@@ -29,10 +29,10 @@ from verify_harness import (
     wait_ferry_across,
 )
 
-from mud_engine.combat_system import clear_engagement
-from mud_engine.components import Currency, Engaged, Position, Riding
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
+from openmud.combat_system import clear_engagement
+from openmud.components import Currency, Engaged, Position, Riding
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
 
 
 def _scenario_mount_terrain() -> ScenarioResult:

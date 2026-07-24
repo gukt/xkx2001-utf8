@@ -9,10 +9,10 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.components import Container, Identity, Position
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.world import EntityId, World
+from openmud.components import Container, Identity, Position
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

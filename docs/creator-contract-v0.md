@@ -1,8 +1,8 @@
 # 创作者契约 v0
 
 > 现行场景 YAML / 内容包 manifest 的冻结字段集合。  
-> 对应实现：`engine/src/mud_engine/scene_loader.py`、`engine/src/mud_engine/pack.py`。  
-> 机器可检查侧：`mud_engine --pack <dir> --validate`（默认 warn）与 `--strict`（未消费字段失败）——见 M3 停机加固票 [`05`](../.scratch/m3-hardening/issues/05-validate-strict-unconsumed-fields.md)。  
+> 对应实现：`engine/src/openmud/scene_loader.py`、`engine/src/openmud/pack.py`。  
+> 机器可检查侧：`openmud --pack <dir> --validate`（默认 warn）与 `--strict`（未消费字段失败）——见 M3 停机加固票 [`05`](../.scratch/m3-hardening/issues/05-validate-strict-unconsumed-fields.md)。  
 > Pre-M4 房间保真加法：票 [`07`](../.scratch/pre-m4-engine-room-fidelity/issues/07-closeout-contract-gap.md)（字段形状见同 effort 票 `01`–`06` Comments）。  
 > Pre-M4 房间钩子收口：票 [`11`](../.scratch/pre-m4-room-hooks-xingxiu/issues/11-closeout-ugc-boundary-contract-gap.md)（`hooks` 官方轨专属说明，非加法承诺）。
 
@@ -146,10 +146,10 @@
 
 ```bash
 # 加载并校验；未消费（透传）字段打印警告，退出码 0
-python -m mud_engine --pack <包目录> --validate
+python -m openmud --pack <包目录> --validate
 
 # 同上，但未消费字段视为失败（非 0 退出）
-python -m mud_engine --pack <包目录> --validate --strict
+python -m openmud --pack <包目录> --validate --strict
 ```
 
 `--strict` 必须搭配 `--validate`；`--validate` 必须搭配 `--pack`。检查复用上述已知字段集与透传容器，不另建平行登记表。语义色与本波新字段的消费/拒坏与 `load_scene` 同源——内容包轨经 `load_pack` → `load_scene` 覆盖。

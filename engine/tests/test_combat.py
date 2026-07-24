@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import random
 
-from mud_engine.combat import (
+from openmud.combat import (
     CombatContext,
     CombatMoveSnapshot,
     DefaultWuxiaPowerModel,
@@ -15,7 +15,7 @@ from mud_engine.combat import (
     register_power_model,
     resolve_attack,
 )
-from mud_engine.world import World
+from openmud.world import World
 
 
 def _ctx(

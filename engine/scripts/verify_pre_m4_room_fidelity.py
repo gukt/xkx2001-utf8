@@ -31,10 +31,10 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.components import Container, Currency, Exits, Identity, Position
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.world import World
+from openmud.components import Container, Currency, Exits, Identity, Position
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.world import World
 
 
 def _force_phase(world: World, name: str) -> None:

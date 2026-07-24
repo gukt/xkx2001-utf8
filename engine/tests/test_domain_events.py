@@ -21,7 +21,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from mud_engine.commands import (
+from openmud.commands import (
     ON_BEFORE_ENTER_ROOM,
     ON_DOOR_STATE_CHANGE,
     ON_ENTER_ROOM,
@@ -33,17 +33,17 @@ from mud_engine.commands import (
     EnterRoomContext,
     TraverseBlockedContext,
 )
-from mud_engine.components import (
+from openmud.components import (
     Container,
     DoorState,
     Exits,
     Identity,
     Position,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
-from mud_engine.transfer import ON_DROP, ON_GET, TransferContext
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
+from openmud.transfer import ON_DROP, ON_GET, TransferContext
+from openmud.world import EntityId, World
 
 
 def _player_room(world: World, player_id: EntityId) -> EntityId:

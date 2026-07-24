@@ -10,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import LocalNature, Position
-from mud_engine.conditions import Equals, Predicate, evaluate
-from mud_engine.entity_gate import EntityGateContext
-from mud_engine.errors import SceneLoadError
-from mud_engine.nature import Weather, attach_nature, resolve_effective_nature
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.components import LocalNature, Position
+from openmud.conditions import Equals, Predicate, evaluate
+from openmud.entity_gate import EntityGateContext
+from openmud.errors import SceneLoadError
+from openmud.nature import Weather, attach_nature, resolve_effective_nature
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

@@ -1,7 +1,7 @@
 # 条件 DSL（创作者可读）
 
 > 四个接入点共用同一套结构化条件表达式（受限 AST，非裸 Python）。  
-> 解析入口：`mud_engine.ai.condition_from_data`；求值：`mud_engine.conditions.evaluate`。  
+> 解析入口：`openmud.ai.condition_from_data`；求值：`openmud.conditions.evaluate`。  
 > 契约索引见 [creator-contract-v0.md](creator-contract-v0.md)；能力缺口见 [gap-ledger.md](gap-ledger.md)。  
 > 产出自 Polishing 票 [`07`](../.scratch/polishing/issues/07-condition-dsl-docs.md)。
 

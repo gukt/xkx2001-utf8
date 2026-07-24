@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import (
+from openmud.components import (
     Exit,
     Exits,
     HiddenExits,
@@ -15,18 +15,18 @@ from mud_engine.components import (
     Position,
     RoomHookBinding,
 )
-from mud_engine.nature import attach_nature
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.nature import attach_nature
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     RoomHookContext,
     TimeOfDayPassageHook,
     clear_room_hooks,
     get_room_hook,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.tick import TickLoop
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.tick import TickLoop
+from openmud.world import World
 
 
 @pytest.fixture(autouse=True)

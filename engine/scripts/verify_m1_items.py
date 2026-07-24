@@ -19,7 +19,7 @@ import sys
 
 from verify_harness import Expect, ScenarioResult, main_from, run_lines
 
-from mud_engine.scenes import build_world
+from openmud.scenes import build_world
 
 ENTER_STORAGE = (
     ("open south", Expect(contains=("打开",))),

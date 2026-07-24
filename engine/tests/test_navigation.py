@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Identity, Position
-from mud_engine.directions import DIRECTION_FORMS
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import build_world, load_mvp_scene
+from openmud.components import Identity, Position
+from openmud.directions import DIRECTION_FORMS
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.scenes import build_world, load_mvp_scene
 
 
 def _room_name(world, player_id) -> str:

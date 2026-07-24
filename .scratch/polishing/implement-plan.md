@@ -65,7 +65,7 @@
 开工前读：
 - .scratch/polishing/spec.md 的 Implementation Decisions「A1+A2」「A3」
 - CONTEXT.md「出口导航别名」词条（权威规格摘要）
-- engine/src/mud_engine/parsing.py（现有 DIRECTION_SHORTCUTS）
+- engine/src/openmud/parsing.py（现有 DIRECTION_SHORTCUTS）
 
 注意：
 - 出口 token 解析必须走「① 出口 aliases → ② 目标房 name/aliases → ③ 方向键内置同义词」三层顺序，_cmd_go 与 look 展示复用同一套候选解析，不要各写一套判定逻辑。

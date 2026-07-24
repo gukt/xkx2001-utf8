@@ -1,4 +1,4 @@
-"""M3-03：``python -m mud_engine`` 的 ``_main(argv) -> int`` seam。
+"""M3-03：``python -m openmud`` 的 ``_main(argv) -> int`` seam。
 
 不 fork 子进程；``run_repl`` 用 monkeypatch stub，避免真实 stdin。
 """
@@ -10,10 +10,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mud_engine.__main__ import DEFAULT_SAVE_DIR, _main
-from mud_engine.pack import load_manifest, load_pack
-from mud_engine.save import has_save, save_world
-from mud_engine.scenes import DEFAULT_SCENE_PATH
+from openmud.__main__ import DEFAULT_SAVE_DIR, _main
+from openmud.pack import load_manifest, load_pack
+from openmud.save import has_save, save_world
+from openmud.scenes import DEFAULT_SCENE_PATH
 
 _MINIMAL_SCENE = """
 rooms:
@@ -55,7 +55,7 @@ def _write_pack(
 @pytest.fixture
 def stub_repl(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     stub = MagicMock()
-    monkeypatch.setattr("mud_engine.__main__.run_repl", stub)
+    monkeypatch.setattr("openmud.__main__.run_repl", stub)
     return stub
 
 
@@ -85,7 +85,7 @@ class TestMainNoArgs:
         def fake_save(world, player_id, save_dir: Path) -> None:
             saved_dirs.append(save_dir)
 
-        monkeypatch.setattr("mud_engine.__main__.save_world", fake_save)
+        monkeypatch.setattr("openmud.__main__.save_world", fake_save)
 
         def capture_repl(world, player_id, *, tick_loop=None, **_kwargs):
             assert tick_loop is not None

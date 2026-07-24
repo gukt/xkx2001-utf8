@@ -10,9 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.ai import attach_ai_system, condition_from_data
-from mud_engine.messaging import ON_HEAR_SAY, HearSayContext, room_say
-from mud_engine.components import (
+from openmud.ai import attach_ai_system, condition_from_data
+from openmud.components import (
     AIController,
     Container,
     Identity,
@@ -21,13 +20,14 @@ from mud_engine.components import (
     PlayerSession,
     Position,
 )
-from mud_engine.conditions import Predicate, StubContext, evaluate
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import build_world
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.conditions import Predicate, StubContext, evaluate
+from openmud.messaging import ON_HEAR_SAY, HearSayContext, room_say
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.scenes import build_world
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, text: str) -> Path:
@@ -314,7 +314,7 @@ class TestChatter:
         scene = _scene_yaml(npcs={'nightowl': {'name': '夜猫', 'in_room': 'start_yard', 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['夜深了。'], 'chat_chance': 1.0, 'when': {'predicate': 'is_night'}}]}})
         world, _ = load_scene(_write_scene(tmp_path, scene))
         world.ai.rng = _AlwaysSpeakRng()
-        import mud_engine.ai as ai_mod
+        import openmud.ai as ai_mod
 
         monkeypatch.setattr(
             ai_mod,
@@ -331,7 +331,7 @@ class TestChatter:
         scene = _scene_yaml(npcs={'nightowl': {'name': '夜猫', 'in_room': 'start_yard', 'behaviors': [{'kind': 'chatter', 'chat_msgs': ['夜深了。'], 'chat_chance': 1.0, 'when': {'predicate': 'is_night'}}]}})
         world, _ = load_scene(_write_scene(tmp_path, scene))
         world.ai.rng = _AlwaysSpeakRng()
-        import mud_engine.ai as ai_mod
+        import openmud.ai as ai_mod
 
         monkeypatch.setattr(
             ai_mod,

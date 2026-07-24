@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from mud_engine.components import Position
-from mud_engine.world import World
+from openmud.components import Position
+from openmud.world import World
 
 
 @dataclass

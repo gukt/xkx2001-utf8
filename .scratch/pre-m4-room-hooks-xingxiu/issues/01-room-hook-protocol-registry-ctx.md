@@ -27,7 +27,7 @@ Status: resolved
 
 ### 实现摘要（2026-07-22 Wave 1）
 
-- **模块**：`engine/src/mud_engine/room_hooks.py`
+- **模块**：`engine/src/openmud/room_hooks.py`
 - **协议**：`RoomHook`（可选 `on_enter` / `on_leave` / `on_tick`，均收 `RoomHookContext`）；注册表 `register_room_hook` / `get_room_hook` / `clear_room_hooks`
 - **窄 ctx 方法名**：`add_exit` / `remove_exit` / `hide_exit` / `reveal_exit` / `schedule` / `clear_schedule` / `schedule_due` / `message_room` / `message_actor` / `get_state` / `set_state` / `move_entity`
 - **只读快照字段**：`room_id` / `actor_id` / `params` / `tick` / `phase` / `is_day` / `is_night`

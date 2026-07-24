@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Exits, Ferry, Position
-from mud_engine.ferry import attach_ferries
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.components import Exits, Ferry, Position
+from openmud.ferry import attach_ferries
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

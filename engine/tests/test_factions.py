@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Faction
-from mud_engine.errors import SceneLoadError
-from mud_engine.factions import FACTIONS
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
+from openmud.components import Faction
+from openmud.errors import SceneLoadError
+from openmud.factions import FACTIONS
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

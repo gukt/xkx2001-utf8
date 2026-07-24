@@ -1,6 +1,6 @@
 # 04 — 非武侠示例内容包：废弃探测站（`example-pack/`）
 
-**What to build:** 落地 spec Implementation Decisions「D1」：在 `.scratch/m3-ugc-loop-creation-surface/example-pack/` 下手写一份完整、可玩通的最小内容包（`manifest.yaml` + `scene.yaml`），题材是与"侠客行"武侠世界完全无关的科幻小场景（"废弃探测站"），**只复用现有已交付的声明式能力**（房间/出口/门与钥匙、物品 `valuable`、NPC `inquiry` 问答、NPC `shop` 商店、玩家 `currency`），**不新增任何引擎能力/组件/字段**——本票是纯内容创作票，不改 `engine/src/mud_engine/` 下任何一个模块。场景结构：3 个房间（气闸舱起点 → 补给舱 → 主控室终点），补给舱到主控室之间是一道上锁的门，钥匙（如"通行卡"）放在补给舱地面上可以先拾取；主控室里一个 NPC（如"维修机器人"），有 `inquiry` 问答（至少一条关于这个站/关于自己的话题 + `default`）与 `shop`（出售至少一件带 `valuable` 的物品）；玩家 `manifest`/`player` 段带初始 `currency` 足够买下商店里的物品。`manifest.yaml` 填 `id`/`version`/`creator`/`title`（四个字段都给，作为"完整示例"的示范）。
+**What to build:** 落地 spec Implementation Decisions「D1」：在 `.scratch/m3-ugc-loop-creation-surface/example-pack/` 下手写一份完整、可玩通的最小内容包（`manifest.yaml` + `scene.yaml`），题材是与"侠客行"武侠世界完全无关的科幻小场景（"废弃探测站"），**只复用现有已交付的声明式能力**（房间/出口/门与钥匙、物品 `valuable`、NPC `inquiry` 问答、NPC `shop` 商店、玩家 `currency`），**不新增任何引擎能力/组件/字段**——本票是纯内容创作票，不改 `engine/src/openmud/` 下任何一个模块。场景结构：3 个房间（气闸舱起点 → 补给舱 → 主控室终点），补给舱到主控室之间是一道上锁的门，钥匙（如"通行卡"）放在补给舱地面上可以先拾取；主控室里一个 NPC（如"维修机器人"），有 `inquiry` 问答（至少一条关于这个站/关于自己的话题 + `default`）与 `shop`（出售至少一件带 `valuable` 的物品）；玩家 `manifest`/`player` 段带初始 `currency` 足够买下商店里的物品。`manifest.yaml` 填 `id`/`version`/`creator`/`title`（四个字段都给，作为"完整示例"的示范）。
 
 **Blocked by:** `02`（示例包需要能被 `load_pack` 成功加载才算完成，验收时要跑一次真实加载确认；不依赖 `03` 的 CLI 层，可与 `03` 并行）。
 

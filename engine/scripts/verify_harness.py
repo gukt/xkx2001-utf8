@@ -11,11 +11,11 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from mud_engine.components import Exits, Position
-from mud_engine.parsing import execute_line
-from mud_engine.semantic_color import render_ansi, strip_tokens
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.components import Exits, Position
+from openmud.parsing import execute_line
+from openmud.semantic_color import render_ansi, strip_tokens
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 @dataclass(frozen=True)

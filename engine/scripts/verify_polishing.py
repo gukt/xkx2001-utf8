@@ -23,7 +23,6 @@ import tempfile
 from pathlib import Path
 
 import yaml
-
 from verify_harness import (
     Expect,
     ScenarioResult,
@@ -35,8 +34,8 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.ai import spawn_scan
-from mud_engine.components import (
+from openmud.ai import spawn_scan
+from openmud.components import (
     Exits,
     NpcSpawnMeta,
     Position,
@@ -44,12 +43,12 @@ from mud_engine.components import (
     RoomHookBinding,
     Vitals,
 )
-from mud_engine.entity_gate import EntityGateContext
-from mud_engine.nature import Weather, attach_nature
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_mvp_scene, load_xingxiu_mechanics
-from mud_engine.world import EntityId, World
+from openmud.entity_gate import EntityGateContext
+from openmud.nature import Weather, attach_nature
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_mvp_scene, load_xingxiu_mechanics
+from openmud.world import EntityId, World
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -141,7 +140,7 @@ def _scenario_01_exit_nav() -> ScenarioResult:
 
 def _scenario_02_yaml_shorthand() -> ScenarioResult:
     """票 02：出口简写 + 地名挂目标房 aliases（``go 武庙`` / ``go 广场``）。"""
-    from mud_engine.components import Identity
+    from openmud.components import Identity
 
     world, player_id = load_mvp_scene()
     move_to(world, player_id, "yangzhou_guangchang")

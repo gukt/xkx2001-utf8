@@ -28,8 +28,8 @@ from verify_harness import (
     wait_ferry_across,
 )
 
-from mud_engine.combat_system import clear_engagement
-from mud_engine.components import (
+from openmud.combat_system import clear_engagement
+from openmud.components import (
     Container,
     Currency,
     Engaged,
@@ -40,10 +40,10 @@ from mud_engine.components import (
     SkillLevels,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _npc_named(world: World, name: str, *, exclude: EntityId) -> EntityId:

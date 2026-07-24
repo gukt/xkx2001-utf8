@@ -9,14 +9,14 @@
 
 from __future__ import annotations
 
-from mud_engine.components import Exits, RoomHookBinding
-from mud_engine.scenes import (
+from openmud.components import Exits, RoomHookBinding
+from openmud.scenes import (
     MVP_SCENE_PATH,
     XINGXIU_MECHANICS_PATH,
     load_mvp_scene,
     load_xingxiu_mechanics,
 )
-from mud_engine.skills import get_skill_behavior
+from openmud.skills import get_skill_behavior
 
 # 十类机关：房间键 → 期望 hook_id（``random_of`` / ``silk_rope`` 另测）
 _HOOKED_ROOMS: dict[str, str] = {

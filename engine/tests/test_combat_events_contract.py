@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from mud_engine.combat_system import (
+from openmud.combat_system import (
     ON_BEFORE_COMBAT_ROUND,
     ON_COMBAT_END,
     ON_COMBAT_ROUND,
@@ -20,11 +20,11 @@ from mud_engine.combat_system import (
     attach_combat_system,
     resolve_one_strike,
 )
-from mud_engine.components import Engaged, Identity, Vitals
-from mud_engine.events import Deny
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.components import Engaged, Identity, Vitals
+from openmud.events import Deny
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

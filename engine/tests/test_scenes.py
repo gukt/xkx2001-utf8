@@ -4,8 +4,8 @@
 「测试约定」）。
 """
 
-from mud_engine.components import Container, Description, Exits, Identity, Position
-from mud_engine.scenes import build_world
+from openmud.components import Container, Description, Exits, Identity, Position
+from openmud.scenes import build_world
 
 
 class TestBuildWorld:

@@ -66,7 +66,7 @@ M3 里程碑（包外声明式内容包 → `load_pack` → `--validate` → 可
 
 **P0-7（`--validate` 未消费字段 warn）**
 
-19. 作为 UGC 创作者，我想跑 `mud_engine --pack <dir> --validate` 时，如果我的场景 YAML 里有字段被引擎透传进 `extension_data` 而没有被任何能力消费，能看到一条明确的警告列出具体是哪些字段、在哪个实体上，以便及时发现拼写错误或过时字段，而不是加载"成功"却发现游戏里毫无效果。
+19. 作为 UGC 创作者，我想跑 `openmud --pack <dir> --validate` 时，如果我的场景 YAML 里有字段被引擎透传进 `extension_data` 而没有被任何能力消费，能看到一条明确的警告列出具体是哪些字段、在哪个实体上，以便及时发现拼写错误或过时字段，而不是加载"成功"却发现游戏里毫无效果。
 20. 作为 UGC 创作者，我想默认行为是 warn（不阻断校验通过），但可以加 `--strict` 让未消费字段变成校验失败，以便日常创作时不被这条检查打断，但在正式发布前可以选择更严格的把关。
 21. 作为引擎开发者，我想这条检查复用已经存在的已知字段集机制（`_ROOM_KNOWN_FIELDS` 等 + `world.extension_data`/`entity_extension_data()`），不新建一套平行的字段登记表，以便"哪些字段是已知的"只有一份事实来源。
 
@@ -87,7 +87,7 @@ M3 里程碑（包外声明式内容包 → `load_pack` → `--validate` → 可
 
 **B3-2（P1-3 / M1：抽出 `messaging.py`，解开 `ai ↔ commands` 循环依赖）**
 
-26. 作为引擎开发者，我想 `room_say`（及其依赖的 `ON_HEAR_SAY`/`HearSayContext`/玩家判定辅助函数）搬到一个新的 `messaging.py` 模块，以便 `ai.py` 的 Chatter 行为可以在模块顶部直接 `from mud_engine.messaging import room_say`，不用再在函数体内做一次延迟 import 来绕开循环依赖。
+26. 作为引擎开发者，我想 `room_say`（及其依赖的 `ON_HEAR_SAY`/`HearSayContext`/玩家判定辅助函数）搬到一个新的 `messaging.py` 模块，以便 `ai.py` 的 Chatter 行为可以在模块顶部直接 `from openmud.messaging import room_say`，不用再在函数体内做一次延迟 import 来绕开循环依赖。
 27. 作为引擎开发者，我想这次搬家只是"移动 + 改 import"，不改变 `room_say` 的行为或签名，以便这是一次纯粹的结构性清理，不需要更新任何依赖其行为的测试断言。
 
 **B3-3（P1-4 / C1：官方/示例双轨范本文档）**
@@ -114,7 +114,7 @@ M3 里程碑（包外声明式内容包 → `load_pack` → `--validate` → 可
 
 **P0-2（昏迷 tick 自动苏醒）**
 
-- 给 `Unconscious`（`engine/src/mud_engine/components.py`）新增字段 `ticks_remaining: int`（陷入昏迷时按 `DeathPolicy` 参数写入初值，不再是空 marker）。
+- 给 `Unconscious`（`engine/src/openmud/components.py`）新增字段 `ticks_remaining: int`（陷入昏迷时按 `DeathPolicy` 参数写入初值，不再是空 marker）。
 - `DeathPolicy`（`death_flow.py`）新增两个数据字段：`unconscious_recovery_ticks: int`（默认给一个 MVP 数值，如 5）与 `recovery_vitals_ratio: float`（苏醒时气血恢复到 `qi_max` 的比例，默认如 0.2，避免醒来即刻 0 血又被环境判定打回昏迷）。两者与现有 `penalty_ratio`/`revive_room_key` 同构，场景可声明覆盖。
 - 新增一个挂在 `world.events` 的 `on_tick` 订阅者（与 `attach_ai_system`/`attach_ferries` 同构的 `attach_xxx` 函数，放在 `death_flow.py`）：遍历 `entities_with(Unconscious)`，每 tick 递减 `ticks_remaining`，归零时移除 `Unconscious`、把 `Vitals.qi_current` 设为 `max(1, int(qi_max * recovery_vitals_ratio))`、推一条 `world.pending_messages` 提示"你悠悠转醒"。不触碰 `Engaged`（昏迷时已经在 `_handle_player_depleted` 里清过交战关系，苏醒不重新建立）。
 - 存档：`Unconscious` 已经是"运行时可变进存档"的组件，新增字段走现有 `save.py` codec 扩展流程（与其他组件加字段同样处理，不需要新的版本机制——本项目当前无存档格式版本号，`/to-tickets` 若发现需要为老存档缺字段兜底，按"缺失字段回退默认值"处理，不新增迁移框架）。
@@ -169,10 +169,10 @@ M3 里程碑（包外声明式内容包 → `load_pack` → `--validate` → 可
 
 **B3-2（抽出 `messaging.py`）**
 
-- 新建 `engine/src/mud_engine/messaging.py`：迁入 `room_say`、`_is_player_entity`（可考虑改名去掉下划线前缀，因为将被 `ai.py` 跨模块使用，具体命名 `/to-tickets` 定）、`ON_HEAR_SAY`、`HearSayContext`（若这些常量/类型当前定义在 `commands.py` 别处，一并迁移到 `messaging.py`）。
-- `commands.py` 的 `say` 命令改为 `from mud_engine.messaging import room_say`（模块顶部 import，不再是本地定义）。
-- `ai.py` 第 174 行的延迟 import（`from mud_engine.commands import room_say`，在函数体内）改为模块顶部 `from mud_engine.messaging import room_say`，移除函数体内的延迟 import。
-- 纯结构性搬家，不改变 `room_say` 行为；现有测试（若有直接 `from mud_engine.commands import room_say` 的测试用例）需要同步改 import 路径。
+- 新建 `engine/src/openmud/messaging.py`：迁入 `room_say`、`_is_player_entity`（可考虑改名去掉下划线前缀，因为将被 `ai.py` 跨模块使用，具体命名 `/to-tickets` 定）、`ON_HEAR_SAY`、`HearSayContext`（若这些常量/类型当前定义在 `commands.py` 别处，一并迁移到 `messaging.py`）。
+- `commands.py` 的 `say` 命令改为 `from openmud.messaging import room_say`（模块顶部 import，不再是本地定义）。
+- `ai.py` 第 174 行的延迟 import（`from openmud.commands import room_say`，在函数体内）改为模块顶部 `from openmud.messaging import room_say`，移除函数体内的延迟 import。
+- 纯结构性搬家，不改变 `room_say` 行为；现有测试（若有直接 `from openmud.commands import room_say` 的测试用例）需要同步改 import 路径。
 
 **B3-3（官方/示例双轨范本文档）**
 

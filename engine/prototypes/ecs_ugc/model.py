@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
 # ── 共享动作与观测 ──────────────────────────────────────
 
 

@@ -8,15 +8,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import DetailEntry, Position, RoomDetails
-from mud_engine.parsing import execute_line
-from mud_engine.room_details import (
+from openmud.components import DetailEntry, Position, RoomDetails
+from openmud.parsing import execute_line
+from openmud.room_details import (
     normalize_detail_token,
     resolve_detail,
     scan_detail_mentions,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_mvp_scene
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_mvp_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

@@ -7,13 +7,13 @@ from unittest.mock import patch
 
 import pytest
 
-from mud_engine.components import Container, Engaged, Exits, Identity, Position
-from mud_engine.errors import PackManifestError
-from mud_engine.pack import load_manifest, load_pack, reattach_pack_manifest
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import SceneLoadError, load_scene
-from mud_engine.world import World
+from openmud.components import Container, Engaged, Exits, Identity, Position
+from openmud.errors import PackManifestError
+from openmud.pack import load_manifest, load_pack, reattach_pack_manifest
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import SceneLoadError, load_scene
+from openmud.world import World
 
 _MINIMAL_SCENE = """
 rooms:
@@ -97,7 +97,7 @@ class TestLoadPackFailures:
             tmp_path / "pack",
             manifest="version: '1'\n",  # 缺 id
         )
-        with patch("mud_engine.pack.load_scene") as spy_load_scene:
+        with patch("openmud.pack.load_scene") as spy_load_scene:
             with pytest.raises(PackManifestError) as exc_info:
                 load_pack(pack_dir)
             spy_load_scene.assert_not_called()
@@ -325,7 +325,7 @@ player:
     def test_validate_strict_flags_include_unconsumed_fields(
         self, tmp_path: Path
     ) -> None:
-        from mud_engine.__main__ import _main
+        from openmud.__main__ import _main
 
         pack_dir = tmp_path / "pack"
         _write_pack(pack_dir, scene=_SCENE_WITH_INCLUDES)

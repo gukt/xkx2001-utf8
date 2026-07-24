@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import (
+from openmud.components import (
     Engaged,
     Exit,
     Exits,
@@ -19,16 +19,16 @@ from mud_engine.components import (
     RoomHookBinding,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     KillOrderHook,
     RoomHookContext,
     clear_room_hooks,
     get_room_hook,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.world import World
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +86,7 @@ def _minimal_kill_order_world(
     *, faction_id: str | None = "shaolin"
 ) -> tuple[World, int, int, int]:
     """返回 (world, cave, player, guard)。"""
-    from mud_engine.ai import SpawnerBlueprint, spawn_from_blueprint
+    from openmud.ai import SpawnerBlueprint, spawn_from_blueprint
 
     world = World()
     cave = world.create_entity()
@@ -218,7 +218,7 @@ class TestKillOrderCommandS1:
         world.drain_messages(player_id)
         # 清交战以免 try_engage 失败
         if world.has_component(player_id, Engaged):
-            from mud_engine.combat_system import clear_engagement
+            from openmud.combat_system import clear_engagement
 
             clear_engagement(world, player_id)
         execute_line(world, player_id, "go north")

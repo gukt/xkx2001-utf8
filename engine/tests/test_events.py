@@ -16,8 +16,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from mud_engine.events import ON_TICK, EventBus, TickContext
-from mud_engine.world import World
+from openmud.events import ON_TICK, EventBus, TickContext
+from openmud.world import World
 
 
 class TestEventBus:

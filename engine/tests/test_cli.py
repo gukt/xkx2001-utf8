@@ -9,10 +9,10 @@
 
 import io
 
-from mud_engine.cli import run_repl
-from mud_engine.save import has_save, restore_world, save_world
-from mud_engine.scenes import build_world
-from mud_engine.tick import TickLoop
+from openmud.cli import run_repl
+from openmud.save import has_save, restore_world, save_world
+from openmud.scenes import build_world
+from openmud.tick import TickLoop
 
 
 class TestRunRepl:

@@ -9,21 +9,20 @@ from pathlib import Path
 
 import yaml
 
-from mud_engine.components import (
+from openmud.components import (
     BlockEntry,
     BlockExits,
     Container,
-    DoorState,
     Exits,
     HiddenExits,
     Identity,
     NpcSpawnMeta,
     Position,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_mvp_scene
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_mvp_scene
 
 
 def _write_scene(tmp_path: Path, data: dict) -> Path:

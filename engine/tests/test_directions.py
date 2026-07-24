@@ -1,6 +1,6 @@
 """内置十向同义词表单元测试（Polishing A1）。"""
 
-from mud_engine.directions import (
+from openmud.directions import (
     DIRECTION_FORMS,
     builtin_aliases,
     exit_display_label,

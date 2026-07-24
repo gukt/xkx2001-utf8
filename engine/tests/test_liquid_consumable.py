@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import (
+from openmud.components import (
     Consumable,
     Container,
     Identity,
@@ -15,8 +15,8 @@ from mud_engine.components import (
     RoomResources,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -95,7 +95,7 @@ class TestRoomResourceLoad:
         assert "filled_liquid" not in extras
 
     def test_unknown_resource_key_fails_load(self, tmp_path: Path) -> None:
-        from mud_engine.scene_loader import SceneLoadError
+        from openmud.scene_loader import SceneLoadError
 
         bad = _SCENE.replace("water: true", "grass: true")
         try:

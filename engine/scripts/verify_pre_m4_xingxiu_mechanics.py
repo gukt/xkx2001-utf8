@@ -31,8 +31,8 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.combat_system import attach_combat_system
-from mud_engine.components import (
+from openmud.combat_system import attach_combat_system
+from openmud.components import (
     BaseAttributes,
     Engaged,
     Exits,
@@ -40,10 +40,10 @@ from mud_engine.components import (
     Position,
     Vitals,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _force_phase(world: World, name: str) -> None:

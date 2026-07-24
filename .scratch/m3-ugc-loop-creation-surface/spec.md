@@ -8,7 +8,7 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归引擎、内容归题材包"这条边界在**官方**内容上成立——但引擎目前只知道怎么加载它自己 `engine/data/` 目录下两份硬编码路径的场景文件（`m1_default_scene.yaml`/`m2_mvp_scene.yaml`），`python -m mud_engine` 与 `scenes.build_world()` 都没有任何方式指向仓库之外、由别人写的一份内容。场景数据也没有任何"这是谁的包、什么版本"的自我描述——`SceneLoadError` 报错时定位到文件路径与字段键，但没有"包身份"这个概念。换句话说，"题材无关的核心引擎"这半句项目宣言目前完全没有被检验过：迄今为止加载过的两份场景数据都是仓库自带的、且都是同一个武侠题材，"引擎真的能装下引擎作者从未设想过的、外部写的、甚至完全不同题材的内容"这条最基本的 UGC 承诺还停留在架构意图层面，没有一次真实的端到端验证。同时，创作者（人或 Agent）今天若想试写一份内容包，唯一的反馈方式是启动真实游玩循环（`run_repl`）从错误消息里摸索——没有一个"我刚写的这份包语法对不对、字段全不全"的快速迭代通道，而 [ADR-0006](../../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md) 已经明确"游戏内编辑器"与"Web 评审台"都不是引擎该做的事，引擎侧唯一该留的是"内容包加载/校验契约"。
+M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归引擎、内容归题材包"这条边界在**官方**内容上成立——但引擎目前只知道怎么加载它自己 `engine/data/` 目录下两份硬编码路径的场景文件（`m1_default_scene.yaml`/`m2_mvp_scene.yaml`），`python -m openmud` 与 `scenes.build_world()` 都没有任何方式指向仓库之外、由别人写的一份内容。场景数据也没有任何"这是谁的包、什么版本"的自我描述——`SceneLoadError` 报错时定位到文件路径与字段键，但没有"包身份"这个概念。换句话说，"题材无关的核心引擎"这半句项目宣言目前完全没有被检验过：迄今为止加载过的两份场景数据都是仓库自带的、且都是同一个武侠题材，"引擎真的能装下引擎作者从未设想过的、外部写的、甚至完全不同题材的内容"这条最基本的 UGC 承诺还停留在架构意图层面，没有一次真实的端到端验证。同时，创作者（人或 Agent）今天若想试写一份内容包，唯一的反馈方式是启动真实游玩循环（`run_repl`）从错误消息里摸索——没有一个"我刚写的这份包语法对不对、字段全不全"的快速迭代通道，而 [ADR-0006](../../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md) 已经明确"游戏内编辑器"与"Web 评审台"都不是引擎该做的事，引擎侧唯一该留的是"内容包加载/校验契约"。
 
 ## Solution
 
@@ -30,7 +30,7 @@ M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归
 
 ### 块 B：指向加载
 
-5. 作为运行引擎的人，我想执行 `python -m mud_engine --pack <目录>`，引擎从指定目录加载这个内容包并进入真实可玩的 REPL 循环，而不是像今天一样只能加载引擎自带的两份场景文件之一，以便验证"内容包可以来自任何地方，不需要塞进 `engine/data/`、不需要重新打包发布引擎才能玩到新内容"。
+5. 作为运行引擎的人，我想执行 `python -m openmud --pack <目录>`，引擎从指定目录加载这个内容包并进入真实可玩的 REPL 循环，而不是像今天一样只能加载引擎自带的两份场景文件之一，以便验证"内容包可以来自任何地方，不需要塞进 `engine/data/`、不需要重新打包发布引擎才能玩到新内容"。
 6. 作为运行引擎的人，我想不传 `--pack` 时引擎行为与今天完全一致（加载 `engine/data/m1_default_scene.yaml` 默认场景，存档路径不变），以便这条新能力是纯新增，不影响已经在跑的默认路径与已有测试。
 7. 作为终端玩家，我想在 `--pack` 模式下正常存档/退出/重新启动能恢复到上次进度（与默认模式的崩溃恢复级耐久语义一致），以便"包外内容包可玩"这句话包含"可以持续玩、不是一次性 demo"这层含义。
 8. 作为引擎开发者，我想 `--pack` 模式下的存档目录默认落在该内容包目录自己的子目录下（而不是复用 `engine/save/`），以便同一台机器上多个不同的外部内容包各自的存档天然互不污染，不需要额外的手动路径管理。
@@ -38,7 +38,7 @@ M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归
 
 ### 块 C：校验模式
 
-10. 作为题材包创作者，我想执行 `python -m mud_engine --pack <目录> --validate`，引擎完整走一遍"读 manifest + 加载场景数据的全部结构性校验"但不启动 REPL、不触碰任何存档目录，成功则打印一行确认摘要（如"校验通过：<id> v<version>，N 个房间"），以便我在反复改内容包的过程中有一个秒级的反馈通道，不用每次改完都真的进世界走一遍才知道有没有写错字段。
+10. 作为题材包创作者，我想执行 `python -m openmud --pack <目录> --validate`，引擎完整走一遍"读 manifest + 加载场景数据的全部结构性校验"但不启动 REPL、不触碰任何存档目录，成功则打印一行确认摘要（如"校验通过：<id> v<version>，N 个房间"），以便我在反复改内容包的过程中有一个秒级的反馈通道，不用每次改完都真的进世界走一遍才知道有没有写错字段。
 11. 作为题材包创作者，我想校验失败时看到的报错风格与真的启动游玩时看到的报错完全一致（同一份 `SceneLoadError`/`PackManifestError` 消息），以便"校验模式"与"真的加载"用的是同一套校验代码，不会出现"校验说过了、一启动却报另一种错"的不一致体验。
 12. 作为未来的创作者 Web 平台开发者（post-MVP，[ADR-0006](../../docs/adr/0006-no-engine-editor-board-post-mvp-creator-platform.md) 点名"验证应复用引擎侧包校验契约/CLI，而非在引擎内嵌 UI"），我想这条校验能力是一个稳定的命令行契约（可被子进程调用、看退出码与标准输出/错误即可判断通过与否），而不是只能在交互式 REPL 里手动看结果，以便未来平台可以直接 shell 出去调用它，不需要引擎为"给它提供校验服务"这件事再单独开一套 API。
 
@@ -58,25 +58,25 @@ M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归
 
 **`PackManifest` 与 `load_manifest`（A2，纯函数层）**
 
-- 新模块 `mud_engine.pack`，新数据类 `PackManifest(id: str, version: str, creator: str | None = None, title: str | None = None, extra: dict = field(default_factory=dict))`。`extra` 收纳 `id`/`version`/`creator`/`title` 之外的未知字段（透传手法，同 M1 11 号票/M2 场景加载器已验证的模式）。
+- 新模块 `openmud.pack`，新数据类 `PackManifest(id: str, version: str, creator: str | None = None, title: str | None = None, extra: dict = field(default_factory=dict))`。`extra` 收纳 `id`/`version`/`creator`/`title` 之外的未知字段（透传手法，同 M1 11 号票/M2 场景加载器已验证的模式）。
 - `load_manifest(pack_dir: Path) -> PackManifest`：读 `pack_dir/manifest.yaml`，校验 `id`/`version` 必需且为字符串；文件不存在、YAML 语法错误、顶层不是映射、`id`/`version` 缺失或类型不对，统一抛新错误类型 `PackManifestError`（下条）。这是一个不依赖 `World`/`scene_loader` 的纯粹"给一个路径，读出一个校验过的数据对象或抛错"函数，与 M1/M2 已经验证过的"纯函数直测"seam 同构（如 M2 的 `resolve_attack`、条件求值器）。
 
 **`PackManifestError`（A3）**
 
-- 新增在 `mud_engine.errors`（与 `SceneLoadError` 同一模块，同样的"避免循环 import + 错误类型不挂在消费者模块上造成心智错位"理由）。消息格式延续 `SceneLoadError` 已确立的风格：带路径、带具体缺失/类型不对的字段名。两种错误类型**不合并成一种**：manifest 校验与场景内容校验是两个不同的验证阶段（先读身份、再读内容），分开的错误类型让调用方（`--validate` 模式的诊断输出）能在需要时区分"包的身份信息本身就有问题"与"包的世界内容有问题"，尽管 M3 阶段两者的处理方式（打印消息 + 非零退出）完全一样。
+- 新增在 `openmud.errors`（与 `SceneLoadError` 同一模块，同样的"避免循环 import + 错误类型不挂在消费者模块上造成心智错位"理由）。消息格式延续 `SceneLoadError` 已确立的风格：带路径、带具体缺失/类型不对的字段名。两种错误类型**不合并成一种**：manifest 校验与场景内容校验是两个不同的验证阶段（先读身份、再读内容），分开的错误类型让调用方（`--validate` 模式的诊断输出）能在需要时区分"包的身份信息本身就有问题"与"包的世界内容有问题"，尽管 M3 阶段两者的处理方式（打印消息 + 非零退出）完全一样。
 
 **`load_pack` 组合入口 + `World.pack_manifest`（B1）**
 
-- `mud_engine.pack.load_pack(pack_dir: Path) -> tuple[World, EntityId]`：调 `load_manifest(pack_dir)`，再调现有 `load_scene(pack_dir / "scene.yaml")`（**不修改** `load_scene` 一行代码——组合而非改造，这是本 spec 唯一必须成立的架构性约束：M3 不因为"要支持包外加载"而回头改动 M1/M2 已经验证过的场景加载器本体），把校验过的 `PackManifest` 挂到返回的 `world.pack_manifest` 字段上。
+- `openmud.pack.load_pack(pack_dir: Path) -> tuple[World, EntityId]`：调 `load_manifest(pack_dir)`，再调现有 `load_scene(pack_dir / "scene.yaml")`（**不修改** `load_scene` 一行代码——组合而非改造，这是本 spec 唯一必须成立的架构性约束：M3 不因为"要支持包外加载"而回头改动 M1/M2 已经验证过的场景加载器本体），把校验过的 `PackManifest` 挂到返回的 `world.pack_manifest` 字段上。
 - `World` 新增字段 `pack_manifest: PackManifest | None = None`。定位与 `world.nature`/`world.ai`/`world.spawners`/`world.ferries` 完全同构：**运行时态、不进存档**（`save.py` 的序列化范围本 spec 不扩展一行——见下条为什么这样反而更简单）。默认（非 `--pack`，走 `scenes.build_world()`）路径 `pack_manifest` 始终是 `None`，行为对已有默认场景零影响。
 
 **存档恢复后的 `pack_manifest` 重建（B2，复用既有"运行时态不进存档、restore 后重挂"模式，不新开一条持久化路径）**
 
-- 不扩展 `save.py`：`world.scene_path` 已经在存档 `world_meta.json` 里被持久化（05 号票既有机制），`--pack` 模式下这个值天然就是 `<pack_dir>/scene.yaml` 的绝对路径，**pack 目录本身可以从它推出来**（`scene_path.parent`）。因此 restore 之后只需要一步"重新挂载"：`mud_engine.pack.reattach_pack_manifest(world)`——若 `world.scene_path` 存在且其同级目录下有 `manifest.yaml`，重新读一遍填回 `world.pack_manifest`；否则留 `None`（默认场景走这条路径天然是 no-op，因为 `engine/data/` 下没有 `manifest.yaml`）。这与 `__main__.py` 现有 restore 分支里 `attach_nature`/`attach_ai_system`/`attach_ferries`/`attach_combat_system`/`attach_entry_guards` 的"运行时态不持久化、restore 后按幂等函数重挂"是同一种手法的第 N 次复用，不是新发明一种持久化策略——这个决策直接消灭了"要不要扩展 `world_meta.json` 格式"这个原本以为需要做的工作项（一个真正的 prefactor 式简化，不是偷懒）。
+- 不扩展 `save.py`：`world.scene_path` 已经在存档 `world_meta.json` 里被持久化（05 号票既有机制），`--pack` 模式下这个值天然就是 `<pack_dir>/scene.yaml` 的绝对路径，**pack 目录本身可以从它推出来**（`scene_path.parent`）。因此 restore 之后只需要一步"重新挂载"：`openmud.pack.reattach_pack_manifest(world)`——若 `world.scene_path` 存在且其同级目录下有 `manifest.yaml`，重新读一遍填回 `world.pack_manifest`；否则留 `None`（默认场景走这条路径天然是 no-op，因为 `engine/data/` 下没有 `manifest.yaml`）。这与 `__main__.py` 现有 restore 分支里 `attach_nature`/`attach_ai_system`/`attach_ferries`/`attach_combat_system`/`attach_entry_guards` 的"运行时态不持久化、restore 后按幂等函数重挂"是同一种手法的第 N 次复用，不是新发明一种持久化策略——这个决策直接消灭了"要不要扩展 `world_meta.json` 格式"这个原本以为需要做的工作项（一个真正的 prefactor 式简化，不是偷懒）。
 
 **CLI：`--pack` 与 `--validate`（C1）**
 
-- `mud_engine/__main__.py` 新增 `argparse`（当前 `main()` 不接受任何参数，需要引入）：`--pack PATH`（可选；缺省保持现有"加载 `DEFAULT_SCENE_PATH`/走 `has_save`/`restore_world` 默认存档目录"行为不变）、`--validate`（须搭配 `--pack`；单独出现报参数错误，非零退出，不静默忽略）。
+- `openmud/__main__.py` 新增 `argparse`（当前 `main()` 不接受任何参数，需要引入）：`--pack PATH`（可选；缺省保持现有"加载 `DEFAULT_SCENE_PATH`/走 `has_save`/`restore_world` 默认存档目录"行为不变）、`--validate`（须搭配 `--pack`；单独出现报参数错误，非零退出，不静默忽略）。
 - `--pack` 分支的存档目录：`<pack_dir>/save/`（与官方默认路径 `engine/save/` 同构的"数据目录旁边放存档目录"惯例，见 `scenes.py`/`__main__.py` 现有 `DEFAULT_SAVE_DIR` 的推导方式）。启动时若该子目录已有存档（`has_save`）走 restore（含 B2 的 `reattach_pack_manifest`），否则 `load_pack(pack_dir)` 全新加载；错误处理与现有 `main()` 的 `SceneLoadError` 分支同构，新增 catch `PackManifestError`（提示信息前缀区分是"包清单"还是"场景内容"出的错）。
 - `--validate` 分支：只调 `load_pack(pack_dir)`（复用同一份校验逻辑，不写第二套），成功打印一行摘要到 stdout 并 `sys.exit(0)`；捕获 `PackManifestError`/`SceneLoadError` 打印到 stderr 并 `sys.exit(1)`；**不**创建/触碰 `<pack_dir>/save/`、不进入 `run_repl`。校验模式下即便 `<pack_dir>/save/` 已有存档也**不去 restore**（校验的是"这份包现在的样子加载起来对不对"，不是"某个存档还原得对不对"——两件事故意不混，校验应该对同一份包每次给出确定性结果，不受某次游玩产生的存档状态影响）。
 - 为保持 `main()` 可测试（延续 `cli.py`/`run_repl` 已确立的"不用真实 subprocess/stdin 测试 CLI 逻辑"原则），把"解析参数→选择分支→返回退出码"这部分拆成一个不直接调 `sys.exit` 的纯函数（如 `_main(argv: list[str]) -> int`），`main()` 本身只是 `sys.exit(_main(sys.argv[1:]))` 这一行胶水；测试直接调 `_main([...])` 断言返回码与（用 `capsys`/临时替换 stdout）打印内容，不 fork 子进程。
@@ -104,7 +104,7 @@ M1 与 M2 交付的场景 YAML 加载器（`load_scene`）已经证明"机制归
 - **LLM Orchestrator / Agent 生成流水线**：[03 号票 Refinement](../mvp-scope/issues/03-ugc-dsl-design-inheritance.md) 明确"人工写包也算打通"；本 spec 的示例包由人工（或 Agent 以文本创作者身份，非系统能力）手写，不交付任何"生成→校验→修订"的自动化编排系统。
 - **多文件场景拼接 / 单进程多包共存**：见 A1 决策；`--pack` 一次进程只加载一个包，这与 [CLAUDE.md](../../CLAUDE.md) 架构不变量第 1 条"单机、不做分布式"、第 6 条"承载扩展靠题材包数量横向扩展（很多个独立单机世界并存），不是把一个世界做成分布式系统"完全兼容——事实上"一次进程一个包"这个约束不需要任何额外代码就自动满足了"每个题材包独立进程运行"这条 [06 号票](../mvp-scope/issues/06-scaling-commercialization-support-points.md) 支撑点 #4，值得在 Further Notes 里点出，但不构成本 spec 需要交付的工作项。
 - **manifest 之外的题材包资产元数据完整方案**（双货币账本、消费/参与度埋点、创作者分成计算）：[06 号票](../mvp-scope/issues/06-scaling-commercialization-support-points.md) 明确这些是"架构支撑点，MVP 不要求实现"；本 spec 只落地 manifest 这一个最小切片（id/版本/可选创作者字段），不做账本、不做埋点、不计算任何分成。
-- **`python -m mud_engine` 默认场景切换为 M2 官方 MVP 场景**：现状是不传任何参数时加载的是 M1 的极简默认场景（`m1_default_scene.yaml`），M2 的官方武侠内容目前只能通过 `scenes.load_mvp_scene()`（`engine/scripts/verify_m2_*.py` 直接在进程内调用）玩到，`python -m mud_engine` 从未被接到过它——这是一个与本 spec 目标无关的既有缺口（"默认玩到哪个场景"是产品选择问题，不是"UGC 闭环"问题），本 spec **不修复**它，只是顺带指出，避免被误认为遗漏（若要修，应该是一张独立的、单独讨论"默认场景该是什么"的票，不搭本 spec 的车）。
+- **`python -m openmud` 默认场景切换为 M2 官方 MVP 场景**：现状是不传任何参数时加载的是 M1 的极简默认场景（`m1_default_scene.yaml`），M2 的官方武侠内容目前只能通过 `scenes.load_mvp_scene()`（`engine/scripts/verify_m2_*.py` 直接在进程内调用）玩到，`python -m openmud` 从未被接到过它——这是一个与本 spec 目标无关的既有缺口（"默认玩到哪个场景"是产品选择问题，不是"UGC 闭环"问题），本 spec **不修复**它，只是顺带指出，避免被误认为遗漏（若要修，应该是一张独立的、单独讨论"默认场景该是什么"的票，不搭本 spec 的车）。
 
 ## Further Notes
 

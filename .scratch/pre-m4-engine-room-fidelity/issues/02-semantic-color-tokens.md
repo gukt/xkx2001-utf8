@@ -23,7 +23,7 @@ Status: resolved
 实现摘要（供 07 回写契约）：
 
 - **语法**：`<c:name>…</c>`；色名仅 `red|green|yellow|blue|magenta|cyan|white`；无嵌套；`</c>` 复原。
-- **模块**：`mud_engine.semantic_color` — `validate_markup` / `strip_tokens` / `render_ansi`。
+- **模块**：`openmud.semantic_color` — `validate_markup` / `strip_tokens` / `render_ansi`。
 - **校验挂点**：`scene_loader._validated_description_texts`（房间/物品 `_attach_identity_and_description` + NPC `SpawnerBlueprint` 登记）；`capabilities._parse_room_details`（details 文案）。`--validate` 经 `load_pack`→`load_scene` 同路径。
-- **CLI**：`run_repl(..., color=None|True|False)`；`python -m mud_engine --color` / `--no-color`；默认 `output_stream.isatty()`。
+- **CLI**：`run_repl(..., color=None|True|False)`；`python -m openmud --color` / `--no-color`；默认 `output_stream.isatty()`。
 - **官方**：`yangzhou_guangchang.details.旗杆` 含 `<c:yellow>旗角</c>`。

@@ -1,8 +1,11 @@
 ---
-Status: accepted
+Status: superseded
+Superseded by: "0013-rename-package-to-openmud"
 ---
 
 # Python 包名定为 mud_engine
+
+> 本 ADR 已被 [ADR-0013](0013-rename-package-to-openmud.md) 取代。当前 import 包名为 `openmud`，详见 0013。
 
 M1 绿场启动前，将 import 包从 ADR-0002 约定的 `src/xkx/` 改为 `src/mud_engine/`（`import mud_engine`）。`pyproject.toml` 发行名为 `mud-engine`。理由：新目标是题材无关核心引擎，不再绑定《侠客行》品牌语义；`mud_engine` 不与工作区目录 `engine/` 同名，避免 `import engine` 与路径混淆；绿场阶段改名成本最低。archive tag `archive/engine-pre-m1-rewrite` 内旧路径仍为 `engine/src/xkx/...`，查阅命令不变。
 

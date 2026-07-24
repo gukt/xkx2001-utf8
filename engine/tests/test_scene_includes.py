@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import Container, Identity, Position
-from mud_engine.scene_loader import SceneLoadError, load_scene
+from openmud.components import Container, Identity, Position
+from openmud.scene_loader import SceneLoadError, load_scene
 
 _BASE_SCENE = """
 includes:

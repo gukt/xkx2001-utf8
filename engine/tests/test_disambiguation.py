@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.components import Engaged, Identity
-from mud_engine.matching import Ambiguous, IndexOutOfRange, ResolvedEntity, match_entity_target
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
+from openmud.components import Engaged, Identity
+from openmud.matching import Ambiguous, IndexOutOfRange, ResolvedEntity, match_entity_target
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -96,7 +96,7 @@ class TestAskAttackDisambiguation:
         execute_line(world, player_id, "attack 官兵 2")
         assert world.require_component(player_id, Engaged).opponent == g2
         # 脱离再打另一个
-        from mud_engine.combat_system import clear_engagement
+        from openmud.combat_system import clear_engagement
 
         clear_engagement(world, player_id, reason="disengage")
         execute_line(world, player_id, "attack 官兵 1")

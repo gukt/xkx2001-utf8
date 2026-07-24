@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from mud_engine.components import EntryGuard, Position
-from mud_engine.errors import SceneLoadError
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_mvp_scene
+from openmud.components import EntryGuard, Position
+from openmud.errors import SceneLoadError
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_mvp_scene
 
 
 def _write_scene(tmp_path: Path, data: dict) -> Path:

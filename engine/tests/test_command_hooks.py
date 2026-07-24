@@ -16,17 +16,17 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from mud_engine.commands import (
+from openmud.commands import (
     ON_COMMAND_AFTER,
     ON_COMMAND_BEFORE,
     Allow,
     Deny,
     Replace,
 )
-from mud_engine.components import Container
-from mud_engine.intent import Intent
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
+from openmud.components import Container
+from openmud.intent import Intent
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
 
 
 class TestCommandLifecycleContract:

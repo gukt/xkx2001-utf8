@@ -27,9 +27,9 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.components import Currency, Identity
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
+from openmud.components import Currency, Identity
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
 
 
 def _scenario_bank() -> ScenarioResult:
@@ -86,7 +86,7 @@ def _scenario_insufficient() -> ScenarioResult:
         ],
     )
     # 确认没买到
-    from mud_engine.components import Container
+    from openmud.components import Container
 
     bag = world.get_component(player_id, Container)
     has_blade = False

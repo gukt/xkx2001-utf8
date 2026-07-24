@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import (
+from openmud.components import (
     Container,
     Description,
     Doors,
@@ -19,10 +19,10 @@ from mud_engine.components import (
     Identity,
     Position,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import SceneLoadError, load_scene
-from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
+from openmud.parsing import execute_line
+from openmud.scene_loader import SceneLoadError, load_scene
+from openmud.scenes import build_world
+from openmud.world import EntityId, World
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

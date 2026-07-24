@@ -5,10 +5,10 @@ seam：双 ``PlayerSession`` + ``execute_line`` / ``drain_messages`` / ``broadca
 
 from __future__ import annotations
 
-from mud_engine.components import Exits, PlayerSession, Position
-from mud_engine.messaging import CHANNELS, broadcast_system, publish_channel
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
+from openmud.components import Exits, PlayerSession, Position
+from openmud.messaging import CHANNELS, broadcast_system, publish_channel
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
 
 
 class TestChannelChat:

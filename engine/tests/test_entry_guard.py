@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mud_engine.conditions import ConditionContext, Predicate, StubContext, evaluate
-from mud_engine.entity_gate import EntityGateContext
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
+from openmud.conditions import ConditionContext, Predicate, StubContext, evaluate
+from openmud.entity_gate import EntityGateContext
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:

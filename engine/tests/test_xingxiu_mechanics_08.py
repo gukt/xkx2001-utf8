@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.components import (
+from openmud.components import (
     BlockEntry,
     BlockExits,
     Container,
@@ -20,16 +20,16 @@ from mud_engine.components import (
     RoomHookBinding,
     Valuable,
 )
-from mud_engine.parsing import execute_line
-from mud_engine.room_hooks import (
+from openmud.parsing import execute_line
+from openmud.room_hooks import (
     BanditAmbushHook,
     RoomHookContext,
     clear_room_hooks,
     get_room_hook,
 )
-from mud_engine.scene_loader import load_scene
-from mud_engine.scenes import load_xingxiu_mechanics
-from mud_engine.world import World
+from openmud.scene_loader import load_scene
+from openmud.scenes import load_xingxiu_mechanics
+from openmud.world import World
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +81,7 @@ player:
 
 def _minimal_ambush_world() -> tuple[World, int, int]:
     """手工 World：蓝图已登记、房间空、绑定 bandit_ambush。"""
-    from mud_engine.ai import SpawnerBlueprint
+    from openmud.ai import SpawnerBlueprint
 
     world = World()
     trail = world.create_entity()

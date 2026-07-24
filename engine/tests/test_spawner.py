@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from mud_engine.ai import spawn_scan
-from mud_engine.components import (
+from openmud.ai import spawn_scan
+from openmud.components import (
     Description,
     Exits,
     Identity,
@@ -23,7 +23,7 @@ from mud_engine.components import (
     NpcSpawnMeta,
     Position,
 )
-from mud_engine.scene_loader import SceneLoadError, load_scene
+from openmud.scene_loader import SceneLoadError, load_scene
 
 
 class _ScriptedChoiceRng(random.Random):

@@ -8,9 +8,9 @@
 
 from collections.abc import Callable
 
-from mud_engine.events import ON_TICK
-from mud_engine.tick import DEFAULT_SAVE_INTERVAL, TickLoop
-from mud_engine.world import World
+from openmud.events import ON_TICK
+from openmud.tick import DEFAULT_SAVE_INTERVAL, TickLoop
+from openmud.world import World
 
 
 def _spy() -> tuple[list[int], Callable[[], None]]:

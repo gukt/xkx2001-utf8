@@ -1,6 +1,6 @@
 # Session notes：LPC 房间语义对照 → Polishing 候选（2026-07-23）
 
-> 目的：收束本 session 对照《侠客行》房间/DSL 与当前 `mud_engine` 的差距，供下一 session
+> 目的：收束本 session 对照《侠客行》房间/DSL 与当前 `openmud` 的差距，供下一 session
 > `/grill-with-docs`（grilling + domain-modeling）拍板：**哪些进 polishing / 打磨抛光里程碑**，
 > 哪些进 GAP 后置 / post-MVP，哪些明确不做。
 >
@@ -304,10 +304,10 @@ B7 `invalid_startroom` · C15 额外 valid_leave 脚本化
 - **问答出处**：[session-qa-provenance-2026-07-23.md](session-qa-provenance-2026-07-23.md)（Q1–Q15 ↔ LPC/YAML ↔ 候选 ID）
 - 契约：`docs/creator-contract-v0.md`（exits 字符串\|映射、details、outdoors、entry_guard、block_exits）
 - GAP：`docs/gap-ledger.md`（液体；多文件场景；剧情门；运行时机关）
-- 条件：`engine/src/mud_engine/ai.py` `condition_from_data`；`entity_gate.py`
+- 条件：`engine/src/openmud/ai.py` `condition_from_data`；`entity_gate.py`
 - 出口解析：`scene_loader._exit_target`（已支持裸字符串）
 - 方位简写：`parsing.DIRECTION_SHORTCUTS`（仅 n/s/e/w）——**A1 拍板后将扩展**，见上文「出口导航」
-- Nature：`engine/src/mud_engine/nature.py`（World 单例）
+- Nature：`engine/src/openmud/nature.py`（World 单例）
 - 风景决策：`.scratch/pre-m4-engine-room-fidelity/`（旧：不做括号 id）——**A4 拍板部分修正**，见上文「房间风景 details」
 - 范本：`engine/data/m2_mvp_scene.yaml`（少林 entry_guard、翰林 block_exits、旗杆语义色）
 - 外部参照（可选）：`.scratch/research/02-evennia/vs-mud-engine-2026-07-23.md`

@@ -28,9 +28,9 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.components import Faction, Position, SkillLevels
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
+from openmud.components import Faction, Position, SkillLevels
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
 
 
 def _scenario_entry_guard() -> ScenarioResult:

@@ -38,7 +38,7 @@ set("objects", ([
 - 物品：`items.<key>.placed_in: <room_key>` → 进房间 `Container`
 - NPC：`npcs.<key>.in_room`（或 `startroom`）→ `Position`；支持 `count` / `respawn`
 - 加载器文档定位：M1 过渡声明式 YAML，加载期校验坏引用（`SceneLoadError`）
-- 参考：`engine/src/mud_engine/scene_loader.py`；`engine/data/m1_default_scene.yaml` 注释
+- 参考：`engine/src/openmud/scene_loader.py`；`engine/data/m1_default_scene.yaml` 注释
 
 ### 考量（为何不做成 objects）
 
@@ -163,11 +163,11 @@ set("objects", ([
 
 | 主题 | 路径 |
 |---|---|
-| 场景加载 / placed_in / in_room | `engine/src/mud_engine/scene_loader.py` |
-| 门锁命令 | `engine/src/mud_engine/commands.py`（open/close/unlock） |
+| 场景加载 / placed_in / in_room | `engine/src/openmud/scene_loader.py` |
+| 门锁命令 | `engine/src/openmud/commands.py`（open/close/unlock） |
 | 门锁测试（钥匙不消耗） | `engine/tests/test_doors.py` |
-| EntryGuard / is_night | `engine/src/mud_engine/entity_gate.py`、`nature.py` |
-| Consumable 占位 | `engine/src/mud_engine/components.py` |
+| EntryGuard / is_night | `engine/src/openmud/entity_gate.py`、`nature.py` |
+| Consumable 占位 | `engine/src/openmud/components.py` |
 | MVP 场景 YAML | `engine/data/m2_mvp_scene.yaml` |
 | LPC 藏书阁 | `d/city/cangshuge.c` |
 | LPC 酒馆灌酒 | `d/city/jiuguan.c` |

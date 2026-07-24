@@ -32,11 +32,11 @@ from verify_harness import (
     run_lines,
 )
 
-from mud_engine.conditions import And, Equals, Predicate, evaluate
-from mud_engine.nature import Weather
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
-from mud_engine.world import World
+from openmud.conditions import And, Equals, Predicate, evaluate
+from openmud.nature import Weather
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
+from openmud.world import World
 
 _EXPECTED_PHASES = ("dawn", "day", "dusk", "night")
 _DAY_DESC = "日正当空，天色晴朗。"

@@ -28,7 +28,7 @@ Status: resolved
   - `DetailEntry.aliases: tuple[str, ...]`
   - `RoomDetails.entries: dict[str, DetailEntry]`（主键推荐无空格英文 id）
 - **加载**：解析实际在 `capabilities._parse_room_details`（房间能力注册表，非 `scene_loader` 直写）。旧「键→纯字符串」→ `DetailEntry(text=值, aliases=(键,))`；K2 形状要求主键匹配 `^[A-Za-z][A-Za-z0-9_]*$`。官方范本未强制迁移，双轨兼容。
-- **N1 / look**：`mud_engine.room_details.normalize_detail_token` / `resolve_detail`；look id `casefold`；`parsing._parse_look` 目标改为 `" ".join(args)` 以支持空格拼音别名。
+- **N1 / look**：`openmud.room_details.normalize_detail_token` / `resolve_detail`；look id `casefold`；`parsing._parse_look` 目标改为 `" ".join(args)` 以支持空格拼音别名。
 - **S1 扫描签名（钉死，供客户端）**
 
 ```python

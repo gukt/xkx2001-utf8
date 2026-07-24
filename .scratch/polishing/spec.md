@@ -23,7 +23,7 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-2026-07-23 的 LPC 房间语义对照 session（`d/xixia/*` 只读参考 vs 当前 `mud_engine`）找出了一批创作者/玩家能感知到的摩擦点和空白：出口只能用英文简写或手写中文别名，导航体验比 LPC 生硬；房间风景没有统一的「括号展示名」心智，玄机跟《侠客行》玩家习惯脱节；NPC 挡路只有一句固定文案；步行不消耗玩家精力（骑乘却会），策略深度打折；没有客店/睡觉/液体/进食这些「生活闭环」原语，声明式内容包做不出对应体验；进房刷怪写不出「背包带贵重物才刷」这类条件；场景内容仍锁死单文件，无法引用跨文件模板；房间天气永远是全局一套，做不出「山顶终年多雾」。这些缺口此前散落在 GAP 台账「未支持/后置」里，或完全没有被记录。
+2026-07-23 的 LPC 房间语义对照 session（`d/xixia/*` 只读参考 vs 当前 `openmud`）找出了一批创作者/玩家能感知到的摩擦点和空白：出口只能用英文简写或手写中文别名，导航体验比 LPC 生硬；房间风景没有统一的「括号展示名」心智，玄机跟《侠客行》玩家习惯脱节；NPC 挡路只有一句固定文案；步行不消耗玩家精力（骑乘却会），策略深度打折；没有客店/睡觉/液体/进食这些「生活闭环」原语，声明式内容包做不出对应体验；进房刷怪写不出「背包带贵重物才刷」这类条件；场景内容仍锁死单文件，无法引用跨文件模板；房间天气永远是全局一套，做不出「山顶终年多雾」。这些缺口此前散落在 GAP 台账「未支持/后置」里，或完全没有被记录。
 
 这批缺口已经过两轮 `/grill-with-docs`（本文档目录 `session-notes-2026-07-23.md` + `session-qa-provenance-2026-07-23.md`）逐项拍板：13 项（A1+A2、A3、A4、A5、B6、B8、B9、C10、C11、C12、C13、C14）纳入一个新命名 effort「Polishing（打磨抛光）」，**纳入即承诺本阶段实现**（可拆细票，不得以体量为由后置出本阶段）；另 2 项（B7 `invalid_startroom`、C15 `valid_leave` 脚本化）留在 GAP·后置，不进本 effort。
 
@@ -233,7 +233,7 @@ Status: ready-for-agent
 
 **复用的既有 seam**（本仓库贯穿全部子系统的标准手法，13 项优先复用，不新增 seam 除非该项确实需要）：
 
-- **S1 `execute_line`**（`mud_engine.parsing.execute_line`）：命令级黑盒测试，构造场景 YAML（或复用 `load_mvp_scene()` 官方范本）→ `load_scene` → 逐条 `execute_line` 断言输出文案/状态变化。适用于 A1+A2（导航输入形式矩阵）、A4（`look` 风景匹配矩阵）、A5（挡路文案）、B6（步行精力扣减/拒走）、B8（`sleep`/`hotel`/`rent_paid` 全流程）、C10（`fill`/`drink`/`eat`）、C12（刷怪触发条件）。Prior art：`test_room_details.py`、`test_doors.py`、`test_story_doors.py`、`test_day_shop.py`、`test_mount.py`。
+- **S1 `execute_line`**（`openmud.parsing.execute_line`）：命令级黑盒测试，构造场景 YAML（或复用 `load_mvp_scene()` 官方范本）→ `load_scene` → 逐条 `execute_line` 断言输出文案/状态变化。适用于 A1+A2（导航输入形式矩阵）、A4（`look` 风景匹配矩阵）、A5（挡路文案）、B6（步行精力扣减/拒走）、B8（`sleep`/`hotel`/`rent_paid` 全流程）、C10（`fill`/`drink`/`eat`）、C12（刷怪触发条件）。Prior art：`test_room_details.py`、`test_doors.py`、`test_story_doors.py`、`test_day_shop.py`、`test_mount.py`。
 - **S2 `load_scene`（契约字段消费）**：断言新字段被解析成组件而不是落进 `world.entity_extension_data(entity)`/`World.extension_data`（透传），以及非法形状（如同时写 `to` 与 `random_of`、`hotel` 与旧字段冲突等）加载失败并给出定位到场景文件的错误信息。适用于 A4/A5/B8/C10/C11/C13 的字段解析部分。Prior art：`test_room_details.py::TestRoomDetailsLoad`（`assert "details" not in extras` 模式）、`test_scene_loader.py`。
 - **S3 `--pack --validate[--strict]` CLI**：适用于 C12（UGC 包声明 `hooks` 必须失败——复用既有 ADR-0012 边界测试模式）、C13（include 路径越界/文件缺失/内容包轨是否允许 include 的校验）。Prior art：`test_load_pack.py`、`test_pack_manifest.py`、`test_room_hooks.py` 里 UGC 边界相关用例。
 - **S4 `ai.spawn_scan`**：C11 需要在补刷粒度（不止加载粒度）断言「多次触发补刷得到不同候选」，用注入的确定性 rng 或多次运行统计分布，不能只在 `load_scene` 一次性加载后断言（否则测不出「补刷时重新抽签」这个区别于出口 `random_of` 的核心行为）。Prior art：`test_spawner.py`（现有 `spawn_scan` 测试范式）。

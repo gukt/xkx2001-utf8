@@ -29,7 +29,7 @@
 
 - **范本**：[`engine/data/m2_mvp_scene.yaml`](../engine/data/m2_mvp_scene.yaml)——华山村 / 扬州子集 / 少林 / 野外 / 官道 / 渡口等 MVP 分区，单文件、无 `manifest.yaml`。
 - **写法**：直接写 `rooms` / `items` / `npcs` / `player` 等顶层段，字段语义与内容包内的 `scene.yaml` **完全相同**。
-- **CLI 现状（诚实记录）**：`python -m mud_engine`（无 `--pack`）当前默认加载的是同轨、同契约的较小文件 [`engine/data/m1_default_scene.yaml`](../engine/data/m1_default_scene.yaml)（经 `scenes.build_world()`）。玩或回归 M2 MVP 武侠场景走 `load_mvp_scene()` / `just verify-m2*`，不是另开一套语法。
+- **CLI 现状（诚实记录）**：`python -m openmud`（无 `--pack`）当前默认加载的是同轨、同契约的较小文件 [`engine/data/m1_default_scene.yaml`](../engine/data/m1_default_scene.yaml)（经 `scenes.build_world()`）。玩或回归 M2 MVP 武侠场景走 `load_mvp_scene()` / `just verify-m2*`，不是另开一套语法。
 
 ## 内容包轨
 
@@ -40,13 +40,13 @@
 
 ```bash
 # 加载并进入 REPL（存档落在包目录下 save/）
-python -m mud_engine --pack .scratch/m3-ugc-loop-creation-surface/example-pack
+python -m openmud --pack .scratch/m3-ugc-loop-creation-surface/example-pack
 
 # 只校验，不进 REPL
-python -m mud_engine --pack .scratch/m3-ugc-loop-creation-surface/example-pack --validate
+python -m openmud --pack .scratch/m3-ugc-loop-creation-surface/example-pack --validate
 
 # 未消费（透传）字段视为失败
-python -m mud_engine --pack .scratch/m3-ugc-loop-creation-surface/example-pack --validate --strict
+python -m openmud --pack .scratch/m3-ugc-loop-creation-surface/example-pack --validate --strict
 ```
 
 `--validate` / `--strict` 必须搭配 `--pack`；不能用来「单独校验」官方轨单文件（官方场景由引擎测试与 verify 脚本覆盖）。细节见创作者契约「机器可检查侧」。

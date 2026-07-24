@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from collections import deque
 
-from mud_engine.ai import spawn_scan
-from mud_engine.combat_system import clear_engagement
-from mud_engine.components import (
+from openmud.ai import spawn_scan
+from openmud.combat_system import clear_engagement
+from openmud.components import (
     Container,
     Currency,
     Engaged,
@@ -24,11 +24,11 @@ from mud_engine.components import (
     Unconscious,
     Vitals,
 )
-from mud_engine.death_flow import handle_vitals_depleted
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.tick import TickLoop
-from mud_engine.world import EntityId, World
+from openmud.death_flow import handle_vitals_depleted
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.tick import TickLoop
+from openmud.world import EntityId, World
 
 
 def _room(world: World, key: str) -> EntityId:

@@ -5,17 +5,17 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from mud_engine.combat import CombatContext, CombatMoveSnapshot, attach_power_model, resolve_attack
-from mud_engine.combat_system import attach_combat_system
-from mud_engine.parsing import execute_line
-from mud_engine.scene_loader import load_scene
-from mud_engine.skills import (
+from openmud.combat import CombatContext, CombatMoveSnapshot, attach_power_model, resolve_attack
+from openmud.combat_system import attach_combat_system
+from openmud.parsing import execute_line
+from openmud.scene_loader import load_scene
+from openmud.skills import (
     DemoPoisonStrikeBehavior,
     clear_skill_behaviors,
     get_skill_behavior,
     register_skill_behavior,
 )
-from mud_engine.tick import TickLoop
+from openmud.tick import TickLoop
 
 
 def _ctx(*, skill_id: str | None = None, damage: int = 10) -> CombatContext:

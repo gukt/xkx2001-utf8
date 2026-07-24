@@ -24,7 +24,7 @@
 ## 仓库拓扑
 
 - `adm/ cmds/ d/ kungfu/ ...`（仓库根）：**LPC 规格源，只读参考，禁止修改**。无论新目标如何调整，这批文件的"只读参考"性质不变。
-- [engine/](engine/)：**唯一活的 Python 引擎工作区**（绿场）。`src/mud_engine/` 包（`import mud_engine`），`tests/` 测试，`prototypes/` 为 throwaway。旧实现不在工作区，见 tag `archive/engine-pre-m1-rewrite` 与 [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)。
+- [engine/](engine/)：**唯一活的 Python 引擎工作区**（绿场）。`src/openmud/` 包（`import openmud`），`tests/` 测试，`prototypes/` 为 throwaway。旧实现不在工作区，见 tag `archive/engine-pre-m1-rewrite` 与 [ADR-0002](docs/adr/0002-engine-workspace-greenfield-reset.md)。
 - [.scratch/mvp-scope/](.scratch/mvp-scope/)：**新目标定稿的完整决策记录**（`/wayfinder` 地图，10/10 票已解决）+ [post-mvp-backlog.md](.scratch/mvp-scope/post-mvp-backlog.md)（M4 之后待排期能力）。本文件"架构不变量"是摘要；细节见 `map.md` 与 `issues/NN-*.md`。
 - [.scratch/m1-core-engine-skeleton/](.scratch/m1-core-engine-skeleton/)：**M1 里程碑** spec + issues（第 0 步工作区重置已完成，见 [00](.scratch/m1-core-engine-skeleton/issues/00-engine-workspace-reset.md)）。
 - [docs/archive/](docs/archive/)：**旧目标的完整历史归档**（架构基线、64 条 ADR、进度归档、战略复审、旧 `CLAUDE.md`/`PROGRESS.md`）。只读参考，不是当前基线，见 [docs/archive/README.md](docs/archive/README.md)。同目录下的《侠客行》架构拆解说明书（`docs/archive/xkx-arch/`）虽在"旧目标"归档里，但其设计灵感/术语参考价值在新目标下依然有效，见"架构不变量"第 4 条。旧引擎**源码**不在此目录，而在 git tag `archive/engine-pre-m1-rewrite`。

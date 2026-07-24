@@ -4,7 +4,7 @@
 （02 号票 acceptance 第 6、7 条）。按 Given/When 分组，方法名只写 Then。
 """
 
-from mud_engine.matching import Ambiguous, NoMatch, Resolved, match_target
+from openmud.matching import Ambiguous, NoMatch, Resolved, match_target
 
 # 一组稳定的示例候选：north 带中文别名"北道"与前缀简写"前"，south 只带别名。
 CANDIDATES = [

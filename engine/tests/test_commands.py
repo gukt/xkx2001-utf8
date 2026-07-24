@@ -7,10 +7,10 @@
 
 import pytest
 
-from mud_engine.components import Container, Identity, Position
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import build_world
-from mud_engine.world import EntityId, World
+from openmud.components import Container, Identity, Position
+from openmud.parsing import execute_line
+from openmud.scenes import build_world
+from openmud.world import EntityId, World
 
 
 def _player_room_name(world: World, player_id: EntityId) -> str:
@@ -293,7 +293,7 @@ class TestCommandAliasConflicts:
     finally 里清理，避免污染全局注册表影响其他测试。"""
 
     def test_alias_colliding_with_a_canonical_verb_raises(self) -> None:
-        from mud_engine import commands
+        from openmud import commands
 
         with pytest.raises(ValueError):
 
@@ -303,7 +303,7 @@ class TestCommandAliasConflicts:
         commands._REGISTRY.pop("__conflict_canonical__", None)
 
     def test_alias_already_claimed_by_another_command_raises(self) -> None:
-        from mud_engine import commands
+        from openmud import commands
 
         @commands.register("__temp_owner__", aliases=("__dup__",))
         def _a(world, player_id, intent): ...

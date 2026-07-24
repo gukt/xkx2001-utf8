@@ -28,10 +28,10 @@ from verify_harness import (
     room_by_key,
 )
 
-from mud_engine.components import Currency, Position
-from mud_engine.pack import load_pack
-from mud_engine.parsing import execute_line
-from mud_engine.world import EntityId, World
+from openmud.components import Currency, Position
+from openmud.pack import load_pack
+from openmud.parsing import execute_line
+from openmud.world import EntityId, World
 
 _EXAMPLE_PACK = (
     Path(__file__).resolve().parents[2]

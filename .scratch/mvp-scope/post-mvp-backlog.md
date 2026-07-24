@@ -17,7 +17,7 @@
 - 账户体系
 - AI Agent 创作辅助（生成 / 改稿 / 评审编排）
 
-**引擎侧只保留**：内容包格式与加载、可复用校验、运行时安全护栏、题材包元数据接缝（对齐 [06](issues/06-scaling-commercialization-support-points.md)）。不在 `mud_engine` 内建编辑器或 Agent 编排。
+**引擎侧只保留**：内容包格式与加载、可复用校验、运行时安全护栏、题材包元数据接缝（对齐 [06](issues/06-scaling-commercialization-support-points.md)）。不在 `openmud` 内建编辑器或 Agent 编排。
 
 ### 留言板 / 异步公告（多人世界互动阶段再评估）
 

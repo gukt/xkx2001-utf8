@@ -5,12 +5,12 @@ Seam：``load_mvp_scene`` + ``execute_line``。
 
 from __future__ import annotations
 
-from mud_engine.components import Container, Faction, Identity, Position, SkillLevels
-from mud_engine.factions import FACTIONS
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.skills import SKILLS
-from mud_engine.world import EntityId, World
+from openmud.components import Container, Faction, Identity, Position, SkillLevels
+from openmud.factions import FACTIONS
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.skills import SKILLS
+from openmud.world import EntityId, World
 
 
 def _room(world: World, key: str) -> EntityId:
@@ -24,7 +24,7 @@ def _move_to(world: World, player_id: EntityId, key: str) -> None:
 
 def _give_edged_blade(world: World, player_id: EntityId) -> None:
     """把场景里的钢刀模板实例放进玩家背包（验证刃器不再挡门）。"""
-    from mud_engine.scene_loader import instantiate_item
+    from openmud.scene_loader import instantiate_item
 
     blade = instantiate_item(world, "steel_blade")
     bag = world.get_component(player_id, Container)
@@ -68,7 +68,7 @@ class TestShaolinTemple:
 
     def test_entry_guard_denies_wrong_gender(self) -> None:
         world, player_id = load_mvp_scene()
-        from mud_engine.components import Gender
+        from openmud.components import Gender
 
         world.require_component(player_id, Gender).value = "female"
         _move_to(world, player_id, "road_shaolin")

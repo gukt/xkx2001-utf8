@@ -8,12 +8,12 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from mud_engine.combat import attach_power_model
-from mud_engine.components import Engaged, Identity, Vitals
-from mud_engine.parsing import execute_line
-from mud_engine.save import restore_world, save_world
-from mud_engine.scene_loader import load_scene
-from mud_engine.tick import TickLoop
+from openmud.combat import attach_power_model
+from openmud.components import Engaged, Identity, Vitals
+from openmud.parsing import execute_line
+from openmud.save import restore_world, save_world
+from openmud.scene_loader import load_scene
+from openmud.tick import TickLoop
 
 
 def _write_scene(tmp_path: Path, content: str) -> Path:
@@ -183,7 +183,7 @@ player:
 class TestFleeCommand:
     def test_flee_success_clears_engagement(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
-        from mud_engine.combat_system import attach_combat_system
+        from openmud.combat_system import attach_combat_system
 
         attach_combat_system(world, rng=random.Random(0))  # seed 保证成功路径可测
         # 用恒成功 rng：random() < 0.5 对 Random(1) 的首个 random 可能失败；
@@ -198,7 +198,7 @@ class TestFleeCommand:
 
     def test_flee_failure_takes_extra_hit(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
-        from mud_engine.combat_system import attach_combat_system
+        from openmud.combat_system import attach_combat_system
 
         attach_combat_system(world, rng=random.Random(0), flee_success_chance=0.0)
         execute_line(world, player_id, "attack 山贼")
@@ -212,7 +212,7 @@ class TestFleeCommand:
 class TestCombatTick:
     def test_tick_reduces_qi_deterministically(self, tmp_path: Path) -> None:
         world, player_id = load_scene(_write_scene(tmp_path, _SCENE))
-        from mud_engine.combat_system import attach_combat_system
+        from openmud.combat_system import attach_combat_system
 
         attach_power_model(world)
         attach_combat_system(world, rng=random.Random(42))

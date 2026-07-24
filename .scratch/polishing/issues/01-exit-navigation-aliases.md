@@ -24,7 +24,7 @@ Status: resolved
 
 ### 实现摘要（2026-07-23）
 
-- **内置同义词表结构**：新模块 `engine/src/mud_engine/directions.py`。权威表 `DIRECTION_FORMS: dict[str, tuple[str, str]]`（方向键 → `(英文简写, 中文)`）；`builtin_aliases` 展开为 `(全写, 简写, 中文)`。本批**仅十向**，不含 `in`/`out`。旧 `parsing.DIRECTION_SHORTCUTS` 已删除，裸英文解析走 `resolve_english_bare`（由同一表派生）。
+- **内置同义词表结构**：新模块 `engine/src/openmud/directions.py`。权威表 `DIRECTION_FORMS: dict[str, tuple[str, str]]`（方向键 → `(英文简写, 中文)`）；`builtin_aliases` 展开为 `(全写, 简写, 中文)`。本批**仅十向**，不含 `in`/`out`。旧 `parsing.DIRECTION_SHORTCUTS` 已删除，裸英文解析走 `resolve_english_bare`（由同一表派生）。
 - **候选合并**：`merge_exit_match_names` / `DeterministicParser._merged_direction_aliases`——① 出口 aliases → ② 目标房 `Identity.name`+`aliases` → ③ 内置。解析与门命令共用 `_direction_candidates`；`look` 经 `exit_display_label` 读同一 `DIRECTION_FORMS`（避免两套表）。
 - **去重策略**：大小写不敏感、**先出现者保留**（自定义层优先占位，内置重名丢弃）。`look` 只展示 `中(english)`，不枚举全部 aliases。
 - **拒绝原因**：新增 `Reason.REQUIRES_GO`；提示「「X」须写成 go X。」；与 `UNKNOWN_VERB`（未知命令）区分。裸英文全写/简写仍合法；裸中文方位或**含 CJK**且能命中出口候选的裸中文地名 → `REQUIRES_GO`；裸英文非方向绰号仍 `UNKNOWN_VERB`。

@@ -5,10 +5,10 @@ Seam：``load_mvp_scene`` + ``execute_line``。
 
 from __future__ import annotations
 
-from mud_engine.components import Currency, Exits, Identity, Mount, Position, Riding
-from mud_engine.parsing import execute_line
-from mud_engine.scenes import load_mvp_scene
-from mud_engine.world import EntityId, World
+from openmud.components import Currency, Exits, Identity, Mount, Position, Riding
+from openmud.parsing import execute_line
+from openmud.scenes import load_mvp_scene
+from openmud.world import EntityId, World
 
 
 def _room(world: World, key: str) -> EntityId:
