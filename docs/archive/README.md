@@ -11,7 +11,7 @@
 | 路径 | 归档前是什么 | 用途 |
 |---|---|---|
 | [xkx-arch/](xkx-arch/) | 架构基线文档（00-17 + README），含 `_archive/` 内更早的 v1→v2 重设记录——**这是本项目第二次做这种整体重设** | 查旧目标架构的设计与论证 |
-| [adr/](adr/) | `ADR-0001` ～ `ADR-0064` 决策日志 | 查某个实现决策当时的背景与取舍；新 ADR 见根目录 [docs/adr/](../adr/)（重新从头编号，格式见 [domain-modeling ADR-FORMAT](../../.claude/skills/domain-modeling/ADR-FORMAT.md)，不带 `ADR-` 前缀） |
+| [adr/](adr/) | `ADR-0001` ～ `ADR-0064` 决策日志 | 查某个实现决策当时的背景与取舍；新 ADR 见根目录 [docs/adr/](../adr/)（重新从头编号，格式见 [domain-modeling ADR-FORMAT](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/ADR-FORMAT.md)，不带 `ADR-` 前缀） |
 | [strategy-review/](strategy-review/) | 2026-07-16 的 5 视角红队战略复审，9 条基线修订提案 | 本次重设的直接导火索之一；里面对"进度/偏离/取舍/推进方式"的分析在重新定目标时仍有参考价值 |
 | [progress-archive/](progress-archive/) | 按阶段（-1/0/1/2/M2/M3）归档的 Done 历史 | 查某个阶段具体做了什么、测试数、关联 ADR |
 | [batch-cost.md](batch-cost.md) | AI agent 迁移的 token/时长成本台账 | 估算未来工作量时的历史基准数据 |

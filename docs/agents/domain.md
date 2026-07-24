@@ -5,7 +5,7 @@
 ## 探索前先读这些
 
 - 根目录下的 **`CONTEXT.md`**（如果存在）。
-- **`docs/adr/`**——重设后的新决策日志，从头编号，惰性创建（第一条 ADR 落地时才建目录）。格式 `NNNN-slug.md`，不带 `ADR-` 前缀，见 [ADR-FORMAT.md](../../.claude/skills/domain-modeling/ADR-FORMAT.md)。
+- **`docs/adr/`**——重设后的新决策日志，从头编号，惰性创建（第一条 ADR 落地时才建目录）。格式 `NNNN-slug.md`，不带 `ADR-` 前缀，见 [ADR-FORMAT.md](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/ADR-FORMAT.md)。
 - **`CLAUDE.md`**——本仓库的操作手册；按其自身要求，每个 session 都要读，无论主题是什么。
 - **`docs/archive/`**——2026-07-17 项目重设前的完整历史（旧架构基线 `docs/xkx-arch/`、旧 ADR `ADR-0001`～`ADR-0064`、旧 `PROGRESS.md`、旧 `CLAUDE.md`、战略复审）。**只读背景参考，不是当前基线**——查某个历史决策的论证过程、或理解 `engine/` 代码里一段实现的来龙去脉时才去找，见 [docs/archive/README.md](../archive/README.md)。不要把这里的结论当作当前应遵循的约束。
 
