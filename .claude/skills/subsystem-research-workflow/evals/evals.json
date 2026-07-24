@@ -1,0 +1,97 @@
+{
+  "skill_name": "subsystem-research-workflow",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "combat-system-research-request",
+      "prompt": "帮我组织团队深度调研一下战斗系统。要基于当前仓库的一手资料，全局和细节兼顾，最后输出到 .scratch/research/ 下。",
+      "expected_output": "代理应先通过 grilling 对齐范围、团队、产出与约束；然后创建 .scratch/research/ 下带序号主题目录；组织多 Agent 并行 Workflow（一手考古、机制抽象、现代评审、红队对抗、评审委员会汇总）；产出源码清单、User Stories、引擎设计灵感、红队报告与最终汇总；默认不自动 commit。",
+      "assertions": [
+        {
+          "name": "starts_with_grilling_or_alignment",
+          "description": "Agent 应先通过 grilling 对齐范围/团队/产出/约束，或在参数已确认时直接说明已确认的参数。"
+        },
+        {
+          "name": "creates_structured_research_directory",
+          "description": "应在 .scratch/research/ 下创建带序号主题目录（如 NN-topic-name/）。"
+        },
+        {
+          "name": "generates_brief_md",
+          "description": "应在 00-brief/ 下生成 brief.md，包含范围、团队、方法、约束。"
+        },
+        {
+          "name": "proposes_multi_agent_workflow",
+          "description": "应提到使用多 Agent 并行 Workflow（Phase 1-3）或等效的团队分工机制。"
+        },
+        {
+          "name": "includes_modern_perspectives",
+          "description": "应体现现代游戏设计、玩家心理或商业化等现代评审视角。"
+        },
+        {
+          "name": "no_premature_source_dive",
+          "description": "不应在对齐完成前直接深入阅读源码或给出结论。"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "economic-system-modern-perspective",
+      "prompt": "我想对经济系统做一次全面的源码调研，要特别关注现代手游的付费设计和玩家心理，看看 LPC 里哪些机制已经过时。",
+      "expected_output": "代理应识别这是游戏/MUD 子系统调研，触发 subsystem-research-workflow；在 grilling 中确认经济系统范围、现代设计/玩家心理/商业化视角的权重；保留默认团队结构但可调整角色侧重；最终产出应包含经济系统源码清单、机制抽象、三层 User Stories、现代设计批判、玩家心理分析、商业化评估与最终汇总。",
+      "assertions": [
+        {
+          "name": "starts_with_grilling_or_alignment",
+          "description": "Agent 应先通过 grilling 对齐范围/团队/产出/约束，或在参数已确认时直接说明已确认的参数。"
+        },
+        {
+          "name": "creates_structured_research_directory",
+          "description": "应在 .scratch/research/ 下创建带序号主题目录（如 NN-topic-name/）。"
+        },
+        {
+          "name": "generates_brief_md",
+          "description": "应在 00-brief/ 下生成 brief.md，包含范围、团队、方法、约束。"
+        },
+        {
+          "name": "proposes_multi_agent_workflow",
+          "description": "应提到使用多 Agent 并行 Workflow（Phase 1-3）或等效的团队分工机制。"
+        },
+        {
+          "name": "emphasizes_modern_and_commercial_perspectives",
+          "description": "应特别强调现代手游付费设计、玩家心理、商业化等视角。"
+        },
+        {
+          "name": "no_premature_source_dive",
+          "description": "不应在对齐完成前直接深入阅读源码或给出结论。"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "casual-social-system-mention",
+      "prompt": "社交系统这块我不太清楚，帮我理解一下源码里是怎么做的。",
+      "expected_output": "代理应识别"理解社交系统"属于子系统深度研究意图，触发 subsystem-research-workflow；通过 grilling 确认范围与产出；组织调研团队产出社交系统相关文档；保存到 .scratch/research/NN-social-system/。",
+      "assertions": [
+        {
+          "name": "starts_with_grilling_or_alignment",
+          "description": "Agent 应先通过 grilling 对齐范围/团队/产出/约束，或在参数已确认时直接说明已确认的参数。"
+        },
+        {
+          "name": "creates_structured_research_directory",
+          "description": "应在 .scratch/research/ 下创建带序号主题目录（如 NN-topic-name/）。"
+        },
+        {
+          "name": "generates_brief_md",
+          "description": "应在 00-brief/ 下生成 brief.md，包含范围、团队、方法、约束。"
+        },
+        {
+          "name": "proposes_multi_agent_workflow",
+          "description": "应提到使用多 Agent 并行 Workflow（Phase 1-3）或等效的团队分工机制。"
+        },
+        {
+          "name": "no_premature_source_dive",
+          "description": "不应在对齐完成前直接深入阅读源码或给出结论。"
+        }
+      ]
+    }
+  ]
+}
